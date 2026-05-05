@@ -361,6 +361,20 @@ def test_api_app_supports_configured_cors_origins():
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "https://example.com"
+    assert "GET" in response.headers["access-control-allow-methods"]
+
+    post_response = client.options(
+        "/api/analysis-requests",
+        headers={
+            "Origin": "https://example.com",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+
+    assert post_response.status_code == 200
+    assert post_response.headers["access-control-allow-origin"] == "https://example.com"
+    assert "POST" in post_response.headers["access-control-allow-methods"]
 
 
 def test_api_app_serves_latest_prices(monkeypatch):

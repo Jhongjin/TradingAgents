@@ -36,6 +36,7 @@ def create_app(
     repo: StorageRepository | None = None,
     load_repo_from_env: bool = True,
     cors_origins: list[str] | None = None,
+    cors_methods: list[str] | None = None,
     public_cache_seconds: int | None = None,
     max_price_tickers: int | None = None,
     trust_member_user_header: bool | None = None,
@@ -57,7 +58,7 @@ def create_app(
     app.state.max_price_tickers = _max_price_tickers(max_price_tickers)
     app.state.max_analysis_feed_limit = _max_analysis_feed_limit()
     app.state.trust_member_user_header = _trust_member_user_header(trust_member_user_header)
-    _install_cors(app, cors_origins)
+    _install_cors(app, cors_origins, cors_methods)
 
     @app.middleware("http")
     async def response_headers(request: Request, call_next):
@@ -325,15 +326,18 @@ def _repo_from_env() -> StorageRepository | None:
     return StorageRepository(create_storage_engine())
 
 
-def _install_cors(app: FastAPI, cors_origins: list[str] | None) -> None:
+def _install_cors(app: FastAPI, cors_origins: list[str] | None, cors_methods: list[str] | None) -> None:
     origins = cors_origins if cors_origins is not None else _csv_env("TRADINGAGENTS_API_CORS_ORIGINS")
     if not origins:
         return
+    methods = cors_methods if cors_methods is not None else _csv_env("TRADINGAGENTS_API_CORS_METHODS")
+    if not methods:
+        methods = ["GET", "POST", "OPTIONS"]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
         allow_credentials=False,
-        allow_methods=["GET"],
+        allow_methods=[method.upper() for method in methods],
         allow_headers=["*"],
     )
 
