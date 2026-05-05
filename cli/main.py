@@ -1217,5 +1217,62 @@ def analyze(
     run_analysis(checkpoint=checkpoint)
 
 
+@app.command("process-analysis-requests")
+def process_analysis_requests(
+    limit: int = typer.Option(1, "--limit", min=1, help="Maximum queued requests to process."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="List queued requests without running analysis."),
+):
+    """Process queued site analysis refresh requests."""
+
+    import os
+
+    from tradingagents.site.analysis_runner import run_tradingagents_graph_for_request
+    from tradingagents.site.analysis_worker import process_queued_analysis_requests
+    from tradingagents.storage import StorageRepository, create_storage_engine
+
+    if not os.getenv("DATABASE_URL"):
+        raise typer.BadParameter("DATABASE_URL is required for the analysis request worker")
+
+    repo = StorageRepository(create_storage_engine())
+    if dry_run:
+        queued = repo.list_analysis_requests(status="queued", limit=limit)
+        if not queued:
+            console.print("[yellow]No queued analysis requests.[/yellow]")
+            return
+        table = Table(title="Queued Analysis Requests", box=box.SIMPLE_HEAD)
+        table.add_column("ID")
+        table.add_column("Ticker")
+        table.add_column("Trade Date")
+        table.add_column("Reason")
+        for request in queued:
+            table.add_row(
+                str(request["id"]),
+                str(request["ticker_code"]),
+                str(request["requested_trade_date"]),
+                str(request.get("reason") or ""),
+            )
+        console.print(table)
+        return
+
+    results = process_queued_analysis_requests(
+        repo,
+        lambda request: run_tradingagents_graph_for_request(
+            request,
+            config={"database_url": os.getenv("DATABASE_URL")},
+        ),
+        limit=limit,
+    )
+    if not results:
+        console.print("[yellow]No queued analysis requests.[/yellow]")
+        return
+    for result in results:
+        if result.status == "completed":
+            console.print(
+                f"[green]Completed[/green] {result.ticker_code}: analysis_run_id={result.analysis_run_id}"
+            )
+        else:
+            console.print(f"[red]Failed[/red] {result.ticker_code}: {result.error}")
+
+
 if __name__ == "__main__":
     app()

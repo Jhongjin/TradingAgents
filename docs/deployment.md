@@ -53,6 +53,16 @@ the persisted `analysis_runs.id`. The first graph runner adapter is
 it enables the graph storage hook and expects `last_analysis_run_id` after
 `propagate(...)`.
 
+For an operator-run worker:
+
+```bash
+tradingagents process-analysis-requests --dry-run
+tradingagents process-analysis-requests --limit 1
+```
+
+The worker requires `DATABASE_URL` and processes queued rows one at a time by
+default.
+
 Member routes require an authenticated user context before they will return
 portfolio or watchlist data. By default the API verifies `Authorization: Bearer
 <Supabase access token>` by calling Supabase Auth `/auth/v1/user` with

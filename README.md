@@ -371,6 +371,9 @@ is accepted only behind an explicitly trusted auth layer.
 
 See [`docs/deployment.md`](docs/deployment.md) for the Vercel entrypoint,
 rewrites, and production environment checklist.
+Queued analysis refreshes can be inspected with
+`tradingagents process-analysis-requests --dry-run` and processed with
+`tradingagents process-analysis-requests --limit 1`.
 
 ## Contributing
 
