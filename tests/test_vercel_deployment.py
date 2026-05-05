@@ -19,6 +19,10 @@ def test_vercel_json_routes_api_and_health_to_fastapi_entrypoint():
         "destination": "/api/index.py",
     } in config["rewrites"]
     assert {
+        "source": "/analyses",
+        "destination": "/api/index.py",
+    } in config["rewrites"]
+    assert {
         "source": "/stocks",
         "destination": "/api/index.py",
     } in config["rewrites"]

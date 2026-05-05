@@ -25,7 +25,7 @@ from .public_api import build_public_stock_payload
 from .seo import build_ads_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
 from .ticker_api import build_ticker_search_payload
 from .watchlist_api import build_watchlist_payload
-from .web_pages import render_public_stock_page
+from .web_pages import render_public_analysis_feed_page, render_public_stock_page
 
 
 class AnalysisRefreshRequestBody(BaseModel):
@@ -109,6 +109,7 @@ def create_app(
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         if (
             request.url.path == "/"
+            or request.url.path == "/analyses"
             or request.url.path == "/stocks"
             or request.url.path.startswith("/stocks/")
             or request.url.path in {"/ads.txt", "/robots.txt", "/sitemap.xml"}
@@ -195,6 +196,25 @@ def create_app(
         ticker: Annotated[str, Query(pattern=r"^\d{6}$")] = "005930",
     ) -> HTMLResponse:
         return _stock_html_response(ticker, request)
+
+    @app.get("/analyses", response_class=HTMLResponse, include_in_schema=False)
+    def analysis_feed_page(
+        request: Request,
+        ticker: str | None = None,
+        limit: int = 20,
+    ) -> HTMLResponse:
+        repo = request.app.state.repository
+        try:
+            html = render_public_analysis_feed_page(
+                repo=repo,
+                ticker=ticker,
+                limit=limit,
+                max_limit=request.app.state.max_analysis_feed_limit,
+                site_base_url=_request_site_base_url(request),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return HTMLResponse(html)
 
     @app.get("/stocks", include_in_schema=False)
     def stocks_lookup(

@@ -12,6 +12,10 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/analyses",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/stocks",
       "destination": "/api/index.py"
     },

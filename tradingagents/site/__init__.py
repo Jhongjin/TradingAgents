@@ -23,6 +23,7 @@ _EXPORTS = {
     "process_queued_analysis_requests": ("tradingagents.site.analysis_worker", "process_queued_analysis_requests"),
     "queue_analysis_refresh_request": ("tradingagents.site.analysis_api", "queue_analysis_refresh_request"),
     "render_public_stock_page": ("tradingagents.site.web_pages", "render_public_stock_page"),
+    "render_public_analysis_feed_page": ("tradingagents.site.web_pages", "render_public_analysis_feed_page"),
     "run_tradingagents_graph_for_request": ("tradingagents.site.analysis_runner", "run_tradingagents_graph_for_request"),
 }
 _SUBMODULES = {

@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from tradingagents.storage import AnalysisRunInput, StorageRepository, create_storage_engine
 from tradingagents.site.api_app import create_app
 from tradingagents.site.seo import build_ads_txt, build_robots_txt, build_sitemap_xml, stock_canonical_url
-from tradingagents.site.web_pages import render_public_stock_page
+from tradingagents.site.web_pages import render_public_analysis_feed_page, render_public_stock_page
 
 
 def _payload():
@@ -94,6 +94,44 @@ def test_api_app_serves_public_home_page(monkeypatch):
     assert response.headers["content-type"].startswith("text/html")
     assert response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
     assert "005930 public page" in response.text
+
+
+def test_render_public_analysis_feed_page_lists_completed_runs():
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+            model_provider="openai",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+
+    html = render_public_analysis_feed_page(repo=repo, site_base_url="https://example.com")
+
+    assert "<!doctype html>" in html
+    assert "공개 분석 목록" in html
+    assert "삼성전자" in html
+    assert "/stocks/005930" in html
+    assert '<link rel="canonical" href="https://example.com/analyses">' in html
+
+
+def test_api_app_serves_public_analysis_feed_page(monkeypatch):
+    monkeypatch.setattr(
+        "tradingagents.site.api_app.render_public_analysis_feed_page",
+        lambda *args, **kwargs: "<!doctype html><html><body>analysis feed</body></html>",
+    )
+    client = TestClient(create_app(repo=None, load_repo_from_env=False, public_cache_seconds=60))
+
+    response = client.get("/analyses")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    assert "analysis feed" in response.text
 
 
 def test_api_app_redirects_stock_lookup_to_canonical_page():

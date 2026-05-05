@@ -8,8 +8,9 @@ from typing import Any
 
 from tradingagents.storage import StorageRepository
 
+from .analysis_api import build_public_analysis_feed_payload
 from .public_api import build_public_stock_payload
-from .seo import stock_canonical_url
+from .seo import canonical_url, stock_canonical_url
 
 
 def render_public_stock_page(
@@ -153,6 +154,88 @@ def render_public_stock_page(
 </html>"""
 
 
+def render_public_analysis_feed_page(
+    *,
+    repo: StorageRepository | None = None,
+    ticker: str | None = None,
+    limit: int = 20,
+    max_limit: int = 50,
+    site_base_url: str | None = None,
+) -> str:
+    """Render a public completed-analysis feed page."""
+
+    payload = _analysis_feed_payload(repo, ticker=ticker, limit=limit, max_limit=max_limit)
+    model = _analysis_feed_view_model(payload, site_base_url=site_base_url)
+    cards_html = _analysis_feed_cards(model["items"])
+    payload_json = _script_json(payload)
+
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{_h(model["title"])}</title>
+  <meta name="description" content="{_h(model["description"])}">
+  <link rel="canonical" href="{_h(model["canonical_url"])}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TradingAgents Korea">
+  <meta property="og:title" content="{_h(model["title"])}">
+  <meta property="og:description" content="{_h(model["description"])}">
+  <meta property="og:url" content="{_h(model["canonical_url"])}">
+  <style>{PAGE_CSS}</style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="TradingAgents Korea home">
+      <span class="brand-mark">TA</span>
+      <span>TradingAgents Korea</span>
+    </a>
+    <nav class="top-links" aria-label="공개 페이지">
+      <a href="/analyses">분석 목록</a>
+      <a href="/stocks/005930">삼성전자</a>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <section class="summary-band" aria-labelledby="feed-title">
+      <div>
+        <p class="eyebrow">Public Analysis Feed</p>
+        <h1 id="feed-title">공개 분석 목록</h1>
+        <p class="asof">{_h(model["subtitle"])}</p>
+      </div>
+      <div class="decision-box">
+        <span class="decision-label">공개 리포트</span>
+        <strong>{_h(model["item_count"])}</strong>
+        <span>{_h(model["status"])}</span>
+      </div>
+    </section>
+
+    <section class="report-section" aria-labelledby="feed-list-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Completed Runs</p>
+          <h2 id="feed-list-title">최근 완료된 분석</h2>
+        </div>
+        <span class="status-pill">{_h(model["filter_label"])}</span>
+      </div>
+      <div class="analysis-feed-grid">
+        {cards_html}
+      </div>
+    </section>
+
+    <section class="notice-strip" aria-label="투자 유의사항">
+      <ul>
+        <li>AI analysis is for informational purposes only and is not investment advice.</li>
+        <li>Live trading and broker order placement are intentionally not supported.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script id="analysis-feed-payload" type="application/json">{payload_json}</script>
+</body>
+</html>"""
+
+
 def _view_model(payload: dict[str, Any], *, site_base_url: str | None = None) -> dict[str, Any]:
     ticker = payload["ticker"]
     chart = payload.get("chart", {})
@@ -197,6 +280,81 @@ def _view_model(payload: dict[str, Any], *, site_base_url: str | None = None) ->
         "refresh_state": "업데이트 권장" if refresh.get("recommended") else "분석 최신",
         "chart_status": _chart_status_label(chart.get("status")),
     }
+
+
+def _analysis_feed_payload(
+    repo: StorageRepository | None,
+    *,
+    ticker: str | None,
+    limit: int,
+    max_limit: int,
+) -> dict[str, Any]:
+    if repo is None:
+        return {
+            "status": "not_configured",
+            "ticker_code": ticker,
+            "limit": limit,
+            "items": [],
+            "item_count": 0,
+        }
+    return build_public_analysis_feed_payload(repo, ticker=ticker, limit=limit, max_limit=max_limit)
+
+
+def _analysis_feed_view_model(payload: dict[str, Any], *, site_base_url: str | None = None) -> dict[str, Any]:
+    ticker_code = payload.get("ticker_code")
+    items = payload.get("items") or []
+    title = "공개 분석 목록 | TradingAgents Korea"
+    description = "TradingAgents Korea의 한국 주식 AI 공개 분석 목록입니다."
+    return {
+        "title": title,
+        "description": description,
+        "canonical_url": canonical_url("/analyses", site_base_url=site_base_url),
+        "subtitle": "한국 주식 AI 분석이 완료되면 이곳에 공개됩니다.",
+        "status": _analysis_feed_status_label(payload.get("status")),
+        "filter_label": f"{ticker_code} 필터" if ticker_code else "전체 종목",
+        "item_count": str(len(items)),
+        "items": items,
+    }
+
+
+def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
+    if not items:
+        return """
+        <article class="analysis-feed-card empty">
+          <span>waiting</span>
+          <h3>공개 분석 대기</h3>
+          <p>분석 worker가 완료한 public 리포트가 생기면 이 목록에 표시됩니다.</p>
+        </article>
+        """
+
+    cards = []
+    for item in items:
+        code = item.get("ticker_code") or ""
+        name = item.get("ticker_name") or code
+        market = item.get("market") or "KR"
+        trade_date = item.get("trade_date") or "-"
+        model_provider = item.get("model_provider") or "AI"
+        cards.append(
+            f"""
+            <article class="analysis-feed-card">
+              <span>{_h(str(market))}</span>
+              <h3><a href="/stocks/{_h(str(code))}">{_h(str(name))} <small>{_h(str(code))}</small></a></h3>
+              <p>{_h(str(trade_date))} 기준 공개 분석</p>
+              <dl>
+                <div><dt>상태</dt><dd>{_h(str(item.get("status") or "-"))}</dd></div>
+                <div><dt>모델</dt><dd>{_h(str(model_provider))}</dd></div>
+              </dl>
+            </article>
+            """
+        )
+    return "\n".join(cards)
+
+
+def _analysis_feed_status_label(status: Any) -> str:
+    return {
+        "available": "분석 사용 가능",
+        "not_configured": "저장소 미연결",
+    }.get(str(status), "상태 확인")
 
 
 def _report_cards(reports: list[dict[str, Any]]) -> str:
@@ -417,6 +575,25 @@ a {
   background: var(--accent);
   color: white;
   font-size: 13px;
+}
+
+.top-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.top-links a {
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+.top-links a:hover {
+  background: var(--surface-strong);
+  color: var(--ink);
 }
 
 .ticker-search {
@@ -696,6 +873,72 @@ h3 {
   grid-column: 1 / -1;
 }
 
+.analysis-feed-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.analysis-feed-card {
+  min-height: 178px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.analysis-feed-card span {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.analysis-feed-card h3 a {
+  display: inline-block;
+}
+
+.analysis-feed-card small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.analysis-feed-card p {
+  margin-bottom: 14px;
+  color: var(--muted);
+}
+
+.analysis-feed-card dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.analysis-feed-card dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.analysis-feed-card dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.analysis-feed-card dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.analysis-feed-card.empty {
+  grid-column: 1 / -1;
+}
+
 .notice-strip {
   margin-top: 18px;
   padding: 14px 18px;
@@ -729,6 +972,10 @@ h3 {
   .report-grid {
     grid-template-columns: 1fr 1fr;
   }
+
+  .analysis-feed-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -747,7 +994,8 @@ h3 {
   }
 
   .metric-grid,
-  .report-grid {
+  .report-grid,
+  .analysis-feed-grid {
     grid-template-columns: 1fr;
   }
 
