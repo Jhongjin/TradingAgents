@@ -201,6 +201,54 @@ def test_api_app_member_routes_enforce_owner():
     assert "does not belong" in response.json()["detail"]
 
 
+def test_api_app_member_routes_accept_verified_supabase_bearer(monkeypatch):
+    repo = _repo()
+    portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_ANON_KEY", "anon-key")
+    captured = {}
+    auth_response = MagicMock()
+    auth_response.status_code = 200
+    auth_response.json.return_value = {"id": USER_ID}
+
+    def fake_get(url, **kwargs):
+        captured["url"] = url
+        captured.update(kwargs)
+        return auth_response
+
+    monkeypatch.setattr("tradingagents.site.auth.requests.get", fake_get)
+
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+    response = client.get(
+        f"/api/portfolio/{portfolio_id}",
+        headers={"Authorization": "Bearer user-token"},
+    )
+
+    assert response.status_code == 200
+    assert captured["url"] == "https://example.supabase.co/auth/v1/user"
+    assert captured["headers"]["Authorization"] == "Bearer user-token"
+    assert captured["headers"]["apikey"] == "anon-key"
+
+
+def test_api_app_member_routes_require_supabase_auth_config_for_bearer(monkeypatch):
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("TRADINGAGENTS_SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
+    monkeypatch.delenv("SUPABASE_PUBLISHABLE_KEY", raising=False)
+    monkeypatch.delenv("NEXT_PUBLIC_SUPABASE_ANON_KEY", raising=False)
+    repo = _repo()
+    portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.get(
+        f"/api/portfolio/{portfolio_id}",
+        headers={"Authorization": "Bearer user-token"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Supabase Auth verification is not configured"
+
+
 def test_api_app_rejects_malformed_current_prices():
     repo = _repo()
     portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")

@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 from decimal import Decimal
 from typing import Annotated
-from uuid import UUID
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from starlette.middleware.cors import CORSMiddleware
@@ -13,6 +12,7 @@ from starlette.middleware.cors import CORSMiddleware
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.storage import StorageRepository, create_storage_engine
 
+from .auth import resolve_member_user_id
 from .market_api import build_latest_prices_payload
 from .portfolio_api import build_manual_portfolio_payload
 from .public_api import build_public_stock_payload
@@ -125,7 +125,7 @@ def create_app(
         repo = request.app.state.repository
         if repo is None:
             raise HTTPException(status_code=503, detail="Storage repository is not configured")
-        user_id = _require_member_user_id(request, x_tradingagents_user_id)
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
         _require_portfolio_owner(repo, portfolio_id, user_id)
         try:
             return build_manual_portfolio_payload(
@@ -149,7 +149,7 @@ def create_app(
         repo = request.app.state.repository
         if repo is None:
             raise HTTPException(status_code=503, detail="Storage repository is not configured")
-        user_id = _require_member_user_id(request, x_tradingagents_user_id)
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
         _require_watchlist_owner(repo, watchlist_id, user_id)
         try:
             return build_watchlist_payload(
@@ -200,21 +200,6 @@ def _trust_member_user_header(value: bool | None) -> bool:
     if value is not None:
         return value
     return os.getenv("TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER", "false").strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _require_member_user_id(request: Request, value: str | None) -> str:
-    if not request.app.state.trust_member_user_header:
-        raise HTTPException(
-            status_code=403,
-            detail="Member APIs require a trusted auth layer before user headers are accepted",
-        )
-    if not value:
-        raise HTTPException(status_code=401, detail="Missing X-TradingAgents-User-Id")
-    try:
-        UUID(value)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail="X-TradingAgents-User-Id must be a UUID") from exc
-    return value
 
 
 def _require_portfolio_owner(repo: StorageRepository, portfolio_id: str, user_id: str) -> None:

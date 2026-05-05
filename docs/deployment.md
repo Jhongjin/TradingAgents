@@ -21,9 +21,12 @@ NAVER_CLIENT_ID=
 NAVER_CLIENT_SECRET=
 DATABASE_URL=
 TRADINGAGENTS_STORAGE_ENABLED=true
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
 TRADINGAGENTS_API_CORS_ORIGINS=https://your-domain.example
 TRADINGAGENTS_API_PUBLIC_CACHE_SECONDS=300
 TRADINGAGENTS_API_MAX_PRICE_TICKERS=20
+TRADINGAGENTS_AUTH_TIMEOUT_SECONDS=5
 TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=false
 ```
 
@@ -42,8 +45,11 @@ The API remains read-only:
 No live trading or broker order placement is exposed.
 
 Member routes require an authenticated user context before they will return
-portfolio or watchlist data. The current adapter accepts
-`X-TradingAgents-User-Id` only when
+portfolio or watchlist data. By default the API verifies `Authorization: Bearer
+<Supabase access token>` by calling Supabase Auth `/auth/v1/user` with
+`SUPABASE_URL` and `SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`.
+
+`X-TradingAgents-User-Id` is accepted only when
 `TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=true`, which should be used only
-behind a trusted auth layer that sets the header from a verified Supabase user
+behind a trusted auth proxy that sets the header from a verified Supabase user
 UUID. Do not expose that trust mode directly to browsers without an auth proxy.
