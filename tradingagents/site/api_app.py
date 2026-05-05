@@ -17,7 +17,12 @@ from starlette.middleware.cors import CORSMiddleware
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.storage import ManualTradeInput, StorageRepository, create_storage_engine
 
-from .analysis_api import build_public_analysis_feed_payload, queue_analysis_refresh_request
+from .analysis_api import (
+    build_member_analysis_request_payload,
+    build_member_analysis_requests_payload,
+    build_public_analysis_feed_payload,
+    queue_analysis_refresh_request,
+)
 from .auth import SUPABASE_API_KEY_ENV_NAMES, SUPABASE_URL_ENV_NAMES, resolve_member_user_id
 from .market_api import build_latest_prices_payload
 from .portfolio_api import build_manual_portfolio_payload
@@ -480,6 +485,48 @@ def create_app(
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/analysis-requests")
+    def member_analysis_requests(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+        status: Annotated[str | None, Query(pattern=r"^(queued|running|completed|failed)$")] = None,
+        limit: int = 20,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        try:
+            return build_member_analysis_requests_payload(
+                repo,
+                user_id=user_id,
+                status=status,
+                limit=limit,
+                max_limit=request.app.state.max_analysis_feed_limit,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/analysis-requests/{request_id}")
+    def member_analysis_request(
+        request_id: str,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        try:
+            payload = build_member_analysis_request_payload(repo, request_id=request_id, user_id=user_id)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if payload is None:
+            raise HTTPException(status_code=404, detail="Analysis request not found")
+        return payload
 
     @app.post("/api/admin/analysis-requests/process", include_in_schema=False)
     def process_analysis_requests_admin(

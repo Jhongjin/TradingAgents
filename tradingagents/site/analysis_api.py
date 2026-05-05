@@ -72,6 +72,50 @@ def queue_analysis_refresh_request(
     )
 
 
+def build_member_analysis_requests_payload(
+    repo: StorageRepository,
+    *,
+    user_id: str,
+    status: str | None = None,
+    limit: int = 20,
+    max_limit: int = 50,
+) -> dict[str, Any]:
+    """Build a member-owned analysis request list payload."""
+
+    if max_limit <= 0:
+        raise ValueError("max_limit must be positive")
+    if limit <= 0:
+        raise ValueError("limit must be positive")
+    if limit > max_limit:
+        raise ValueError(f"limit cannot exceed {max_limit}")
+    rows = repo.list_analysis_requests(status=status, user_id=user_id, limit=limit)
+    return _json_ready(
+        {
+            "status": "available",
+            "filter_status": status,
+            "limit": limit,
+            "items": rows,
+            "item_count": len(rows),
+        }
+    )
+
+
+def build_member_analysis_request_payload(
+    repo: StorageRepository,
+    *,
+    request_id: str,
+    user_id: str,
+) -> dict[str, Any] | None:
+    """Build a member-owned single analysis request payload."""
+
+    row = repo.get_analysis_request(request_id)
+    if row is None:
+        return None
+    if str(row.get("user_id")) != user_id:
+        raise PermissionError("analysis request does not belong to the authenticated user")
+    return _json_ready({"status": "available", "item": row})
+
+
 def build_public_analysis_feed_payload(
     repo: StorageRepository,
     *,

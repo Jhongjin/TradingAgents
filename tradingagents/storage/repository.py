@@ -285,6 +285,18 @@ class StorageRepository:
             rows = conn.execute(stmt).mappings().all()
         return [dict(row) for row in rows]
 
+    def get_analysis_request(self, request_id: str) -> dict[str, Any] | None:
+        _validate_uuid(request_id, "analysis_request_id")
+        with self.engine.begin() as conn:
+            row = (
+                conn.execute(
+                    select(analysis_refresh_requests).where(analysis_refresh_requests.c.id == request_id)
+                )
+                .mappings()
+                .first()
+            )
+        return dict(row) if row else None
+
     def find_active_analysis_request(
         self,
         *,

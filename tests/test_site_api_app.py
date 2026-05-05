@@ -494,6 +494,61 @@ def test_api_app_queues_analysis_refresh_request_with_bearer(monkeypatch):
     assert queued[0]["ticker_code"] == "005930"
 
 
+def test_api_app_lists_member_analysis_requests():
+    repo = _repo()
+    request_id = repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="005930",
+            requested_trade_date=date(2026, 5, 5),
+            reason="refresh",
+        )
+    )
+    repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=OTHER_USER_ID,
+            ticker_code="000660",
+            requested_trade_date=date(2026, 5, 5),
+        )
+    )
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    list_response = client.get(
+        "/api/analysis-requests",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
+    item_response = client.get(
+        f"/api/analysis-requests/{request_id}",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
+    rejected = client.get(
+        f"/api/analysis-requests/{request_id}",
+        headers={"X-TradingAgents-User-Id": OTHER_USER_ID},
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.headers["cache-control"] == "private, no-store"
+    assert list_response.json()["item_count"] == 1
+    assert list_response.json()["items"][0]["id"] == request_id
+    assert item_response.status_code == 200
+    assert item_response.json()["item"]["reason"] == "refresh"
+    assert rejected.status_code == 403
+
+
+def test_api_app_limits_member_analysis_request_list():
+    repo = _repo()
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    response = client.get(
+        "/api/analysis-requests",
+        params={"limit": 999},
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
+
+    assert response.status_code == 400
+    assert "limit cannot exceed" in response.json()["detail"]
+
+
 def test_api_app_admin_worker_requires_token(monkeypatch):
     repo = _repo()
     monkeypatch.delenv("TRADINGAGENTS_WORKER_TOKEN", raising=False)

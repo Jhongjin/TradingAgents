@@ -104,6 +104,8 @@ The API remains read-only:
 - `GET /api/analyses?ticker=005930`: public completed-analysis feed
 - `GET /api/prices/latest?tickers=005930,000660`: latest close-price snapshots
 - `POST /api/analysis-requests`: queue an authenticated member analysis refresh request
+- `GET /api/analysis-requests`: list authenticated member analysis refresh requests
+- `GET /api/analysis-requests/{request_id}`: inspect one authenticated member analysis refresh request
 - `POST /api/admin/analysis-requests/process`: protected operator endpoint for queued analysis processing
 - `GET /api/cron/process-analysis-requests`: protected Vercel Cron-compatible processing endpoint
 - `POST /api/portfolios`: create an authenticated member manual portfolio

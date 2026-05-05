@@ -172,6 +172,7 @@ def test_storage_repository_queues_analysis_refresh_requests():
     queued = repo.list_analysis_requests(user_id=USER_ID)
     repo.update_analysis_request_status(request_id, status="running")
     running = repo.list_analysis_requests(status="running", user_id=USER_ID)
+    fetched = repo.get_analysis_request(request_id)
 
     assert len(queued) == 1
     assert queued[0]["ticker_code"] == "005930"
@@ -180,6 +181,8 @@ def test_storage_repository_queues_analysis_refresh_requests():
     assert queued[0]["reason"] == "stale public page"
     assert running[0]["id"] == request_id
     assert running[0]["status"] == "running"
+    assert fetched is not None
+    assert fetched["id"] == request_id
 
 
 def test_storage_repository_finds_active_analysis_request_for_deduping():
