@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from tradingagents.site.api_app import create_app
+from tradingagents.site.seo import build_robots_txt, build_sitemap_xml, stock_canonical_url
 from tradingagents.site.web_pages import render_public_stock_page
 
 
@@ -53,12 +54,14 @@ def _payload():
 def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     monkeypatch.setattr("tradingagents.site.web_pages.build_public_stock_payload", lambda *args, **kwargs: _payload())
 
-    html = render_public_stock_page("005930")
+    html = render_public_stock_page("005930", site_base_url="https://example.com")
 
     assert "<!doctype html>" in html
     assert "TradingAgents Korea" in html
     assert "삼성전자" in html
     assert "priceChart" in html
+    assert '<link rel="canonical" href="https://example.com/stocks/005930">' in html
+    assert 'property="og:title"' in html
     assert '"code":"005930"' in html
     assert "71,800원" in html
 
@@ -104,3 +107,35 @@ def test_api_app_serves_public_stock_html_page(monkeypatch):
     assert response.text.startswith("<!doctype html>")
     assert captured["ticker"] == "005930"
     assert captured["chart_start"] == "2026-01-01"
+
+
+def test_seo_helpers_build_canonical_robots_and_sitemap():
+    assert stock_canonical_url("005930", site_base_url="https://example.com/") == "https://example.com/stocks/005930"
+    robots = build_robots_txt(site_base_url="https://example.com")
+    sitemap = build_sitemap_xml(
+        site_base_url="https://example.com",
+        tickers=["005930", "005930", "AAPL", "000660"],
+        generated_date="2026-05-05",
+    )
+
+    assert "Allow: /" in robots
+    assert "Sitemap: https://example.com/sitemap.xml" in robots
+    assert "https://example.com/stocks/005930" in sitemap
+    assert "https://example.com/stocks/000660" in sitemap
+    assert "AAPL" not in sitemap
+
+
+def test_api_app_serves_robots_and_sitemap(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_SITEMAP_TICKERS", "005930,000660")
+    client = TestClient(create_app(repo=None, load_repo_from_env=False, public_cache_seconds=60))
+
+    robots_response = client.get("/robots.txt")
+    sitemap_response = client.get("/sitemap.xml")
+
+    assert robots_response.status_code == 200
+    assert robots_response.headers["content-type"].startswith("text/plain")
+    assert robots_response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    assert "Sitemap: http://testserver/sitemap.xml" in robots_response.text
+    assert sitemap_response.status_code == 200
+    assert sitemap_response.headers["content-type"].startswith("application/xml")
+    assert "http://testserver/stocks/005930" in sitemap_response.text

@@ -9,6 +9,7 @@ from typing import Any
 from tradingagents.storage import StorageRepository
 
 from .public_api import build_public_stock_payload
+from .seo import stock_canonical_url
 
 
 def render_public_stock_page(
@@ -19,6 +20,7 @@ def render_public_stock_page(
     chart_end: str | None = None,
     as_of_date: str | None = None,
     max_analysis_age_days: int = 1,
+    site_base_url: str | None = None,
 ) -> str:
     """Render the first public stock-analysis page.
 
@@ -34,7 +36,7 @@ def render_public_stock_page(
         as_of_date=as_of_date,
         max_analysis_age_days=max_analysis_age_days,
     )
-    model = _view_model(payload)
+    model = _view_model(payload, site_base_url=site_base_url)
     payload_json = _script_json(payload)
     reports_html = _report_cards(model["reports"])
     notices_html = "".join(f"<li>{_h(notice)}</li>" for notice in payload.get("notices", []))
@@ -46,6 +48,12 @@ def render_public_stock_page(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{_h(model["title"])}</title>
   <meta name="description" content="{_h(model["description"])}">
+  <link rel="canonical" href="{_h(model["canonical_url"])}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TradingAgents Korea">
+  <meta property="og:title" content="{_h(model["title"])}">
+  <meta property="og:description" content="{_h(model["description"])}">
+  <meta property="og:url" content="{_h(model["canonical_url"])}">
   <style>{PAGE_CSS}</style>
 </head>
 <body>
@@ -142,7 +150,7 @@ def render_public_stock_page(
 </html>"""
 
 
-def _view_model(payload: dict[str, Any]) -> dict[str, Any]:
+def _view_model(payload: dict[str, Any], *, site_base_url: str | None = None) -> dict[str, Any]:
     ticker = payload["ticker"]
     chart = payload.get("chart", {})
     points = [point for point in chart.get("points", []) if point.get("close") is not None]
@@ -171,6 +179,7 @@ def _view_model(payload: dict[str, Any]) -> dict[str, Any]:
         "name": name,
         "code": code,
         "market_line": f"{market} / {benchmark}",
+        "canonical_url": stock_canonical_url(code, site_base_url=site_base_url),
         "generated_at": _short_datetime(payload.get("generated_at")),
         "rating": str(rating),
         "action": str(action).upper(),

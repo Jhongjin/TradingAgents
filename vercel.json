@@ -20,6 +20,14 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/robots.txt",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/index.py"
     },

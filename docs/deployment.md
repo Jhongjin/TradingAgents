@@ -33,6 +33,8 @@ TRADINGAGENTS_API_PUBLIC_CACHE_SECONDS=300
 TRADINGAGENTS_API_MAX_PRICE_TICKERS=20
 TRADINGAGENTS_API_MAX_ANALYSIS_FEED_LIMIT=50
 TRADINGAGENTS_AUTH_TIMEOUT_SECONDS=5
+TRADINGAGENTS_SITE_BASE_URL=https://your-domain.example
+TRADINGAGENTS_SITEMAP_TICKERS=005930,000660,035420,035720,051910,005380,068270,005490
 TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=false
 ```
 
@@ -44,6 +46,8 @@ The API remains read-only:
 
 - `GET /`: public Samsung Electronics analysis page
 - `GET /stocks/{ticker}`: public Korean stock analysis page with KRW chart
+- `GET /robots.txt`: crawler policy with sitemap URL
+- `GET /sitemap.xml`: public page sitemap built from `TRADINGAGENTS_SITEMAP_TICKERS`
 - `GET /api/stocks/{ticker}`: public Korean stock payload
 - `GET /api/analyses?ticker=005930`: public completed-analysis feed
 - `GET /api/prices/latest?tickers=005930,000660`: latest close-price snapshots

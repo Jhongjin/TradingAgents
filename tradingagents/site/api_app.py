@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from starlette.responses import HTMLResponse, RedirectResponse
+from starlette.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.middleware.cors import CORSMiddleware
 
 from tradingagents.dataflows.errors import VendorUnavailableError
@@ -20,6 +20,7 @@ from .auth import resolve_member_user_id
 from .market_api import build_latest_prices_payload
 from .portfolio_api import build_manual_portfolio_payload
 from .public_api import build_public_stock_payload
+from .seo import build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
 from .watchlist_api import build_watchlist_payload
 from .web_pages import render_public_stock_page
 
@@ -62,7 +63,12 @@ def create_app(
     async def response_headers(request: Request, call_next):
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        if request.url.path == "/" or request.url.path == "/stocks" or request.url.path.startswith("/stocks/"):
+        if (
+            request.url.path == "/"
+            or request.url.path == "/stocks"
+            or request.url.path.startswith("/stocks/")
+            or request.url.path in {"/robots.txt", "/sitemap.xml"}
+        ):
             seconds = request.app.state.public_cache_seconds
             response.headers.setdefault(
                 "Cache-Control",
@@ -93,6 +99,21 @@ def create_app(
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
+    def robots_txt(request: Request) -> PlainTextResponse:
+        return PlainTextResponse(build_robots_txt(site_base_url=_request_site_base_url(request)))
+
+    @app.get("/sitemap.xml", include_in_schema=False)
+    def sitemap_xml(request: Request) -> Response:
+        try:
+            content = build_sitemap_xml(
+                site_base_url=_request_site_base_url(request),
+                tickers=sitemap_tickers_from_env(),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        return Response(content, media_type="application/xml")
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def home(
@@ -277,10 +298,18 @@ def _stock_html_response(
             chart_end=chart_end,
             as_of_date=as_of_date,
             max_analysis_age_days=max_analysis_age_days,
+            site_base_url=_request_site_base_url(request),
         )
     except (VendorUnavailableError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return HTMLResponse(html)
+
+
+def _request_site_base_url(request: Request) -> str:
+    configured = os.getenv("TRADINGAGENTS_SITE_BASE_URL")
+    if configured:
+        return configured
+    return str(request.base_url).rstrip("/")
 
 
 def _repo_from_env() -> StorageRepository | None:
