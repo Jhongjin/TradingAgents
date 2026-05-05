@@ -230,6 +230,8 @@ def test_seo_helpers_build_canonical_robots_and_sitemap():
     )
 
     assert "Allow: /" in robots
+    assert "Disallow: /api/" in robots
+    assert "Disallow: /member" in robots
     assert "Sitemap: https://example.com/sitemap.xml" in robots
     assert "https://example.com/stocks/005930" in sitemap
     assert "https://example.com/stocks/000660" in sitemap

@@ -51,6 +51,8 @@ def build_robots_txt(*, site_base_url: str | None = None) -> str:
     lines = [
         "User-agent: *",
         "Allow: /",
+        "Disallow: /api/",
+        "Disallow: /member",
     ]
     sitemap_url = canonical_url("/sitemap.xml", site_base_url=site_base_url)
     if sitemap_url.startswith("http"):
