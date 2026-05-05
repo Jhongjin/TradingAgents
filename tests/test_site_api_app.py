@@ -147,6 +147,62 @@ def test_api_app_serves_manual_portfolio_payload():
     assert body["totals"]["market_value"] == 830000.0
 
 
+def test_api_app_creates_manual_portfolio_and_trade():
+    repo = _repo()
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    create_response = client.post(
+        "/api/portfolios",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+        json={"name": "Main", "base_currency": "KRW"},
+    )
+    portfolio_id = create_response.json()["portfolio_id"]
+    trade_response = client.post(
+        f"/api/portfolio/{portfolio_id}/trades",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+        json={
+            "ticker_code": "005930",
+            "side": "buy",
+            "trade_date": "2026-01-02",
+            "price": "70000",
+            "quantity": 10,
+            "fee": "100",
+            "tax": "0",
+            "memo": "first buy",
+        },
+    )
+
+    assert create_response.status_code == 200
+    assert create_response.headers["cache-control"] == "private, no-store"
+    assert create_response.json()["status"] == "created"
+    assert trade_response.status_code == 200
+    assert trade_response.json()["status"] == "created"
+    assert trade_response.json()["portfolio"]["positions"][0]["ticker_code"] == "005930"
+    assert trade_response.json()["portfolio"]["positions"][0]["quantity"] == 10
+
+
+def test_api_app_sets_manual_portfolio_target_and_enforces_owner():
+    repo = _repo()
+    portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    rejected = client.put(
+        f"/api/portfolio/{portfolio_id}/targets/005930",
+        headers={"X-TradingAgents-User-Id": OTHER_USER_ID},
+        json={"target_price": "82000", "stop_price": "65000"},
+    )
+    accepted = client.put(
+        f"/api/portfolio/{portfolio_id}/targets/005930",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+        json={"target_price": "82000", "stop_price": "65000", "memo": "plan"},
+    )
+
+    assert rejected.status_code == 403
+    assert accepted.status_code == 200
+    assert accepted.json()["status"] == "saved"
+    assert repo.price_targets_for_portfolio(portfolio_id)[0]["target_price"] == Decimal("82000.0000")
+
+
 def test_api_app_serves_watchlist_payload():
     repo = _repo()
     watchlist_id = repo.create_watchlist(user_id=USER_ID, name="관심종목")

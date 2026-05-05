@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import hmac
+from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 from urllib.parse import quote
@@ -14,7 +15,7 @@ from starlette.responses import HTMLResponse, PlainTextResponse, RedirectRespons
 from starlette.middleware.cors import CORSMiddleware
 
 from tradingagents.dataflows.errors import VendorUnavailableError
-from tradingagents.storage import StorageRepository, create_storage_engine
+from tradingagents.storage import ManualTradeInput, StorageRepository, create_storage_engine
 
 from .analysis_api import build_public_analysis_feed_payload, queue_analysis_refresh_request
 from .auth import resolve_member_user_id
@@ -35,6 +36,28 @@ class AnalysisRefreshRequestBody(BaseModel):
 class AnalysisWorkerRequestBody(BaseModel):
     limit: int = Field(default=1, ge=1)
     dry_run: bool = False
+
+
+class ManualPortfolioCreateBody(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    base_currency: str = Field(default="KRW", pattern=r"^[A-Z]{3}$")
+
+
+class ManualTradeCreateBody(BaseModel):
+    ticker_code: str
+    side: str = Field(pattern=r"^(buy|sell)$")
+    trade_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    price: Decimal
+    quantity: int = Field(ge=1)
+    fee: Decimal = Decimal("0")
+    tax: Decimal = Decimal("0")
+    memo: str | None = Field(default=None, max_length=500)
+
+
+class ManualPriceTargetBody(BaseModel):
+    target_price: Decimal | None = None
+    stop_price: Decimal | None = None
+    memo: str | None = Field(default=None, max_length=500)
 
 
 def create_app(
@@ -99,7 +122,7 @@ def create_app(
             )
         elif request.url.path.startswith("/api/prices/"):
             response.headers.setdefault("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
-        elif request.url.path.startswith("/api/portfolio/"):
+        elif request.url.path.startswith("/api/portfolio/") or request.url.path.startswith("/api/portfolios"):
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif request.url.path.startswith("/api/watchlists/"):
             response.headers.setdefault("Cache-Control", "private, no-store")
@@ -230,6 +253,90 @@ def create_app(
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/portfolios")
+    def create_manual_portfolio(
+        body: ManualPortfolioCreateBody,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="portfolio name cannot be empty")
+        try:
+            portfolio_id = repo.create_manual_portfolio(
+                user_id=user_id,
+                name=name,
+                base_currency=body.base_currency,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "created", "portfolio_id": portfolio_id}
+
+    @app.post("/api/portfolio/{portfolio_id}/trades")
+    def add_manual_portfolio_trade(
+        portfolio_id: str,
+        body: ManualTradeCreateBody,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        _require_portfolio_owner(repo, portfolio_id, user_id)
+        _validate_non_negative_money(body.fee, "fee")
+        _validate_non_negative_money(body.tax, "tax")
+        _validate_positive_money(body.price, "price")
+        try:
+            trade_id = repo.add_manual_trade(
+                ManualTradeInput(
+                    portfolio_id=portfolio_id,
+                    ticker_code=body.ticker_code,
+                    side=body.side,
+                    trade_date=_parse_date(body.trade_date, "trade_date"),
+                    price=body.price,
+                    quantity=body.quantity,
+                    fee=body.fee,
+                    tax=body.tax,
+                    memo=body.memo,
+                )
+            )
+            portfolio = build_manual_portfolio_payload(repo, portfolio_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "created", "trade_id": trade_id, "portfolio": portfolio}
+
+    @app.put("/api/portfolio/{portfolio_id}/targets/{ticker_code}")
+    def set_manual_portfolio_target(
+        portfolio_id: str,
+        ticker_code: str,
+        body: ManualPriceTargetBody,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        _require_portfolio_owner(repo, portfolio_id, user_id)
+        _validate_optional_positive_money(body.target_price, "target_price")
+        _validate_optional_positive_money(body.stop_price, "stop_price")
+        try:
+            target_id = repo.set_price_target(
+                portfolio_id=portfolio_id,
+                ticker_code=ticker_code,
+                target_price=body.target_price,
+                stop_price=body.stop_price,
+                memo=body.memo,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "saved", "target_id": target_id}
 
     @app.get("/api/portfolio/{portfolio_id}")
     def manual_portfolio(
@@ -525,6 +632,28 @@ def _parse_current_prices(value: str | None) -> dict[str, Decimal]:
             raise ValueError("current_prices values must be numeric") from exc
         prices[ticker] = parsed
     return prices
+
+
+def _parse_date(value: str, field_name: str):
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must use YYYY-MM-DD") from exc
+
+
+def _validate_positive_money(value: Decimal, field_name: str) -> None:
+    if value <= 0:
+        raise HTTPException(status_code=400, detail=f"{field_name} must be positive")
+
+
+def _validate_non_negative_money(value: Decimal, field_name: str) -> None:
+    if value < 0:
+        raise HTTPException(status_code=400, detail=f"{field_name} cannot be negative")
+
+
+def _validate_optional_positive_money(value: Decimal | None, field_name: str) -> None:
+    if value is not None and value <= 0:
+        raise HTTPException(status_code=400, detail=f"{field_name} must be positive")
 
 
 app = create_app()
