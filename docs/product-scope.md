@@ -77,7 +77,9 @@ The first framework-neutral public page payload builder is
 `tradingagents.site.build_public_stock_payload`. It combines ticker metadata,
 latest persisted public analysis, optional OHLCV chart points, and investment
 risk notices into a JSON-ready shape that can sit behind a future Next.js,
-FastAPI, or Vercel API route.
+FastAPI, or Vercel API route. The payload also includes an `analysis_refresh`
+hint so the web layer can show cached completed analysis while deciding whether
+a background refresh should be queued.
 
 ## Broker Integration Boundary
 

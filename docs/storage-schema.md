@@ -83,7 +83,9 @@ workflow.
 For public pages, use `StorageRepository.latest_public_analysis_bundle("005930")`
 to fetch the newest public run with reports and final decision, or
 `list_public_analysis_runs(ticker_code="005930")` for feed/search views. Private
-runs are excluded from these public helpers.
+runs are excluded from these public helpers, and the default listing includes
+only `completed` analyses. Pass `status=None` only for internal admin views that
+need pending or failed rows.
 
 ## Product Boundary
 

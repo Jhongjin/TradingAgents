@@ -140,6 +140,7 @@ class StorageRepository:
         self,
         *,
         ticker_code: str | None = None,
+        status: str | None = "completed",
         limit: int = 20,
     ) -> list[dict[str, Any]]:
         """List public analysis runs for feed/search pages."""
@@ -155,6 +156,8 @@ class StorageRepository:
         )
         if ticker_code:
             stmt = stmt.where(analysis_runs.c.ticker_code == _normalize_ticker_code(ticker_code))
+        if status:
+            stmt = stmt.where(analysis_runs.c.status == status)
 
         with self.engine.begin() as conn:
             rows = conn.execute(stmt).mappings().all()

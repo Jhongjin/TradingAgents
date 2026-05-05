@@ -27,6 +27,8 @@ def build_public_stock_payload(
     repo: StorageRepository | None = None,
     chart_start: str | None = None,
     chart_end: str | None = None,
+    as_of_date: str | None = None,
+    max_analysis_age_days: int = 1,
     chart_vendor: str = "pykrx",
     include_chart: bool = True,
     include_analysis: bool = True,
@@ -44,6 +46,10 @@ def build_public_stock_payload(
     resolved = resolve_kr_ticker(ticker, lookup_pykrx=False)
     end = _parse_or_default_end(chart_end)
     start = _parse_or_default_start(chart_start, end)
+    as_of = _parse_or_default_end(as_of_date)
+    if max_analysis_age_days < 0:
+        raise ValueError("max_analysis_age_days must be non-negative")
+    analysis = _analysis_payload(repo, resolved.code) if include_analysis else {"status": "skipped"}
 
     payload = {
         "ticker": {
@@ -53,7 +59,8 @@ def build_public_stock_payload(
             "currency": "KRW",
             "benchmark_symbol": resolved.benchmark_symbol,
         },
-        "analysis": _analysis_payload(repo, resolved.code) if include_analysis else {"status": "skipped"},
+        "analysis": analysis,
+        "analysis_refresh": _analysis_refresh_payload(analysis, as_of, max_analysis_age_days),
         "chart": _chart_payload(resolved.code, start, end, chart_vendor) if include_chart else {"status": "skipped"},
         "notices": [SEO_DISCLAIMER, TRADING_BOUNDARY],
         "generated_at": datetime.now(ZoneInfo("Asia/Seoul")).isoformat(),
@@ -74,6 +81,45 @@ def _analysis_payload(repo: StorageRepository | None, ticker_code: str) -> dict[
         "run": bundle["run"],
         "reports": bundle["reports"],
         "decision": bundle["decision"],
+    }
+
+
+def _analysis_refresh_payload(
+    analysis: dict[str, Any],
+    as_of: date,
+    max_age_days: int,
+) -> dict[str, Any]:
+    status = analysis.get("status")
+    if status == "skipped":
+        return {"recommended": False, "reason": "analysis_skipped", "as_of": as_of}
+    if status == "not_configured":
+        return {"recommended": False, "reason": "storage_not_configured", "as_of": as_of}
+    if status == "missing":
+        return {"recommended": True, "reason": "no_completed_public_analysis", "as_of": as_of}
+    if status != "available":
+        return {"recommended": True, "reason": "analysis_unavailable", "as_of": as_of}
+
+    try:
+        trade_date = _coerce_date(analysis.get("run", {}).get("trade_date"))
+    except (TypeError, ValueError):
+        return {"recommended": True, "reason": "invalid_analysis_trade_date", "as_of": as_of}
+    age_days = (as_of - trade_date).days
+    if age_days > max_age_days:
+        return {
+            "recommended": True,
+            "reason": "stale",
+            "as_of": as_of,
+            "latest_trade_date": trade_date,
+            "age_days": age_days,
+            "max_age_days": max_age_days,
+        }
+    return {
+        "recommended": False,
+        "reason": "fresh",
+        "as_of": as_of,
+        "latest_trade_date": trade_date,
+        "age_days": max(age_days, 0),
+        "max_age_days": max_age_days,
     }
 
 
@@ -106,6 +152,14 @@ def _parse_or_default_end(value: str | None) -> date:
     if value:
         return datetime.strptime(value, "%Y-%m-%d").date()
     return datetime.now(ZoneInfo("Asia/Seoul")).date()
+
+
+def _coerce_date(value: Any) -> date:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return datetime.strptime(str(value), "%Y-%m-%d").date()
 
 
 def _parse_or_default_start(value: str | None, end: date) -> date:

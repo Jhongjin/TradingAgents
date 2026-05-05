@@ -93,9 +93,28 @@ def test_storage_repository_lists_latest_public_analysis_bundle():
             visibility="private",
         )
     )
+    pending_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 7),
+            visibility="public",
+        )
+    )
+    failed_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 8),
+            visibility="public",
+        )
+    )
     repo.complete_analysis_run(older_id)
     repo.complete_analysis_run(latest_id)
     repo.complete_analysis_run(private_id)
+    repo.complete_analysis_run(failed_id, status="failed")
     repo.add_agent_report(
         AgentReportInput(
             analysis_run_id=latest_id,
@@ -105,9 +124,11 @@ def test_storage_repository_lists_latest_public_analysis_bundle():
     )
 
     runs = repo.list_public_analysis_runs(ticker_code="005930")
+    all_status_runs = repo.list_public_analysis_runs(ticker_code="005930", status=None)
     bundle = repo.latest_public_analysis_bundle("005930.KS")
 
     assert [run["id"] for run in runs] == [latest_id, older_id]
+    assert [run["id"] for run in all_status_runs] == [failed_id, pending_id, latest_id, older_id]
     assert bundle is not None
     assert bundle["run"]["id"] == latest_id
     assert bundle["reports"][0]["content"] == "latest public report"

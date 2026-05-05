@@ -76,6 +76,7 @@ def test_public_stock_payload_combines_analysis_and_chart(monkeypatch):
         repo=repo,
         chart_start="2026-05-04",
         chart_end="2026-05-05",
+        as_of_date="2026-05-05",
     )
 
     assert payload["ticker"] == {
@@ -90,6 +91,8 @@ def test_public_stock_payload_combines_analysis_and_chart(monkeypatch):
     assert payload["analysis"]["run"]["trade_date"] == "2026-05-05"
     assert payload["analysis"]["reports"][0]["role"] == "market"
     assert payload["analysis"]["decision"]["rating"] == "Hold"
+    assert payload["analysis_refresh"]["recommended"] is False
+    assert payload["analysis_refresh"]["reason"] == "fresh"
     assert payload["chart"]["status"] == "available"
     assert payload["chart"]["points"][0]["close"] == 70500.0
     assert "notices" in payload
@@ -107,11 +110,48 @@ def test_public_stock_payload_handles_missing_optional_sources(monkeypatch):
         repo=None,
         chart_start="2026-05-04",
         chart_end="2026-05-05",
+        as_of_date="2026-05-05",
     )
 
     assert payload["analysis"]["status"] == "not_configured"
     assert payload["chart"]["status"] == "unavailable"
     assert payload["chart"]["error"] == "chart vendor is offline"
+
+
+def test_public_stock_payload_recommends_refresh_for_stale_or_missing_analysis():
+    repo = _repo()
+    old_run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 1),
+            visibility="public",
+        )
+    )
+    repo.complete_analysis_run(old_run_id)
+
+    stale_payload = build_public_stock_payload(
+        "005930",
+        repo=repo,
+        include_chart=False,
+        as_of_date="2026-05-05",
+        max_analysis_age_days=1,
+    )
+    missing_payload = build_public_stock_payload(
+        "000660",
+        repo=repo,
+        include_chart=False,
+        as_of_date="2026-05-05",
+    )
+
+    assert stale_payload["analysis"]["status"] == "available"
+    assert stale_payload["analysis_refresh"]["recommended"] is True
+    assert stale_payload["analysis_refresh"]["reason"] == "stale"
+    assert stale_payload["analysis_refresh"]["age_days"] == 4
+    assert missing_payload["analysis"]["status"] == "missing"
+    assert missing_payload["analysis_refresh"]["recommended"] is True
+    assert missing_payload["analysis_refresh"]["reason"] == "no_completed_public_analysis"
 
 
 def test_public_stock_payload_rejects_non_korean_ticker():
