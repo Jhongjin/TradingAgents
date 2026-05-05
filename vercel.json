@@ -8,6 +8,18 @@
   },
   "rewrites": [
     {
+      "source": "/",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/stocks",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/stocks/:path*",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/index.py"
     },

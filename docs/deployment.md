@@ -42,6 +42,8 @@ migration so RLS policies are installed.
 
 The API remains read-only:
 
+- `GET /`: public Samsung Electronics analysis page
+- `GET /stocks/{ticker}`: public Korean stock analysis page with KRW chart
 - `GET /api/stocks/{ticker}`: public Korean stock payload
 - `GET /api/analyses?ticker=005930`: public completed-analysis feed
 - `GET /api/prices/latest?tickers=005930,000660`: latest close-price snapshots

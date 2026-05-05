@@ -12,7 +12,20 @@ def test_vercel_json_routes_api_and_health_to_fastapi_entrypoint():
     config = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
 
     assert config["$schema"] == "https://openapi.vercel.sh/vercel.json"
+    assert config["framework"] is None
     assert config["functions"]["api/index.py"]["maxDuration"] == 60
+    assert {
+        "source": "/",
+        "destination": "/api/index.py",
+    } in config["rewrites"]
+    assert {
+        "source": "/stocks",
+        "destination": "/api/index.py",
+    } in config["rewrites"]
+    assert {
+        "source": "/stocks/:path*",
+        "destination": "/api/index.py",
+    } in config["rewrites"]
     assert {
         "source": "/api/:path*",
         "destination": "/api/index.py",

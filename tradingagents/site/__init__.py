@@ -8,6 +8,7 @@ from .market_api import build_latest_prices_payload
 from .portfolio_api import build_manual_portfolio_payload
 from .public_api import build_public_stock_payload
 from .watchlist_api import build_watchlist_payload
+from .web_pages import render_public_stock_page
 
 __all__ = [
     "build_latest_prices_payload",
@@ -20,4 +21,5 @@ __all__ = [
     "process_queued_analysis_requests",
     "queue_analysis_refresh_request",
     "run_tradingagents_graph_for_request",
+    "render_public_stock_page",
 ]

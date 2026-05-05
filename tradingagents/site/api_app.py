@@ -5,9 +5,11 @@ from __future__ import annotations
 import os
 from decimal import Decimal
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.middleware.cors import CORSMiddleware
 
 from tradingagents.dataflows.errors import VendorUnavailableError
@@ -19,6 +21,7 @@ from .market_api import build_latest_prices_payload
 from .portfolio_api import build_manual_portfolio_payload
 from .public_api import build_public_stock_payload
 from .watchlist_api import build_watchlist_payload
+from .web_pages import render_public_stock_page
 
 
 class AnalysisRefreshRequestBody(BaseModel):
@@ -59,7 +62,13 @@ def create_app(
     async def response_headers(request: Request, call_next):
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        if request.url.path.startswith("/api/stocks/"):
+        if request.url.path == "/" or request.url.path == "/stocks" or request.url.path.startswith("/stocks/"):
+            seconds = request.app.state.public_cache_seconds
+            response.headers.setdefault(
+                "Cache-Control",
+                f"public, max-age={seconds}, stale-while-revalidate={seconds * 2}",
+            )
+        elif request.url.path.startswith("/api/stocks/"):
             seconds = request.app.state.public_cache_seconds
             response.headers.setdefault(
                 "Cache-Control",
@@ -84,6 +93,37 @@ def create_app(
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    def home(
+        request: Request,
+        ticker: Annotated[str, Query(pattern=r"^\d{6}$")] = "005930",
+    ) -> HTMLResponse:
+        return _stock_html_response(ticker, request)
+
+    @app.get("/stocks", include_in_schema=False)
+    def stocks_lookup(
+        ticker: Annotated[str, Query(pattern=r"^\d{6}$")] = "005930",
+    ) -> RedirectResponse:
+        return RedirectResponse(url=f"/stocks/{quote(ticker.strip())}", status_code=302)
+
+    @app.get("/stocks/{ticker}", response_class=HTMLResponse, include_in_schema=False)
+    def stock_html_page(
+        ticker: str,
+        request: Request,
+        chart_start: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None,
+        chart_end: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None,
+        as_of_date: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None,
+        max_analysis_age_days: int = 1,
+    ) -> HTMLResponse:
+        return _stock_html_response(
+            ticker,
+            request,
+            chart_start=chart_start,
+            chart_end=chart_end,
+            as_of_date=as_of_date,
+            max_analysis_age_days=max_analysis_age_days,
+        )
 
     @app.get("/api/stocks/{ticker}")
     def stock_page(
@@ -218,6 +258,29 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return app
+
+
+def _stock_html_response(
+    ticker: str,
+    request: Request,
+    *,
+    chart_start: str | None = None,
+    chart_end: str | None = None,
+    as_of_date: str | None = None,
+    max_analysis_age_days: int = 1,
+) -> HTMLResponse:
+    try:
+        html = render_public_stock_page(
+            ticker,
+            repo=request.app.state.repository,
+            chart_start=chart_start,
+            chart_end=chart_end,
+            as_of_date=as_of_date,
+            max_analysis_age_days=max_analysis_age_days,
+        )
+    except (VendorUnavailableError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return HTMLResponse(html)
 
 
 def _repo_from_env() -> StorageRepository | None:

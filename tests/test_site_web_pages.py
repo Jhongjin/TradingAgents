@@ -1,0 +1,106 @@
+from fastapi.testclient import TestClient
+
+from tradingagents.site.api_app import create_app
+from tradingagents.site.web_pages import render_public_stock_page
+
+
+def _payload():
+    return {
+        "ticker": {
+            "code": "005930",
+            "name": "삼성전자",
+            "market": "KOSPI",
+            "currency": "KRW",
+            "benchmark_symbol": "^KS11",
+        },
+        "analysis": {
+            "status": "available",
+            "run": {"trade_date": "2026-05-05"},
+            "reports": [
+                {
+                    "role": "market",
+                    "title": "Market report",
+                    "content": "Korean market breadth and liquidity remain constructive.",
+                }
+            ],
+            "decision": {
+                "rating": "Hold",
+                "action": "hold",
+                "rationale": "Wait for stronger earnings confirmation.",
+            },
+        },
+        "analysis_refresh": {"recommended": False, "reason": "fresh"},
+        "chart": {
+            "status": "available",
+            "ticker_code": "005930",
+            "ticker_name": "삼성전자",
+            "market": "KOSPI",
+            "currency": "KRW",
+            "vendor": "pykrx",
+            "points": [
+                {"date": "2026-05-04", "open": 70000.0, "high": 71000.0, "low": 69000.0, "close": 70500.0, "volume": 1000},
+                {"date": "2026-05-05", "open": 70600.0, "high": 72000.0, "low": 70200.0, "close": 71800.0, "volume": 2000},
+            ],
+        },
+        "notices": [
+            "AI analysis is for informational purposes only and is not investment advice.",
+            "Live trading and broker order placement are intentionally not supported.",
+        ],
+        "generated_at": "2026-05-05T09:00:00+09:00",
+    }
+
+
+def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
+    monkeypatch.setattr("tradingagents.site.web_pages.build_public_stock_payload", lambda *args, **kwargs: _payload())
+
+    html = render_public_stock_page("005930")
+
+    assert "<!doctype html>" in html
+    assert "TradingAgents Korea" in html
+    assert "삼성전자" in html
+    assert "priceChart" in html
+    assert '"code":"005930"' in html
+    assert "71,800원" in html
+
+
+def test_api_app_serves_public_home_page(monkeypatch):
+    monkeypatch.setattr(
+        "tradingagents.site.api_app.render_public_stock_page",
+        lambda *args, **kwargs: "<!doctype html><html><body>005930 public page</body></html>",
+    )
+    client = TestClient(create_app(repo=None, load_repo_from_env=False, public_cache_seconds=60))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    assert "005930 public page" in response.text
+
+
+def test_api_app_redirects_stock_lookup_to_canonical_page():
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    response = client.get("/stocks", params={"ticker": "005930"}, follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/stocks/005930"
+
+
+def test_api_app_serves_public_stock_html_page(monkeypatch):
+    captured = {}
+
+    def fake_render(ticker, **kwargs):
+        captured["ticker"] = ticker
+        captured.update(kwargs)
+        return "<!doctype html><html><body>stock html</body></html>"
+
+    monkeypatch.setattr("tradingagents.site.api_app.render_public_stock_page", fake_render)
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    response = client.get("/stocks/005930", params={"chart_start": "2026-01-01"})
+
+    assert response.status_code == 200
+    assert response.text.startswith("<!doctype html>")
+    assert captured["ticker"] == "005930"
+    assert captured["chart_start"] == "2026-01-01"
