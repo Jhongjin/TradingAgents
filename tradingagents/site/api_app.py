@@ -18,7 +18,7 @@ from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.storage import ManualTradeInput, StorageRepository, create_storage_engine
 
 from .analysis_api import build_public_analysis_feed_payload, queue_analysis_refresh_request
-from .auth import resolve_member_user_id
+from .auth import SUPABASE_API_KEY_ENV_NAMES, SUPABASE_URL_ENV_NAMES, resolve_member_user_id
 from .market_api import build_latest_prices_payload
 from .portfolio_api import build_manual_portfolio_payload
 from .public_api import build_public_stock_payload
@@ -177,6 +177,7 @@ def create_app(
             "status": status,
             "deployment": _deployment_context(),
             "checks": checks,
+            "missing_environment": _missing_readiness_environment(checks),
         }
 
     @app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
@@ -713,13 +714,41 @@ def _api_docs_enabled() -> bool:
 
 
 def _supabase_auth_configured() -> bool:
-    has_url = bool(os.getenv("SUPABASE_URL") or os.getenv("TRADINGAGENTS_SUPABASE_URL"))
-    has_key = bool(
-        os.getenv("SUPABASE_ANON_KEY")
-        or os.getenv("SUPABASE_PUBLISHABLE_KEY")
-        or os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
-    )
+    has_url = _has_any_env(SUPABASE_URL_ENV_NAMES)
+    has_key = _has_any_env(SUPABASE_API_KEY_ENV_NAMES)
     return has_url and has_key
+
+
+def _missing_readiness_environment(checks: dict[str, bool]) -> dict[str, list[str]]:
+    missing: dict[str, list[str]] = {}
+    if not checks["storage_configured"]:
+        missing["storage_configured"] = ["DATABASE_URL"]
+    if not checks["supabase_auth_configured"]:
+        names: list[str] = []
+        if not _has_any_env(SUPABASE_URL_ENV_NAMES):
+            names.append("SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL")
+        if not _has_any_env(SUPABASE_API_KEY_ENV_NAMES):
+            names.append("SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY")
+        missing["supabase_auth_configured"] = names
+    if not checks["worker_token_configured"]:
+        missing["worker_token_configured"] = ["TRADINGAGENTS_WORKER_TOKEN or CRON_SECRET"]
+    if not checks["site_base_url_configured"]:
+        missing["site_base_url_configured"] = ["TRADINGAGENTS_SITE_BASE_URL"]
+    if not checks["ads_configured"]:
+        missing["ads_configured"] = ["TRADINGAGENTS_ADSENSE_PUBLISHER_ID or TRADINGAGENTS_ADS_TXT"]
+    if not checks["openai_configured"]:
+        missing["openai_configured"] = ["OPENAI_API_KEY"]
+    if not checks["dart_configured"]:
+        missing["dart_configured"] = ["DART_API_KEY"]
+    if not checks["naver_configured"]:
+        missing["naver_configured"] = ["NAVER_CLIENT_ID and NAVER_CLIENT_SECRET"]
+    if not checks["krx_configured"]:
+        missing["krx_configured"] = ["KRX_API_KEY or KRX_OPENAPI_KEY"]
+    return missing
+
+
+def _has_any_env(names: tuple[str, ...]) -> bool:
+    return any(bool(os.getenv(name)) for name in names)
 
 
 def _deployment_context() -> dict[str, str | None]:

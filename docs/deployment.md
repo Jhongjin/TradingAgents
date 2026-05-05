@@ -35,7 +35,9 @@ NAVER_CLIENT_SECRET=
 DATABASE_URL=
 TRADINGAGENTS_STORAGE_ENABLED=true
 SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_URL=
 SUPABASE_ANON_KEY=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
 TRADINGAGENTS_API_CORS_ORIGINS=https://your-domain.example
 TRADINGAGENTS_API_CORS_METHODS=GET,POST,PUT,DELETE,OPTIONS
 TRADINGAGENTS_API_PUBLIC_CACHE_SECONDS=300
@@ -63,6 +65,12 @@ so set the required variables for Preview too, or promote/deploy the branch to
 Production and test the production domain. `GET /api/readiness` returns
 `deployment.vercel_env` and non-secret boolean checks to confirm which scope is
 actually active.
+
+If you already configured Supabase for a browser client, the API also accepts
+`NEXT_PUBLIC_SUPABASE_URL` in place of `SUPABASE_URL`, and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` in place of `SUPABASE_ANON_KEY`. The readiness
+response includes a non-secret `missing_environment` object that lists env
+names still needed by the active deployment.
 
 Apply the Supabase migration before enabling persistent analysis storage. Do
 not enable `TRADINGAGENTS_STORAGE_CREATE_SCHEMA` in production Supabase; use the
@@ -132,7 +140,8 @@ only after you are ready to pay for scheduled LLM runs.
 Member routes require an authenticated user context before they will return
 portfolio or watchlist data. By default the API verifies `Authorization: Bearer
 <Supabase access token>` by calling Supabase Auth `/auth/v1/user` with
-`SUPABASE_URL` and `SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`.
+`SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_URL`, plus `SUPABASE_ANON_KEY`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, or `SUPABASE_PUBLISHABLE_KEY`.
 
 `X-TradingAgents-User-Id` is accepted only when
 `TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=true`, which should be used only

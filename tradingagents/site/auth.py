@@ -9,6 +9,10 @@ import requests
 from fastapi import HTTPException, Request
 
 
+SUPABASE_URL_ENV_NAMES = ("SUPABASE_URL", "TRADINGAGENTS_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL")
+SUPABASE_API_KEY_ENV_NAMES = ("SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY")
+
+
 def resolve_member_user_id(request: Request, trusted_user_header: str | None) -> str:
     """Resolve the authenticated member UUID for owner-scoped API routes."""
 
@@ -70,18 +74,22 @@ def _validate_user_uuid(value: str | None, label: str) -> str:
 
 
 def _supabase_url() -> str | None:
-    value = os.getenv("SUPABASE_URL") or os.getenv("TRADINGAGENTS_SUPABASE_URL")
+    value = _first_env(SUPABASE_URL_ENV_NAMES)
     if not value:
         return None
     return value.rstrip("/")
 
 
 def _supabase_api_key() -> str | None:
-    return (
-        os.getenv("SUPABASE_PUBLISHABLE_KEY")
-        or os.getenv("SUPABASE_ANON_KEY")
-        or os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
-    )
+    return _first_env(SUPABASE_API_KEY_ENV_NAMES)
+
+
+def _first_env(names: tuple[str, ...]) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            return value
+    return None
 
 
 def _auth_timeout_seconds() -> float:

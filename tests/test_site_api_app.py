@@ -127,10 +127,30 @@ def test_api_app_serves_non_secret_readiness(monkeypatch):
     assert body["checks"]["supabase_auth_configured"] is True
     assert body["checks"]["site_base_url_configured"] is True
     assert body["checks"]["ads_configured"] is True
+    assert body["missing_environment"]["storage_configured"] == ["DATABASE_URL"]
+    assert "supabase_auth_configured" not in body["missing_environment"]
     assert body["deployment"]["vercel_env"] == "preview"
     assert body["deployment"]["git_ref"] == "codex/kr-market"
     assert body["deployment"]["git_sha"] == "1234567890ab"
     assert "sk-test" not in response.text
+    assert "anon" not in response.text
+
+
+def test_api_app_readiness_accepts_next_public_supabase_env(monkeypatch):
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("TRADINGAGENTS_SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
+    monkeypatch.delenv("SUPABASE_PUBLISHABLE_KEY", raising=False)
+    monkeypatch.setenv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon")
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    response = client.get("/api/readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["checks"]["supabase_auth_configured"] is True
+    assert "supabase_auth_configured" not in body["missing_environment"]
     assert "anon" not in response.text
 
 
@@ -552,6 +572,7 @@ def test_api_app_serves_public_analysis_feed():
 def test_api_app_member_routes_require_supabase_auth_config_for_bearer(monkeypatch):
     monkeypatch.delenv("SUPABASE_URL", raising=False)
     monkeypatch.delenv("TRADINGAGENTS_SUPABASE_URL", raising=False)
+    monkeypatch.delenv("NEXT_PUBLIC_SUPABASE_URL", raising=False)
     monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
     monkeypatch.delenv("SUPABASE_PUBLISHABLE_KEY", raising=False)
     monkeypatch.delenv("NEXT_PUBLIC_SUPABASE_ANON_KEY", raising=False)
