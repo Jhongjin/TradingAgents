@@ -360,6 +360,7 @@ uvicorn tradingagents.site.api_app:app --reload
 ```
 
 It exposes `/api/stocks/{ticker}` for public Korean stock pages and
+`/api/analyses` for public completed-analysis feeds,
 `/api/prices/latest` for latest close-price snapshots, plus
 `/api/analysis-requests`, `/api/portfolio/{portfolio_id}`, and
 `/api/watchlists/{watchlist_id}` for member-entered workflows.

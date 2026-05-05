@@ -1,6 +1,6 @@
 """Public-site service helpers for TradingAgents."""
 
-from .analysis_api import queue_analysis_refresh_request
+from .analysis_api import build_public_analysis_feed_payload, queue_analysis_refresh_request
 from .analysis_runner import run_tradingagents_graph_for_request
 from .analysis_worker import AnalysisWorkerResult, process_queued_analysis_requests
 from .api_app import create_app
@@ -16,6 +16,7 @@ __all__ = [
     "build_watchlist_payload",
     "create_app",
     "AnalysisWorkerResult",
+    "build_public_analysis_feed_payload",
     "process_queued_analysis_requests",
     "queue_analysis_refresh_request",
     "run_tradingagents_graph_for_request",

@@ -257,6 +257,29 @@ def test_api_app_queues_analysis_refresh_request_with_bearer(monkeypatch):
     assert queued[0]["ticker_code"] == "005930"
 
 
+def test_api_app_serves_public_analysis_feed():
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, public_cache_seconds=60))
+    response = client.get("/api/analyses", params={"ticker": "005930", "limit": 1})
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    body = response.json()
+    assert body["item_count"] == 1
+    assert body["items"][0]["id"] == run_id
+
+
 def test_api_app_member_routes_require_supabase_auth_config_for_bearer(monkeypatch):
     monkeypatch.delenv("SUPABASE_URL", raising=False)
     monkeypatch.delenv("TRADINGAGENTS_SUPABASE_URL", raising=False)

@@ -26,6 +26,7 @@ SUPABASE_ANON_KEY=
 TRADINGAGENTS_API_CORS_ORIGINS=https://your-domain.example
 TRADINGAGENTS_API_PUBLIC_CACHE_SECONDS=300
 TRADINGAGENTS_API_MAX_PRICE_TICKERS=20
+TRADINGAGENTS_API_MAX_ANALYSIS_FEED_LIMIT=50
 TRADINGAGENTS_AUTH_TIMEOUT_SECONDS=5
 TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=false
 ```
@@ -37,6 +38,7 @@ migration so RLS policies are installed.
 The API remains read-only:
 
 - `GET /api/stocks/{ticker}`: public Korean stock payload
+- `GET /api/analyses?ticker=005930`: public completed-analysis feed
 - `GET /api/prices/latest?tickers=005930,000660`: latest close-price snapshots
 - `POST /api/analysis-requests`: queue an authenticated member analysis refresh request
 - `GET /api/portfolio/{portfolio_id}`: manual portfolio summary from stored user-entered trades

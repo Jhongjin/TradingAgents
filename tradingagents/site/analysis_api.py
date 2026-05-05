@@ -52,6 +52,39 @@ def queue_analysis_refresh_request(
     )
 
 
+def build_public_analysis_feed_payload(
+    repo: StorageRepository,
+    *,
+    ticker: str | None = None,
+    limit: int = 20,
+    max_limit: int = 50,
+) -> dict[str, Any]:
+    """Build a public completed-analysis feed payload."""
+
+    if max_limit <= 0:
+        raise ValueError("max_limit must be positive")
+    if limit <= 0:
+        raise ValueError("limit must be positive")
+    if limit > max_limit:
+        raise ValueError(f"limit cannot exceed {max_limit}")
+    ticker_code = None
+    if ticker:
+        if not is_kr_ticker(ticker):
+            raise ValueError("analysis feed currently supports Korean 6-digit tickers only")
+        ticker_code = resolve_kr_ticker(ticker, lookup_pykrx=False).code
+
+    rows = repo.list_public_analysis_runs(ticker_code=ticker_code, limit=limit)
+    return _json_ready(
+        {
+            "status": "available",
+            "ticker_code": ticker_code,
+            "limit": limit,
+            "items": rows,
+            "item_count": len(rows),
+        }
+    )
+
+
 def _trade_date(value: str | None) -> date:
     if value:
         return datetime.strptime(value, "%Y-%m-%d").date()

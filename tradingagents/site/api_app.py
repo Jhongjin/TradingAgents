@@ -13,7 +13,7 @@ from starlette.middleware.cors import CORSMiddleware
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.storage import StorageRepository, create_storage_engine
 
-from .analysis_api import queue_analysis_refresh_request
+from .analysis_api import build_public_analysis_feed_payload, queue_analysis_refresh_request
 from .auth import resolve_member_user_id
 from .market_api import build_latest_prices_payload
 from .portfolio_api import build_manual_portfolio_payload
@@ -51,6 +51,7 @@ def create_app(
     app.state.repository = repo or _repo_from_env() if load_repo_from_env else repo
     app.state.public_cache_seconds = _public_cache_seconds(public_cache_seconds)
     app.state.max_price_tickers = _max_price_tickers(max_price_tickers)
+    app.state.max_analysis_feed_limit = _max_analysis_feed_limit()
     app.state.trust_member_user_header = _trust_member_user_header(trust_member_user_header)
     _install_cors(app, cors_origins)
 
@@ -59,6 +60,12 @@ def create_app(
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         if request.url.path.startswith("/api/stocks/"):
+            seconds = request.app.state.public_cache_seconds
+            response.headers.setdefault(
+                "Cache-Control",
+                f"public, max-age={seconds}, stale-while-revalidate={seconds * 2}",
+            )
+        elif request.url.path == "/api/analyses":
             seconds = request.app.state.public_cache_seconds
             response.headers.setdefault(
                 "Cache-Control",
@@ -120,6 +127,25 @@ def create_app(
                 max_tickers=request.app.state.max_price_tickers,
             )
         except (VendorUnavailableError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/analyses")
+    def public_analysis_feed(
+        request: Request,
+        ticker: str | None = None,
+        limit: int = 20,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        try:
+            return build_public_analysis_feed_payload(
+                repo,
+                ticker=ticker,
+                limit=limit,
+                max_limit=request.app.state.max_analysis_feed_limit,
+            )
+        except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/portfolio/{portfolio_id}")
@@ -224,6 +250,13 @@ def _max_price_tickers(value: int | None) -> int:
     raw = value if value is not None else int(os.getenv("TRADINGAGENTS_API_MAX_PRICE_TICKERS", "20"))
     if raw <= 0:
         raise ValueError("max_price_tickers must be positive")
+    return raw
+
+
+def _max_analysis_feed_limit() -> int:
+    raw = int(os.getenv("TRADINGAGENTS_API_MAX_ANALYSIS_FEED_LIMIT", "50"))
+    if raw <= 0:
+        raise ValueError("TRADINGAGENTS_API_MAX_ANALYSIS_FEED_LIMIT must be positive")
     return raw
 
 
