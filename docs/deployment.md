@@ -12,6 +12,11 @@ api/index.py
 entrypoint exposes the same read-only API created by
 `tradingagents.site.create_app`.
 
+This project is a Python FastAPI API, not a Next.js app. `vercel.json` pins the
+Framework Preset to `Other` with `"framework": null`. If Vercel still shows
+`No Next.js version detected`, open **Project Settings -> Build & Development
+Settings** and set **Framework Preset** to **Other**, then redeploy.
+
 Required production environment:
 
 ```text
