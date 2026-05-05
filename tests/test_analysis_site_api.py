@@ -34,6 +34,31 @@ def test_queue_analysis_refresh_request_persists_queued_request():
     assert queued[0]["requested_trade_date"] == date(2026, 5, 5)
 
 
+def test_queue_analysis_refresh_request_reuses_existing_active_request():
+    repo = _repo()
+
+    first = queue_analysis_refresh_request(
+        repo,
+        ticker="005930",
+        user_id=USER_ID,
+        requested_trade_date="2026-05-05",
+        reason="stale",
+    )
+    second = queue_analysis_refresh_request(
+        repo,
+        ticker="005930",
+        user_id=USER_ID,
+        requested_trade_date="2026-05-05",
+        reason="button retry",
+    )
+    queued = repo.list_analysis_requests(user_id=USER_ID)
+
+    assert first["status"] == "queued"
+    assert second["status"] == "already_queued"
+    assert second["request_id"] == first["request_id"]
+    assert len(queued) == 1
+
+
 def test_queue_analysis_refresh_request_rejects_non_korean_ticker():
     repo = _repo()
 

@@ -159,6 +159,34 @@ def test_storage_repository_queues_analysis_refresh_requests():
     assert running[0]["status"] == "running"
 
 
+def test_storage_repository_finds_active_analysis_request_for_deduping():
+    repo = _repo()
+    request_id = repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="005930.KS",
+            requested_trade_date=date(2026, 5, 5),
+            reason="stale public page",
+        )
+    )
+
+    existing = repo.find_active_analysis_request(
+        user_id=USER_ID,
+        ticker_code="005930",
+        requested_trade_date=date(2026, 5, 5),
+    )
+    repo.update_analysis_request_status(request_id, status="completed")
+    completed = repo.find_active_analysis_request(
+        user_id=USER_ID,
+        ticker_code="005930",
+        requested_trade_date=date(2026, 5, 5),
+    )
+
+    assert existing is not None
+    assert existing["id"] == request_id
+    assert completed is None
+
+
 def test_storage_repository_calculates_manual_portfolio_positions():
     repo = _repo()
     portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")

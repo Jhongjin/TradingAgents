@@ -254,6 +254,36 @@ class StorageRepository:
             rows = conn.execute(stmt).mappings().all()
         return [dict(row) for row in rows]
 
+    def find_active_analysis_request(
+        self,
+        *,
+        user_id: str,
+        ticker_code: str,
+        requested_trade_date: Any,
+        statuses: tuple[str, ...] = ("queued", "running"),
+    ) -> dict[str, Any] | None:
+        """Find an existing queued/running analysis request for de-duping."""
+
+        _validate_uuid(user_id, "analysis request user_id")
+        normalized_ticker = _normalize_ticker_code(ticker_code)
+        for status in statuses:
+            _validate_analysis_request_status(status)
+
+        stmt = (
+            select(analysis_refresh_requests)
+            .where(
+                analysis_refresh_requests.c.user_id == user_id,
+                analysis_refresh_requests.c.ticker_code == normalized_ticker,
+                analysis_refresh_requests.c.requested_trade_date == requested_trade_date,
+                analysis_refresh_requests.c.status.in_(statuses),
+            )
+            .order_by(analysis_refresh_requests.c.created_at)
+            .limit(1)
+        )
+        with self.engine.begin() as conn:
+            row = conn.execute(stmt).mappings().first()
+        return dict(row) if row else None
+
     def create_manual_portfolio(self, *, user_id: str, name: str, base_currency: str = "KRW") -> str:
         _validate_uuid(user_id, "portfolio user_id")
         portfolio_id = _id()

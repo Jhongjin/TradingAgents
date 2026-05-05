@@ -26,6 +26,26 @@ def queue_analysis_refresh_request(
         raise ValueError("analysis refresh currently supports Korean 6-digit tickers only")
     resolved = resolve_kr_ticker(ticker, lookup_pykrx=False)
     trade_date = _trade_date(requested_trade_date)
+    existing = repo.find_active_analysis_request(
+        user_id=user_id,
+        ticker_code=resolved.code,
+        requested_trade_date=trade_date,
+    )
+    if existing is not None:
+        return _json_ready(
+            {
+                "status": "already_queued",
+                "request_id": existing["id"],
+                "ticker": {
+                    "code": resolved.code,
+                    "name": resolved.name,
+                    "market": resolved.market,
+                },
+                "requested_trade_date": trade_date,
+                "reason": existing.get("reason") or reason,
+            }
+        )
+
     request_id = repo.create_analysis_request(
         AnalysisRequestInput(
             user_id=user_id,
