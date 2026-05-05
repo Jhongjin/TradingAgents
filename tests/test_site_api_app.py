@@ -336,6 +336,44 @@ def test_api_app_admin_worker_processes_one_request(monkeypatch):
     assert repo.list_analysis_requests(status="completed")[0]["analysis_run_id"]
 
 
+def test_api_app_cron_worker_uses_cron_secret(monkeypatch):
+    repo = _repo()
+    repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="005930",
+            requested_trade_date=date(2026, 5, 5),
+        )
+    )
+    monkeypatch.delenv("TRADINGAGENTS_WORKER_TOKEN", raising=False)
+    monkeypatch.setenv("CRON_SECRET", "cron-secret")
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_CRON_LIMIT", "1")
+
+    def fake_runner(request, **kwargs):
+        run_id = repo.create_analysis_run(
+            AnalysisRunInput(
+                ticker_code=request["ticker_code"],
+                trade_date=request["requested_trade_date"],
+                visibility="public",
+            )
+        )
+        repo.complete_analysis_run(run_id)
+        return run_id
+
+    monkeypatch.setattr("tradingagents.site.analysis_runner.run_tradingagents_graph_for_request", fake_runner)
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.get(
+        "/api/cron/process-analysis-requests",
+        headers={"Authorization": "Bearer cron-secret"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.json()["status"] == "processed"
+    assert response.json()["results"][0]["status"] == "completed"
+
+
 def test_api_app_serves_public_analysis_feed():
     repo = _repo()
     run_id = repo.create_analysis_run(

@@ -103,6 +103,8 @@ def create_app(
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif request.url.path.startswith("/api/admin/"):
             response.headers.setdefault("Cache-Control", "private, no-store")
+        elif request.url.path.startswith("/api/cron/"):
+            response.headers.setdefault("Cache-Control", "private, no-store")
         return response
 
     @app.get("/health")
@@ -287,22 +289,18 @@ def create_app(
             queued = repo.list_analysis_requests(status="queued", limit=body.limit)
             return {"status": "dry_run", "item_count": len(queued), "items": queued}
 
-        from .analysis_runner import run_tradingagents_graph_for_request
-        from .analysis_worker import process_queued_analysis_requests
+        return _process_analysis_request_queue(repo, limit=body.limit)
 
-        results = process_queued_analysis_requests(
-            repo,
-            lambda queued_request: run_tradingagents_graph_for_request(
-                queued_request,
-                config={"database_url": os.getenv("DATABASE_URL")},
-            ),
-            limit=body.limit,
-        )
-        return {
-            "status": "processed",
-            "item_count": len(results),
-            "results": [result.__dict__ for result in results],
-        }
+    @app.get("/api/cron/process-analysis-requests")
+    def process_analysis_requests_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _process_analysis_request_queue(repo, limit=_cron_worker_limit())
 
     @app.get("/api/watchlists/{watchlist_id}")
     def manual_watchlist(
@@ -362,6 +360,25 @@ def _request_site_base_url(request: Request) -> str:
     return str(request.base_url).rstrip("/")
 
 
+def _process_analysis_request_queue(repo: StorageRepository, *, limit: int) -> dict:
+    from .analysis_runner import run_tradingagents_graph_for_request
+    from .analysis_worker import process_queued_analysis_requests
+
+    results = process_queued_analysis_requests(
+        repo,
+        lambda queued_request: run_tradingagents_graph_for_request(
+            queued_request,
+            config={"database_url": os.getenv("DATABASE_URL")},
+        ),
+        limit=limit,
+    )
+    return {
+        "status": "processed",
+        "item_count": len(results),
+        "results": [result.__dict__ for result in results],
+    }
+
+
 def _repo_from_env() -> StorageRepository | None:
     if not os.getenv("DATABASE_URL"):
         return None
@@ -418,8 +435,18 @@ def _max_worker_limit() -> int:
     return raw
 
 
+def _cron_worker_limit() -> int:
+    raw = int(os.getenv("TRADINGAGENTS_WORKER_CRON_LIMIT", str(_max_worker_limit())))
+    max_limit = _max_worker_limit()
+    if raw <= 0:
+        raise ValueError("TRADINGAGENTS_WORKER_CRON_LIMIT must be positive")
+    if raw > max_limit:
+        raise HTTPException(status_code=400, detail=f"cron limit cannot exceed {max_limit}")
+    return raw
+
+
 def _require_worker_token(request: Request, header_token: str | None) -> None:
-    expected = os.getenv("TRADINGAGENTS_WORKER_TOKEN", "").strip()
+    expected = _expected_worker_token()
     if not expected:
         raise HTTPException(status_code=503, detail="Analysis worker token is not configured")
     token = header_token or _bearer_token(request.headers.get("Authorization"))
@@ -427,6 +454,10 @@ def _require_worker_token(request: Request, header_token: str | None) -> None:
         raise HTTPException(status_code=401, detail="Missing analysis worker token")
     if not hmac.compare_digest(token, expected):
         raise HTTPException(status_code=403, detail="Invalid analysis worker token")
+
+
+def _expected_worker_token() -> str:
+    return (os.getenv("TRADINGAGENTS_WORKER_TOKEN") or os.getenv("CRON_SECRET") or "").strip()
 
 
 def _bearer_token(value: str | None) -> str | None:

@@ -41,6 +41,9 @@ TRADINGAGENTS_ADSENSE_PUBLISHER_ID=pub-0000000000000000
 TRADINGAGENTS_ADS_TXT=
 TRADINGAGENTS_WORKER_TOKEN=
 TRADINGAGENTS_WORKER_MAX_REQUESTS=1
+TRADINGAGENTS_WORKER_CRON_LIMIT=1
+# Optional Vercel Cron secret. If set, Vercel sends it as Authorization: Bearer <CRON_SECRET>.
+CRON_SECRET=
 TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=false
 ```
 
@@ -60,6 +63,7 @@ The API remains read-only:
 - `GET /api/prices/latest?tickers=005930,000660`: latest close-price snapshots
 - `POST /api/analysis-requests`: queue an authenticated member analysis refresh request
 - `POST /api/admin/analysis-requests/process`: protected operator endpoint for queued analysis processing
+- `GET /api/cron/process-analysis-requests`: protected Vercel Cron-compatible processing endpoint
 - `GET /api/portfolio/{portfolio_id}`: manual portfolio summary from stored user-entered trades
 - `GET /api/watchlists/{watchlist_id}`: member watchlist summary from stored ticker lists
 - `GET /health`: deployment health check
@@ -93,6 +97,11 @@ accepts either `Authorization: Bearer <token>` or
 `X-TradingAgents-Worker-Token: <token>`. Keep `TRADINGAGENTS_WORKER_MAX_REQUESTS`
 small on Vercel because a full TradingAgents run can be expensive and may hit
 serverless duration limits.
+
+Vercel Cron invokes endpoints with GET requests. The repo therefore includes
+`GET /api/cron/process-analysis-requests`, which accepts the same worker token
+or Vercel's `CRON_SECRET` bearer header. Add a `crons` entry in `vercel.json`
+only after you are ready to pay for scheduled LLM runs.
 
 Member routes require an authenticated user context before they will return
 portfolio or watchlist data. By default the API verifies `Authorization: Bearer
