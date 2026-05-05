@@ -54,10 +54,14 @@ def create_app(
     auto-creating schemas.
     """
 
+    docs_enabled = _api_docs_enabled()
     app = FastAPI(
         title="TradingAgents Korea API",
         version="0.1.0",
         description="Read-only API surface for Korean stock analysis and manual portfolio summaries.",
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
     )
     app.state.repository = repo or _repo_from_env() if load_repo_from_env else repo
     app.state.public_cache_seconds = _public_cache_seconds(public_cache_seconds)
@@ -272,7 +276,7 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    @app.post("/api/admin/analysis-requests/process")
+    @app.post("/api/admin/analysis-requests/process", include_in_schema=False)
     def process_analysis_requests_admin(
         body: AnalysisWorkerRequestBody,
         request: Request,
@@ -291,7 +295,7 @@ def create_app(
 
         return _process_analysis_request_queue(repo, limit=body.limit)
 
-    @app.get("/api/cron/process-analysis-requests")
+    @app.get("/api/cron/process-analysis-requests", include_in_schema=False)
     def process_analysis_requests_cron(
         request: Request,
         x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
@@ -420,6 +424,10 @@ def _max_analysis_feed_limit() -> int:
     if raw <= 0:
         raise ValueError("TRADINGAGENTS_API_MAX_ANALYSIS_FEED_LIMIT must be positive")
     return raw
+
+
+def _api_docs_enabled() -> bool:
+    return os.getenv("TRADINGAGENTS_API_DOCS_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _trust_member_user_header(value: bool | None) -> bool:

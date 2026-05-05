@@ -90,6 +90,27 @@ def test_api_app_serves_public_stock_payload(monkeypatch):
     assert body["chart"]["points"][0]["close"] == 70500.0
 
 
+def test_api_app_hides_operator_routes_from_openapi(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_API_DOCS_ENABLED", "true")
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    paths = response.json()["paths"]
+    assert "/api/stocks/{ticker}" in paths
+    assert "/api/admin/analysis-requests/process" not in paths
+    assert "/api/cron/process-analysis-requests" not in paths
+
+
+def test_api_app_can_disable_docs(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_API_DOCS_ENABLED", "false")
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    assert client.get("/docs").status_code == 404
+    assert client.get("/openapi.json").status_code == 404
+
+
 def test_api_app_rejects_non_korean_public_stock_ticker():
     client = TestClient(create_app(repo=None, load_repo_from_env=False))
 
