@@ -131,6 +131,8 @@ def create_app(
             )
         elif request.url.path.startswith("/api/prices/"):
             response.headers.setdefault("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
+        elif request.url.path == "/api/readiness":
+            response.headers.setdefault("Cache-Control", "private, no-store")
         elif request.url.path.startswith("/api/portfolio/") or request.url.path.startswith("/api/portfolios"):
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif request.url.path.startswith("/api/watchlists"):
@@ -146,6 +148,21 @@ def create_app(
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/api/readiness")
+    def readiness(request: Request) -> dict[str, object]:
+        checks = {
+            "storage_configured": request.app.state.repository is not None,
+            "supabase_auth_configured": _supabase_auth_configured(),
+            "worker_token_configured": bool(_expected_worker_token()),
+            "openai_configured": bool(os.getenv("OPENAI_API_KEY")),
+            "dart_configured": bool(os.getenv("DART_API_KEY")),
+            "naver_configured": bool(os.getenv("NAVER_CLIENT_ID") and os.getenv("NAVER_CLIENT_SECRET")),
+            "krx_configured": bool(os.getenv("KRX_API_KEY") or os.getenv("KRX_OPENAPI_KEY")),
+        }
+        required = ["storage_configured"]
+        status = "ok" if all(checks[name] for name in required) else "degraded"
+        return {"status": status, "checks": checks}
 
     @app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
     def robots_txt(request: Request) -> PlainTextResponse:
@@ -605,6 +622,16 @@ def _max_analysis_feed_limit() -> int:
 
 def _api_docs_enabled() -> bool:
     return os.getenv("TRADINGAGENTS_API_DOCS_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _supabase_auth_configured() -> bool:
+    has_url = bool(os.getenv("SUPABASE_URL") or os.getenv("TRADINGAGENTS_SUPABASE_URL"))
+    has_key = bool(
+        os.getenv("SUPABASE_ANON_KEY")
+        or os.getenv("SUPABASE_PUBLISHABLE_KEY")
+        or os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+    )
+    return has_url and has_key
 
 
 def _trust_member_user_header(value: bool | None) -> bool:

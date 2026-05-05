@@ -59,6 +59,7 @@ The API remains read-only:
 - `GET /ads.txt`: advertising seller declaration generated from AdSense/custom env
 - `GET /robots.txt`: crawler policy with sitemap URL
 - `GET /sitemap.xml`: public page sitemap built from `TRADINGAGENTS_SITEMAP_TICKERS`
+- `GET /api/readiness`: non-secret deployment readiness checks
 - `GET /api/stocks/{ticker}`: public Korean stock payload
 - `GET /api/analyses?ticker=005930`: public completed-analysis feed
 - `GET /api/prices/latest?tickers=005930,000660`: latest close-price snapshots

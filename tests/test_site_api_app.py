@@ -103,6 +103,26 @@ def test_api_app_hides_operator_routes_from_openapi(monkeypatch):
     assert "/api/cron/process-analysis-requests" not in paths
 
 
+def test_api_app_serves_non_secret_readiness(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_ANON_KEY", "anon")
+    monkeypatch.setenv("NAVER_CLIENT_ID", "naver-id")
+    monkeypatch.setenv("NAVER_CLIENT_SECRET", "naver-secret")
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    response = client.get("/api/readiness")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["checks"]["storage_configured"] is False
+    assert body["checks"]["openai_configured"] is True
+    assert body["checks"]["supabase_auth_configured"] is True
+    assert "sk-test" not in response.text
+
+
 def test_api_app_can_disable_docs(monkeypatch):
     monkeypatch.setenv("TRADINGAGENTS_API_DOCS_ENABLED", "false")
     client = TestClient(create_app(repo=None, load_repo_from_env=False))
