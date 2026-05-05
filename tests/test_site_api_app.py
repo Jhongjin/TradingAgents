@@ -607,6 +607,9 @@ def test_api_app_sets_public_and_private_cache_headers():
     assert stock_response.status_code == 200
     assert stock_response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
     assert stock_response.headers["x-content-type-options"] == "nosniff"
+    assert stock_response.headers["x-frame-options"] == "DENY"
+    assert stock_response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+    assert "camera=()" in stock_response.headers["permissions-policy"]
     assert portfolio_response.status_code == 200
     assert portfolio_response.headers["cache-control"] == "private, no-store"
 
