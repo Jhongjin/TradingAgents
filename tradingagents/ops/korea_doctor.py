@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+from uuid import UUID
 
 from tradingagents.execution import KISConfig
 
@@ -24,6 +25,9 @@ def run_korea_market_checks() -> list[CheckResult]:
         _required_env("DART_API_KEY", "OpenDART key is configured"),
         _paired_env("NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET", "Naver Search credentials are configured"),
         _optional_env("KRX_API_KEY", "KRX Open API key is configured", alias="KRX_OPENAPI_KEY"),
+        _database_url_check(),
+        _storage_config_check(),
+        _analysis_user_id_check(),
         _ssl_config_check(),
         _kis_config_check(),
     ]
@@ -86,6 +90,45 @@ def _ssl_config_check() -> CheckResult:
     return CheckResult("HTTPS CA bundle", "FAIL", f"Custom CA bundle path does not exist: {path}")
 
 
+def _database_url_check() -> CheckResult:
+    value = os.getenv("DATABASE_URL")
+    if not value or not value.strip():
+        return CheckResult("DATABASE_URL", "SKIP", "Storage DB is not configured yet")
+    prefix = value.split(":", 1)[0].lower()
+    if prefix in {"postgresql", "postgres", "sqlite", "sqlite+pysqlite"}:
+        return CheckResult("DATABASE_URL", "PASS", f"Storage DB URL is configured with {prefix} scheme")
+    return CheckResult("DATABASE_URL", "WARN", f"Unrecognized DB URL scheme: {prefix}")
+
+
+def _storage_config_check() -> CheckResult:
+    if not _env_bool("TRADINGAGENTS_STORAGE_ENABLED", False):
+        return CheckResult("analysis storage", "SKIP", "Analysis DB persistence is disabled")
+    if not _env_set("DATABASE_URL"):
+        return CheckResult(
+            "analysis storage",
+            "FAIL",
+            "TRADINGAGENTS_STORAGE_ENABLED=true requires DATABASE_URL for durable storage",
+        )
+    if _env_bool("TRADINGAGENTS_STORAGE_CREATE_SCHEMA", False):
+        return CheckResult(
+            "analysis storage",
+            "WARN",
+            "Schema auto-create is enabled; use migrations for production Supabase",
+        )
+    return CheckResult("analysis storage", "PASS", "Completed analyses will be persisted")
+
+
+def _analysis_user_id_check() -> CheckResult:
+    value = os.getenv("TRADINGAGENTS_ANALYSIS_USER_ID")
+    if not value or not value.strip():
+        return CheckResult("analysis user", "SKIP", "No default analysis owner is configured")
+    try:
+        UUID(value.strip())
+    except ValueError:
+        return CheckResult("analysis user", "FAIL", "TRADINGAGENTS_ANALYSIS_USER_ID must be a Supabase auth UUID")
+    return CheckResult("analysis user", "PASS", "Default analysis owner UUID shape is valid")
+
+
 def _kis_config_check() -> CheckResult:
     configured = any(
         _env_set(name)
@@ -117,3 +160,10 @@ def _kis_config_check() -> CheckResult:
 def _env_set(name: str) -> bool:
     value = os.getenv(name)
     return value is not None and bool(value.strip())
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}

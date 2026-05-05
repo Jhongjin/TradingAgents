@@ -2,6 +2,14 @@ import os
 
 _TRADINGAGENTS_HOME = os.path.join(os.path.expanduser("~"), ".tradingagents")
 
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 DEFAULT_CONFIG = {
     "project_dir": os.path.abspath(os.path.join(os.path.dirname(__file__), ".")),
     "results_dir": os.getenv("TRADINGAGENTS_RESULTS_DIR", os.path.join(_TRADINGAGENTS_HOME, "logs")),
@@ -28,6 +36,13 @@ DEFAULT_CONFIG = {
     # Checkpoint/resume: when True, LangGraph saves state after each node
     # so a crashed run can resume from the last successful step.
     "checkpoint_enabled": False,
+    # Optional persistence for public web/API layers. Keep disabled for normal
+    # CLI use unless a durable DATABASE_URL has been configured.
+    "storage_enabled": _env_bool("TRADINGAGENTS_STORAGE_ENABLED", False),
+    "database_url": os.getenv("DATABASE_URL"),
+    "storage_create_schema": _env_bool("TRADINGAGENTS_STORAGE_CREATE_SCHEMA", False),
+    "analysis_visibility": os.getenv("TRADINGAGENTS_ANALYSIS_VISIBILITY", "public"),
+    "analysis_user_id": os.getenv("TRADINGAGENTS_ANALYSIS_USER_ID"),
     # Output language for analyst reports and final decision
     # Internal agent debate stays in English for reasoning quality
     "output_language": "English",

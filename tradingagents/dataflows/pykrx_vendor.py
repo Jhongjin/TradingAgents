@@ -57,6 +57,17 @@ def get_stock(
     return header + normalized.to_csv()
 
 
+def get_ohlcv_frame(
+    symbol: str,
+    start_date: str,
+    end_date: str,
+) -> pd.DataFrame:
+    """Return normalized OHLCV rows for API/chart use."""
+
+    resolved = _require_supported(symbol)
+    return _ohlcv_frame(resolved.code, start_date, end_date)
+
+
 def get_indicator(
     symbol: Annotated[str, "Korean 6-digit ticker symbol"],
     indicator: Annotated[str, "Technical indicator name"],

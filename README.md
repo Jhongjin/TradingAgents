@@ -118,6 +118,11 @@ service approvals are in place.
 
 See `docs/korea-market-ops.md` for the operating checklist, deployment notes,
 and Korean-market assumptions used by the paper/backtest layer.
+See `docs/product-scope.md` for the public-site product boundary: AI stock
+analysis is the core, while member portfolio entry and charts are supporting
+features.
+See `docs/storage-schema.md` for the Supabase schema and Python repository used
+to store public analysis runs and member-entered portfolio records.
 
 ## News
 - [2026-04] **TradingAgents v0.2.4** released with structured-output agents (Research Manager, Trader, Portfolio Manager), LangGraph checkpoint resume, persistent decision log, DeepSeek/Qwen/GLM/Azure provider support, Docker, and a Windows UTF-8 encoding fix. See [CHANGELOG.md](CHANGELOG.md) for the full list.
@@ -339,6 +344,14 @@ config["checkpoint_enabled"] = True
 ta = TradingAgentsGraph(config=config)
 _, decision = ta.propagate("NVDA", "2026-01-15")
 ```
+
+### Public analysis storage
+
+For web/API deployments, completed analyses can also be written to the SQL
+schema described in [`docs/storage-schema.md`](docs/storage-schema.md). Set
+`DATABASE_URL` and `TRADINGAGENTS_STORAGE_ENABLED=true`; production Supabase
+databases should be created with the migration rather than
+`TRADINGAGENTS_STORAGE_CREATE_SCHEMA=true`.
 
 ## Contributing
 

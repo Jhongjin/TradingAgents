@@ -35,3 +35,42 @@ def test_korea_doctor_warns_when_ssl_verification_is_disabled(monkeypatch):
 
     assert any(result.name == "HTTPS verification" and result.status == "WARN" for result in results)
     assert not has_failures([result for result in results if result.name == "HTTPS verification"])
+
+
+def test_korea_doctor_reports_database_url_without_exposing_secret(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:secret@example.supabase.co:5432/postgres")
+
+    results = run_korea_market_checks()
+    report = format_results(results)
+
+    assert any(result.name == "DATABASE_URL" and result.status == "PASS" for result in results)
+    assert "secret" not in report
+    assert "example.supabase.co" not in report
+
+
+def test_korea_doctor_requires_database_url_when_storage_enabled(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_STORAGE_ENABLED", "true")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    results = run_korea_market_checks()
+
+    assert any(result.name == "analysis storage" and result.status == "FAIL" for result in results)
+
+
+def test_korea_doctor_reports_enabled_analysis_storage(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_STORAGE_ENABLED", "true")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:secret@example.supabase.co:5432/postgres")
+
+    results = run_korea_market_checks()
+    report = format_results(results)
+
+    assert any(result.name == "analysis storage" and result.status == "PASS" for result in results)
+    assert "secret" not in report
+
+
+def test_korea_doctor_validates_analysis_user_id(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_ANALYSIS_USER_ID", "not-a-uuid")
+
+    results = run_korea_market_checks()
+
+    assert any(result.name == "analysis user" and result.status == "FAIL" for result in results)

@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 import json
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Dict, Any, Tuple, List, Optional
 
 import yfinance as yf
@@ -27,6 +27,14 @@ from tradingagents.agents.utils.agent_states import (
 from tradingagents.dataflows.config import set_config
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker, to_yfinance_symbol
 from tradingagents.dataflows.kr_returns import fetch_korean_returns
+from tradingagents.execution.signals import signal_from_decision
+from tradingagents.storage import (
+    AgentReportInput,
+    AnalysisRunInput,
+    StorageRepository,
+    TradeDecisionInput,
+    create_storage_engine,
+)
 
 # Import the new abstract tool methods from agent_utils
 from tradingagents.agents.utils.agent_utils import (
@@ -68,6 +76,7 @@ class TradingAgentsGraph:
             callbacks: Optional list of callback handlers (e.g., for tracking LLM/tool stats)
         """
         self.debug = debug
+        self.selected_analysts = selected_analysts
         self.config = config or DEFAULT_CONFIG
         self.callbacks = callbacks or []
 
@@ -102,6 +111,7 @@ class TradingAgentsGraph:
         self.quick_thinking_llm = quick_client.get_llm()
         
         self.memory_log = TradingMemoryLog(self.config)
+        self.storage_repo = self._create_storage_repository()
 
         # Create tool nodes
         self.tool_nodes = self._create_tool_nodes()
@@ -125,6 +135,7 @@ class TradingAgentsGraph:
         # State tracking
         self.curr_state = None
         self.ticker = None
+        self.last_analysis_run_id = None
         self.log_states_dict = {}  # date to full state dict
 
         # Set up the graph: keep the workflow for recompilation with a checkpointer.
@@ -189,6 +200,26 @@ class TradingAgentsGraph:
                 ]
             ),
         }
+
+    def _create_storage_repository(self) -> StorageRepository | None:
+        """Create the optional analysis storage repository."""
+
+        if not self.config.get("storage_enabled"):
+            return None
+
+        try:
+            repo = StorageRepository(
+                create_storage_engine(
+                    self.config.get("database_url"),
+                    echo=bool(self.config.get("storage_echo", False)),
+                )
+            )
+            if self.config.get("storage_create_schema"):
+                repo.create_schema()
+            return repo
+        except Exception as exc:
+            logger.warning("Analysis storage is disabled after initialization failure: %s", exc)
+            return None
 
     def _fetch_returns(
         self, ticker: str, trade_date: str, holding_days: int = 5
@@ -380,6 +411,8 @@ class TradingAgentsGraph:
             final_trade_decision=final_state["final_trade_decision"],
         )
 
+        self._persist_analysis_run(final_state, trade_date)
+
         # Clear checkpoint on successful completion to avoid stale state.
         if self.config.get("checkpoint_enabled"):
             clear_checkpoint(
@@ -387,6 +420,119 @@ class TradingAgentsGraph:
             )
 
         return final_state, self.process_signal(final_state["final_trade_decision"])
+
+    def _persist_analysis_run(self, final_state: Dict[str, Any], trade_date: Any) -> str | None:
+        """Persist a completed analysis run for the optional public web layer."""
+
+        repo = getattr(self, "storage_repo", None)
+        if repo is None:
+            return None
+
+        run_id = None
+        try:
+            company = str(
+                final_state.get("company_of_interest")
+                or getattr(self, "ticker", None)
+                or ""
+            ).strip()
+            ticker_code, ticker_name, market = self._storage_ticker_fields(company)
+            run_id = repo.create_analysis_run(
+                AnalysisRunInput(
+                    ticker_code=ticker_code,
+                    ticker_name=ticker_name,
+                    market=market,
+                    trade_date=self._storage_trade_date(trade_date),
+                    status="pending",
+                    visibility=self.config.get("analysis_visibility", "public"),
+                    user_id=self.config.get("analysis_user_id"),
+                    model_provider=self.config.get("llm_provider"),
+                    deep_model=self.config.get("deep_think_llm"),
+                    quick_model=self.config.get("quick_think_llm"),
+                    metadata={
+                        "source": "trading_graph",
+                        "currency": self.config.get("currency"),
+                        "output_language": self.config.get("output_language"),
+                        "selected_analysts": list(getattr(self, "selected_analysts", [])),
+                    },
+                )
+            )
+
+            for role, title, content in self._storage_report_items(final_state):
+                if content is None:
+                    continue
+                rendered = self._stringify_report_content(content)
+                if not rendered.strip():
+                    continue
+                repo.add_agent_report(
+                    AgentReportInput(
+                        analysis_run_id=run_id,
+                        role=role,
+                        title=title,
+                        content=rendered,
+                    )
+                )
+
+            raw_decision = str(final_state.get("final_trade_decision") or "")
+            signal = signal_from_decision(ticker_code, raw_decision)
+            repo.record_trade_decision(
+                TradeDecisionInput(
+                    analysis_run_id=run_id,
+                    rating=signal.rating,
+                    action=signal.action,
+                    target_weight=signal.target_weight,
+                    rationale=signal.rationale,
+                    raw_decision=raw_decision,
+                )
+            )
+            repo.complete_analysis_run(run_id)
+            self.last_analysis_run_id = run_id
+            return run_id
+        except Exception as exc:
+            if run_id:
+                try:
+                    repo.complete_analysis_run(run_id, status="failed")
+                except Exception:
+                    pass
+            logger.warning("Could not persist completed analysis run: %s", exc)
+            return None
+
+    def _storage_ticker_fields(self, company: str) -> tuple[str, str, str]:
+        if is_kr_ticker(company):
+            resolved = resolve_kr_ticker(company, lookup_pykrx=False)
+            return resolved.code, resolved.name, resolved.market
+
+        ticker_code = company.upper()
+        market = str(self.config.get("market") or "US").upper()
+        if market == "KR":
+            market = "US"
+        return ticker_code, company, market
+
+    @staticmethod
+    def _storage_trade_date(value: Any) -> date:
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        return datetime.strptime(str(value), "%Y-%m-%d").date()
+
+    @staticmethod
+    def _storage_report_items(final_state: Dict[str, Any]) -> list[tuple[str, str, Any]]:
+        return [
+            ("market", "Market report", final_state.get("market_report")),
+            ("sentiment", "Sentiment report", final_state.get("sentiment_report")),
+            ("news", "News report", final_state.get("news_report")),
+            ("fundamentals", "Fundamentals report", final_state.get("fundamentals_report")),
+            ("investment_debate", "Investment debate", final_state.get("investment_debate_state")),
+            ("trader", "Trader investment plan", final_state.get("trader_investment_plan")),
+            ("risk", "Risk debate", final_state.get("risk_debate_state")),
+            ("investment_plan", "Research manager plan", final_state.get("investment_plan")),
+        ]
+
+    @staticmethod
+    def _stringify_report_content(content: Any) -> str:
+        if isinstance(content, str):
+            return content
+        return json.dumps(content, ensure_ascii=False, default=str, indent=2)
 
     def _log_state(self, trade_date, final_state):
         """Log the final state to a JSON file."""
