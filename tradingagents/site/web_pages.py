@@ -1722,6 +1722,11 @@ MEMBER_PAGE_JS = """
     return node;
   }
 
+  function money(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+    return `${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(Number(value))}원`;
+  }
+
   function fillSelect(select, rows, labelKey) {
     if (!select) return;
     select.replaceChildren(...rows.map((row) => {
@@ -1732,19 +1737,32 @@ MEMBER_PAGE_JS = """
     }));
   }
 
-  function renderPortfolios(payload) {
+  function renderPortfolios(payload, details = {}) {
     const rows = payload.items || [];
     fillSelect(portfolioSelect, rows, "name");
     portfolioList.replaceChildren(
-      ...(rows.length ? rows.map((row) => itemCard(row.name, `${row.base_currency || "KRW"} / ${row.id}`)) : [emptyNode("저장된 포트폴리오가 없습니다")])
+      ...(rows.length ? rows.map((row) => {
+        const detail = details[row.id];
+        const totals = detail?.totals || {};
+        const meta = detail
+          ? `${row.base_currency || "KRW"} / 평가 ${money(totals.market_value)} / 손익 ${money(totals.total_pnl)}`
+          : `${row.base_currency || "KRW"} / ${row.id}`;
+        return itemCard(row.name, meta);
+      }) : [emptyNode("저장된 포트폴리오가 없습니다")])
     );
   }
 
-  function renderWatchlists(payload) {
+  function renderWatchlists(payload, details = {}) {
     const rows = payload.items || [];
     fillSelect(watchlistSelect, rows, "name");
     watchlistList.replaceChildren(
-      ...(rows.length ? rows.map((row) => itemCard(row.name, row.id)) : [emptyNode("저장된 관심목록이 없습니다")])
+      ...(rows.length ? rows.map((row) => {
+        const detail = details[row.id];
+        const meta = detail
+          ? `${detail.item_count}종목 / 가격 ${detail.priced_item_count}개`
+          : row.id;
+        return itemCard(row.name, meta);
+      }) : [emptyNode("저장된 관심목록이 없습니다")])
     );
   }
 
@@ -1765,10 +1783,25 @@ MEMBER_PAGE_JS = """
       memberApi("/api/watchlists"),
       memberApi("/api/analysis-requests?limit=20")
     ]);
-    renderPortfolios(portfolios);
-    renderWatchlists(watchlists);
+    const [portfolioDetails, watchlistDetails] = await Promise.all([
+      detailMap((portfolios.items || []).slice(0, 6), (row) => `/api/portfolio/${encodeURIComponent(row.id)}?include_latest_prices=true`),
+      detailMap((watchlists.items || []).slice(0, 6), (row) => `/api/watchlists/${encodeURIComponent(row.id)}?include_latest_prices=true`)
+    ]);
+    renderPortfolios(portfolios, portfolioDetails);
+    renderWatchlists(watchlists, watchlistDetails);
     renderAnalysisRequests(requests);
     setStatus("로그인됨");
+  }
+
+  async function detailMap(rows, pathForRow) {
+    const entries = await Promise.all(rows.map(async (row) => {
+      try {
+        return [row.id, await memberApi(pathForRow(row))];
+      } catch (_) {
+        return [row.id, null];
+      }
+    }));
+    return Object.fromEntries(entries.filter(([, value]) => value));
   }
 
   async function handleAuth(event) {

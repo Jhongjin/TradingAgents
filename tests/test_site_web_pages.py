@@ -123,6 +123,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "/api/portfolios" in html
     assert "/api/watchlists" in html
     assert "/api/analysis-requests" in html
+    assert "include_latest_prices=true" in html
     assert '"configured":true' in html
     assert "anon-key" in html
     assert "service-role-secret" not in html
