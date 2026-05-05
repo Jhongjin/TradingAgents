@@ -25,7 +25,7 @@ from .public_api import build_public_stock_payload
 from .seo import build_ads_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
 from .ticker_api import build_ticker_search_payload
 from .watchlist_api import build_watchlist_payload
-from .web_pages import render_public_analysis_feed_page, render_public_stock_page
+from .web_pages import render_public_analysis_feed_page, render_public_home_page, render_public_stock_page
 
 
 class AnalysisRefreshRequestBody(BaseModel):
@@ -206,7 +206,9 @@ def create_app(
         request: Request,
         ticker: Annotated[str, Query(pattern=r"^\d{6}$")] = "005930",
     ) -> HTMLResponse:
-        return _stock_html_response(ticker, request)
+        if ticker != "005930":
+            return _stock_html_response(ticker, request)
+        return HTMLResponse(render_public_home_page(repo=request.app.state.repository, site_base_url=_request_site_base_url(request)))
 
     @app.get("/analyses", response_class=HTMLResponse, include_in_schema=False)
     def analysis_feed_page(

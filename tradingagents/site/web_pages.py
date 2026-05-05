@@ -236,6 +236,99 @@ def render_public_analysis_feed_page(
 </html>"""
 
 
+def render_public_home_page(
+    *,
+    repo: StorageRepository | None = None,
+    site_base_url: str | None = None,
+) -> str:
+    """Render the public analysis explorer home page."""
+
+    payload = _analysis_feed_payload(repo, ticker=None, limit=6, max_limit=50)
+    model = _home_view_model(payload, site_base_url=site_base_url)
+    recent_html = _analysis_feed_cards(model["recent_items"])
+    quick_html = _quick_ticker_cards()
+
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{_h(model["title"])}</title>
+  <meta name="description" content="{_h(model["description"])}">
+  <link rel="canonical" href="{_h(model["canonical_url"])}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TradingAgents Korea">
+  <meta property="og:title" content="{_h(model["title"])}">
+  <meta property="og:description" content="{_h(model["description"])}">
+  <meta property="og:url" content="{_h(model["canonical_url"])}">
+  <style>{PAGE_CSS}</style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="TradingAgents Korea home">
+      <span class="brand-mark">TA</span>
+      <span>TradingAgents Korea</span>
+    </a>
+    <nav class="top-links" aria-label="공개 페이지">
+      <a href="/analyses">분석 목록</a>
+      <a href="/stocks/005930">삼성전자</a>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <section class="home-search-band" aria-labelledby="home-title">
+      <div>
+        <p class="eyebrow">Korean Stock AI Analysis</p>
+        <h1 id="home-title">한국 주식 AI 분석</h1>
+        <p class="asof">6자리 종목코드나 종목명으로 바로 분석 페이지를 열 수 있습니다.</p>
+      </div>
+      <form class="ticker-search home-search" action="/stocks" method="get">
+        <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
+        <input id="ticker" name="ticker" list="tickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" autocomplete="off">
+        <datalist id="tickerSuggestions"></datalist>
+        <button type="submit">조회</button>
+      </form>
+    </section>
+
+    <section class="report-section" aria-labelledby="quick-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Quick Start</p>
+          <h2 id="quick-title">주요 종목 바로가기</h2>
+        </div>
+        <span class="status-pill">KRW</span>
+      </div>
+      <div class="analysis-feed-grid">
+        {quick_html}
+      </div>
+    </section>
+
+    <section class="report-section" aria-labelledby="recent-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Recent Analyses</p>
+          <h2 id="recent-title">최근 공개 분석</h2>
+        </div>
+        <a class="status-pill" href="/analyses">전체 보기</a>
+      </div>
+      <div class="analysis-feed-grid">
+        {recent_html}
+      </div>
+    </section>
+
+    <section class="notice-strip" aria-label="투자 유의사항">
+      <ul>
+        <li>AI analysis is for informational purposes only and is not investment advice.</li>
+        <li>Live trading and broker order placement are intentionally not supported.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script>{PAGE_JS}</script>
+</body>
+</html>"""
+
+
 def _view_model(payload: dict[str, Any], *, site_base_url: str | None = None) -> dict[str, Any]:
     ticker = payload["ticker"]
     chart = payload.get("chart", {})
@@ -315,6 +408,42 @@ def _analysis_feed_view_model(payload: dict[str, Any], *, site_base_url: str | N
         "item_count": str(len(items)),
         "items": items,
     }
+
+
+def _home_view_model(payload: dict[str, Any], *, site_base_url: str | None = None) -> dict[str, Any]:
+    return {
+        "title": "TradingAgents Korea | 한국 주식 AI 분석",
+        "description": "한국 주식 종목코드와 종목명으로 AI 분석, KRW 차트, 공개 리포트를 탐색합니다.",
+        "canonical_url": canonical_url("/", site_base_url=site_base_url),
+        "recent_items": payload.get("items") or [],
+    }
+
+
+def _quick_ticker_cards() -> str:
+    quick = [
+        ("005930", "삼성전자", "KOSPI"),
+        ("000660", "SK하이닉스", "KOSPI"),
+        ("035420", "NAVER", "KOSPI"),
+        ("035720", "카카오", "KOSPI"),
+        ("051910", "LG화학", "KOSPI"),
+        ("086520", "에코프로", "KOSDAQ"),
+    ]
+    cards = []
+    for code, name, market in quick:
+        cards.append(
+            f"""
+            <article class="analysis-feed-card">
+              <span>{_h(market)}</span>
+              <h3><a href="/stocks/{_h(code)}">{_h(name)} <small>{_h(code)}</small></a></h3>
+              <p>KRW 차트와 공개 분석 상태를 확인합니다.</p>
+              <dl>
+                <div><dt>통화</dt><dd>KRW</dd></div>
+                <div><dt>페이지</dt><dd>분석 보기</dd></div>
+              </dl>
+            </article>
+            """
+        )
+    return "\n".join(cards)
 
 
 def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
@@ -641,6 +770,23 @@ a {
   padding: 26px 0 24px;
 }
 
+.home-search-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 520px);
+  gap: 24px;
+  align-items: end;
+  padding: 30px 0 24px;
+}
+
+.home-search {
+  width: 100%;
+}
+
+.home-search input,
+.home-search button {
+  height: 48px;
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: var(--accent-strong);
@@ -957,7 +1103,8 @@ h3 {
 
 @media (max-width: 980px) {
   .summary-band,
-  .workspace {
+  .workspace,
+  .home-search-band {
     grid-template-columns: 1fr;
   }
 

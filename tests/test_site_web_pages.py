@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from tradingagents.storage import AnalysisRunInput, StorageRepository, create_storage_engine
 from tradingagents.site.api_app import create_app
 from tradingagents.site.seo import build_ads_txt, build_robots_txt, build_sitemap_xml, stock_canonical_url
-from tradingagents.site.web_pages import render_public_analysis_feed_page, render_public_stock_page
+from tradingagents.site.web_pages import render_public_analysis_feed_page, render_public_home_page, render_public_stock_page
 
 
 def _payload():
@@ -83,8 +83,8 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
 
 def test_api_app_serves_public_home_page(monkeypatch):
     monkeypatch.setattr(
-        "tradingagents.site.api_app.render_public_stock_page",
-        lambda *args, **kwargs: "<!doctype html><html><body>005930 public page</body></html>",
+        "tradingagents.site.api_app.render_public_home_page",
+        lambda *args, **kwargs: "<!doctype html><html><body>home analysis explorer</body></html>",
     )
     client = TestClient(create_app(repo=None, load_repo_from_env=False, public_cache_seconds=60))
 
@@ -93,7 +93,18 @@ def test_api_app_serves_public_home_page(monkeypatch):
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
     assert response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
-    assert "005930 public page" in response.text
+    assert "home analysis explorer" in response.text
+
+
+def test_render_public_home_page_is_usable_analysis_explorer():
+    html = render_public_home_page(site_base_url="https://example.com")
+
+    assert "한국 주식 AI 분석" in html
+    assert "tickerSuggestions" in html
+    assert "/api/tickers/search" in html
+    assert "/stocks/005930" in html
+    assert "/analyses" in html
+    assert '<link rel="canonical" href="https://example.com/">' in html
 
 
 def test_render_public_analysis_feed_page_lists_completed_runs():
