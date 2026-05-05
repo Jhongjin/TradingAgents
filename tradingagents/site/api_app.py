@@ -734,7 +734,7 @@ def _supabase_auth_configured() -> bool:
 
 def _missing_readiness_environment(checks: dict[str, bool]) -> dict[str, list[str]]:
     missing: dict[str, list[str]] = {}
-    if not checks["storage_configured"]:
+    if not checks["storage_configured"] and not os.getenv("DATABASE_URL"):
         missing["storage_configured"] = ["DATABASE_URL"]
     if not checks["supabase_auth_configured"]:
         names: list[str] = []

@@ -165,6 +165,7 @@ def test_api_app_readiness_reports_invalid_database_url(monkeypatch):
     body = response.json()
     assert body["status"] == "degraded"
     assert body["checks"]["storage_configured"] is False
+    assert "storage_configured" not in body["missing_environment"]
     assert "DATABASE_URL could not be initialized" in body["configuration_errors"]["storage_configured"]
     assert "not-a-valid-database-url" not in response.text
 
