@@ -164,8 +164,10 @@ def create_app(
 
     @app.get("/api/readiness")
     def readiness(request: Request) -> dict[str, object]:
+        storage_connectivity_error = _storage_connectivity_error(request.app.state.repository)
         checks = {
             "storage_configured": request.app.state.repository is not None,
+            "storage_online": request.app.state.repository is not None and storage_connectivity_error is None,
             "supabase_auth_configured": _supabase_auth_configured(),
             "worker_token_configured": bool(_expected_worker_token()),
             "site_base_url_configured": bool(os.getenv("TRADINGAGENTS_SITE_BASE_URL")),
@@ -175,14 +177,17 @@ def create_app(
             "naver_configured": bool(os.getenv("NAVER_CLIENT_ID") and os.getenv("NAVER_CLIENT_SECRET")),
             "krx_configured": bool(os.getenv("KRX_API_KEY") or os.getenv("KRX_OPENAPI_KEY")),
         }
-        required = ["storage_configured"]
+        required = ["storage_configured", "storage_online"]
         status = "ok" if all(checks[name] for name in required) else "degraded"
         return {
             "status": status,
             "deployment": _deployment_context(),
             "checks": checks,
             "missing_environment": _missing_readiness_environment(checks),
-            "configuration_errors": _readiness_configuration_errors(request),
+            "configuration_errors": _readiness_configuration_errors(
+                request,
+                storage_connectivity_error=storage_connectivity_error,
+            ),
         }
 
     @app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
@@ -760,13 +765,32 @@ def _missing_readiness_environment(checks: dict[str, bool]) -> dict[str, list[st
     return missing
 
 
-def _readiness_configuration_errors(request: Request) -> dict[str, str]:
+def _storage_connectivity_error(repo: StorageRepository | None) -> str | None:
+    if repo is None:
+        return None
+    try:
+        repo.check_connection()
+    except Exception as exc:
+        return type(exc).__name__
+    return None
+
+
+def _readiness_configuration_errors(
+    request: Request,
+    *,
+    storage_connectivity_error: str | None,
+) -> dict[str, str]:
     errors: dict[str, str] = {}
     storage_error = getattr(request.app.state, "storage_configuration_error", None)
     if storage_error:
         errors["storage_configured"] = (
             f"DATABASE_URL could not be initialized ({storage_error}); "
             "check the connection string and URL-encode special characters in the password"
+        )
+    if storage_connectivity_error:
+        errors["storage_online"] = (
+            f"DATABASE_URL connection failed ({storage_connectivity_error}); "
+            "check the Supabase database password, pooler URL, and URL-encoding"
         )
     return errors
 

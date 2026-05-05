@@ -72,7 +72,10 @@ def _analysis_payload(repo: StorageRepository | None, ticker_code: str) -> dict[
     if repo is None:
         return {"status": "not_configured"}
 
-    bundle = repo.latest_public_analysis_bundle(ticker_code)
+    try:
+        bundle = repo.latest_public_analysis_bundle(ticker_code)
+    except Exception as exc:
+        return {"status": "unavailable", "error": _public_error(exc)}
     if bundle is None:
         return {"status": "missing"}
 

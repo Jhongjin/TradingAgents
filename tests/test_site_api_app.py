@@ -23,6 +23,14 @@ USER_ID = "00000000-0000-0000-0000-000000000001"
 OTHER_USER_ID = "00000000-0000-0000-0000-000000000002"
 
 
+class BrokenPublicAnalysisRepo:
+    def list_public_analysis_runs(self, *args, **kwargs):
+        raise RuntimeError("secret database detail")
+
+    def latest_public_analysis_bundle(self, *args, **kwargs):
+        raise RuntimeError("secret database detail")
+
+
 def _repo() -> StorageRepository:
     repo = StorageRepository(create_storage_engine())
     repo.create_schema()
@@ -123,6 +131,7 @@ def test_api_app_serves_non_secret_readiness(monkeypatch):
     body = response.json()
     assert body["status"] == "degraded"
     assert body["checks"]["storage_configured"] is False
+    assert body["checks"]["storage_online"] is False
     assert body["checks"]["openai_configured"] is True
     assert body["checks"]["supabase_auth_configured"] is True
     assert body["checks"]["site_base_url_configured"] is True
@@ -135,6 +144,20 @@ def test_api_app_serves_non_secret_readiness(monkeypatch):
     assert body["deployment"]["git_sha"] == "1234567890ab"
     assert "sk-test" not in response.text
     assert "anon" not in response.text
+
+
+def test_api_app_readiness_checks_storage_connection():
+    repo = _repo()
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.get("/api/readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["checks"]["storage_configured"] is True
+    assert body["checks"]["storage_online"] is True
+    assert body["configuration_errors"] == {}
 
 
 def test_api_app_readiness_accepts_next_public_supabase_env(monkeypatch):
@@ -165,6 +188,7 @@ def test_api_app_readiness_reports_invalid_database_url(monkeypatch):
     body = response.json()
     assert body["status"] == "degraded"
     assert body["checks"]["storage_configured"] is False
+    assert body["checks"]["storage_online"] is False
     assert "storage_configured" not in body["missing_environment"]
     assert "DATABASE_URL could not be initialized" in body["configuration_errors"]["storage_configured"]
     assert "not-a-valid-database-url" not in response.text
@@ -583,6 +607,31 @@ def test_api_app_serves_public_analysis_feed():
     body = response.json()
     assert body["item_count"] == 1
     assert body["items"][0]["id"] == run_id
+
+
+def test_api_app_degrades_public_analysis_feed_on_storage_failure():
+    client = TestClient(create_app(repo=BrokenPublicAnalysisRepo(), load_repo_from_env=False))
+
+    response = client.get("/api/analyses", params={"limit": 1})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "unavailable"
+    assert body["items"] == []
+    assert body["error"] == "RuntimeError"
+    assert "secret database detail" not in response.text
+
+
+def test_api_app_degrades_public_stock_analysis_on_storage_failure():
+    client = TestClient(create_app(repo=BrokenPublicAnalysisRepo(), load_repo_from_env=False))
+
+    response = client.get("/api/stocks/005930", params={"include_chart": "false"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["analysis"]["status"] == "unavailable"
+    assert body["analysis"]["error"] == "RuntimeError"
+    assert "secret database detail" not in response.text
 
 
 def test_api_app_member_routes_require_supabase_auth_config_for_bearer(monkeypatch):

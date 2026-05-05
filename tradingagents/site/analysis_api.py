@@ -93,7 +93,19 @@ def build_public_analysis_feed_payload(
             raise ValueError("analysis feed currently supports Korean 6-digit tickers only")
         ticker_code = resolve_kr_ticker(ticker, lookup_pykrx=False).code
 
-    rows = repo.list_public_analysis_runs(ticker_code=ticker_code, limit=limit)
+    try:
+        rows = repo.list_public_analysis_runs(ticker_code=ticker_code, limit=limit)
+    except Exception as exc:
+        return _json_ready(
+            {
+                "status": "unavailable",
+                "ticker_code": ticker_code,
+                "limit": limit,
+                "items": [],
+                "item_count": 0,
+                "error": exc.__class__.__name__,
+            }
+        )
     return _json_ready(
         {
             "status": "available",

@@ -74,6 +74,9 @@ response includes a non-secret `missing_environment` object that lists env
 names still needed by the active deployment. If `DATABASE_URL` is present but
 malformed, readiness keeps the site alive and reports a sanitized
 `configuration_errors.storage_configured` hint instead of exposing the URL.
+Readiness also opens a lightweight database connection and reports
+`checks.storage_online=false` with a sanitized `configuration_errors.storage_online`
+message when the password, pooler host, or URL encoding is wrong.
 
 Apply the Supabase migration before enabling persistent analysis storage. Do
 not enable `TRADINGAGENTS_STORAGE_CREATE_SCHEMA` in production Supabase; use the

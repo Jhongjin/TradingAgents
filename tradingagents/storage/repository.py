@@ -9,7 +9,7 @@ from typing import Any
 from uuid import UUID
 from uuid import uuid4
 
-from sqlalchemy import Engine, create_engine, delete, desc, insert, select, update
+from sqlalchemy import Engine, create_engine, delete, desc, insert, select, text, update
 from sqlalchemy.pool import StaticPool
 
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
@@ -72,6 +72,12 @@ class StorageRepository:
 
     def __init__(self, engine: Engine):
         self.engine = engine
+
+    def check_connection(self) -> None:
+        """Open a lightweight connection to verify the configured storage is usable."""
+
+        with self.engine.connect() as conn:
+            conn.execute(text("select 1"))
 
     def create_schema(self) -> None:
         """Create local tables.
