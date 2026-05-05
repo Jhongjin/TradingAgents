@@ -123,10 +123,37 @@ def test_api_app_serves_manual_portfolio_payload():
     assert body["totals"]["market_value"] == 830000.0
 
 
+def test_api_app_serves_watchlist_payload():
+    repo = _repo()
+    watchlist_id = repo.create_watchlist(user_id=USER_ID, name="관심종목")
+    repo.add_watchlist_item(watchlist_id=watchlist_id, ticker_code="005930")
+
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+    response = client.get(
+        f"/api/watchlists/{watchlist_id}",
+        params={"current_prices": "005930:83000"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
+    body = response.json()
+    assert body["watchlist"]["name"] == "관심종목"
+    assert body["items"][0]["current_price"] == 83000.0
+
+
 def test_api_app_portfolio_requires_storage_repo():
     client = TestClient(create_app(repo=None, load_repo_from_env=False))
 
     response = client.get(f"/api/portfolio/{USER_ID}")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Storage repository is not configured"
+
+
+def test_api_app_watchlist_requires_storage_repo():
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    response = client.get(f"/api/watchlists/{USER_ID}")
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Storage repository is not configured"

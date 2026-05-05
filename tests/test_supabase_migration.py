@@ -2,10 +2,12 @@ from pathlib import Path
 
 
 def test_supabase_migration_avoids_dashboard_fragile_dollar_quotes():
-    migration = Path("supabase/migrations/202605050001_tradingagents_public_site.sql").read_text(
-        encoding="utf-8"
+    migrations = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(Path("supabase/migrations").glob("*.sql"))
     )
 
-    assert "$$" not in migration
-    assert "create table if not exists public.analysis_runs" in migration
-    assert "enable row level security" in migration
+    assert "$$" not in migrations
+    assert "create table if not exists public.analysis_runs" in migrations
+    assert "create table if not exists public.manual_watchlists" in migrations
+    assert "enable row level security" in migrations

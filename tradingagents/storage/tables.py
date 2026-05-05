@@ -111,3 +111,27 @@ manual_price_targets = Table(
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     UniqueConstraint("portfolio_id", "ticker_code", name="uq_manual_price_targets_portfolio_ticker"),
 )
+
+manual_watchlists = Table(
+    "manual_watchlists",
+    metadata,
+    Column("id", Uuid(as_uuid=False), primary_key=True),
+    Column("user_id", Uuid(as_uuid=False), nullable=False, index=True),
+    Column("name", String(120), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+)
+
+manual_watchlist_items = Table(
+    "manual_watchlist_items",
+    metadata,
+    Column("id", Uuid(as_uuid=False), primary_key=True),
+    Column("watchlist_id", Uuid(as_uuid=False), ForeignKey("manual_watchlists.id", ondelete="CASCADE"), nullable=False),
+    Column("ticker_code", String(12), nullable=False, index=True),
+    Column("ticker_name", String(120), nullable=True),
+    Column("market", String(32), nullable=False, default="KR"),
+    Column("memo", Text, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    UniqueConstraint("watchlist_id", "ticker_code", name="uq_manual_watchlist_items_watchlist_ticker"),
+)

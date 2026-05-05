@@ -49,6 +49,9 @@ The matching framework-neutral payload builder is
 `tradingagents.site.build_manual_portfolio_payload`, which summarizes
 user-entered trades, current prices supplied by the app, target/stop alerts, and
 PnL estimates without broker account access.
+Saved watchlists are supported separately through
+`tradingagents.site.build_watchlist_payload` and `/api/watchlists/{watchlist_id}`;
+they are owner-scoped member data, not broker account data.
 
 ## Chart Scope
 

@@ -9,7 +9,7 @@ from typing import Any
 from uuid import UUID
 from uuid import uuid4
 
-from sqlalchemy import Engine, create_engine, desc, insert, select, update
+from sqlalchemy import Engine, create_engine, delete, desc, insert, select, update
 from sqlalchemy.pool import StaticPool
 
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
@@ -22,6 +22,8 @@ from .tables import (
     manual_portfolios,
     manual_price_targets,
     manual_trades,
+    manual_watchlist_items,
+    manual_watchlists,
     metadata,
     trade_decisions,
 )
@@ -294,6 +296,98 @@ class StorageRepository:
 
     def manual_positions(self, portfolio_id: str) -> dict[str, ManualPosition]:
         return calculate_manual_positions(self.manual_trades_for_portfolio(portfolio_id))
+
+    def create_watchlist(self, *, user_id: str, name: str) -> str:
+        _validate_uuid(user_id, "watchlist user_id")
+        watchlist_id = _id()
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(manual_watchlists).values(
+                    id=watchlist_id,
+                    user_id=user_id,
+                    name=name,
+                )
+            )
+        return watchlist_id
+
+    def get_watchlist(self, watchlist_id: str) -> dict[str, Any] | None:
+        _validate_uuid(watchlist_id, "watchlist_id")
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(manual_watchlists).where(manual_watchlists.c.id == watchlist_id)
+            ).mappings().first()
+        return dict(row) if row else None
+
+    def add_watchlist_item(
+        self,
+        *,
+        watchlist_id: str,
+        ticker_code: str,
+        ticker_name: str | None = None,
+        market: str = "KR",
+        memo: str | None = None,
+    ) -> str:
+        _validate_uuid(watchlist_id, "watchlist_id")
+        normalized_ticker = _normalize_ticker_code(ticker_code)
+        if is_kr_ticker(ticker_code):
+            resolved = resolve_kr_ticker(ticker_code, lookup_pykrx=False)
+            ticker_name = ticker_name or resolved.name
+            market = resolved.market
+        now = datetime.now(timezone.utc)
+        with self.engine.begin() as conn:
+            existing = conn.execute(
+                select(manual_watchlist_items.c.id).where(
+                    manual_watchlist_items.c.watchlist_id == watchlist_id,
+                    manual_watchlist_items.c.ticker_code == normalized_ticker,
+                )
+            ).scalar_one_or_none()
+            if existing:
+                conn.execute(
+                    update(manual_watchlist_items)
+                    .where(manual_watchlist_items.c.id == existing)
+                    .values(
+                        ticker_name=ticker_name,
+                        market=market,
+                        memo=memo,
+                        updated_at=now,
+                    )
+                )
+                return str(existing)
+
+            item_id = _id()
+            conn.execute(
+                insert(manual_watchlist_items).values(
+                    id=item_id,
+                    watchlist_id=watchlist_id,
+                    ticker_code=normalized_ticker,
+                    ticker_name=ticker_name,
+                    market=market,
+                    memo=memo,
+                    updated_at=now,
+                )
+            )
+        return item_id
+
+    def remove_watchlist_item(self, *, watchlist_id: str, ticker_code: str) -> None:
+        _validate_uuid(watchlist_id, "watchlist_id")
+        normalized_ticker = _normalize_ticker_code(ticker_code)
+        with self.engine.begin() as conn:
+            conn.execute(
+                delete(manual_watchlist_items).where(
+                    manual_watchlist_items.c.watchlist_id == watchlist_id,
+                    manual_watchlist_items.c.ticker_code == normalized_ticker,
+                )
+            )
+
+    def watchlist_items(self, watchlist_id: str) -> list[dict[str, Any]]:
+        _validate_uuid(watchlist_id, "watchlist_id")
+        with self.engine.begin() as conn:
+            rows = conn.execute(
+                select(manual_watchlist_items)
+                .where(manual_watchlist_items.c.watchlist_id == watchlist_id)
+                .order_by(manual_watchlist_items.c.created_at, manual_watchlist_items.c.ticker_code)
+            ).mappings().all()
+        return [dict(row) for row in rows]
 
 
 def _validate_visibility(value: str) -> None:

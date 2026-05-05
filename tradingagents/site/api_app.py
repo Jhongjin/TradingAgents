@@ -15,6 +15,7 @@ from tradingagents.storage import StorageRepository, create_storage_engine
 from .market_api import build_latest_prices_payload
 from .portfolio_api import build_manual_portfolio_payload
 from .public_api import build_public_stock_payload
+from .watchlist_api import build_watchlist_payload
 
 
 def create_app(
@@ -55,6 +56,8 @@ def create_app(
         elif request.url.path.startswith("/api/prices/"):
             response.headers.setdefault("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
         elif request.url.path.startswith("/api/portfolio/"):
+            response.headers.setdefault("Cache-Control", "private, no-store")
+        elif request.url.path.startswith("/api/watchlists/"):
             response.headers.setdefault("Cache-Control", "private, no-store")
         return response
 
@@ -122,6 +125,27 @@ def create_app(
             return build_manual_portfolio_payload(
                 repo,
                 portfolio_id,
+                current_prices=_parse_current_prices(current_prices),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/watchlists/{watchlist_id}")
+    def manual_watchlist(
+        watchlist_id: str,
+        request: Request,
+        current_prices: Annotated[
+            str | None,
+            Query(description="Comma-separated prices, e.g. 005930:83000,000660:140000"),
+        ] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        try:
+            return build_watchlist_payload(
+                repo,
+                watchlist_id,
                 current_prices=_parse_current_prices(current_prices),
             )
         except ValueError as exc:

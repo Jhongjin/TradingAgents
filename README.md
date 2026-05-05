@@ -361,7 +361,8 @@ uvicorn tradingagents.site.api_app:app --reload
 
 It exposes `/api/stocks/{ticker}` for public Korean stock pages and
 `/api/prices/latest` for latest close-price snapshots, plus
-`/api/portfolio/{portfolio_id}` for user-entered manual portfolio summaries.
+`/api/portfolio/{portfolio_id}` and `/api/watchlists/{watchlist_id}` for
+member-entered portfolio/watchlist summaries.
 Set `TRADINGAGENTS_API_CORS_ORIGINS` to a comma-separated allowlist for browser
 clients, and `TRADINGAGENTS_API_PUBLIC_CACHE_SECONDS` to tune public stock-page
 cache headers.

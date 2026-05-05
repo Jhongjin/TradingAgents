@@ -35,6 +35,7 @@ The API remains read-only:
 - `GET /api/stocks/{ticker}`: public Korean stock payload
 - `GET /api/prices/latest?tickers=005930,000660`: latest close-price snapshots
 - `GET /api/portfolio/{portfolio_id}`: manual portfolio summary from stored user-entered trades
+- `GET /api/watchlists/{watchlist_id}`: member watchlist summary from stored ticker lists
 - `GET /health`: deployment health check
 
 No live trading or broker order placement is exposed.

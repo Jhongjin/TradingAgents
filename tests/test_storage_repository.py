@@ -215,6 +215,36 @@ def test_storage_repository_upserts_manual_price_targets():
     assert rows[0]["updated_at"] >= first_row["updated_at"]
 
 
+def test_storage_repository_manages_manual_watchlists():
+    repo = _repo()
+    watchlist_id = repo.create_watchlist(user_id=USER_ID, name="관심종목")
+
+    samsung_id = repo.add_watchlist_item(
+        watchlist_id=watchlist_id,
+        ticker_code="005930.KS",
+        memo="core holding candidate",
+    )
+    updated_id = repo.add_watchlist_item(
+        watchlist_id=watchlist_id,
+        ticker_code="005930",
+        memo="updated memo",
+    )
+    repo.add_watchlist_item(watchlist_id=watchlist_id, ticker_code="000660")
+    repo.remove_watchlist_item(watchlist_id=watchlist_id, ticker_code="000660")
+
+    watchlist = repo.get_watchlist(watchlist_id)
+    items = repo.watchlist_items(watchlist_id)
+
+    assert watchlist is not None
+    assert watchlist["name"] == "관심종목"
+    assert updated_id == samsung_id
+    assert len(items) == 1
+    assert items[0]["ticker_code"] == "005930"
+    assert items[0]["ticker_name"] == "삼성전자"
+    assert items[0]["market"] == "KOSPI"
+    assert items[0]["memo"] == "updated memo"
+
+
 def test_storage_repository_rejects_invalid_manual_trade():
     repo = _repo()
     portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")
