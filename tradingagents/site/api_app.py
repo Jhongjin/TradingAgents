@@ -60,6 +60,15 @@ class ManualPriceTargetBody(BaseModel):
     memo: str | None = Field(default=None, max_length=500)
 
 
+class WatchlistCreateBody(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
+class WatchlistItemBody(BaseModel):
+    ticker_code: str
+    memo: str | None = Field(default=None, max_length=500)
+
+
 def create_app(
     *,
     repo: StorageRepository | None = None,
@@ -124,7 +133,7 @@ def create_app(
             response.headers.setdefault("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
         elif request.url.path.startswith("/api/portfolio/") or request.url.path.startswith("/api/portfolios"):
             response.headers.setdefault("Cache-Control", "private, no-store")
-        elif request.url.path.startswith("/api/watchlists/"):
+        elif request.url.path.startswith("/api/watchlists"):
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif request.url.path.startswith("/api/analysis-requests"):
             response.headers.setdefault("Cache-Control", "private, no-store")
@@ -413,6 +422,67 @@ def create_app(
         _require_worker_token(request, x_tradingagents_worker_token)
         return _process_analysis_request_queue(repo, limit=_cron_worker_limit())
 
+    @app.post("/api/watchlists")
+    def create_manual_watchlist(
+        body: WatchlistCreateBody,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="watchlist name cannot be empty")
+        try:
+            watchlist_id = repo.create_watchlist(user_id=user_id, name=name)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "created", "watchlist_id": watchlist_id}
+
+    @app.post("/api/watchlists/{watchlist_id}/items")
+    def add_manual_watchlist_item(
+        watchlist_id: str,
+        body: WatchlistItemBody,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        _require_watchlist_owner(repo, watchlist_id, user_id)
+        try:
+            item_id = repo.add_watchlist_item(
+                watchlist_id=watchlist_id,
+                ticker_code=body.ticker_code,
+                memo=body.memo,
+            )
+            watchlist = build_watchlist_payload(repo, watchlist_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "saved", "item_id": item_id, "watchlist": watchlist}
+
+    @app.delete("/api/watchlists/{watchlist_id}/items/{ticker_code}")
+    def remove_manual_watchlist_item(
+        watchlist_id: str,
+        ticker_code: str,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        _require_watchlist_owner(repo, watchlist_id, user_id)
+        try:
+            repo.remove_watchlist_item(watchlist_id=watchlist_id, ticker_code=ticker_code)
+            watchlist = build_watchlist_payload(repo, watchlist_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "deleted", "watchlist": watchlist}
+
     @app.get("/api/watchlists/{watchlist_id}")
     def manual_watchlist(
         watchlist_id: str,
@@ -502,7 +572,7 @@ def _install_cors(app: FastAPI, cors_origins: list[str] | None, cors_methods: li
         return
     methods = cors_methods if cors_methods is not None else _csv_env("TRADINGAGENTS_API_CORS_METHODS")
     if not methods:
-        methods = ["GET", "POST", "OPTIONS"]
+        methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,

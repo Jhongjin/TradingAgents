@@ -222,6 +222,50 @@ def test_api_app_serves_watchlist_payload():
     assert body["items"][0]["current_price"] == 83000.0
 
 
+def test_api_app_creates_updates_and_deletes_watchlist_items():
+    repo = _repo()
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    create_response = client.post(
+        "/api/watchlists",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+        json={"name": "관심종목"},
+    )
+    watchlist_id = create_response.json()["watchlist_id"]
+    add_response = client.post(
+        f"/api/watchlists/{watchlist_id}/items",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+        json={"ticker_code": "005930", "memo": "memory leader"},
+    )
+    delete_response = client.delete(
+        f"/api/watchlists/{watchlist_id}/items/005930",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
+
+    assert create_response.status_code == 200
+    assert create_response.headers["cache-control"] == "private, no-store"
+    assert create_response.json()["status"] == "created"
+    assert add_response.status_code == 200
+    assert add_response.json()["watchlist"]["item_count"] == 1
+    assert add_response.json()["watchlist"]["items"][0]["ticker_code"] == "005930"
+    assert delete_response.status_code == 200
+    assert delete_response.json()["watchlist"]["item_count"] == 0
+
+
+def test_api_app_watchlist_writes_enforce_owner():
+    repo = _repo()
+    watchlist_id = repo.create_watchlist(user_id=USER_ID, name="관심종목")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    response = client.post(
+        f"/api/watchlists/{watchlist_id}/items",
+        headers={"X-TradingAgents-User-Id": OTHER_USER_ID},
+        json={"ticker_code": "005930"},
+    )
+
+    assert response.status_code == 403
+
+
 def test_api_app_portfolio_requires_storage_repo():
     client = TestClient(create_app(repo=None, load_repo_from_env=False))
 
@@ -569,6 +613,8 @@ def test_api_app_supports_configured_cors_origins():
     assert post_response.status_code == 200
     assert post_response.headers["access-control-allow-origin"] == "https://example.com"
     assert "POST" in post_response.headers["access-control-allow-methods"]
+    assert "PUT" in post_response.headers["access-control-allow-methods"]
+    assert "DELETE" in post_response.headers["access-control-allow-methods"]
 
 
 def test_api_app_serves_latest_prices(monkeypatch):

@@ -29,7 +29,7 @@ TRADINGAGENTS_STORAGE_ENABLED=true
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
 TRADINGAGENTS_API_CORS_ORIGINS=https://your-domain.example
-TRADINGAGENTS_API_CORS_METHODS=GET,POST,OPTIONS
+TRADINGAGENTS_API_CORS_METHODS=GET,POST,PUT,DELETE,OPTIONS
 TRADINGAGENTS_API_PUBLIC_CACHE_SECONDS=300
 TRADINGAGENTS_API_MAX_PRICE_TICKERS=20
 TRADINGAGENTS_API_MAX_ANALYSIS_FEED_LIMIT=50
@@ -68,6 +68,9 @@ The API remains read-only:
 - `POST /api/portfolios`: create an authenticated member manual portfolio
 - `POST /api/portfolio/{portfolio_id}/trades`: add a user-entered buy/sell record
 - `PUT /api/portfolio/{portfolio_id}/targets/{ticker}`: save a target/stop price
+- `POST /api/watchlists`: create an authenticated member watchlist
+- `POST /api/watchlists/{watchlist_id}/items`: add or update a watchlist item
+- `DELETE /api/watchlists/{watchlist_id}/items/{ticker}`: remove a watchlist item
 - `GET /api/portfolio/{portfolio_id}`: manual portfolio summary from stored user-entered trades
 - `GET /api/watchlists/{watchlist_id}`: member watchlist summary from stored ticker lists
 - `GET /health`: deployment health check
