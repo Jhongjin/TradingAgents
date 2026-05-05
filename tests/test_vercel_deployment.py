@@ -57,3 +57,20 @@ def test_vercel_python_entrypoint_exposes_fastapi_app(monkeypatch):
 
     assert isinstance(module.app, FastAPI)
     assert module.app.title == "TradingAgents Korea API"
+
+
+def test_site_package_import_stays_lightweight(monkeypatch):
+    import sys
+
+    for name in [
+        "tradingagents.site",
+        "tradingagents.site.analysis_runner",
+        "tradingagents.graph",
+        "tradingagents.graph.trading_graph",
+    ]:
+        sys.modules.pop(name, None)
+
+    import tradingagents.site  # noqa: F401
+
+    assert "tradingagents.site.analysis_runner" not in sys.modules
+    assert "tradingagents.graph.trading_graph" not in sys.modules
