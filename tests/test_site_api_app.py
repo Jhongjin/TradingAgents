@@ -24,6 +24,12 @@ OTHER_USER_ID = "00000000-0000-0000-0000-000000000002"
 
 
 class BrokenPublicAnalysisRepo:
+    def check_connection(self):
+        return None
+
+    def check_schema(self):
+        raise RuntimeError("secret database detail")
+
     def list_public_analysis_runs(self, *args, **kwargs):
         raise RuntimeError("secret database detail")
 
@@ -132,6 +138,7 @@ def test_api_app_serves_non_secret_readiness(monkeypatch):
     assert body["status"] == "degraded"
     assert body["checks"]["storage_configured"] is False
     assert body["checks"]["storage_online"] is False
+    assert body["checks"]["storage_schema_ready"] is False
     assert body["checks"]["openai_configured"] is True
     assert body["checks"]["supabase_auth_configured"] is True
     assert body["checks"]["site_base_url_configured"] is True
@@ -157,7 +164,23 @@ def test_api_app_readiness_checks_storage_connection():
     assert body["status"] == "ok"
     assert body["checks"]["storage_configured"] is True
     assert body["checks"]["storage_online"] is True
+    assert body["checks"]["storage_schema_ready"] is True
     assert body["configuration_errors"] == {}
+
+
+def test_api_app_readiness_checks_storage_schema():
+    client = TestClient(create_app(repo=BrokenPublicAnalysisRepo(), load_repo_from_env=False))
+
+    response = client.get("/api/readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["checks"]["storage_configured"] is True
+    assert body["checks"]["storage_online"] is True
+    assert body["checks"]["storage_schema_ready"] is False
+    assert "apply the Supabase migrations" in body["configuration_errors"]["storage_schema_ready"]
+    assert "secret database detail" not in response.text
 
 
 def test_api_app_readiness_accepts_next_public_supabase_env(monkeypatch):
@@ -189,6 +212,7 @@ def test_api_app_readiness_reports_invalid_database_url(monkeypatch):
     assert body["status"] == "degraded"
     assert body["checks"]["storage_configured"] is False
     assert body["checks"]["storage_online"] is False
+    assert body["checks"]["storage_schema_ready"] is False
     assert "storage_configured" not in body["missing_environment"]
     assert "DATABASE_URL could not be initialized" in body["configuration_errors"]["storage_configured"]
     assert "not-a-valid-database-url" not in response.text

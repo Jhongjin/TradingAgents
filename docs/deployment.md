@@ -76,7 +76,10 @@ malformed, readiness keeps the site alive and reports a sanitized
 `configuration_errors.storage_configured` hint instead of exposing the URL.
 Readiness also opens a lightweight database connection and reports
 `checks.storage_online=false` with a sanitized `configuration_errors.storage_online`
-message when the password, pooler host, or URL encoding is wrong.
+message when the password, pooler host, or URL encoding is wrong. After the
+connection succeeds, it checks that the required application tables are present;
+`checks.storage_schema_ready=false` means the Supabase migrations still need to
+be applied in order.
 
 Apply the Supabase migration before enabling persistent analysis storage. Do
 not enable `TRADINGAGENTS_STORAGE_CREATE_SCHEMA` in production Supabase; use the

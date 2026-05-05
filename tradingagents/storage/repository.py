@@ -79,6 +79,13 @@ class StorageRepository:
         with self.engine.connect() as conn:
             conn.execute(text("select 1"))
 
+    def check_schema(self) -> None:
+        """Verify all application tables are present and queryable."""
+
+        with self.engine.connect() as conn:
+            for table in metadata.sorted_tables:
+                conn.execute(select(table).limit(1))
+
     def create_schema(self) -> None:
         """Create local tables.
 

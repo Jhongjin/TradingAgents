@@ -165,9 +165,18 @@ def create_app(
     @app.get("/api/readiness")
     def readiness(request: Request) -> dict[str, object]:
         storage_connectivity_error = _storage_connectivity_error(request.app.state.repository)
+        storage_schema_error = _storage_schema_error(
+            request.app.state.repository,
+            storage_connectivity_error=storage_connectivity_error,
+        )
         checks = {
             "storage_configured": request.app.state.repository is not None,
             "storage_online": request.app.state.repository is not None and storage_connectivity_error is None,
+            "storage_schema_ready": (
+                request.app.state.repository is not None
+                and storage_connectivity_error is None
+                and storage_schema_error is None
+            ),
             "supabase_auth_configured": _supabase_auth_configured(),
             "worker_token_configured": bool(_expected_worker_token()),
             "site_base_url_configured": bool(os.getenv("TRADINGAGENTS_SITE_BASE_URL")),
@@ -177,7 +186,7 @@ def create_app(
             "naver_configured": bool(os.getenv("NAVER_CLIENT_ID") and os.getenv("NAVER_CLIENT_SECRET")),
             "krx_configured": bool(os.getenv("KRX_API_KEY") or os.getenv("KRX_OPENAPI_KEY")),
         }
-        required = ["storage_configured", "storage_online"]
+        required = ["storage_configured", "storage_online", "storage_schema_ready"]
         status = "ok" if all(checks[name] for name in required) else "degraded"
         return {
             "status": status,
@@ -187,6 +196,7 @@ def create_app(
             "configuration_errors": _readiness_configuration_errors(
                 request,
                 storage_connectivity_error=storage_connectivity_error,
+                storage_schema_error=storage_schema_error,
             ),
         }
 
@@ -775,10 +785,25 @@ def _storage_connectivity_error(repo: StorageRepository | None) -> str | None:
     return None
 
 
+def _storage_schema_error(
+    repo: StorageRepository | None,
+    *,
+    storage_connectivity_error: str | None,
+) -> str | None:
+    if repo is None or storage_connectivity_error:
+        return None
+    try:
+        repo.check_schema()
+    except Exception as exc:
+        return type(exc).__name__
+    return None
+
+
 def _readiness_configuration_errors(
     request: Request,
     *,
     storage_connectivity_error: str | None,
+    storage_schema_error: str | None,
 ) -> dict[str, str]:
     errors: dict[str, str] = {}
     storage_error = getattr(request.app.state, "storage_configuration_error", None)
@@ -791,6 +816,11 @@ def _readiness_configuration_errors(
         errors["storage_online"] = (
             f"DATABASE_URL connection failed ({storage_connectivity_error}); "
             "check the Supabase database password, pooler URL, and URL-encoding"
+        )
+    if storage_schema_error:
+        errors["storage_schema_ready"] = (
+            f"Storage schema check failed ({storage_schema_error}); "
+            "apply the Supabase migrations in order"
         )
     return errors
 
