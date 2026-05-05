@@ -70,7 +70,9 @@ If you already configured Supabase for a browser client, the API also accepts
 `NEXT_PUBLIC_SUPABASE_URL` in place of `SUPABASE_URL`, and
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` in place of `SUPABASE_ANON_KEY`. The readiness
 response includes a non-secret `missing_environment` object that lists env
-names still needed by the active deployment.
+names still needed by the active deployment. If `DATABASE_URL` is present but
+malformed, readiness keeps the site alive and reports a sanitized
+`configuration_errors.storage_configured` hint instead of exposing the URL.
 
 Apply the Supabase migration before enabling persistent analysis storage. Do
 not enable `TRADINGAGENTS_STORAGE_CREATE_SCHEMA` in production Supabase; use the

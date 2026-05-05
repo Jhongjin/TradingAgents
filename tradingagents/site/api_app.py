@@ -96,7 +96,11 @@ def create_app(
         redoc_url="/redoc" if docs_enabled else None,
         openapi_url="/openapi.json" if docs_enabled else None,
     )
-    app.state.repository = repo or _repo_from_env() if load_repo_from_env else repo
+    app.state.storage_configuration_error = None
+    if load_repo_from_env and repo is None:
+        app.state.repository, app.state.storage_configuration_error = _load_repo_from_env()
+    else:
+        app.state.repository = repo
     app.state.public_cache_seconds = _public_cache_seconds(public_cache_seconds)
     app.state.max_price_tickers = _max_price_tickers(max_price_tickers)
     app.state.max_analysis_feed_limit = _max_analysis_feed_limit()
@@ -178,6 +182,7 @@ def create_app(
             "deployment": _deployment_context(),
             "checks": checks,
             "missing_environment": _missing_readiness_environment(checks),
+            "configuration_errors": _readiness_configuration_errors(request),
         }
 
     @app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
@@ -666,10 +671,18 @@ def _process_analysis_request_queue(repo: StorageRepository, *, limit: int) -> d
     }
 
 
-def _repo_from_env() -> StorageRepository | None:
+def _load_repo_from_env() -> tuple[StorageRepository | None, str | None]:
     if not os.getenv("DATABASE_URL"):
-        return None
-    return StorageRepository(create_storage_engine())
+        return None, None
+    try:
+        return StorageRepository(create_storage_engine()), None
+    except Exception as exc:
+        return None, type(exc).__name__
+
+
+def _repo_from_env() -> StorageRepository | None:
+    repo, _ = _load_repo_from_env()
+    return repo
 
 
 def _install_cors(app: FastAPI, cors_origins: list[str] | None, cors_methods: list[str] | None) -> None:
@@ -745,6 +758,17 @@ def _missing_readiness_environment(checks: dict[str, bool]) -> dict[str, list[st
     if not checks["krx_configured"]:
         missing["krx_configured"] = ["KRX_API_KEY or KRX_OPENAPI_KEY"]
     return missing
+
+
+def _readiness_configuration_errors(request: Request) -> dict[str, str]:
+    errors: dict[str, str] = {}
+    storage_error = getattr(request.app.state, "storage_configuration_error", None)
+    if storage_error:
+        errors["storage_configured"] = (
+            f"DATABASE_URL could not be initialized ({storage_error}); "
+            "check the connection string and URL-encode special characters in the password"
+        )
+    return errors
 
 
 def _has_any_env(names: tuple[str, ...]) -> bool:

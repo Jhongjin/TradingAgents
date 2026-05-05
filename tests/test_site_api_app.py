@@ -129,6 +129,7 @@ def test_api_app_serves_non_secret_readiness(monkeypatch):
     assert body["checks"]["ads_configured"] is True
     assert body["missing_environment"]["storage_configured"] == ["DATABASE_URL"]
     assert "supabase_auth_configured" not in body["missing_environment"]
+    assert body["configuration_errors"] == {}
     assert body["deployment"]["vercel_env"] == "preview"
     assert body["deployment"]["git_ref"] == "codex/kr-market"
     assert body["deployment"]["git_sha"] == "1234567890ab"
@@ -152,6 +153,20 @@ def test_api_app_readiness_accepts_next_public_supabase_env(monkeypatch):
     assert body["checks"]["supabase_auth_configured"] is True
     assert "supabase_auth_configured" not in body["missing_environment"]
     assert "anon" not in response.text
+
+
+def test_api_app_readiness_reports_invalid_database_url(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "not-a-valid-database-url")
+    client = TestClient(create_app())
+
+    response = client.get("/api/readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["checks"]["storage_configured"] is False
+    assert "DATABASE_URL could not be initialized" in body["configuration_errors"]["storage_configured"]
+    assert "not-a-valid-database-url" not in response.text
 
 
 def test_api_app_can_disable_docs(monkeypatch):
