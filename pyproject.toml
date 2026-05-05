@@ -20,6 +20,7 @@ dependencies = [
     "fastapi>=0.115.0",
     "pandas>=2.3.0,<3.0",
     "parsel>=1.10.0",
+    "pg8000>=1.31.0",
     "pytz>=2025.2",
     "pykrx>=1.2.8",
     "pykrx-openapi>=0.1.1",

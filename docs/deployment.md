@@ -33,6 +33,7 @@ DART_API_KEY=
 NAVER_CLIENT_ID=
 NAVER_CLIENT_SECRET=
 DATABASE_URL=
+TRADINGAGENTS_POSTGRES_DRIVER=pg8000
 TRADINGAGENTS_STORAGE_ENABLED=true
 SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_URL=
@@ -77,6 +78,11 @@ malformed, readiness keeps the site alive and reports a sanitized
 Apply the Supabase migration before enabling persistent analysis storage. Do
 not enable `TRADINGAGENTS_STORAGE_CREATE_SCHEMA` in production Supabase; use the
 migration so RLS policies are installed.
+
+`TRADINGAGENTS_POSTGRES_DRIVER` defaults to `pg8000`, a pure-Python SQLAlchemy
+Postgres driver that is friendly to Vercel serverless deployments. You may set
+it to `psycopg` or `psycopg2` for other hosting environments after installing
+the matching driver package.
 
 The API remains read-only:
 

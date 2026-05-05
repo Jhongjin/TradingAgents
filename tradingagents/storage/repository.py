@@ -30,14 +30,15 @@ from .tables import (
 )
 
 
+POSTGRES_DRIVER_ENV = "TRADINGAGENTS_POSTGRES_DRIVER"
+SUPPORTED_POSTGRES_DRIVERS = {"pg8000", "psycopg", "psycopg2"}
+
+
 def create_storage_engine(database_url: str | None = None, *, echo: bool = False) -> Engine:
     """Create a SQLAlchemy engine from DATABASE_URL or an in-memory SQLite DB."""
 
     url = database_url or os.getenv("DATABASE_URL") or "sqlite+pysqlite:///:memory:"
-    if url.startswith("postgresql://"):
-        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
-    elif url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+    url = _normalize_storage_url(url)
     if url == "sqlite+pysqlite:///:memory:":
         return create_engine(
             url,
@@ -47,6 +48,23 @@ def create_storage_engine(database_url: str | None = None, *, echo: bool = False
             poolclass=StaticPool,
         )
     return create_engine(url, echo=echo, future=True)
+
+
+def _normalize_storage_url(url: str) -> str:
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", f"postgresql+{_postgres_driver()}://", 1)
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", f"postgresql+{_postgres_driver()}://", 1)
+    return url
+
+
+def _postgres_driver() -> str:
+    driver = os.getenv(POSTGRES_DRIVER_ENV, "pg8000").strip() or "pg8000"
+    if driver not in SUPPORTED_POSTGRES_DRIVERS:
+        raise ValueError(
+            f"{POSTGRES_DRIVER_ENV} must be one of {', '.join(sorted(SUPPORTED_POSTGRES_DRIVERS))}"
+        )
+    return driver
 
 
 class StorageRepository:

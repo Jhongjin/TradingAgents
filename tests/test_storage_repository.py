@@ -12,6 +12,7 @@ from tradingagents.storage import (
     TradeDecisionInput,
     create_storage_engine,
 )
+from tradingagents.storage.repository import _normalize_storage_url
 
 
 USER_ID = "00000000-0000-0000-0000-000000000001"
@@ -21,6 +22,28 @@ def _repo() -> StorageRepository:
     repo = StorageRepository(create_storage_engine())
     repo.create_schema()
     return repo
+
+
+def test_storage_engine_defaults_postgres_urls_to_pg8000(monkeypatch):
+    monkeypatch.delenv("TRADINGAGENTS_POSTGRES_DRIVER", raising=False)
+
+    assert (
+        _normalize_storage_url("postgresql://user:password@example.supabase.co:6543/postgres")
+        == "postgresql+pg8000://user:password@example.supabase.co:6543/postgres"
+    )
+    assert (
+        _normalize_storage_url("postgres://user:password@example.supabase.co:6543/postgres")
+        == "postgresql+pg8000://user:password@example.supabase.co:6543/postgres"
+    )
+
+
+def test_storage_engine_allows_postgres_driver_override(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_POSTGRES_DRIVER", "psycopg")
+
+    assert (
+        _normalize_storage_url("postgresql://user:password@example.supabase.co:6543/postgres")
+        == "postgresql+psycopg://user:password@example.supabase.co:6543/postgres"
+    )
 
 
 def test_storage_repository_persists_public_analysis_bundle():
@@ -331,7 +354,7 @@ def test_storage_repository_rejects_invalid_user_uuid():
         )
 
 
-def test_storage_engine_normalizes_postgres_urls_to_psycopg_driver():
-    engine = create_storage_engine("postgres://user:pass@example.com:5432/postgres")
+def test_storage_engine_normalizes_postgres_urls_to_configured_driver(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_POSTGRES_DRIVER", "psycopg")
 
-    assert engine.url.drivername == "postgresql+psycopg"
+    assert _normalize_storage_url("postgres://user:pass@example.com:5432/postgres").startswith("postgresql+psycopg://")
