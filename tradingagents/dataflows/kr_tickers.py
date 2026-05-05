@@ -119,6 +119,50 @@ def benchmark_for_kr_ticker(value: str) -> str:
     return resolved.benchmark_symbol
 
 
+def common_kr_tickers() -> tuple[KoreanTicker, ...]:
+    """Return built-in Korean ticker seeds used for offline lookup/search."""
+
+    return tuple(
+        KoreanTicker(code=code, name=name, market=market)
+        for code, (name, market) in sorted(_COMMON_TICKERS.items())
+    )
+
+
+def search_kr_tickers(
+    query: str,
+    *,
+    limit: int = 10,
+    lookup_pykrx: bool = True,
+) -> list[KoreanTicker]:
+    """Search Korean tickers by 6-digit code prefix or company name substring."""
+
+    if limit <= 0:
+        raise ValueError("limit must be positive")
+    normalized_query = query.strip()
+    if not normalized_query:
+        return []
+
+    query_upper = normalized_query.upper()
+    matches: list[KoreanTicker] = []
+    seen: set[str] = set()
+
+    def add(candidate: KoreanTicker) -> None:
+        if candidate.code in seen or len(matches) >= limit:
+            return
+        seen.add(candidate.code)
+        matches.append(candidate)
+
+    for candidate in common_kr_tickers():
+        if candidate.code.startswith(query_upper) or normalized_query.casefold() in candidate.name.casefold():
+            add(candidate)
+
+    if lookup_pykrx and len(matches) < limit:
+        for candidate in _search_with_pykrx(normalized_query, limit - len(matches)):
+            add(candidate)
+
+    return matches
+
+
 def require_kr_ticker(value: str) -> KoreanTicker:
     if not is_kr_ticker(value):
         raise VendorUnavailableError(f"{value!r} is not a Korean stock ticker")
@@ -130,6 +174,31 @@ def _resolve_with_pykrx(code: str, preferred_market: str | None) -> KoreanTicker
         from pykrx import stock
     except Exception:
         return None
+
+
+def _search_with_pykrx(query: str, remaining: int) -> list[KoreanTicker]:
+    try:
+        from pykrx import stock
+    except Exception:
+        return []
+
+    matches: list[KoreanTicker] = []
+    query_upper = query.upper()
+    for market in ("KOSPI", "KOSDAQ", "KONEX"):
+        try:
+            codes = stock.get_market_ticker_list(market=market)
+        except Exception:
+            continue
+        for code in codes:
+            if len(matches) >= remaining:
+                return matches
+            try:
+                name = stock.get_market_ticker_name(code) or code
+            except Exception:
+                name = code
+            if code.startswith(query_upper) or query.casefold() in name.casefold():
+                matches.append(KoreanTicker(code=code, name=name, market=market))
+    return matches
 
     try:
         name = stock.get_market_ticker_name(code) or code

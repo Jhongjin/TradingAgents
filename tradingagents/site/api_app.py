@@ -23,6 +23,7 @@ from .market_api import build_latest_prices_payload
 from .portfolio_api import build_manual_portfolio_payload
 from .public_api import build_public_stock_payload
 from .seo import build_ads_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
+from .ticker_api import build_ticker_search_payload
 from .watchlist_api import build_watchlist_payload
 from .web_pages import render_public_stock_page
 
@@ -131,6 +132,8 @@ def create_app(
             )
         elif request.url.path.startswith("/api/prices/"):
             response.headers.setdefault("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
+        elif request.url.path == "/api/tickers/search":
+            response.headers.setdefault("Cache-Control", "public, max-age=300, stale-while-revalidate=600")
         elif request.url.path == "/api/readiness":
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif request.url.path.startswith("/api/portfolio/") or request.url.path.startswith("/api/portfolios"):
@@ -259,6 +262,17 @@ def create_app(
                 max_tickers=request.app.state.max_price_tickers,
             )
         except (VendorUnavailableError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/tickers/search")
+    def ticker_search(
+        q: Annotated[str, Query(min_length=1, max_length=80)],
+        limit: int = 10,
+        lookup_pykrx: bool = True,
+    ) -> dict:
+        try:
+            return build_ticker_search_payload(q, limit=limit, lookup_pykrx=lookup_pykrx)
+        except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/analyses")

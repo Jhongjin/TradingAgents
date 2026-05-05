@@ -60,6 +60,7 @@ The API remains read-only:
 - `GET /robots.txt`: crawler policy with sitemap URL
 - `GET /sitemap.xml`: public page sitemap built from `TRADINGAGENTS_SITEMAP_TICKERS`
 - `GET /api/readiness`: non-secret deployment readiness checks
+- `GET /api/tickers/search?q=삼성`: Korean ticker code/name search
 - `GET /api/stocks/{ticker}`: public Korean stock payload
 - `GET /api/analyses?ticker=005930`: public completed-analysis feed
 - `GET /api/prices/latest?tickers=005930,000660`: latest close-price snapshots

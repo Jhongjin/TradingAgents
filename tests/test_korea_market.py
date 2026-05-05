@@ -9,6 +9,7 @@ from tradingagents.dataflows.kr_tickers import (
     is_kr_ticker,
     normalize_kr_ticker,
     resolve_kr_ticker,
+    search_kr_tickers,
     to_yfinance_symbol,
 )
 from tradingagents.graph.trading_graph import TradingAgentsGraph
@@ -32,6 +33,15 @@ def test_kr_ticker_resolver_known_stock():
     assert resolved.market == "KOSPI"
     assert resolved.yfinance_symbol == "005930.KS"
     assert benchmark_for_kr_ticker("005930") == "^KS11"
+
+
+def test_search_kr_tickers_matches_code_and_name_without_network():
+    by_name = search_kr_tickers("삼성", lookup_pykrx=False)
+    by_code = search_kr_tickers("000", lookup_pykrx=False)
+
+    assert by_name[0].code == "005930"
+    assert by_name[0].name == "삼성전자"
+    assert any(item.code == "000660" for item in by_code)
 
 
 def test_kr_ticker_resolver_kosdaq_suffix():
