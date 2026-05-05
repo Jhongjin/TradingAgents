@@ -365,6 +365,9 @@ Set `TRADINGAGENTS_API_CORS_ORIGINS` to a comma-separated allowlist for browser
 clients, and `TRADINGAGENTS_API_PUBLIC_CACHE_SECONDS` to tune public stock-page
 cache headers.
 
+See [`docs/deployment.md`](docs/deployment.md) for the Vercel entrypoint,
+rewrites, and production environment checklist.
+
 ## Contributing
 
 We welcome contributions from the community! Whether it's fixing a bug, improving documentation, or suggesting a new feature, your input helps make this project better. If you are interested in this line of research, please consider joining our open-source financial AI research community [Tauric Research](https://tauric.ai/).
