@@ -14,6 +14,7 @@ supabase/migrations/202605050001_tradingagents_public_site.sql
 The migration creates:
 
 - `analysis_runs`: one AI analysis execution for a ticker/date
+- `analysis_refresh_requests`: queued member requests for a background analysis worker
 - `agent_reports`: market/news/fundamentals/trader/risk report bodies
 - `trade_decisions`: final rating/action from the analysis workflow
 - `manual_portfolios`: member-owned manual portfolios
@@ -72,6 +73,11 @@ estimate from user-entered data, not broker-verified account state.
 Watchlist helpers store member-owned ticker lists separately from portfolio
 holdings. `tradingagents.site.build_watchlist_payload(...)` returns a JSON-ready
 watchlist with optional current prices supplied by the app.
+
+Analysis refresh requests are intentionally queued in
+`analysis_refresh_requests` instead of running LLM analysis inline during a web
+request. A separate worker should read queued rows, run TradingAgents, persist
+the completed analysis, and update the request status.
 
 ## Analysis Persistence Hook
 

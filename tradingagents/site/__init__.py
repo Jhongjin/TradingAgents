@@ -1,5 +1,6 @@
 """Public-site service helpers for TradingAgents."""
 
+from .analysis_api import queue_analysis_refresh_request
 from .api_app import create_app
 from .market_api import build_latest_prices_payload
 from .portfolio_api import build_manual_portfolio_payload
@@ -12,4 +13,5 @@ __all__ = [
     "build_public_stock_payload",
     "build_watchlist_payload",
     "create_app",
+    "queue_analysis_refresh_request",
 ]

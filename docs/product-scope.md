@@ -102,6 +102,10 @@ Public stock API responses include cache headers; manual portfolio responses are
 marked private/no-store. Browser origins are opt-in through
 `TRADINGAGENTS_API_CORS_ORIGINS`.
 
+Authenticated members can request analysis refreshes through
+`POST /api/analysis-requests`. The request is queued for a background worker;
+LLM analysis is not run inline in the public HTTP request path.
+
 ## Broker Integration Boundary
 
 Broker integration is not part of the initial public launch.

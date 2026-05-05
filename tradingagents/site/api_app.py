@@ -7,16 +7,24 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 from starlette.middleware.cors import CORSMiddleware
 
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.storage import StorageRepository, create_storage_engine
 
+from .analysis_api import queue_analysis_refresh_request
 from .auth import resolve_member_user_id
 from .market_api import build_latest_prices_payload
 from .portfolio_api import build_manual_portfolio_payload
 from .public_api import build_public_stock_payload
 from .watchlist_api import build_watchlist_payload
+
+
+class AnalysisRefreshRequestBody(BaseModel):
+    ticker: str
+    requested_trade_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    reason: str | None = None
 
 
 def create_app(
@@ -61,6 +69,8 @@ def create_app(
         elif request.url.path.startswith("/api/portfolio/"):
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif request.url.path.startswith("/api/watchlists/"):
+            response.headers.setdefault("Cache-Control", "private, no-store")
+        elif request.url.path.startswith("/api/analysis-requests"):
             response.headers.setdefault("Cache-Control", "private, no-store")
         return response
 
@@ -132,6 +142,27 @@ def create_app(
                 repo,
                 portfolio_id,
                 current_prices=_parse_current_prices(current_prices),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/analysis-requests")
+    def create_analysis_request(
+        body: AnalysisRefreshRequestBody,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        try:
+            return queue_analysis_refresh_request(
+                repo,
+                ticker=body.ticker,
+                user_id=user_id,
+                requested_trade_date=body.requested_trade_date,
+                reason=body.reason,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

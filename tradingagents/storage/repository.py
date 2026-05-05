@@ -14,10 +14,11 @@ from sqlalchemy.pool import StaticPool
 
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
 
-from .models import AgentReportInput, AnalysisRunInput, ManualTradeInput, TradeDecisionInput
+from .models import AgentReportInput, AnalysisRequestInput, AnalysisRunInput, ManualTradeInput, TradeDecisionInput
 from .portfolio import ManualPosition, calculate_manual_positions
 from .tables import (
     agent_reports,
+    analysis_refresh_requests,
     analysis_runs,
     manual_portfolios,
     manual_price_targets,
@@ -181,6 +182,67 @@ class StorageRepository:
         if not runs:
             return None
         return self.get_analysis_bundle(runs[0]["id"])
+
+    def create_analysis_request(self, data: AnalysisRequestInput) -> str:
+        _validate_optional_uuid(data.user_id, "analysis request user_id")
+        _validate_analysis_request_status(data.status)
+        ticker_code, ticker_name, market = _ticker_fields(data.ticker_code, data.ticker_name, data.market)
+        request_id = _id()
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(analysis_refresh_requests).values(
+                    id=request_id,
+                    user_id=data.user_id,
+                    ticker_code=ticker_code,
+                    ticker_name=ticker_name,
+                    market=market,
+                    requested_trade_date=data.requested_trade_date,
+                    status=data.status,
+                    reason=data.reason,
+                    metadata_json=dict(data.metadata),
+                )
+            )
+        return request_id
+
+    def update_analysis_request_status(self, request_id: str, *, status: str, reason: str | None = None) -> None:
+        _validate_uuid(request_id, "analysis_request_id")
+        _validate_analysis_request_status(status)
+        values: dict[str, Any] = {"status": status, "updated_at": datetime.now(timezone.utc)}
+        if reason is not None:
+            values["reason"] = reason
+        with self.engine.begin() as conn:
+            conn.execute(
+                update(analysis_refresh_requests)
+                .where(analysis_refresh_requests.c.id == request_id)
+                .values(**values)
+            )
+
+    def list_analysis_requests(
+        self,
+        *,
+        status: str | None = "queued",
+        user_id: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        if status is not None:
+            _validate_analysis_request_status(status)
+        _validate_optional_uuid(user_id, "analysis request user_id")
+
+        stmt = (
+            select(analysis_refresh_requests)
+            .order_by(analysis_refresh_requests.c.created_at, analysis_refresh_requests.c.ticker_code)
+            .limit(limit)
+        )
+        if status is not None:
+            stmt = stmt.where(analysis_refresh_requests.c.status == status)
+        if user_id is not None:
+            stmt = stmt.where(analysis_refresh_requests.c.user_id == user_id)
+
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
 
     def create_manual_portfolio(self, *, user_id: str, name: str, base_currency: str = "KRW") -> str:
         _validate_uuid(user_id, "portfolio user_id")
@@ -403,6 +465,11 @@ def _validate_visibility(value: str) -> None:
         raise ValueError("visibility must be public or private")
 
 
+def _validate_analysis_request_status(value: str) -> None:
+    if value not in {"queued", "running", "completed", "failed", "skipped"}:
+        raise ValueError("analysis request status is invalid")
+
+
 def _validate_manual_trade(data: ManualTradeInput) -> None:
     _validate_uuid(data.portfolio_id, "portfolio_id")
     if data.side.lower() not in {"buy", "sell"}:
@@ -431,6 +498,13 @@ def _normalize_ticker_code(value: str) -> str:
     if is_kr_ticker(value):
         return resolve_kr_ticker(value, lookup_pykrx=False).code
     return value.upper()
+
+
+def _ticker_fields(ticker_code: str, ticker_name: str | None, market: str) -> tuple[str, str | None, str]:
+    if is_kr_ticker(ticker_code):
+        resolved = resolve_kr_ticker(ticker_code, lookup_pykrx=False)
+        return resolved.code, ticker_name or resolved.name, resolved.market
+    return ticker_code.upper(), ticker_name, market
 
 
 def _id() -> str:

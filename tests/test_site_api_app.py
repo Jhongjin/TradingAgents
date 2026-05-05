@@ -230,6 +230,33 @@ def test_api_app_member_routes_accept_verified_supabase_bearer(monkeypatch):
     assert captured["headers"]["apikey"] == "anon-key"
 
 
+def test_api_app_queues_analysis_refresh_request_with_bearer(monkeypatch):
+    repo = _repo()
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_ANON_KEY", "anon-key")
+    auth_response = MagicMock()
+    auth_response.status_code = 200
+    auth_response.json.return_value = {"id": USER_ID}
+    monkeypatch.setattr("tradingagents.site.auth.requests.get", lambda *args, **kwargs: auth_response)
+
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+    response = client.post(
+        "/api/analysis-requests",
+        headers={"Authorization": "Bearer user-token"},
+        json={
+            "ticker": "005930",
+            "requested_trade_date": "2026-05-05",
+            "reason": "stale",
+        },
+    )
+    queued = repo.list_analysis_requests(user_id=USER_ID)
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.json()["status"] == "queued"
+    assert queued[0]["ticker_code"] == "005930"
+
+
 def test_api_app_member_routes_require_supabase_auth_config_for_bearer(monkeypatch):
     monkeypatch.delenv("SUPABASE_URL", raising=False)
     monkeypatch.delenv("TRADINGAGENTS_SUPABASE_URL", raising=False)

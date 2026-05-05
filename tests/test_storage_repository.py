@@ -5,6 +5,7 @@ import pytest
 
 from tradingagents.storage import (
     AgentReportInput,
+    AnalysisRequestInput,
     AnalysisRunInput,
     ManualTradeInput,
     StorageRepository,
@@ -132,6 +133,30 @@ def test_storage_repository_lists_latest_public_analysis_bundle():
     assert bundle is not None
     assert bundle["run"]["id"] == latest_id
     assert bundle["reports"][0]["content"] == "latest public report"
+
+
+def test_storage_repository_queues_analysis_refresh_requests():
+    repo = _repo()
+    request_id = repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="005930.KS",
+            requested_trade_date=date(2026, 5, 5),
+            reason="stale public page",
+        )
+    )
+
+    queued = repo.list_analysis_requests(user_id=USER_ID)
+    repo.update_analysis_request_status(request_id, status="running")
+    running = repo.list_analysis_requests(status="running", user_id=USER_ID)
+
+    assert len(queued) == 1
+    assert queued[0]["ticker_code"] == "005930"
+    assert queued[0]["ticker_name"] == "삼성전자"
+    assert queued[0]["market"] == "KOSPI"
+    assert queued[0]["reason"] == "stale public page"
+    assert running[0]["id"] == request_id
+    assert running[0]["status"] == "running"
 
 
 def test_storage_repository_calculates_manual_portfolio_positions():

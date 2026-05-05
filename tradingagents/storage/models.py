@@ -24,6 +24,18 @@ class AnalysisRunInput:
 
 
 @dataclass(frozen=True)
+class AnalysisRequestInput:
+    ticker_code: str
+    requested_trade_date: date
+    user_id: str | None = None
+    ticker_name: str | None = None
+    market: str = "KR"
+    status: str = "queued"
+    reason: str | None = None
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class AgentReportInput:
     analysis_run_id: str
     role: str

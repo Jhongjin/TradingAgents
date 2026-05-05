@@ -69,6 +69,22 @@ trade_decisions = Table(
     UniqueConstraint("analysis_run_id", name="uq_trade_decisions_run"),
 )
 
+analysis_refresh_requests = Table(
+    "analysis_refresh_requests",
+    metadata,
+    Column("id", Uuid(as_uuid=False), primary_key=True),
+    Column("user_id", Uuid(as_uuid=False), nullable=True, index=True),
+    Column("ticker_code", String(12), nullable=False, index=True),
+    Column("ticker_name", String(120), nullable=True),
+    Column("market", String(32), nullable=False, default="KR"),
+    Column("requested_trade_date", Date, nullable=False, index=True),
+    Column("status", String(32), nullable=False, default="queued"),
+    Column("reason", Text, nullable=True),
+    Column("metadata_json", JSON, nullable=False, default=dict),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+)
+
 manual_portfolios = Table(
     "manual_portfolios",
     metadata,
