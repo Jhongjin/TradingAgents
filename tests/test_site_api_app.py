@@ -10,6 +10,7 @@ from tradingagents.dataflows import pykrx_vendor
 from tradingagents.site.api_app import create_app
 from tradingagents.storage import (
     AgentReportInput,
+    AnalysisRequestInput,
     AnalysisRunInput,
     ManualTradeInput,
     StorageRepository,
@@ -255,6 +256,84 @@ def test_api_app_queues_analysis_refresh_request_with_bearer(monkeypatch):
     assert response.headers["cache-control"] == "private, no-store"
     assert response.json()["status"] == "queued"
     assert queued[0]["ticker_code"] == "005930"
+
+
+def test_api_app_admin_worker_requires_token(monkeypatch):
+    repo = _repo()
+    monkeypatch.delenv("TRADINGAGENTS_WORKER_TOKEN", raising=False)
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.post("/api/admin/analysis-requests/process", json={"dry_run": True})
+
+    assert response.status_code == 503
+    assert "worker token" in response.json()["detail"]
+
+
+def test_api_app_admin_worker_dry_run_requires_matching_token(monkeypatch):
+    repo = _repo()
+    repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="005930",
+            requested_trade_date=date(2026, 5, 5),
+        )
+    )
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_TOKEN", "secret")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    rejected = client.post(
+        "/api/admin/analysis-requests/process",
+        headers={"X-TradingAgents-Worker-Token": "wrong"},
+        json={"dry_run": True},
+    )
+    accepted = client.post(
+        "/api/admin/analysis-requests/process",
+        headers={"Authorization": "Bearer secret"},
+        json={"dry_run": True},
+    )
+
+    assert rejected.status_code == 403
+    assert accepted.status_code == 200
+    assert accepted.headers["cache-control"] == "private, no-store"
+    assert accepted.json()["status"] == "dry_run"
+    assert accepted.json()["item_count"] == 1
+
+
+def test_api_app_admin_worker_processes_one_request(monkeypatch):
+    repo = _repo()
+    repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="005930",
+            requested_trade_date=date(2026, 5, 5),
+        )
+    )
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_TOKEN", "secret")
+
+    def fake_runner(request, **kwargs):
+        run_id = repo.create_analysis_run(
+            AnalysisRunInput(
+                ticker_code=request["ticker_code"],
+                trade_date=request["requested_trade_date"],
+                visibility="public",
+            )
+        )
+        repo.complete_analysis_run(run_id)
+        return run_id
+
+    monkeypatch.setattr("tradingagents.site.analysis_runner.run_tradingagents_graph_for_request", fake_runner)
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.post(
+        "/api/admin/analysis-requests/process",
+        headers={"Authorization": "Bearer secret"},
+        json={"limit": 1},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "processed"
+    assert response.json()["results"][0]["status"] == "completed"
+    assert repo.list_analysis_requests(status="completed")[0]["analysis_run_id"]
 
 
 def test_api_app_serves_public_analysis_feed():

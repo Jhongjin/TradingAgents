@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import hmac
 from decimal import Decimal
 from typing import Annotated
 from urllib.parse import quote
@@ -29,6 +30,11 @@ class AnalysisRefreshRequestBody(BaseModel):
     ticker: str
     requested_trade_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     reason: str | None = None
+
+
+class AnalysisWorkerRequestBody(BaseModel):
+    limit: int = Field(default=1, ge=1)
+    dry_run: bool = False
 
 
 def create_app(
@@ -94,6 +100,8 @@ def create_app(
         elif request.url.path.startswith("/api/watchlists/"):
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif request.url.path.startswith("/api/analysis-requests"):
+            response.headers.setdefault("Cache-Control", "private, no-store")
+        elif request.url.path.startswith("/api/admin/"):
             response.headers.setdefault("Cache-Control", "private, no-store")
         return response
 
@@ -262,6 +270,40 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @app.post("/api/admin/analysis-requests/process")
+    def process_analysis_requests_admin(
+        body: AnalysisWorkerRequestBody,
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        _require_worker_token(request, x_tradingagents_worker_token)
+        max_limit = _max_worker_limit()
+        if body.limit > max_limit:
+            raise HTTPException(status_code=400, detail=f"limit cannot exceed {max_limit}")
+        if body.dry_run:
+            queued = repo.list_analysis_requests(status="queued", limit=body.limit)
+            return {"status": "dry_run", "item_count": len(queued), "items": queued}
+
+        from .analysis_runner import run_tradingagents_graph_for_request
+        from .analysis_worker import process_queued_analysis_requests
+
+        results = process_queued_analysis_requests(
+            repo,
+            lambda queued_request: run_tradingagents_graph_for_request(
+                queued_request,
+                config={"database_url": os.getenv("DATABASE_URL")},
+            ),
+            limit=body.limit,
+        )
+        return {
+            "status": "processed",
+            "item_count": len(results),
+            "results": [result.__dict__ for result in results],
+        }
+
     @app.get("/api/watchlists/{watchlist_id}")
     def manual_watchlist(
         watchlist_id: str,
@@ -367,6 +409,33 @@ def _trust_member_user_header(value: bool | None) -> bool:
     if value is not None:
         return value
     return os.getenv("TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _max_worker_limit() -> int:
+    raw = int(os.getenv("TRADINGAGENTS_WORKER_MAX_REQUESTS", "1"))
+    if raw <= 0:
+        raise ValueError("TRADINGAGENTS_WORKER_MAX_REQUESTS must be positive")
+    return raw
+
+
+def _require_worker_token(request: Request, header_token: str | None) -> None:
+    expected = os.getenv("TRADINGAGENTS_WORKER_TOKEN", "").strip()
+    if not expected:
+        raise HTTPException(status_code=503, detail="Analysis worker token is not configured")
+    token = header_token or _bearer_token(request.headers.get("Authorization"))
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing analysis worker token")
+    if not hmac.compare_digest(token, expected):
+        raise HTTPException(status_code=403, detail="Invalid analysis worker token")
+
+
+def _bearer_token(value: str | None) -> str | None:
+    if not value:
+        return None
+    scheme, _, token = value.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        return None
+    return token.strip()
 
 
 def _require_portfolio_owner(repo: StorageRepository, portfolio_id: str, user_id: str) -> None:

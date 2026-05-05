@@ -39,6 +39,8 @@ TRADINGAGENTS_SITEMAP_TICKERS=005930,000660,035420,035720,051910,005380,068270,0
 TRADINGAGENTS_ADSENSE_PUBLISHER_ID=pub-0000000000000000
 # Or set a full custom ads.txt body with \n between lines:
 TRADINGAGENTS_ADS_TXT=
+TRADINGAGENTS_WORKER_TOKEN=
+TRADINGAGENTS_WORKER_MAX_REQUESTS=1
 TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=false
 ```
 
@@ -57,6 +59,7 @@ The API remains read-only:
 - `GET /api/analyses?ticker=005930`: public completed-analysis feed
 - `GET /api/prices/latest?tickers=005930,000660`: latest close-price snapshots
 - `POST /api/analysis-requests`: queue an authenticated member analysis refresh request
+- `POST /api/admin/analysis-requests/process`: protected operator endpoint for queued analysis processing
 - `GET /api/portfolio/{portfolio_id}`: manual portfolio summary from stored user-entered trades
 - `GET /api/watchlists/{watchlist_id}`: member watchlist summary from stored ticker lists
 - `GET /health`: deployment health check
@@ -84,6 +87,12 @@ tradingagents process-analysis-requests --limit 1
 
 The worker requires `DATABASE_URL` and processes queued rows one at a time by
 default.
+
+The protected API worker endpoint requires `TRADINGAGENTS_WORKER_TOKEN` and
+accepts either `Authorization: Bearer <token>` or
+`X-TradingAgents-Worker-Token: <token>`. Keep `TRADINGAGENTS_WORKER_MAX_REQUESTS`
+small on Vercel because a full TradingAgents run can be expensive and may hit
+serverless duration limits.
 
 Member routes require an authenticated user context before they will return
 portfolio or watchlist data. By default the API verifies `Authorization: Bearer
