@@ -353,6 +353,15 @@ schema described in [`docs/storage-schema.md`](docs/storage-schema.md). Set
 databases should be created with the migration rather than
 `TRADINGAGENTS_STORAGE_CREATE_SCHEMA=true`.
 
+The first read-only API adapter is available through FastAPI:
+
+```bash
+uvicorn tradingagents.site.api_app:app --reload
+```
+
+It exposes `/api/stocks/{ticker}` for public Korean stock pages and
+`/api/portfolio/{portfolio_id}` for user-entered manual portfolio summaries.
+
 ## Contributing
 
 We welcome contributions from the community! Whether it's fixing a bug, improving documentation, or suggesting a new feature, your input helps make this project better. If you are interested in this line of research, please consider joining our open-source financial AI research community [Tauric Research](https://tauric.ai/).

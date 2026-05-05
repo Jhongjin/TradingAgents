@@ -10,6 +10,7 @@ from uuid import UUID
 from uuid import uuid4
 
 from sqlalchemy import Engine, create_engine, desc, insert, select, update
+from sqlalchemy.pool import StaticPool
 
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
 
@@ -34,6 +35,14 @@ def create_storage_engine(database_url: str | None = None, *, echo: bool = False
         url = url.replace("postgresql://", "postgresql+psycopg://", 1)
     elif url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql+psycopg://", 1)
+    if url == "sqlite+pysqlite:///:memory:":
+        return create_engine(
+            url,
+            echo=echo,
+            future=True,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
     return create_engine(url, echo=echo, future=True)
 
 

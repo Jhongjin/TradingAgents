@@ -87,6 +87,11 @@ FastAPI, or Vercel API route. The payload also includes an `analysis_refresh`
 hint so the web layer can show cached completed analysis while deciding whether
 a background refresh should be queued.
 
+The first HTTP adapter is `tradingagents.site.create_app`, a read-only FastAPI
+surface with `/api/stocks/{ticker}` and `/api/portfolio/{portfolio_id}` routes.
+It is deliberately thin: route handlers validate HTTP inputs and delegate to the
+framework-neutral payload builders.
+
 ## Broker Integration Boundary
 
 Broker integration is not part of the initial public launch.
