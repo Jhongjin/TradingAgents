@@ -17,6 +17,14 @@ Framework Preset to `Other` with `"framework": null`. If Vercel still shows
 `No Next.js version detected`, open **Project Settings -> Build & Development
 Settings** and set **Framework Preset** to **Other**, then redeploy.
 
+For a public ad-supported site, Vercel Deployment Protection must not block the
+production URL. If `/`, `/health`, or `/api/readiness` returns `401
+Unauthorized` in a normal browser/incognito session, open **Project Settings ->
+Deployment Protection** and disable protection for the environment/domain you
+intend to publish. Keep preview deployments protected if you want, but the
+canonical `TRADINGAGENTS_SITE_BASE_URL` must be publicly crawlable for SEO,
+`ads.txt`, and AdSense verification.
+
 Required production environment:
 
 ```text
