@@ -94,6 +94,7 @@ The API remains read-only:
 
 - `GET /`: public Samsung Electronics analysis page
 - `GET /analyses`: public completed-analysis feed page
+- `GET /member`: noindex member dashboard shell for Supabase Auth and manual records
 - `GET /stocks/{ticker}`: public Korean stock analysis page with KRW chart
 - `GET /ads.txt`: advertising seller declaration generated from AdSense/custom env
 - `GET /robots.txt`: crawler policy with sitemap URL

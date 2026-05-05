@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import json
+import os
 from typing import Any
 
 from tradingagents.storage import StorageRepository
@@ -193,6 +194,7 @@ def render_public_analysis_feed_page(
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/analyses">분석 목록</a>
       <a href="/stocks/005930">삼성전자</a>
+      <a href="/member">대시보드</a>
     </nav>
   </header>
 
@@ -272,6 +274,7 @@ def render_public_home_page(
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/analyses">분석 목록</a>
       <a href="/stocks/005930">삼성전자</a>
+      <a href="/member">대시보드</a>
     </nav>
   </header>
 
@@ -325,6 +328,152 @@ def render_public_home_page(
   </main>
 
   <script>{PAGE_JS}</script>
+</body>
+</html>"""
+
+
+def render_member_dashboard_page(*, site_base_url: str | None = None) -> str:
+    """Render the authenticated member dashboard shell."""
+
+    model = {
+        "title": "회원 대시보드 | TradingAgents Korea",
+        "description": "수동 포트폴리오, 관심목록, 한국 주식 AI 분석 요청을 관리합니다.",
+        "canonical_url": canonical_url("/member", site_base_url=site_base_url),
+    }
+    config_json = _script_json(_public_supabase_config())
+
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{_h(model["title"])}</title>
+  <meta name="description" content="{_h(model["description"])}">
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="canonical" href="{_h(model["canonical_url"])}">
+  <style>{PAGE_CSS}</style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="TradingAgents Korea home">
+      <span class="brand-mark">TA</span>
+      <span>TradingAgents Korea</span>
+    </a>
+    <nav class="top-links" aria-label="서비스 페이지">
+      <a href="/analyses">분석 목록</a>
+      <a href="/stocks/005930">삼성전자</a>
+      <a href="/member">대시보드</a>
+    </nav>
+  </header>
+
+  <main class="shell member-shell">
+    <section class="summary-band" aria-labelledby="member-title">
+      <div>
+        <p class="eyebrow">Member Workspace</p>
+        <h1 id="member-title">내 투자 노트</h1>
+        <p class="asof" id="memberStatus">로그인 상태 확인 중</p>
+      </div>
+      <div class="decision-box">
+        <span class="decision-label">거래 기능</span>
+        <strong>OFF</strong>
+        <span>조회/기록 전용</span>
+      </div>
+    </section>
+
+    <section class="member-grid" aria-label="회원 기능">
+      <section class="member-panel auth-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Supabase Auth</p>
+            <h2>로그인</h2>
+          </div>
+          <button class="ghost-button" id="signOutButton" type="button">나가기</button>
+        </div>
+        <form class="member-form" id="authForm">
+          <label>
+            <span>이메일</span>
+            <input name="email" type="email" autocomplete="email" required>
+          </label>
+          <label>
+            <span>비밀번호</span>
+            <input name="password" type="password" autocomplete="current-password" required>
+          </label>
+          <div class="button-row">
+            <button type="submit" data-auth-action="signin">로그인</button>
+            <button type="submit" data-auth-action="signup">가입</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="member-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Manual Portfolio</p>
+            <h2>수동 매수 기록</h2>
+          </div>
+          <button class="ghost-button" id="refreshMemberData" type="button">새로고침</button>
+        </div>
+        <form class="member-form compact-form" id="portfolioForm">
+          <input name="name" maxlength="80" placeholder="포트폴리오 이름" required>
+          <button type="submit">추가</button>
+        </form>
+        <form class="member-form trade-form" id="tradeForm">
+          <select name="portfolio_id" required></select>
+          <input name="ticker_code" maxlength="12" placeholder="005930" required>
+          <select name="side" required>
+            <option value="buy">매수</option>
+            <option value="sell">매도</option>
+          </select>
+          <input name="trade_date" type="date" required>
+          <input name="price" type="number" min="1" step="1" placeholder="단가" required>
+          <input name="quantity" type="number" min="1" step="1" placeholder="수량" required>
+          <button type="submit">기록</button>
+        </form>
+        <div class="member-list" id="portfolioList"></div>
+      </section>
+
+      <section class="member-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Watchlist</p>
+            <h2>관심종목</h2>
+          </div>
+          <span class="status-pill">KR</span>
+        </div>
+        <form class="member-form compact-form" id="watchlistForm">
+          <input name="name" maxlength="80" placeholder="관심목록 이름" required>
+          <button type="submit">추가</button>
+        </form>
+        <form class="member-form compact-form" id="watchlistItemForm">
+          <select name="watchlist_id" required></select>
+          <input name="ticker_code" maxlength="12" placeholder="005930" required>
+          <input name="memo" maxlength="500" placeholder="메모">
+          <button type="submit">담기</button>
+        </form>
+        <div class="member-list" id="watchlistList"></div>
+      </section>
+
+      <section class="member-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">AI Analysis</p>
+            <h2>분석 요청</h2>
+          </div>
+          <span class="status-pill">Queued</span>
+        </div>
+        <form class="member-form compact-form" id="analysisRequestForm">
+          <input name="ticker" maxlength="12" placeholder="005930" required>
+          <input name="requested_trade_date" type="date">
+          <input name="reason" maxlength="500" placeholder="요청 메모">
+          <button type="submit">요청</button>
+        </form>
+        <div class="member-list" id="analysisRequestList"></div>
+      </section>
+    </section>
+  </main>
+
+  <script id="member-config" type="application/json">{config_json}</script>
+  <script>{MEMBER_PAGE_JS}</script>
 </body>
 </html>"""
 
@@ -621,6 +770,20 @@ def _script_json(payload: dict[str, Any]) -> str:
         .replace(">", "\\u003e")
         .replace("&", "\\u0026")
     )
+
+
+def _public_supabase_config() -> dict[str, str | bool | None]:
+    url = os.getenv("NEXT_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL") or os.getenv("TRADINGAGENTS_SUPABASE_URL")
+    anon_key = (
+        os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+        or os.getenv("SUPABASE_ANON_KEY")
+        or os.getenv("SUPABASE_PUBLISHABLE_KEY")
+    )
+    return {
+        "configured": bool(url and anon_key),
+        "supabase_url": url.rstrip("/") if url else None,
+        "supabase_anon_key": anon_key,
+    }
 
 
 def _h(value: Any) -> str:
@@ -1085,6 +1248,129 @@ h3 {
   grid-column: 1 / -1;
 }
 
+.member-shell {
+  padding-bottom: 64px;
+}
+
+.member-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.member-panel {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.member-panel h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+}
+
+.member-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.member-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.member-form input,
+.member-form select {
+  min-width: 0;
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.compact-form {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.compact-form input:nth-last-child(2) {
+  grid-column: auto;
+}
+
+.trade-form {
+  grid-template-columns: minmax(150px, 1.1fr) minmax(96px, 0.8fr) minmax(92px, 0.7fr) minmax(128px, 0.9fr) minmax(96px, 0.8fr) minmax(84px, 0.7fr) auto;
+  align-items: end;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.member-form button,
+.ghost-button {
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ink);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ghost-button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.member-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.member-item {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.member-item strong {
+  font-size: 15px;
+}
+
+.member-item small,
+.member-empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.member-empty {
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+
+.member-error {
+  color: var(--gain);
+}
+
 .notice-strip {
   margin-top: 18px;
   padding: 14px 18px;
@@ -1120,7 +1406,12 @@ h3 {
     grid-template-columns: 1fr 1fr;
   }
 
-  .analysis-feed-grid {
+  .analysis-feed-grid,
+  .member-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .trade-form {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -1142,7 +1433,10 @@ h3 {
 
   .metric-grid,
   .report-grid,
-  .analysis-feed-grid {
+  .analysis-feed-grid,
+  .member-grid,
+  .compact-form,
+  .trade-form {
     grid-template-columns: 1fr;
   }
 
@@ -1330,5 +1624,250 @@ PAGE_JS = """
 
   draw();
   window.addEventListener("resize", draw);
+})();
+"""
+
+
+MEMBER_PAGE_JS = """
+(() => {
+  const configNode = document.getElementById("member-config");
+  const config = JSON.parse(configNode?.textContent || "{}");
+  const statusNode = document.getElementById("memberStatus");
+  const authForm = document.getElementById("authForm");
+  const signOutButton = document.getElementById("signOutButton");
+  const refreshButton = document.getElementById("refreshMemberData");
+  const portfolioForm = document.getElementById("portfolioForm");
+  const tradeForm = document.getElementById("tradeForm");
+  const watchlistForm = document.getElementById("watchlistForm");
+  const watchlistItemForm = document.getElementById("watchlistItemForm");
+  const analysisRequestForm = document.getElementById("analysisRequestForm");
+  const portfolioList = document.getElementById("portfolioList");
+  const watchlistList = document.getElementById("watchlistList");
+  const analysisRequestList = document.getElementById("analysisRequestList");
+  const portfolioSelect = tradeForm?.elements?.portfolio_id;
+  const watchlistSelect = watchlistItemForm?.elements?.watchlist_id;
+  const tokenKey = "tradingagents.member.access_token";
+
+  function setStatus(message, isError = false) {
+    if (!statusNode) return;
+    statusNode.textContent = message;
+    statusNode.classList.toggle("member-error", isError);
+  }
+
+  function accessToken() {
+    return sessionStorage.getItem(tokenKey) || "";
+  }
+
+  function setToken(token) {
+    if (token) sessionStorage.setItem(tokenKey, token);
+    else sessionStorage.removeItem(tokenKey);
+  }
+
+  function requireConfig() {
+    if (config.configured) return true;
+    setStatus("Supabase 공개 Auth 설정 대기 중", true);
+    return false;
+  }
+
+  async function supabaseAuth(path, body) {
+    if (!requireConfig()) return null;
+    const response = await fetch(`${config.supabase_url}${path}`, {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "apikey": config.supabase_anon_key
+      },
+      body: JSON.stringify(body)
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error_description || payload.msg || payload.error || "Supabase auth failed");
+    }
+    return payload;
+  }
+
+  async function memberApi(path, options = {}) {
+    const token = accessToken();
+    if (!token) throw new Error("로그인이 필요합니다");
+    const response = await fetch(path, {
+      ...options,
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+        ...(options.headers || {})
+      }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.detail || "Request failed");
+    return payload;
+  }
+
+  function itemCard(title, meta) {
+    const node = document.createElement("article");
+    node.className = "member-item";
+    const strong = document.createElement("strong");
+    strong.textContent = title;
+    const small = document.createElement("small");
+    small.textContent = meta;
+    node.append(strong, small);
+    return node;
+  }
+
+  function emptyNode(message) {
+    const node = document.createElement("div");
+    node.className = "member-empty";
+    node.textContent = message;
+    return node;
+  }
+
+  function fillSelect(select, rows, labelKey) {
+    if (!select) return;
+    select.replaceChildren(...rows.map((row) => {
+      const option = document.createElement("option");
+      option.value = row.id;
+      option.textContent = row[labelKey] || row.id;
+      return option;
+    }));
+  }
+
+  function renderPortfolios(payload) {
+    const rows = payload.items || [];
+    fillSelect(portfolioSelect, rows, "name");
+    portfolioList.replaceChildren(
+      ...(rows.length ? rows.map((row) => itemCard(row.name, `${row.base_currency || "KRW"} / ${row.id}`)) : [emptyNode("저장된 포트폴리오가 없습니다")])
+    );
+  }
+
+  function renderWatchlists(payload) {
+    const rows = payload.items || [];
+    fillSelect(watchlistSelect, rows, "name");
+    watchlistList.replaceChildren(
+      ...(rows.length ? rows.map((row) => itemCard(row.name, row.id)) : [emptyNode("저장된 관심목록이 없습니다")])
+    );
+  }
+
+  function renderAnalysisRequests(payload) {
+    const rows = payload.items || [];
+    analysisRequestList.replaceChildren(
+      ...(rows.length ? rows.map((row) => itemCard(`${row.ticker_name || row.ticker_code} ${row.ticker_code}`, `${row.status} / ${row.requested_trade_date}`)) : [emptyNode("분석 요청 내역이 없습니다")])
+    );
+  }
+
+  async function loadMemberData() {
+    if (!accessToken()) {
+      setStatus(config.configured ? "로그인 필요" : "Supabase 공개 Auth 설정 대기 중", !config.configured);
+      return;
+    }
+    const [portfolios, watchlists, requests] = await Promise.all([
+      memberApi("/api/portfolios"),
+      memberApi("/api/watchlists"),
+      memberApi("/api/analysis-requests?limit=20")
+    ]);
+    renderPortfolios(portfolios);
+    renderWatchlists(watchlists);
+    renderAnalysisRequests(requests);
+    setStatus("로그인됨");
+  }
+
+  async function handleAuth(event) {
+    event.preventDefault();
+    const action = event.submitter?.dataset?.authAction || "signin";
+    const form = new FormData(authForm);
+    const email = String(form.get("email") || "");
+    const password = String(form.get("password") || "");
+    try {
+      setStatus(action === "signup" ? "가입 처리 중" : "로그인 중");
+      const payload = action === "signup"
+        ? await supabaseAuth("/auth/v1/signup", { email, password })
+        : await supabaseAuth("/auth/v1/token?grant_type=password", { email, password });
+      const token = payload?.access_token || payload?.session?.access_token;
+      if (!token) {
+        setStatus("이메일 확인 후 로그인하세요");
+        return;
+      }
+      setToken(token);
+      await loadMemberData();
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  }
+
+  async function submitJson(form, path, buildBody) {
+    try {
+      const body = buildBody(new FormData(form));
+      await memberApi(path, { method: "POST", body: JSON.stringify(body) });
+      form.reset();
+      await loadMemberData();
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  }
+
+  authForm?.addEventListener("submit", handleAuth);
+
+  signOutButton?.addEventListener("click", () => {
+    setToken("");
+    setStatus("로그아웃됨");
+  });
+
+  refreshButton?.addEventListener("click", () => {
+    loadMemberData().catch((error) => setStatus(error.message, true));
+  });
+
+  portfolioForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitJson(portfolioForm, "/api/portfolios", (form) => ({
+      name: String(form.get("name") || ""),
+      base_currency: "KRW"
+    }));
+  });
+
+  tradeForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(tradeForm);
+    const portfolioId = String(form.get("portfolio_id") || "");
+    submitJson(tradeForm, `/api/portfolio/${encodeURIComponent(portfolioId)}/trades`, () => ({
+      ticker_code: String(form.get("ticker_code") || ""),
+      side: String(form.get("side") || "buy"),
+      trade_date: String(form.get("trade_date") || ""),
+      price: String(form.get("price") || ""),
+      quantity: Number(form.get("quantity") || 0),
+      fee: "0",
+      tax: "0"
+    }));
+  });
+
+  watchlistForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitJson(watchlistForm, "/api/watchlists", (form) => ({
+      name: String(form.get("name") || "")
+    }));
+  });
+
+  watchlistItemForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(watchlistItemForm);
+    const watchlistId = String(form.get("watchlist_id") || "");
+    submitJson(watchlistItemForm, `/api/watchlists/${encodeURIComponent(watchlistId)}/items`, () => ({
+      ticker_code: String(form.get("ticker_code") || ""),
+      memo: String(form.get("memo") || "") || null
+    }));
+  });
+
+  analysisRequestForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitJson(analysisRequestForm, "/api/analysis-requests", (form) => {
+      const requested = String(form.get("requested_trade_date") || "");
+      return {
+        ticker: String(form.get("ticker") || ""),
+        requested_trade_date: requested || null,
+        reason: String(form.get("reason") || "") || null
+      };
+    });
+  });
+
+  loadMemberData().catch((error) => setStatus(error.message, true));
 })();
 """

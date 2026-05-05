@@ -30,7 +30,12 @@ from .public_api import build_public_stock_payload
 from .seo import build_ads_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
 from .ticker_api import build_ticker_search_payload
 from .watchlist_api import build_watchlist_list_payload, build_watchlist_payload
-from .web_pages import render_public_analysis_feed_page, render_public_home_page, render_public_stock_page
+from .web_pages import (
+    render_member_dashboard_page,
+    render_public_analysis_feed_page,
+    render_public_home_page,
+    render_public_stock_page,
+)
 
 
 class AnalysisRefreshRequestBody(BaseModel):
@@ -121,7 +126,9 @@ def create_app(
         response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         if request.url.scheme == "https":
             response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-        if (
+        if request.url.path == "/member":
+            response.headers.setdefault("Cache-Control", "private, no-store")
+        elif (
             request.url.path == "/"
             or request.url.path == "/analyses"
             or request.url.path == "/stocks"
@@ -254,6 +261,10 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return HTMLResponse(html)
+
+    @app.get("/member", response_class=HTMLResponse, include_in_schema=False)
+    def member_dashboard(request: Request) -> HTMLResponse:
+        return HTMLResponse(render_member_dashboard_page(site_base_url=_request_site_base_url(request)))
 
     @app.get("/stocks", include_in_schema=False)
     def stocks_lookup(

@@ -16,6 +16,10 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/member",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/stocks",
       "destination": "/api/index.py"
     },

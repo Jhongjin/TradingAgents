@@ -5,7 +5,12 @@ from fastapi.testclient import TestClient
 from tradingagents.storage import AnalysisRunInput, StorageRepository, create_storage_engine
 from tradingagents.site.api_app import create_app
 from tradingagents.site.seo import build_ads_txt, build_robots_txt, build_sitemap_xml, stock_canonical_url
-from tradingagents.site.web_pages import render_public_analysis_feed_page, render_public_home_page, render_public_stock_page
+from tradingagents.site.web_pages import (
+    render_member_dashboard_page,
+    render_public_analysis_feed_page,
+    render_public_home_page,
+    render_public_stock_page,
+)
 
 
 def _payload():
@@ -105,6 +110,38 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "/stocks/005930" in html
     assert "/analyses" in html
     assert '<link rel="canonical" href="https://example.com/">' in html
+
+
+def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch):
+    monkeypatch.setenv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-role-secret")
+
+    html = render_member_dashboard_page(site_base_url="https://example.com")
+
+    assert "내 투자 노트" in html
+    assert "/api/portfolios" in html
+    assert "/api/watchlists" in html
+    assert "/api/analysis-requests" in html
+    assert '"configured":true' in html
+    assert "anon-key" in html
+    assert "service-role-secret" not in html
+    assert '<meta name="robots" content="noindex,nofollow">' in html
+
+
+def test_api_app_serves_member_dashboard(monkeypatch):
+    monkeypatch.setattr(
+        "tradingagents.site.api_app.render_member_dashboard_page",
+        lambda *args, **kwargs: "<!doctype html><html><body>member dashboard</body></html>",
+    )
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    response = client.get("/member")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.headers["cache-control"] == "private, no-store"
+    assert "member dashboard" in response.text
 
 
 def test_render_public_analysis_feed_page_lists_completed_runs():
