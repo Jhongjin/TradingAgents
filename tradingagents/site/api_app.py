@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, Request
+from starlette.middleware.cors import CORSMiddleware
 
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.storage import StorageRepository, create_storage_engine
@@ -19,6 +20,8 @@ def create_app(
     *,
     repo: StorageRepository | None = None,
     load_repo_from_env: bool = True,
+    cors_origins: list[str] | None = None,
+    public_cache_seconds: int | None = None,
 ) -> FastAPI:
     """Create the TradingAgents API app.
 
@@ -33,6 +36,22 @@ def create_app(
         description="Read-only API surface for Korean stock analysis and manual portfolio summaries.",
     )
     app.state.repository = repo or _repo_from_env() if load_repo_from_env else repo
+    app.state.public_cache_seconds = _public_cache_seconds(public_cache_seconds)
+    _install_cors(app, cors_origins)
+
+    @app.middleware("http")
+    async def response_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        if request.url.path.startswith("/api/stocks/"):
+            seconds = request.app.state.public_cache_seconds
+            response.headers.setdefault(
+                "Cache-Control",
+                f"public, max-age={seconds}, stale-while-revalidate={seconds * 2}",
+            )
+        elif request.url.path.startswith("/api/portfolio/"):
+            response.headers.setdefault("Cache-Control", "private, no-store")
+        return response
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -91,6 +110,31 @@ def _repo_from_env() -> StorageRepository | None:
     if not os.getenv("DATABASE_URL"):
         return None
     return StorageRepository(create_storage_engine())
+
+
+def _install_cors(app: FastAPI, cors_origins: list[str] | None) -> None:
+    origins = cors_origins if cors_origins is not None else _csv_env("TRADINGAGENTS_API_CORS_ORIGINS")
+    if not origins:
+        return
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=False,
+        allow_methods=["GET"],
+        allow_headers=["*"],
+    )
+
+
+def _public_cache_seconds(value: int | None) -> int:
+    raw = value if value is not None else int(os.getenv("TRADINGAGENTS_API_PUBLIC_CACHE_SECONDS", "300"))
+    if raw < 0:
+        raise ValueError("public_cache_seconds must be non-negative")
+    return raw
+
+
+def _csv_env(name: str) -> list[str]:
+    value = os.getenv(name, "")
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 def _parse_current_prices(value: str | None) -> dict[str, Decimal]:

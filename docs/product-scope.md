@@ -91,6 +91,9 @@ The first HTTP adapter is `tradingagents.site.create_app`, a read-only FastAPI
 surface with `/api/stocks/{ticker}` and `/api/portfolio/{portfolio_id}` routes.
 It is deliberately thin: route handlers validate HTTP inputs and delegate to the
 framework-neutral payload builders.
+Public stock API responses include cache headers; manual portfolio responses are
+marked private/no-store. Browser origins are opt-in through
+`TRADINGAGENTS_API_CORS_ORIGINS`.
 
 ## Broker Integration Boundary
 

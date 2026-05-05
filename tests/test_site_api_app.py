@@ -139,3 +139,57 @@ def test_api_app_rejects_malformed_current_prices():
 
     assert response.status_code == 400
     assert "ticker:price" in response.json()["detail"]
+
+
+def test_api_app_sets_public_and_private_cache_headers():
+    repo = _repo()
+    portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")
+    client = TestClient(
+        create_app(
+            repo=repo,
+            load_repo_from_env=False,
+            public_cache_seconds=60,
+        )
+    )
+
+    stock_response = client.get(
+        "/api/stocks/005930",
+        params={"include_chart": "false", "include_analysis": "false"},
+    )
+    portfolio_response = client.get(f"/api/portfolio/{portfolio_id}")
+
+    assert stock_response.status_code == 200
+    assert stock_response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    assert stock_response.headers["x-content-type-options"] == "nosniff"
+    assert portfolio_response.status_code == 200
+    assert portfolio_response.headers["cache-control"] == "private, no-store"
+
+
+def test_api_app_supports_configured_cors_origins():
+    client = TestClient(
+        create_app(
+            repo=None,
+            load_repo_from_env=False,
+            cors_origins=["https://example.com"],
+        )
+    )
+
+    response = client.options(
+        "/api/stocks/005930",
+        headers={
+            "Origin": "https://example.com",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://example.com"
+
+
+def test_api_app_rejects_negative_public_cache_seconds():
+    try:
+        create_app(load_repo_from_env=False, public_cache_seconds=-1)
+    except ValueError as exc:
+        assert "public_cache_seconds" in str(exc)
+    else:
+        raise AssertionError("negative public cache seconds should fail")
