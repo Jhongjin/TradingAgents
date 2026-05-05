@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any
 
 import pandas as pd
@@ -56,6 +57,28 @@ class ChartSeries:
         }
 
 
+@dataclass(frozen=True)
+class LatestPrice:
+    ticker_code: str
+    ticker_name: str
+    market: str
+    currency: str
+    vendor: str
+    date: str
+    close: float
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "ticker_code": self.ticker_code,
+            "ticker_name": self.ticker_name,
+            "market": self.market,
+            "currency": self.currency,
+            "vendor": self.vendor,
+            "date": self.date,
+            "close": self.close,
+        }
+
+
 def get_ohlcv_chart_series(
     symbol: str,
     start_date: str,
@@ -88,6 +111,68 @@ def get_ohlcv_chart_series(
         vendor=selected_vendor,
         points=_points_from_frame(frame),
     )
+
+
+def get_latest_close_price(
+    symbol: str,
+    end_date: str,
+    *,
+    lookback_days: int = 14,
+    vendor: str = "pykrx",
+) -> LatestPrice:
+    """Return the latest available close price on or before end_date."""
+
+    if lookback_days < 0:
+        raise ValueError("lookback_days must be non-negative")
+
+    end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    start = end - timedelta(days=lookback_days)
+    series = get_ohlcv_chart_series(
+        symbol,
+        start.isoformat(),
+        end.isoformat(),
+        vendor=vendor,
+    )
+    for point in reversed(series.points):
+        if point.close is not None:
+            return LatestPrice(
+                ticker_code=series.ticker_code,
+                ticker_name=series.ticker_name,
+                market=series.market,
+                currency=series.currency,
+                vendor=series.vendor,
+                date=point.date,
+                close=point.close,
+            )
+
+    raise VendorUnavailableError(f"No close price found for {series.ticker_code} on or before {end_date}")
+
+
+def get_latest_close_prices(
+    symbols: list[str],
+    end_date: str,
+    *,
+    lookback_days: int = 14,
+    vendor: str = "pykrx",
+    ignore_errors: bool = False,
+) -> dict[str, LatestPrice]:
+    """Return latest close prices keyed by normalized ticker code."""
+
+    prices: dict[str, LatestPrice] = {}
+    for symbol in symbols:
+        try:
+            price = get_latest_close_price(
+                symbol,
+                end_date,
+                lookback_days=lookback_days,
+                vendor=vendor,
+            )
+        except Exception:
+            if ignore_errors:
+                continue
+            raise
+        prices[price.ticker_code] = price
+    return prices
 
 
 def _points_from_frame(frame: pd.DataFrame) -> list[OhlcvPoint]:
