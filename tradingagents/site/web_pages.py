@@ -38,6 +38,7 @@ def render_public_stock_page(
     )
     model = _view_model(payload, site_base_url=site_base_url)
     payload_json = _script_json(payload)
+    structured_data_json = _script_json(_structured_data(model, payload))
     reports_html = _report_cards(model["reports"])
     notices_html = "".join(f"<li>{_h(notice)}</li>" for notice in payload.get("notices", []))
 
@@ -54,6 +55,7 @@ def render_public_stock_page(
   <meta property="og:title" content="{_h(model["title"])}">
   <meta property="og:description" content="{_h(model["description"])}">
   <meta property="og:url" content="{_h(model["canonical_url"])}">
+  <script type="application/ld+json">{structured_data_json}</script>
   <style>{PAGE_CSS}</style>
 </head>
 <body>
@@ -222,6 +224,34 @@ def _report_cards(reports: list[dict[str, Any]]) -> str:
             """
         )
     return "\n".join(cards)
+
+
+def _structured_data(model: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    ticker = payload.get("ticker", {})
+    return {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": model["title"],
+        "description": model["description"],
+        "url": model["canonical_url"],
+        "inLanguage": "ko-KR",
+        "isPartOf": {
+            "@type": "WebSite",
+            "name": "TradingAgents Korea",
+            "url": model["canonical_url"].split("/stocks/")[0] if "/stocks/" in model["canonical_url"] else "/",
+        },
+        "about": {
+            "@type": "Thing",
+            "name": ticker.get("name"),
+            "identifier": ticker.get("code"),
+            "additionalType": "KoreanStock",
+        },
+        "dateModified": payload.get("generated_at"),
+        "publisher": {
+            "@type": "Organization",
+            "name": "TradingAgents Korea",
+        },
+    }
 
 
 def _analysis_status_label(status: Any) -> str:

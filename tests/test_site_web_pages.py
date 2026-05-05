@@ -71,6 +71,9 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "priceChart" in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html
+    assert 'type="application/ld+json"' in html
+    assert '"@type":"WebPage"' in html
+    assert '"additionalType":"KoreanStock"' in html
     assert "005930 또는 삼성전자" in html
     assert '<link rel="canonical" href="https://example.com/stocks/005930">' in html
     assert 'property="og:title"' in html
