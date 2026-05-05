@@ -23,6 +23,7 @@ DATABASE_URL=
 TRADINGAGENTS_STORAGE_ENABLED=true
 TRADINGAGENTS_API_CORS_ORIGINS=https://your-domain.example
 TRADINGAGENTS_API_PUBLIC_CACHE_SECONDS=300
+TRADINGAGENTS_API_MAX_PRICE_TICKERS=20
 ```
 
 Apply the Supabase migration before enabling persistent analysis storage. Do
@@ -32,6 +33,7 @@ migration so RLS policies are installed.
 The API remains read-only:
 
 - `GET /api/stocks/{ticker}`: public Korean stock payload
+- `GET /api/prices/latest?tickers=005930,000660`: latest close-price snapshots
 - `GET /api/portfolio/{portfolio_id}`: manual portfolio summary from stored user-entered trades
 - `GET /health`: deployment health check
 

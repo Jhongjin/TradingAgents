@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 from fastapi.testclient import TestClient
 
+from tradingagents.dataflows.chart_data import LatestPrice
 from tradingagents.dataflows import pykrx_vendor
 from tradingagents.site.api_app import create_app
 from tradingagents.storage import (
@@ -184,6 +185,41 @@ def test_api_app_supports_configured_cors_origins():
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "https://example.com"
+
+
+def test_api_app_serves_latest_prices(monkeypatch):
+    def fake_latest(ticker, *args, **kwargs):
+        assert ticker == "005930"
+        return LatestPrice(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            currency="KRW",
+            vendor="pykrx",
+            date="2026-01-05",
+            close=71200.0,
+        )
+
+    monkeypatch.setattr("tradingagents.site.market_api.get_latest_close_price", fake_latest)
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    response = client.get(
+        "/api/prices/latest",
+        params={"tickers": "005930", "date": "2026-01-06"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    assert response.json()["prices"]["005930"]["close"] == 71200.0
+
+
+def test_api_app_rejects_too_many_latest_price_tickers():
+    client = TestClient(create_app(repo=None, load_repo_from_env=False, max_price_tickers=1))
+
+    response = client.get("/api/prices/latest", params={"tickers": "005930,000660"})
+
+    assert response.status_code == 400
+    assert "more than 1" in response.json()["detail"]
 
 
 def test_api_app_rejects_negative_public_cache_seconds():

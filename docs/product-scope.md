@@ -77,7 +77,8 @@ The backend chart data shape starts in `tradingagents.dataflows.chart_data`.
 It returns JSON-friendly OHLCV points from pykrx today, with a vendor boundary
 so KRX Open API can replace the source later without changing the web layer.
 The same module exposes latest close-price snapshots so manual portfolio pages
-can value holdings without coupling directly to pykrx.
+can value holdings without coupling directly to pykrx. The read-only API exposes
+that snapshot through `/api/prices/latest`.
 
 The first framework-neutral public page payload builder is
 `tradingagents.site.build_public_stock_payload`. It combines ticker metadata,

@@ -12,6 +12,7 @@ from starlette.middleware.cors import CORSMiddleware
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.storage import StorageRepository, create_storage_engine
 
+from .market_api import build_latest_prices_payload
 from .portfolio_api import build_manual_portfolio_payload
 from .public_api import build_public_stock_payload
 
@@ -22,6 +23,7 @@ def create_app(
     load_repo_from_env: bool = True,
     cors_origins: list[str] | None = None,
     public_cache_seconds: int | None = None,
+    max_price_tickers: int | None = None,
 ) -> FastAPI:
     """Create the TradingAgents API app.
 
@@ -37,6 +39,7 @@ def create_app(
     )
     app.state.repository = repo or _repo_from_env() if load_repo_from_env else repo
     app.state.public_cache_seconds = _public_cache_seconds(public_cache_seconds)
+    app.state.max_price_tickers = _max_price_tickers(max_price_tickers)
     _install_cors(app, cors_origins)
 
     @app.middleware("http")
@@ -49,6 +52,8 @@ def create_app(
                 "Cache-Control",
                 f"public, max-age={seconds}, stale-while-revalidate={seconds * 2}",
             )
+        elif request.url.path.startswith("/api/prices/"):
+            response.headers.setdefault("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
         elif request.url.path.startswith("/api/portfolio/"):
             response.headers.setdefault("Cache-Control", "private, no-store")
         return response
@@ -78,6 +83,25 @@ def create_app(
                 include_chart=include_chart,
                 include_analysis=include_analysis,
                 max_analysis_age_days=max_analysis_age_days,
+            )
+        except (VendorUnavailableError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/prices/latest")
+    def latest_prices(
+        request: Request,
+        tickers: Annotated[str, Query(description="Comma-separated Korean ticker codes, e.g. 005930,000660")],
+        date: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None,
+        lookback_days: int = 14,
+        ignore_errors: bool = True,
+    ) -> dict:
+        try:
+            return build_latest_prices_payload(
+                tickers.split(","),
+                end_date=date,
+                lookback_days=lookback_days,
+                ignore_errors=ignore_errors,
+                max_tickers=request.app.state.max_price_tickers,
             )
         except (VendorUnavailableError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -129,6 +153,13 @@ def _public_cache_seconds(value: int | None) -> int:
     raw = value if value is not None else int(os.getenv("TRADINGAGENTS_API_PUBLIC_CACHE_SECONDS", "300"))
     if raw < 0:
         raise ValueError("public_cache_seconds must be non-negative")
+    return raw
+
+
+def _max_price_tickers(value: int | None) -> int:
+    raw = value if value is not None else int(os.getenv("TRADINGAGENTS_API_MAX_PRICE_TICKERS", "20"))
+    if raw <= 0:
+        raise ValueError("max_price_tickers must be positive")
     return raw
 
 
