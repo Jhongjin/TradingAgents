@@ -31,6 +31,11 @@ DEFAULT_CONFIG = {
     # Output language for analyst reports and final decision
     # Internal agent debate stays in English for reasoning quality
     "output_language": "English",
+    # Market profile. KR is the local fork's primary target, but the data
+    # router falls back to the original US-capable yfinance/Alpha Vantage
+    # vendors when the ticker is not a Korean 6-digit code.
+    "market": os.getenv("TRADINGAGENTS_MARKET", "KR"),
+    "currency": os.getenv("TRADINGAGENTS_CURRENCY", "KRW"),
     # Debate and discussion settings
     "max_debate_rounds": 1,
     "max_risk_discuss_rounds": 1,
@@ -38,13 +43,30 @@ DEFAULT_CONFIG = {
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
-        "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
-        "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
-        "fundamental_data": "yfinance",      # Options: alpha_vantage, yfinance
-        "news_data": "yfinance",             # Options: alpha_vantage, yfinance
+        "core_stock_apis": "pykrx,krx,yfinance",       # Options: pykrx, krx, alpha_vantage, yfinance
+        "technical_indicators": "pykrx,krx,yfinance",  # Options: pykrx, krx, alpha_vantage, yfinance
+        "fundamental_data": "dart,yfinance",       # Options: dart, alpha_vantage, yfinance
+        "news_data": "naver,dart,yfinance",        # Options: naver, dart, alpha_vantage, yfinance
     },
     # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {
         # Example: "get_stock_data": "alpha_vantage",  # Override category default
+    },
+    "korea": {
+        "timezone": "Asia/Seoul",
+        "regular_session": "09:00-15:30",
+        "currency": "KRW",
+        "benchmark_by_market": {
+            "KOSPI": "^KS11",
+            "KOSDAQ": "^KQ11",
+            "KONEX": "^KS11",
+            "UNKNOWN": "^KS11",
+        },
+        "broker": {
+            "provider": "kis",
+            "paper": os.getenv("KIS_IS_PAPER", "true").strip().lower() != "false",
+            "account_no": os.getenv("KIS_ACCOUNT_NO") or os.getenv("KIS_CANO"),
+            "account_product_code": os.getenv("KIS_ACCOUNT_PRODUCT_CODE") or os.getenv("KIS_ACNT_PRDT_CD"),
+        },
     },
 }

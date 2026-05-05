@@ -25,6 +25,8 @@ from tradingagents.agents.utils.agent_states import (
     RiskDebateState,
 )
 from tradingagents.dataflows.config import set_config
+from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker, to_yfinance_symbol
+from tradingagents.dataflows.kr_returns import fetch_korean_returns
 
 # Import the new abstract tool methods from agent_utils
 from tradingagents.agents.utils.agent_utils import (
@@ -198,26 +200,46 @@ class TradingAgentsGraph:
         or network error).
         """
         try:
+            if is_kr_ticker(ticker):
+                try:
+                    korean_returns = fetch_korean_returns(ticker, trade_date, holding_days)
+                    if korean_returns[0] is not None:
+                        return korean_returns
+                    logger.info(
+                        "pykrx returns were unavailable for %s on %s; falling back to yfinance",
+                        ticker,
+                        trade_date,
+                    )
+                except Exception as exc:
+                    logger.info(
+                        "Could not fetch pykrx returns for %s on %s; falling back to yfinance: %s",
+                        ticker,
+                        trade_date,
+                        exc,
+                    )
+
             start = datetime.strptime(trade_date, "%Y-%m-%d")
             end = start + timedelta(days=holding_days + 7)  # buffer for weekends/holidays
             end_str = end.strftime("%Y-%m-%d")
 
-            stock = yf.Ticker(ticker).history(start=trade_date, end=end_str)
-            spy = yf.Ticker("SPY").history(start=trade_date, end=end_str)
+            stock_symbol = TradingAgentsGraph._history_symbol_for_returns(self, ticker)
+            benchmark_symbol = TradingAgentsGraph._benchmark_symbol_for_returns(self, ticker)
+            stock = yf.Ticker(stock_symbol).history(start=trade_date, end=end_str)
+            benchmark = yf.Ticker(benchmark_symbol).history(start=trade_date, end=end_str)
 
-            if len(stock) < 2 or len(spy) < 2:
+            if len(stock) < 2 or len(benchmark) < 2:
                 return None, None, None
 
-            actual_days = min(holding_days, len(stock) - 1, len(spy) - 1)
+            actual_days = min(holding_days, len(stock) - 1, len(benchmark) - 1)
             raw = float(
                 (stock["Close"].iloc[actual_days] - stock["Close"].iloc[0])
                 / stock["Close"].iloc[0]
             )
-            spy_ret = float(
-                (spy["Close"].iloc[actual_days] - spy["Close"].iloc[0])
-                / spy["Close"].iloc[0]
+            benchmark_ret = float(
+                (benchmark["Close"].iloc[actual_days] - benchmark["Close"].iloc[0])
+                / benchmark["Close"].iloc[0]
             )
-            alpha = raw - spy_ret
+            alpha = raw - benchmark_ret
             return raw, alpha, actual_days
         except Exception as e:
             logger.warning(
@@ -225,6 +247,25 @@ class TradingAgentsGraph:
                 ticker, trade_date, e,
             )
             return None, None, None
+
+    def _history_symbol_for_returns(self, ticker: str) -> str:
+        """Return a yfinance-compatible symbol for deferred outcome checks."""
+        if is_kr_ticker(ticker):
+            return to_yfinance_symbol(ticker)
+        return ticker
+
+    def _benchmark_symbol_for_returns(self, ticker: str) -> str:
+        cfg = getattr(self, "config", None)
+        if not isinstance(cfg, dict):
+            cfg = DEFAULT_CONFIG
+        if cfg.get("benchmark_symbol"):
+            return cfg["benchmark_symbol"]
+        if is_kr_ticker(ticker):
+            resolved = resolve_kr_ticker(ticker, lookup_pykrx=False)
+            korea_cfg = cfg.get("korea", {}) if isinstance(cfg.get("korea"), dict) else {}
+            by_market = korea_cfg.get("benchmark_by_market", {})
+            return by_market.get(resolved.market, resolved.benchmark_symbol)
+        return "SPY"
 
     def _resolve_pending_entries(self, ticker: str) -> None:
         """Resolve pending log entries for ticker at the start of a new run.

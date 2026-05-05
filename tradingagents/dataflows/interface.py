@@ -23,6 +23,20 @@ from .alpha_vantage import (
     get_global_news as get_alpha_vantage_global_news,
 )
 from .alpha_vantage_common import AlphaVantageRateLimitError
+from .dart import (
+    get_balance_sheet as get_dart_balance_sheet,
+    get_cashflow as get_dart_cashflow,
+    get_fundamentals as get_dart_fundamentals,
+    get_income_statement as get_dart_income_statement,
+    get_insider_transactions as get_dart_insider_transactions,
+)
+from .errors import VendorUnavailableError
+from .naver_news import get_global_news as get_global_news_naver
+from .naver_news import get_news as get_news_naver
+from .pykrx_vendor import get_indicator as get_pykrx_indicator
+from .pykrx_vendor import get_stock as get_pykrx_stock
+from .krx_openapi import get_indicator as get_krx_indicator
+from .krx_openapi import get_stock as get_krx_stock
 
 # Configuration and routing logic
 from .config import get_config
@@ -61,6 +75,10 @@ TOOLS_CATEGORIES = {
 }
 
 VENDOR_LIST = [
+    "pykrx",
+    "krx",
+    "dart",
+    "naver",
     "yfinance",
     "alpha_vantage",
 ]
@@ -69,41 +87,52 @@ VENDOR_LIST = [
 VENDOR_METHODS = {
     # core_stock_apis
     "get_stock_data": {
+        "pykrx": get_pykrx_stock,
+        "krx": get_krx_stock,
         "alpha_vantage": get_alpha_vantage_stock,
         "yfinance": get_YFin_data_online,
     },
     # technical_indicators
     "get_indicators": {
+        "pykrx": get_pykrx_indicator,
+        "krx": get_krx_indicator,
         "alpha_vantage": get_alpha_vantage_indicator,
         "yfinance": get_stock_stats_indicators_window,
     },
     # fundamental_data
     "get_fundamentals": {
+        "dart": get_dart_fundamentals,
         "alpha_vantage": get_alpha_vantage_fundamentals,
         "yfinance": get_yfinance_fundamentals,
     },
     "get_balance_sheet": {
+        "dart": get_dart_balance_sheet,
         "alpha_vantage": get_alpha_vantage_balance_sheet,
         "yfinance": get_yfinance_balance_sheet,
     },
     "get_cashflow": {
+        "dart": get_dart_cashflow,
         "alpha_vantage": get_alpha_vantage_cashflow,
         "yfinance": get_yfinance_cashflow,
     },
     "get_income_statement": {
+        "dart": get_dart_income_statement,
         "alpha_vantage": get_alpha_vantage_income_statement,
         "yfinance": get_yfinance_income_statement,
     },
     # news_data
     "get_news": {
+        "naver": get_news_naver,
         "alpha_vantage": get_alpha_vantage_news,
         "yfinance": get_news_yfinance,
     },
     "get_global_news": {
+        "naver": get_global_news_naver,
         "yfinance": get_global_news_yfinance,
         "alpha_vantage": get_alpha_vantage_global_news,
     },
     "get_insider_transactions": {
+        "dart": get_dart_insider_transactions,
         "alpha_vantage": get_alpha_vantage_insider_transactions,
         "yfinance": get_yfinance_insider_transactions,
     },
@@ -135,7 +164,7 @@ def route_to_vendor(method: str, *args, **kwargs):
     """Route method calls to appropriate vendor implementation with fallback support."""
     category = get_category_for_method(method)
     vendor_config = get_vendor(category, method)
-    primary_vendors = [v.strip() for v in vendor_config.split(',')]
+    primary_vendors = [v.strip() for v in vendor_config.split(',') if v.strip()]
 
     if method not in VENDOR_METHODS:
         raise ValueError(f"Method '{method}' not supported")
@@ -147,6 +176,7 @@ def route_to_vendor(method: str, *args, **kwargs):
         if vendor not in fallback_vendors:
             fallback_vendors.append(vendor)
 
+    last_unavailable = None
     for vendor in fallback_vendors:
         if vendor not in VENDOR_METHODS[method]:
             continue
@@ -156,7 +186,10 @@ def route_to_vendor(method: str, *args, **kwargs):
 
         try:
             return impl_func(*args, **kwargs)
-        except AlphaVantageRateLimitError:
-            continue  # Only rate limits trigger fallback
+        except (AlphaVantageRateLimitError, VendorUnavailableError) as exc:
+            last_unavailable = exc
+            continue
 
+    if last_unavailable is not None:
+        raise RuntimeError(f"No available vendor for '{method}': {last_unavailable}")
     raise RuntimeError(f"No available vendor for '{method}'")

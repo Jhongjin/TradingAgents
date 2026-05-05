@@ -27,6 +27,98 @@
 
 # TradingAgents: Multi-Agents LLM Financial Trading Framework
 
+## Fork Roadmap
+
+This fork starts from the open-source TradingAgents research framework and is
+being extended into an AI trading agent workspace. The first local milestone is
+to keep the original analyst/research/trader workflow intact, then add safe
+paper execution, portfolio accounting, and backtesting foundations before any
+live broker integration is considered.
+
+Live trading is intentionally disabled by default. Treat generated ratings and
+trade proposals as research outputs until broker adapters, account-level risk
+limits, and independent backtests are configured and reviewed.
+
+### Local Execution Foundation
+
+This fork adds a paper-only execution layer under `tradingagents.execution`.
+It can translate a Portfolio Manager decision into a target paper position,
+apply conservative risk caps, and run simple date-keyed backtests:
+
+```python
+import pandas as pd
+
+from tradingagents.execution import BacktestEngine, RiskLimits
+
+prices = pd.DataFrame({
+    "Date": ["2026-01-01", "2026-01-02", "2026-01-03"],
+    "Close": [100, 110, 120],
+})
+
+engine = BacktestEngine(
+    initial_cash=10_000,
+    risk_limits=RiskLimits(max_position_weight=0.25),
+)
+result = engine.run("NVDA", prices, {"2026-01-01": "Rating: Buy"})
+print(result.final_equity)
+```
+
+### Korean Market MVP
+
+The local fork can use 6-digit Korean stock codes such as `005930` and routes
+Korean-market requests through Korea-focused vendors first:
+
+- OHLCV and technical indicators: `pykrx`
+- Future KRX replacement path: `krx` vendor through `pykrx-openapi` once
+  `KRX_API_KEY`/`KRX_OPENAPI_KEY` and per-service approvals are ready
+- Disclosures and financial statements: OpenDART (`DART_API_KEY`)
+- News: Naver Search API (`NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`)
+- Benchmark alpha: pykrx KOSPI/KOSDAQ benchmark returns first, then yfinance fallback
+- Paper/backtest accounting: KRW-aware portfolio state with KRX tick-size rounding
+
+The original yfinance/Alpha Vantage paths remain available as fallbacks for
+non-Korean tickers. KIS credentials are read only as configuration in this MVP;
+live order placement is intentionally not implemented.
+`KIS_ACCOUNT_PRODUCT_CODE` should be the 2-digit account product code, such as
+`01`; the smoke script validates credential shape without printing secrets.
+
+```python
+import pandas as pd
+
+from tradingagents.execution import BacktestEngine, RiskLimits
+
+prices = pd.DataFrame({
+    "Date": ["2026-04-29", "2026-04-30"],
+    "Close": [226000, 220500],
+})
+
+engine = BacktestEngine(
+    initial_cash=10_000_000,
+    risk_limits=RiskLimits(max_position_weight=0.25),
+    currency="KRW",
+)
+result = engine.run("005930", prices, {"2026-04-29": "Rating: Buy"})
+print(result.final_equity)
+```
+
+Run the Korean-market smoke check without invoking an LLM:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\doctor_korea_market.py
+.\.venv\Scripts\python.exe scripts\smoke_korea_market.py
+```
+
+If Naver API calls fail with a certificate-chain error on Windows or a
+corporate network, set `TRADINGAGENTS_HTTP_CA_BUNDLE` to a trusted CA bundle.
+Keep SSL verification enabled for production use.
+
+KRX Open API keys also require service-level API approval. The KRX adapter is
+wired as a vendor boundary, but pykrx remains the default until the key and
+service approvals are in place.
+
+See `docs/korea-market-ops.md` for the operating checklist, deployment notes,
+and Korean-market assumptions used by the paper/backtest layer.
+
 ## News
 - [2026-04] **TradingAgents v0.2.4** released with structured-output agents (Research Manager, Trader, Portfolio Manager), LangGraph checkpoint resume, persistent decision log, DeepSeek/Qwen/GLM/Azure provider support, Docker, and a Windows UTF-8 encoding fix. See [CHANGELOG.md](CHANGELOG.md) for the full list.
 - [2026-03] **TradingAgents v0.2.3** released with multi-language support, GPT-5.4 family models, unified model catalog, backtesting date fidelity, and proxy support.

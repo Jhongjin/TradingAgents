@@ -31,7 +31,7 @@ def get_balance_sheet(
     Uses the configured fundamental_data vendor.
     Args:
         ticker (str): Ticker symbol of the company
-        freq (str): Reporting frequency: annual/quarterly (default quarterly)
+        freq (str): Reporting frequency: annual/quarterly/q1/half_year/q3 (default quarterly)
         curr_date (str): Current date you are trading at, yyyy-mm-dd
     Returns:
         str: A formatted report containing balance sheet data
@@ -50,7 +50,7 @@ def get_cashflow(
     Uses the configured fundamental_data vendor.
     Args:
         ticker (str): Ticker symbol of the company
-        freq (str): Reporting frequency: annual/quarterly (default quarterly)
+        freq (str): Reporting frequency: annual/quarterly/q1/half_year/q3 (default quarterly)
         curr_date (str): Current date you are trading at, yyyy-mm-dd
     Returns:
         str: A formatted report containing cash flow statement data
@@ -69,7 +69,7 @@ def get_income_statement(
     Uses the configured fundamental_data vendor.
     Args:
         ticker (str): Ticker symbol of the company
-        freq (str): Reporting frequency: annual/quarterly (default quarterly)
+        freq (str): Reporting frequency: annual/quarterly/q1/half_year/q3 (default quarterly)
         curr_date (str): Current date you are trading at, yyyy-mm-dd
     Returns:
         str: A formatted report containing income statement data

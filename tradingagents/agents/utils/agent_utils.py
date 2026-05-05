@@ -18,6 +18,7 @@ from tradingagents.agents.utils.news_data_tools import (
     get_insider_transactions,
     get_global_news
 )
+from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
 
 
 def get_language_instruction() -> str:
@@ -36,6 +37,18 @@ def get_language_instruction() -> str:
 
 def build_instrument_context(ticker: str) -> str:
     """Describe the exact instrument so agents preserve exchange-qualified tickers."""
+    if is_kr_ticker(ticker):
+        resolved = resolve_kr_ticker(ticker, lookup_pykrx=False)
+        return (
+            f"The instrument to analyze is Korean stock `{resolved.code}` "
+            f"({resolved.name}, {resolved.market}). Use this exact 6-digit "
+            "Korean ticker code in every tool call. Market context: Korea "
+            "Exchange (KRX), currency KRW, timezone Asia/Seoul, regular session "
+            "09:00-15:30 KST. Prefer Korean-market evidence such as KRX/pykrx "
+            "OHLCV, DART disclosures and financial statements, Naver news, "
+            "foreign/institutional flow, short-sale context, upper/lower price "
+            "limits, and KOSPI/KOSDAQ benchmark-relative performance."
+        )
     return (
         f"The instrument to analyze is `{ticker}`. "
         "Use this exact ticker in every tool call, report, and recommendation, "
