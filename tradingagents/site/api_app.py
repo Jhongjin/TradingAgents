@@ -159,6 +159,8 @@ def create_app(
             "storage_configured": request.app.state.repository is not None,
             "supabase_auth_configured": _supabase_auth_configured(),
             "worker_token_configured": bool(_expected_worker_token()),
+            "site_base_url_configured": bool(os.getenv("TRADINGAGENTS_SITE_BASE_URL")),
+            "ads_configured": bool(os.getenv("TRADINGAGENTS_ADSENSE_PUBLISHER_ID") or os.getenv("TRADINGAGENTS_ADS_TXT")),
             "openai_configured": bool(os.getenv("OPENAI_API_KEY")),
             "dart_configured": bool(os.getenv("DART_API_KEY")),
             "naver_configured": bool(os.getenv("NAVER_CLIENT_ID") and os.getenv("NAVER_CLIENT_SECRET")),
@@ -166,7 +168,11 @@ def create_app(
         }
         required = ["storage_configured"]
         status = "ok" if all(checks[name] for name in required) else "degraded"
-        return {"status": status, "checks": checks}
+        return {
+            "status": status,
+            "deployment": _deployment_context(),
+            "checks": checks,
+        }
 
     @app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
     def robots_txt(request: Request) -> PlainTextResponse:
@@ -707,6 +713,21 @@ def _supabase_auth_configured() -> bool:
         or os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
     )
     return has_url and has_key
+
+
+def _deployment_context() -> dict[str, str | None]:
+    return {
+        "vercel_env": os.getenv("VERCEL_ENV"),
+        "git_ref": os.getenv("VERCEL_GIT_COMMIT_REF"),
+        "git_sha": _short_sha(os.getenv("VERCEL_GIT_COMMIT_SHA")),
+        "vercel_url": os.getenv("VERCEL_URL"),
+    }
+
+
+def _short_sha(value: str | None) -> str | None:
+    if not value:
+        return None
+    return value[:12]
 
 
 def _trust_member_user_header(value: bool | None) -> bool:

@@ -109,6 +109,11 @@ def test_api_app_serves_non_secret_readiness(monkeypatch):
     monkeypatch.setenv("SUPABASE_ANON_KEY", "anon")
     monkeypatch.setenv("NAVER_CLIENT_ID", "naver-id")
     monkeypatch.setenv("NAVER_CLIENT_SECRET", "naver-secret")
+    monkeypatch.setenv("TRADINGAGENTS_SITE_BASE_URL", "https://example.com")
+    monkeypatch.setenv("TRADINGAGENTS_ADSENSE_PUBLISHER_ID", "pub-0000000000000000")
+    monkeypatch.setenv("VERCEL_ENV", "preview")
+    monkeypatch.setenv("VERCEL_GIT_COMMIT_REF", "codex/kr-market")
+    monkeypatch.setenv("VERCEL_GIT_COMMIT_SHA", "1234567890abcdef")
     client = TestClient(create_app(repo=None, load_repo_from_env=False))
 
     response = client.get("/api/readiness")
@@ -120,7 +125,13 @@ def test_api_app_serves_non_secret_readiness(monkeypatch):
     assert body["checks"]["storage_configured"] is False
     assert body["checks"]["openai_configured"] is True
     assert body["checks"]["supabase_auth_configured"] is True
+    assert body["checks"]["site_base_url_configured"] is True
+    assert body["checks"]["ads_configured"] is True
+    assert body["deployment"]["vercel_env"] == "preview"
+    assert body["deployment"]["git_ref"] == "codex/kr-market"
+    assert body["deployment"]["git_sha"] == "1234567890ab"
     assert "sk-test" not in response.text
+    assert "anon" not in response.text
 
 
 def test_api_app_can_disable_docs(monkeypatch):

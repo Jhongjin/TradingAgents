@@ -57,6 +57,13 @@ CRON_SECRET=
 TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=false
 ```
 
+Vercel environment variables are scoped by environment. The branch domain
+`trading-agents-git-codex-kr-market-...vercel.app` is a **Preview** deployment,
+so set the required variables for Preview too, or promote/deploy the branch to
+Production and test the production domain. `GET /api/readiness` returns
+`deployment.vercel_env` and non-secret boolean checks to confirm which scope is
+actually active.
+
 Apply the Supabase migration before enabling persistent analysis storage. Do
 not enable `TRADINGAGENTS_STORAGE_CREATE_SCHEMA` in production Supabase; use the
 migration so RLS policies are installed.
