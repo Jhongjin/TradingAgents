@@ -143,6 +143,7 @@ def test_api_app_serves_non_secret_readiness(monkeypatch):
     assert body["checks"]["supabase_auth_configured"] is True
     assert body["checks"]["site_base_url_configured"] is True
     assert body["checks"]["ads_configured"] is True
+    assert body["checks"]["live_trading_disabled"] is True
     assert body["missing_environment"]["storage_configured"] == ["DATABASE_URL"]
     assert "supabase_auth_configured" not in body["missing_environment"]
     assert body["configuration_errors"] == {}
@@ -151,6 +152,20 @@ def test_api_app_serves_non_secret_readiness(monkeypatch):
     assert body["deployment"]["git_sha"] == "1234567890ab"
     assert "sk-test" not in response.text
     assert "anon" not in response.text
+
+
+def test_api_app_readiness_degrades_when_live_trading_enabled(monkeypatch):
+    repo = _repo()
+    monkeypatch.setenv("TRADINGAGENTS_ENABLE_LIVE_TRADING", "true")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.get("/api/readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["checks"]["live_trading_disabled"] is False
+    assert "TRADINGAGENTS_ENABLE_LIVE_TRADING=false" in body["configuration_errors"]["live_trading_disabled"]
 
 
 def test_api_app_readiness_checks_storage_connection():

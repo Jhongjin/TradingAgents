@@ -79,7 +79,8 @@ Readiness also opens a lightweight database connection and reports
 message when the password, pooler host, or URL encoding is wrong. After the
 connection succeeds, it checks that the required application tables are present;
 `checks.storage_schema_ready=false` means the Supabase migrations still need to
-be applied in order.
+be applied in order. Public deployment readiness also requires
+`TRADINGAGENTS_ENABLE_LIVE_TRADING` to remain unset or false.
 
 Apply the Supabase migration before enabling persistent analysis storage. Do
 not enable `TRADINGAGENTS_STORAGE_CREATE_SCHEMA` in production Supabase; use the

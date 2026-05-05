@@ -197,8 +197,9 @@ def create_app(
             "dart_configured": bool(os.getenv("DART_API_KEY")),
             "naver_configured": bool(os.getenv("NAVER_CLIENT_ID") and os.getenv("NAVER_CLIENT_SECRET")),
             "krx_configured": bool(os.getenv("KRX_API_KEY") or os.getenv("KRX_OPENAPI_KEY")),
+            "live_trading_disabled": _live_trading_disabled(),
         }
-        required = ["storage_configured", "storage_online", "storage_schema_ready"]
+        required = ["storage_configured", "storage_online", "storage_schema_ready", "live_trading_disabled"]
         status = "ok" if all(checks[name] for name in required) else "degraded"
         return {
             "status": status,
@@ -942,6 +943,8 @@ def _readiness_configuration_errors(
             f"Storage schema check failed ({storage_schema_error}); "
             "apply the Supabase migrations in order"
         )
+    if not _live_trading_disabled():
+        errors["live_trading_disabled"] = "Set TRADINGAGENTS_ENABLE_LIVE_TRADING=false before public deployment"
     return errors
 
 
@@ -968,6 +971,10 @@ def _trust_member_user_header(value: bool | None) -> bool:
     if value is not None:
         return value
     return os.getenv("TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _live_trading_disabled() -> bool:
+    return os.getenv("TRADINGAGENTS_ENABLE_LIVE_TRADING", "false").strip().lower() not in {"1", "true", "yes", "on"}
 
 
 def _max_worker_limit() -> int:
