@@ -45,6 +45,10 @@ analysis experience:
 
 Manual portfolio entry is preferred before broker integration because it avoids
 collecting broker access media, account passwords, OTPs, or certificate secrets.
+The matching framework-neutral payload builder is
+`tradingagents.site.build_manual_portfolio_payload`, which summarizes
+user-entered trades, current prices supplied by the app, target/stop alerts, and
+PnL estimates without broker account access.
 
 ## Chart Scope
 

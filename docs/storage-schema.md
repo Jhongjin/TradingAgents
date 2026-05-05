@@ -61,6 +61,11 @@ existing `(portfolio_id, ticker_code)` row and sets `updated_at` from the app
 layer, which keeps the Supabase migration free of dashboard-fragile trigger
 functions.
 
+For member pages, `tradingagents.site.build_manual_portfolio_payload(...)`
+combines stored manual trades, optional current prices supplied by the app, and
+manual target/stop rows into a JSON-ready portfolio summary. The result is an
+estimate from user-entered data, not broker-verified account state.
+
 ## Analysis Persistence Hook
 
 The TradingAgents graph can persist completed runs after the existing JSON log
