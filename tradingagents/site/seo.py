@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Iterable
@@ -18,6 +19,8 @@ DEFAULT_SITEMAP_TICKERS = (
     "068270",
     "005490",
 )
+GOOGLE_ADSENSE_SELLER_DOMAIN = "google.com"
+GOOGLE_ADSENSE_CERTIFICATION_AUTHORITY_ID = "f08c47fec0942fa0"
 
 
 def normalize_site_base_url(value: str | None = None) -> str | None:
@@ -53,6 +56,36 @@ def build_robots_txt(*, site_base_url: str | None = None) -> str:
     if sitemap_url.startswith("http"):
         lines.append(f"Sitemap: {sitemap_url}")
     return "\n".join(lines) + "\n"
+
+
+def build_ads_txt(
+    *,
+    ads_txt: str | None = None,
+    adsense_publisher_id: str | None = None,
+) -> str:
+    custom_ads_txt = ads_txt if ads_txt is not None else os.getenv("TRADINGAGENTS_ADS_TXT")
+    if custom_ads_txt and custom_ads_txt.strip():
+        return custom_ads_txt.replace("\\n", "\n").strip() + "\n"
+
+    publisher_id = normalize_adsense_publisher_id(adsense_publisher_id)
+    if publisher_id:
+        return (
+            f"{GOOGLE_ADSENSE_SELLER_DOMAIN}, {publisher_id}, DIRECT, "
+            f"{GOOGLE_ADSENSE_CERTIFICATION_AUTHORITY_ID}\n"
+        )
+    return "# ads.txt is not configured.\n"
+
+
+def normalize_adsense_publisher_id(value: str | None = None) -> str | None:
+    raw = value if value is not None else os.getenv("TRADINGAGENTS_ADSENSE_PUBLISHER_ID")
+    if not raw:
+        return None
+    cleaned = raw.strip()
+    if cleaned.startswith("ca-pub-"):
+        cleaned = cleaned.removeprefix("ca-")
+    if not re.fullmatch(r"pub-\d{16}", cleaned):
+        raise ValueError("AdSense publisher ID must look like pub-0000000000000000")
+    return cleaned
 
 
 def build_sitemap_xml(

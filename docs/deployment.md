@@ -35,6 +35,9 @@ TRADINGAGENTS_API_MAX_ANALYSIS_FEED_LIMIT=50
 TRADINGAGENTS_AUTH_TIMEOUT_SECONDS=5
 TRADINGAGENTS_SITE_BASE_URL=https://your-domain.example
 TRADINGAGENTS_SITEMAP_TICKERS=005930,000660,035420,035720,051910,005380,068270,005490
+TRADINGAGENTS_ADSENSE_PUBLISHER_ID=pub-0000000000000000
+# Or set a full custom ads.txt body with \n between lines:
+TRADINGAGENTS_ADS_TXT=
 TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=false
 ```
 
@@ -46,6 +49,7 @@ The API remains read-only:
 
 - `GET /`: public Samsung Electronics analysis page
 - `GET /stocks/{ticker}`: public Korean stock analysis page with KRW chart
+- `GET /ads.txt`: advertising seller declaration generated from AdSense/custom env
 - `GET /robots.txt`: crawler policy with sitemap URL
 - `GET /sitemap.xml`: public page sitemap built from `TRADINGAGENTS_SITEMAP_TICKERS`
 - `GET /api/stocks/{ticker}`: public Korean stock payload
@@ -57,6 +61,10 @@ The API remains read-only:
 - `GET /health`: deployment health check
 
 No live trading or broker order placement is exposed.
+
+For Google AdSense, set `TRADINGAGENTS_ADSENSE_PUBLISHER_ID` to your `pub-...`
+publisher ID. The generated `ads.txt` line follows the AdSense format:
+`google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0`.
 
 Analysis refresh requests are queued. Use
 `tradingagents.site.analysis_worker.process_queued_analysis_requests(...)` as

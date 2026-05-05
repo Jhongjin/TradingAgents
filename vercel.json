@@ -24,6 +24,10 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/ads.txt",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/sitemap.xml",
       "destination": "/api/index.py"
     },

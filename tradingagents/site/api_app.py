@@ -20,7 +20,7 @@ from .auth import resolve_member_user_id
 from .market_api import build_latest_prices_payload
 from .portfolio_api import build_manual_portfolio_payload
 from .public_api import build_public_stock_payload
-from .seo import build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
+from .seo import build_ads_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
 from .watchlist_api import build_watchlist_payload
 from .web_pages import render_public_stock_page
 
@@ -67,7 +67,7 @@ def create_app(
             request.url.path == "/"
             or request.url.path == "/stocks"
             or request.url.path.startswith("/stocks/")
-            or request.url.path in {"/robots.txt", "/sitemap.xml"}
+            or request.url.path in {"/ads.txt", "/robots.txt", "/sitemap.xml"}
         ):
             seconds = request.app.state.public_cache_seconds
             response.headers.setdefault(
@@ -103,6 +103,13 @@ def create_app(
     @app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
     def robots_txt(request: Request) -> PlainTextResponse:
         return PlainTextResponse(build_robots_txt(site_base_url=_request_site_base_url(request)))
+
+    @app.get("/ads.txt", response_class=PlainTextResponse, include_in_schema=False)
+    def ads_txt() -> PlainTextResponse:
+        try:
+            return PlainTextResponse(build_ads_txt())
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @app.get("/sitemap.xml", include_in_schema=False)
     def sitemap_xml(request: Request) -> Response:

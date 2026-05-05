@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from tradingagents.site.api_app import create_app
-from tradingagents.site.seo import build_robots_txt, build_sitemap_xml, stock_canonical_url
+from tradingagents.site.seo import build_ads_txt, build_robots_txt, build_sitemap_xml, stock_canonical_url
 from tradingagents.site.web_pages import render_public_stock_page
 
 
@@ -125,12 +125,31 @@ def test_seo_helpers_build_canonical_robots_and_sitemap():
     assert "AAPL" not in sitemap
 
 
-def test_api_app_serves_robots_and_sitemap(monkeypatch):
+def test_ads_txt_uses_adsense_publisher_or_custom_override(monkeypatch):
+    assert (
+        build_ads_txt(adsense_publisher_id="ca-pub-0000000000000000")
+        == "google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0\n"
+    )
+    assert build_ads_txt(ads_txt="example.com, seller, DIRECT\\nnext.com, seller, RESELLER") == (
+        "example.com, seller, DIRECT\nnext.com, seller, RESELLER\n"
+    )
+    monkeypatch.setenv("TRADINGAGENTS_ADSENSE_PUBLISHER_ID", "invalid")
+    try:
+        build_ads_txt()
+    except ValueError as exc:
+        assert "publisher ID" in str(exc)
+    else:
+        raise AssertionError("invalid AdSense publisher ID should fail")
+
+
+def test_api_app_serves_robots_sitemap_and_ads_txt(monkeypatch):
     monkeypatch.setenv("TRADINGAGENTS_SITEMAP_TICKERS", "005930,000660")
+    monkeypatch.setenv("TRADINGAGENTS_ADSENSE_PUBLISHER_ID", "pub-0000000000000000")
     client = TestClient(create_app(repo=None, load_repo_from_env=False, public_cache_seconds=60))
 
     robots_response = client.get("/robots.txt")
     sitemap_response = client.get("/sitemap.xml")
+    ads_response = client.get("/ads.txt")
 
     assert robots_response.status_code == 200
     assert robots_response.headers["content-type"].startswith("text/plain")
@@ -139,3 +158,6 @@ def test_api_app_serves_robots_and_sitemap(monkeypatch):
     assert sitemap_response.status_code == 200
     assert sitemap_response.headers["content-type"].startswith("application/xml")
     assert "http://testserver/stocks/005930" in sitemap_response.text
+    assert ads_response.status_code == 200
+    assert ads_response.headers["content-type"].startswith("text/plain")
+    assert "google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0" in ads_response.text
