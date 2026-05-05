@@ -216,6 +216,7 @@ def test_storage_repository_finds_active_analysis_request_for_deduping():
 def test_storage_repository_calculates_manual_portfolio_positions():
     repo = _repo()
     portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")
+    repo.create_manual_portfolio(user_id="00000000-0000-0000-0000-000000000002", name="Other")
 
     repo.add_manual_trade(
         ManualTradeInput(
@@ -253,8 +254,10 @@ def test_storage_repository_calculates_manual_portfolio_positions():
     )
 
     positions = repo.manual_positions(portfolio_id)
+    portfolios = repo.list_manual_portfolios(user_id=USER_ID)
 
     samsung = positions["005930"]
+    assert [portfolio["id"] for portfolio in portfolios] == [portfolio_id]
     assert samsung.ticker_name == "삼성전자"
     assert samsung.market == "KOSPI"
     assert samsung.quantity == 11
@@ -297,6 +300,7 @@ def test_storage_repository_upserts_manual_price_targets():
 def test_storage_repository_manages_manual_watchlists():
     repo = _repo()
     watchlist_id = repo.create_watchlist(user_id=USER_ID, name="관심종목")
+    repo.create_watchlist(user_id="00000000-0000-0000-0000-000000000002", name="Other")
 
     samsung_id = repo.add_watchlist_item(
         watchlist_id=watchlist_id,
@@ -312,10 +316,12 @@ def test_storage_repository_manages_manual_watchlists():
     repo.remove_watchlist_item(watchlist_id=watchlist_id, ticker_code="000660")
 
     watchlist = repo.get_watchlist(watchlist_id)
+    watchlists = repo.list_watchlists(user_id=USER_ID)
     items = repo.watchlist_items(watchlist_id)
 
     assert watchlist is not None
     assert watchlist["name"] == "관심종목"
+    assert [watchlist["id"] for watchlist in watchlists] == [watchlist_id]
     assert updated_id == samsung_id
     assert len(items) == 1
     assert items[0]["ticker_code"] == "005930"

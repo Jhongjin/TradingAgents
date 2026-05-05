@@ -25,11 +25,11 @@ from .analysis_api import (
 )
 from .auth import SUPABASE_API_KEY_ENV_NAMES, SUPABASE_URL_ENV_NAMES, resolve_member_user_id
 from .market_api import build_latest_prices_payload
-from .portfolio_api import build_manual_portfolio_payload
+from .portfolio_api import build_manual_portfolio_list_payload, build_manual_portfolio_payload
 from .public_api import build_public_stock_payload
 from .seo import build_ads_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
 from .ticker_api import build_ticker_search_payload
-from .watchlist_api import build_watchlist_payload
+from .watchlist_api import build_watchlist_list_payload, build_watchlist_payload
 from .web_pages import render_public_analysis_feed_page, render_public_home_page, render_public_stock_page
 
 
@@ -380,6 +380,26 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"status": "created", "portfolio_id": portfolio_id}
 
+    @app.get("/api/portfolios")
+    def member_manual_portfolios(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+        limit: int = 20,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        try:
+            return build_manual_portfolio_list_payload(
+                repo,
+                user_id=user_id,
+                limit=limit,
+                max_limit=request.app.state.max_analysis_feed_limit,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.post("/api/portfolio/{portfolio_id}/trades")
     def add_manual_portfolio_trade(
         portfolio_id: str,
@@ -576,6 +596,26 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"status": "created", "watchlist_id": watchlist_id}
+
+    @app.get("/api/watchlists")
+    def member_manual_watchlists(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+        limit: int = 20,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        try:
+            return build_watchlist_list_payload(
+                repo,
+                user_id=user_id,
+                limit=limit,
+                max_limit=request.app.state.max_analysis_feed_limit,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.post("/api/watchlists/{watchlist_id}/items")
     def add_manual_watchlist_item(

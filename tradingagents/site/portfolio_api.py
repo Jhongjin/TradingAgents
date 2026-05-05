@@ -79,6 +79,33 @@ def build_manual_portfolio_payload(
     return _json_ready(payload)
 
 
+def build_manual_portfolio_list_payload(
+    repo: StorageRepository,
+    *,
+    user_id: str,
+    limit: int = 20,
+    max_limit: int = 50,
+) -> dict[str, Any]:
+    """Build a member-owned manual portfolio list payload."""
+
+    if max_limit <= 0:
+        raise ValueError("max_limit must be positive")
+    if limit <= 0:
+        raise ValueError("limit must be positive")
+    if limit > max_limit:
+        raise ValueError(f"limit cannot exceed {max_limit}")
+    rows = repo.list_manual_portfolios(user_id=user_id, limit=limit)
+    return _json_ready(
+        {
+            "status": "available",
+            "limit": limit,
+            "items": rows,
+            "item_count": len(rows),
+            "notices": [MANUAL_PORTFOLIO_NOTICE],
+        }
+    )
+
+
 def _position_payload(
     position: ManualPosition,
     current_price: Decimal | None,

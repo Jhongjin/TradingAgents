@@ -51,3 +51,30 @@ def build_watchlist_payload(
             "notices": [WATCHLIST_NOTICE],
         }
     )
+
+
+def build_watchlist_list_payload(
+    repo: StorageRepository,
+    *,
+    user_id: str,
+    limit: int = 20,
+    max_limit: int = 50,
+) -> dict[str, Any]:
+    """Build a member-owned watchlist list payload."""
+
+    if max_limit <= 0:
+        raise ValueError("max_limit must be positive")
+    if limit <= 0:
+        raise ValueError("limit must be positive")
+    if limit > max_limit:
+        raise ValueError(f"limit cannot exceed {max_limit}")
+    rows = repo.list_watchlists(user_id=user_id, limit=limit)
+    return _json_ready(
+        {
+            "status": "available",
+            "limit": limit,
+            "items": rows,
+            "item_count": len(rows),
+            "notices": [WATCHLIST_NOTICE],
+        }
+    )

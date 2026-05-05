@@ -109,9 +109,11 @@ The API remains read-only:
 - `POST /api/admin/analysis-requests/process`: protected operator endpoint for queued analysis processing
 - `GET /api/cron/process-analysis-requests`: protected Vercel Cron-compatible processing endpoint
 - `POST /api/portfolios`: create an authenticated member manual portfolio
+- `GET /api/portfolios`: list authenticated member manual portfolios
 - `POST /api/portfolio/{portfolio_id}/trades`: add a user-entered buy/sell record
 - `PUT /api/portfolio/{portfolio_id}/targets/{ticker}`: save a target/stop price
 - `POST /api/watchlists`: create an authenticated member watchlist
+- `GET /api/watchlists`: list authenticated member watchlists
 - `POST /api/watchlists/{watchlist_id}/items`: add or update a watchlist item
 - `DELETE /api/watchlists/{watchlist_id}/items/{ticker}`: remove a watchlist item
 - `GET /api/portfolio/{portfolio_id}`: manual portfolio summary from stored user-entered trades

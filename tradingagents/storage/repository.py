@@ -349,6 +349,19 @@ class StorageRepository:
             ).mappings().first()
         return dict(row) if row else None
 
+    def list_manual_portfolios(self, *, user_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        _validate_uuid(user_id, "portfolio user_id")
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        with self.engine.begin() as conn:
+            rows = conn.execute(
+                select(manual_portfolios)
+                .where(manual_portfolios.c.user_id == user_id)
+                .order_by(desc(manual_portfolios.c.updated_at), desc(manual_portfolios.c.created_at))
+                .limit(limit)
+            ).mappings().all()
+        return [dict(row) for row in rows]
+
     def add_manual_trade(self, data: ManualTradeInput) -> str:
         _validate_manual_trade(data)
         ticker_name = data.ticker_name
@@ -470,6 +483,19 @@ class StorageRepository:
                 select(manual_watchlists).where(manual_watchlists.c.id == watchlist_id)
             ).mappings().first()
         return dict(row) if row else None
+
+    def list_watchlists(self, *, user_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        _validate_uuid(user_id, "watchlist user_id")
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        with self.engine.begin() as conn:
+            rows = conn.execute(
+                select(manual_watchlists)
+                .where(manual_watchlists.c.user_id == user_id)
+                .order_by(desc(manual_watchlists.c.updated_at), desc(manual_watchlists.c.created_at))
+                .limit(limit)
+            ).mappings().all()
+        return [dict(row) for row in rows]
 
     def add_watchlist_item(
         self,

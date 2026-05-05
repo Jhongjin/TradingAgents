@@ -296,6 +296,37 @@ def test_api_app_creates_manual_portfolio_and_trade():
     assert trade_response.json()["portfolio"]["positions"][0]["quantity"] == 10
 
 
+def test_api_app_lists_member_manual_portfolios():
+    repo = _repo()
+    portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")
+    repo.create_manual_portfolio(user_id=OTHER_USER_ID, name="Other")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    response = client.get(
+        "/api/portfolios",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.json()["item_count"] == 1
+    assert response.json()["items"][0]["id"] == portfolio_id
+
+
+def test_api_app_limits_member_manual_portfolio_list():
+    repo = _repo()
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    response = client.get(
+        "/api/portfolios",
+        params={"limit": 999},
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
+
+    assert response.status_code == 400
+    assert "limit cannot exceed" in response.json()["detail"]
+
+
 def test_api_app_sets_manual_portfolio_target_and_enforces_owner():
     repo = _repo()
     portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")
@@ -365,6 +396,37 @@ def test_api_app_creates_updates_and_deletes_watchlist_items():
     assert add_response.json()["watchlist"]["items"][0]["ticker_code"] == "005930"
     assert delete_response.status_code == 200
     assert delete_response.json()["watchlist"]["item_count"] == 0
+
+
+def test_api_app_lists_member_manual_watchlists():
+    repo = _repo()
+    watchlist_id = repo.create_watchlist(user_id=USER_ID, name="관심종목")
+    repo.create_watchlist(user_id=OTHER_USER_ID, name="Other")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    response = client.get(
+        "/api/watchlists",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.json()["item_count"] == 1
+    assert response.json()["items"][0]["id"] == watchlist_id
+
+
+def test_api_app_limits_member_manual_watchlist_list():
+    repo = _repo()
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    response = client.get(
+        "/api/watchlists",
+        params={"limit": 999},
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
+
+    assert response.status_code == 400
+    assert "limit cannot exceed" in response.json()["detail"]
 
 
 def test_api_app_watchlist_writes_enforce_owner():
