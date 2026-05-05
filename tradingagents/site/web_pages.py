@@ -63,8 +63,9 @@ def render_public_stock_page(
       <span>TradingAgents Korea</span>
     </a>
     <form class="ticker-search" action="/stocks" method="get">
-      <label class="sr-only" for="ticker">종목코드</label>
-      <input id="ticker" name="ticker" inputmode="numeric" pattern="[0-9]{{6}}" maxlength="6" value="{_h(model["code"])}" autocomplete="off">
+      <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
+      <input id="ticker" name="ticker" list="tickerSuggestions" maxlength="80" value="{_h(model["code"])}" placeholder="005930 또는 삼성전자" autocomplete="off">
+      <datalist id="tickerSuggestions"></datalist>
       <button type="submit">조회</button>
     </form>
   </header>
@@ -730,6 +731,62 @@ h3 {
 
 PAGE_JS = """
 (() => {
+  const searchForm = document.querySelector(".ticker-search");
+  const searchInput = document.getElementById("ticker");
+  const suggestions = document.getElementById("tickerSuggestions");
+  let lastSearchController = null;
+
+  async function searchTickers(query) {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    if (lastSearchController) lastSearchController.abort();
+    lastSearchController = new AbortController();
+    const response = await fetch(`/api/tickers/search?q=${encodeURIComponent(trimmed)}&limit=8`, {
+      signal: lastSearchController.signal,
+      headers: { "Accept": "application/json" }
+    });
+    if (!response.ok) return [];
+    const payload = await response.json();
+    return payload.items || [];
+  }
+
+  if (searchInput && suggestions) {
+    searchInput.addEventListener("input", async () => {
+      const query = searchInput.value.trim();
+      if (query.length < 2) {
+        suggestions.replaceChildren();
+        return;
+      }
+      try {
+        const items = await searchTickers(query);
+        suggestions.replaceChildren(...items.map((item) => {
+          const option = document.createElement("option");
+          option.value = item.code;
+          option.label = `${item.name} / ${item.market}`;
+          return option;
+        }));
+      } catch (error) {
+        if (error.name !== "AbortError") suggestions.replaceChildren();
+      }
+    });
+  }
+
+  if (searchForm && searchInput) {
+    searchForm.addEventListener("submit", async (event) => {
+      const query = searchInput.value.trim();
+      if (/^\\d{6}$/.test(query)) return;
+      event.preventDefault();
+      try {
+        const items = await searchTickers(query);
+        if (items.length > 0) {
+          window.location.assign(`/stocks/${items[0].code}`);
+        }
+      } catch (_) {
+        searchForm.submit();
+      }
+    });
+  }
+
   const node = document.getElementById("stock-payload");
   const canvas = document.getElementById("priceChart");
   const fallback = document.getElementById("chartFallback");

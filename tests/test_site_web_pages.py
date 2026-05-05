@@ -60,6 +60,9 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "TradingAgents Korea" in html
     assert "삼성전자" in html
     assert "priceChart" in html
+    assert "tickerSuggestions" in html
+    assert "/api/tickers/search" in html
+    assert "005930 또는 삼성전자" in html
     assert '<link rel="canonical" href="https://example.com/stocks/005930">' in html
     assert 'property="og:title"' in html
     assert '"code":"005930"' in html
@@ -85,6 +88,15 @@ def test_api_app_redirects_stock_lookup_to_canonical_page():
     client = TestClient(create_app(repo=None, load_repo_from_env=False))
 
     response = client.get("/stocks", params={"ticker": "005930"}, follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/stocks/005930"
+
+
+def test_api_app_redirects_stock_name_lookup_to_first_match():
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    response = client.get("/stocks", params={"ticker": "삼성전자"}, follow_redirects=False)
 
     assert response.status_code == 302
     assert response.headers["location"] == "/stocks/005930"

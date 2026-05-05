@@ -198,9 +198,13 @@ def create_app(
 
     @app.get("/stocks", include_in_schema=False)
     def stocks_lookup(
-        ticker: Annotated[str, Query(pattern=r"^\d{6}$")] = "005930",
+        ticker: Annotated[str, Query(min_length=1, max_length=80)] = "005930",
     ) -> RedirectResponse:
-        return RedirectResponse(url=f"/stocks/{quote(ticker.strip())}", status_code=302)
+        try:
+            code = _resolve_stock_lookup(ticker)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return RedirectResponse(url=f"/stocks/{quote(code)}", status_code=302)
 
     @app.get("/stocks/{ticker}", response_class=HTMLResponse, include_in_schema=False)
     def stock_html_page(
@@ -563,6 +567,18 @@ def _stock_html_response(
     except (VendorUnavailableError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return HTMLResponse(html)
+
+
+def _resolve_stock_lookup(value: str) -> str:
+    query = value.strip()
+    if not query:
+        raise ValueError("ticker query cannot be empty")
+    if query.isdigit() and len(query) == 6:
+        return query
+    results = build_ticker_search_payload(query, limit=1)["items"]
+    if not results:
+        raise ValueError("matching Korean ticker was not found")
+    return str(results[0]["code"])
 
 
 def _request_site_base_url(request: Request) -> str:
