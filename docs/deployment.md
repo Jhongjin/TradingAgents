@@ -48,7 +48,10 @@ No live trading or broker order placement is exposed.
 Analysis refresh requests are queued. Use
 `tradingagents.site.analysis_worker.process_queued_analysis_requests(...)` as
 the worker foundation; inject a runner that executes TradingAgents and returns
-the persisted `analysis_runs.id`.
+the persisted `analysis_runs.id`. The first graph runner adapter is
+`tradingagents.site.analysis_runner.run_tradingagents_graph_for_request(...)`;
+it enables the graph storage hook and expects `last_analysis_run_id` after
+`propagate(...)`.
 
 Member routes require an authenticated user context before they will return
 portfolio or watchlist data. By default the API verifies `Authorization: Bearer

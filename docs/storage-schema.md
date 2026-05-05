@@ -80,6 +80,9 @@ request. A separate worker should read queued rows, run TradingAgents, persist
 the completed analysis, link `analysis_run_id`, and update the request status.
 `tradingagents.site.analysis_worker.process_queued_analysis_requests(...)`
 provides the first runner-injection skeleton for that background process.
+`tradingagents.site.analysis_runner.run_tradingagents_graph_for_request(...)`
+is the concrete adapter for invoking `TradingAgentsGraph` once a worker is ready
+to process queued rows.
 
 ## Analysis Persistence Hook
 
