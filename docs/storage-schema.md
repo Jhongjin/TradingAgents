@@ -77,7 +77,9 @@ watchlist with optional current prices supplied by the app.
 Analysis refresh requests are intentionally queued in
 `analysis_refresh_requests` instead of running LLM analysis inline during a web
 request. A separate worker should read queued rows, run TradingAgents, persist
-the completed analysis, and update the request status.
+the completed analysis, link `analysis_run_id`, and update the request status.
+`tradingagents.site.analysis_worker.process_queued_analysis_requests(...)`
+provides the first runner-injection skeleton for that background process.
 
 ## Analysis Persistence Hook
 

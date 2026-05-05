@@ -45,6 +45,11 @@ The API remains read-only:
 
 No live trading or broker order placement is exposed.
 
+Analysis refresh requests are queued. Use
+`tradingagents.site.analysis_worker.process_queued_analysis_requests(...)` as
+the worker foundation; inject a runner that executes TradingAgents and returns
+the persisted `analysis_runs.id`.
+
 Member routes require an authenticated user context before they will return
 portfolio or watchlist data. By default the API verifies `Authorization: Bearer
 <Supabase access token>` by calling Supabase Auth `/auth/v1/user` with

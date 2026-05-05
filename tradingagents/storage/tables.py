@@ -79,6 +79,7 @@ analysis_refresh_requests = Table(
     Column("market", String(32), nullable=False, default="KR"),
     Column("requested_trade_date", Date, nullable=False, index=True),
     Column("status", String(32), nullable=False, default="queued"),
+    Column("analysis_run_id", Uuid(as_uuid=False), ForeignKey("analysis_runs.id", ondelete="SET NULL"), nullable=True),
     Column("reason", Text, nullable=True),
     Column("metadata_json", JSON, nullable=False, default=dict),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),

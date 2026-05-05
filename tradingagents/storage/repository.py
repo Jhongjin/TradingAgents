@@ -204,12 +204,22 @@ class StorageRepository:
             )
         return request_id
 
-    def update_analysis_request_status(self, request_id: str, *, status: str, reason: str | None = None) -> None:
+    def update_analysis_request_status(
+        self,
+        request_id: str,
+        *,
+        status: str,
+        reason: str | None = None,
+        analysis_run_id: str | None = None,
+    ) -> None:
         _validate_uuid(request_id, "analysis_request_id")
         _validate_analysis_request_status(status)
         values: dict[str, Any] = {"status": status, "updated_at": datetime.now(timezone.utc)}
         if reason is not None:
             values["reason"] = reason
+        if analysis_run_id is not None:
+            _validate_uuid(analysis_run_id, "analysis_run_id")
+            values["analysis_run_id"] = analysis_run_id
         with self.engine.begin() as conn:
             conn.execute(
                 update(analysis_refresh_requests)
