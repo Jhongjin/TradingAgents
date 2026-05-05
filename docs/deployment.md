@@ -37,6 +37,7 @@ TRADINGAGENTS_API_DOCS_ENABLED=false
 TRADINGAGENTS_AUTH_TIMEOUT_SECONDS=5
 TRADINGAGENTS_SITE_BASE_URL=https://your-domain.example
 TRADINGAGENTS_SITEMAP_TICKERS=005930,000660,035420,035720,051910,005380,068270,005490
+TRADINGAGENTS_SITEMAP_MAX_ANALYSIS_TICKERS=200
 TRADINGAGENTS_ADSENSE_PUBLISHER_ID=pub-0000000000000000
 # Or set a full custom ads.txt body with \n between lines:
 TRADINGAGENTS_ADS_TXT=
@@ -58,7 +59,7 @@ The API remains read-only:
 - `GET /stocks/{ticker}`: public Korean stock analysis page with KRW chart
 - `GET /ads.txt`: advertising seller declaration generated from AdSense/custom env
 - `GET /robots.txt`: crawler policy with sitemap URL
-- `GET /sitemap.xml`: public page sitemap built from `TRADINGAGENTS_SITEMAP_TICKERS`
+- `GET /sitemap.xml`: public page sitemap built from `TRADINGAGENTS_SITEMAP_TICKERS` and stored public analyses
 - `GET /api/readiness`: non-secret deployment readiness checks
 - `GET /api/tickers/search?q=삼성`: Korean ticker code/name search
 - `GET /api/stocks/{ticker}`: public Korean stock payload

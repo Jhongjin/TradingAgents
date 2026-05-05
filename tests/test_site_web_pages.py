@@ -1,5 +1,8 @@
+from datetime import date
+
 from fastapi.testclient import TestClient
 
+from tradingagents.storage import AnalysisRunInput, StorageRepository, create_storage_engine
 from tradingagents.site.api_app import create_app
 from tradingagents.site.seo import build_ads_txt, build_robots_txt, build_sitemap_xml, stock_canonical_url
 from tradingagents.site.web_pages import render_public_stock_page
@@ -49,6 +52,12 @@ def _payload():
         ],
         "generated_at": "2026-05-05T09:00:00+09:00",
     }
+
+
+def _repo() -> StorageRepository:
+    repo = StorageRepository(create_storage_engine())
+    repo.create_schema()
+    return repo
 
 
 def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
@@ -173,3 +182,25 @@ def test_api_app_serves_robots_sitemap_and_ads_txt(monkeypatch):
     assert ads_response.status_code == 200
     assert ads_response.headers["content-type"].startswith("text/plain")
     assert "google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0" in ads_response.text
+
+
+def test_api_app_sitemap_includes_stored_public_analysis_tickers(monkeypatch):
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="373220",
+            ticker_name="LG에너지솔루션",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+    monkeypatch.setenv("TRADINGAGENTS_SITEMAP_TICKERS", "005930")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.get("/sitemap.xml")
+
+    assert response.status_code == 200
+    assert "http://testserver/stocks/005930" in response.text
+    assert "http://testserver/stocks/373220" in response.text

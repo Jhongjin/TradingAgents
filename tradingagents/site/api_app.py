@@ -183,7 +183,7 @@ def create_app(
         try:
             content = build_sitemap_xml(
                 site_base_url=_request_site_base_url(request),
-                tickers=sitemap_tickers_from_env(),
+                tickers=_sitemap_tickers(request.app.state.repository),
             )
         except ValueError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -586,6 +586,31 @@ def _request_site_base_url(request: Request) -> str:
     if configured:
         return configured
     return str(request.base_url).rstrip("/")
+
+
+def _sitemap_tickers(repo: StorageRepository | None) -> tuple[str, ...]:
+    tickers = list(sitemap_tickers_from_env())
+    if repo is not None:
+        try:
+            rows = repo.list_public_analysis_runs(limit=_sitemap_max_analysis_tickers())
+        except Exception:
+            rows = []
+        tickers.extend(str(row["ticker_code"]) for row in rows if row.get("ticker_code"))
+    cleaned = []
+    seen = set()
+    for ticker in tickers:
+        if ticker in seen:
+            continue
+        seen.add(ticker)
+        cleaned.append(ticker)
+    return tuple(cleaned)
+
+
+def _sitemap_max_analysis_tickers() -> int:
+    raw = int(os.getenv("TRADINGAGENTS_SITEMAP_MAX_ANALYSIS_TICKERS", "200"))
+    if raw <= 0:
+        raise ValueError("TRADINGAGENTS_SITEMAP_MAX_ANALYSIS_TICKERS must be positive")
+    return raw
 
 
 def _process_analysis_request_queue(repo: StorageRepository, *, limit: int) -> dict:
