@@ -366,6 +366,8 @@ member-entered portfolio/watchlist summaries.
 Set `TRADINGAGENTS_API_CORS_ORIGINS` to a comma-separated allowlist for browser
 clients, and `TRADINGAGENTS_API_PUBLIC_CACHE_SECONDS` to tune public stock-page
 cache headers.
+Member routes require a trusted auth layer before `X-TradingAgents-User-Id` is
+accepted for owner checks.
 
 See [`docs/deployment.md`](docs/deployment.md) for the Vercel entrypoint,
 rewrites, and production environment checklist.

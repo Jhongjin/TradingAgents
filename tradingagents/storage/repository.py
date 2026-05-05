@@ -196,6 +196,14 @@ class StorageRepository:
             )
         return portfolio_id
 
+    def get_manual_portfolio(self, portfolio_id: str) -> dict[str, Any] | None:
+        _validate_uuid(portfolio_id, "portfolio_id")
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(manual_portfolios).where(manual_portfolios.c.id == portfolio_id)
+            ).mappings().first()
+        return dict(row) if row else None
+
     def add_manual_trade(self, data: ManualTradeInput) -> str:
         _validate_manual_trade(data)
         ticker_name = data.ticker_name

@@ -19,6 +19,7 @@ from tradingagents.storage import (
 
 
 USER_ID = "00000000-0000-0000-0000-000000000001"
+OTHER_USER_ID = "00000000-0000-0000-0000-000000000002"
 
 
 def _repo() -> StorageRepository:
@@ -111,10 +112,11 @@ def test_api_app_serves_manual_portfolio_payload():
         )
     )
 
-    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
     response = client.get(
         f"/api/portfolio/{portfolio_id}",
         params={"current_prices": "005930:83000"},
+        headers={"X-TradingAgents-User-Id": USER_ID},
     )
 
     assert response.status_code == 200
@@ -128,10 +130,11 @@ def test_api_app_serves_watchlist_payload():
     watchlist_id = repo.create_watchlist(user_id=USER_ID, name="관심종목")
     repo.add_watchlist_item(watchlist_id=watchlist_id, ticker_code="005930")
 
-    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
     response = client.get(
         f"/api/watchlists/{watchlist_id}",
         params={"current_prices": "005930:83000"},
+        headers={"X-TradingAgents-User-Id": USER_ID},
     )
 
     assert response.status_code == 200
@@ -159,11 +162,55 @@ def test_api_app_watchlist_requires_storage_repo():
     assert response.json()["detail"] == "Storage repository is not configured"
 
 
-def test_api_app_rejects_malformed_current_prices():
+def test_api_app_member_routes_reject_untrusted_user_header():
     repo = _repo()
+    portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")
     client = TestClient(create_app(repo=repo, load_repo_from_env=False))
 
-    response = client.get(f"/api/portfolio/{USER_ID}", params={"current_prices": "005930"})
+    response = client.get(
+        f"/api/portfolio/{portfolio_id}",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
+
+    assert response.status_code == 403
+    assert "trusted auth layer" in response.json()["detail"]
+
+
+def test_api_app_member_routes_require_user_header_when_trusted():
+    repo = _repo()
+    portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    response = client.get(f"/api/portfolio/{portfolio_id}")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Missing X-TradingAgents-User-Id"
+
+
+def test_api_app_member_routes_enforce_owner():
+    repo = _repo()
+    watchlist_id = repo.create_watchlist(user_id=USER_ID, name="관심종목")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    response = client.get(
+        f"/api/watchlists/{watchlist_id}",
+        headers={"X-TradingAgents-User-Id": OTHER_USER_ID},
+    )
+
+    assert response.status_code == 403
+    assert "does not belong" in response.json()["detail"]
+
+
+def test_api_app_rejects_malformed_current_prices():
+    repo = _repo()
+    portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    response = client.get(
+        f"/api/portfolio/{portfolio_id}",
+        params={"current_prices": "005930"},
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
 
     assert response.status_code == 400
     assert "ticker:price" in response.json()["detail"]
@@ -177,6 +224,7 @@ def test_api_app_sets_public_and_private_cache_headers():
             repo=repo,
             load_repo_from_env=False,
             public_cache_seconds=60,
+            trust_member_user_header=True,
         )
     )
 
@@ -184,7 +232,10 @@ def test_api_app_sets_public_and_private_cache_headers():
         "/api/stocks/005930",
         params={"include_chart": "false", "include_analysis": "false"},
     )
-    portfolio_response = client.get(f"/api/portfolio/{portfolio_id}")
+    portfolio_response = client.get(
+        f"/api/portfolio/{portfolio_id}",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
 
     assert stock_response.status_code == 200
     assert stock_response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"

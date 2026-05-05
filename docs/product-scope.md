@@ -52,6 +52,8 @@ PnL estimates without broker account access.
 Saved watchlists are supported separately through
 `tradingagents.site.build_watchlist_payload` and `/api/watchlists/{watchlist_id}`;
 they are owner-scoped member data, not broker account data.
+Member API routes enforce owner checks and only trust a user-id header when the
+app is explicitly configured to sit behind a trusted auth layer.
 
 ## Chart Scope
 

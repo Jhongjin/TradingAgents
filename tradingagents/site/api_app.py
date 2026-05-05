@@ -5,8 +5,9 @@ from __future__ import annotations
 import os
 from decimal import Decimal
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from starlette.middleware.cors import CORSMiddleware
 
 from tradingagents.dataflows.errors import VendorUnavailableError
@@ -25,6 +26,7 @@ def create_app(
     cors_origins: list[str] | None = None,
     public_cache_seconds: int | None = None,
     max_price_tickers: int | None = None,
+    trust_member_user_header: bool | None = None,
 ) -> FastAPI:
     """Create the TradingAgents API app.
 
@@ -41,6 +43,7 @@ def create_app(
     app.state.repository = repo or _repo_from_env() if load_repo_from_env else repo
     app.state.public_cache_seconds = _public_cache_seconds(public_cache_seconds)
     app.state.max_price_tickers = _max_price_tickers(max_price_tickers)
+    app.state.trust_member_user_header = _trust_member_user_header(trust_member_user_header)
     _install_cors(app, cors_origins)
 
     @app.middleware("http")
@@ -113,6 +116,7 @@ def create_app(
     def manual_portfolio(
         portfolio_id: str,
         request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
         current_prices: Annotated[
             str | None,
             Query(description="Comma-separated prices, e.g. 005930:83000,000660:140000"),
@@ -121,6 +125,8 @@ def create_app(
         repo = request.app.state.repository
         if repo is None:
             raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = _require_member_user_id(request, x_tradingagents_user_id)
+        _require_portfolio_owner(repo, portfolio_id, user_id)
         try:
             return build_manual_portfolio_payload(
                 repo,
@@ -134,6 +140,7 @@ def create_app(
     def manual_watchlist(
         watchlist_id: str,
         request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
         current_prices: Annotated[
             str | None,
             Query(description="Comma-separated prices, e.g. 005930:83000,000660:140000"),
@@ -142,6 +149,8 @@ def create_app(
         repo = request.app.state.repository
         if repo is None:
             raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = _require_member_user_id(request, x_tradingagents_user_id)
+        _require_watchlist_owner(repo, watchlist_id, user_id)
         try:
             return build_watchlist_payload(
                 repo,
@@ -185,6 +194,49 @@ def _max_price_tickers(value: int | None) -> int:
     if raw <= 0:
         raise ValueError("max_price_tickers must be positive")
     return raw
+
+
+def _trust_member_user_header(value: bool | None) -> bool:
+    if value is not None:
+        return value
+    return os.getenv("TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _require_member_user_id(request: Request, value: str | None) -> str:
+    if not request.app.state.trust_member_user_header:
+        raise HTTPException(
+            status_code=403,
+            detail="Member APIs require a trusted auth layer before user headers are accepted",
+        )
+    if not value:
+        raise HTTPException(status_code=401, detail="Missing X-TradingAgents-User-Id")
+    try:
+        UUID(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="X-TradingAgents-User-Id must be a UUID") from exc
+    return value
+
+
+def _require_portfolio_owner(repo: StorageRepository, portfolio_id: str, user_id: str) -> None:
+    try:
+        portfolio = repo.get_manual_portfolio(portfolio_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if portfolio is None:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    if str(portfolio["user_id"]) != user_id:
+        raise HTTPException(status_code=403, detail="Portfolio does not belong to the authenticated user")
+
+
+def _require_watchlist_owner(repo: StorageRepository, watchlist_id: str, user_id: str) -> None:
+    try:
+        watchlist = repo.get_watchlist(watchlist_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if watchlist is None:
+        raise HTTPException(status_code=404, detail="Watchlist not found")
+    if str(watchlist["user_id"]) != user_id:
+        raise HTTPException(status_code=403, detail="Watchlist does not belong to the authenticated user")
 
 
 def _csv_env(name: str) -> list[str]:
