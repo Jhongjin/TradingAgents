@@ -262,6 +262,45 @@ def test_api_app_serves_manual_portfolio_payload():
     assert body["totals"]["market_value"] == 830000.0
 
 
+def test_api_app_manual_portfolio_can_use_latest_prices(monkeypatch):
+    repo = _repo()
+    portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")
+    repo.add_manual_trade(
+        ManualTradeInput(
+            portfolio_id=portfolio_id,
+            ticker_code="005930",
+            side="buy",
+            trade_date=date(2026, 1, 2),
+            price=Decimal("70000"),
+            quantity=10,
+        )
+    )
+    monkeypatch.setattr(
+        "tradingagents.site.api_app.build_latest_prices_payload",
+        lambda tickers, **kwargs: {
+            "status": "available",
+            "vendor": "pykrx",
+            "as_of_date": "2026-05-05",
+            "requested_tickers": tickers,
+            "prices": {"005930": {"close": 83000.0}},
+            "errors": {},
+        },
+    )
+
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+    response = client.get(
+        f"/api/portfolio/{portfolio_id}",
+        params={"include_latest_prices": "true"},
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["pricing_status"] == "complete"
+    assert body["totals"]["market_value"] == 830000.0
+    assert body["market_price_source"]["priced_ticker_count"] == 1
+
+
 def test_api_app_creates_manual_portfolio_and_trade():
     repo = _repo()
     client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
@@ -366,6 +405,35 @@ def test_api_app_serves_watchlist_payload():
     body = response.json()
     assert body["watchlist"]["name"] == "관심종목"
     assert body["items"][0]["current_price"] == 83000.0
+
+
+def test_api_app_watchlist_can_use_latest_prices(monkeypatch):
+    repo = _repo()
+    watchlist_id = repo.create_watchlist(user_id=USER_ID, name="관심종목")
+    repo.add_watchlist_item(watchlist_id=watchlist_id, ticker_code="005930")
+    monkeypatch.setattr(
+        "tradingagents.site.api_app.build_latest_prices_payload",
+        lambda tickers, **kwargs: {
+            "status": "available",
+            "vendor": "pykrx",
+            "as_of_date": "2026-05-05",
+            "requested_tickers": tickers,
+            "prices": {"005930": {"close": 83000.0}},
+            "errors": {},
+        },
+    )
+
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+    response = client.get(
+        f"/api/watchlists/{watchlist_id}",
+        params={"include_latest_prices": "true"},
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["items"][0]["current_price"] == 83000.0
+    assert body["market_price_source"]["priced_ticker_count"] == 1
 
 
 def test_api_app_creates_updates_and_deletes_watchlist_items():

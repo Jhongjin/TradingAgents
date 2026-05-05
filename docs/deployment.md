@@ -121,6 +121,10 @@ The API remains read-only:
 - `GET /api/watchlists/{watchlist_id}`: member watchlist summary from stored ticker lists
 - `GET /health`: deployment health check
 
+For member portfolio/watchlist detail endpoints, pass
+`include_latest_prices=true` to price Korean tickers with the latest pykrx close
+instead of supplying `current_prices=005930:83000` manually.
+
 No live trading or broker order placement is exposed.
 
 For Google AdSense, set `TRADINGAGENTS_ADSENSE_PUBLISHER_ID` to your `pub-...`

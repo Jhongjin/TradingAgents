@@ -481,6 +481,7 @@ def create_app(
             str | None,
             Query(description="Comma-separated prices, e.g. 005930:83000,000660:140000"),
         ] = None,
+        include_latest_prices: bool = False,
     ) -> dict:
         repo = request.app.state.repository
         if repo is None:
@@ -488,11 +489,21 @@ def create_app(
         user_id = resolve_member_user_id(request, x_tradingagents_user_id)
         _require_portfolio_owner(repo, portfolio_id, user_id)
         try:
-            return build_manual_portfolio_payload(
+            prices, source = _portfolio_current_prices(
                 repo,
                 portfolio_id,
-                current_prices=_parse_current_prices(current_prices),
+                current_prices=current_prices,
+                include_latest_prices=include_latest_prices,
+                max_tickers=request.app.state.max_price_tickers,
             )
+            payload = build_manual_portfolio_payload(
+                repo,
+                portfolio_id,
+                current_prices=prices,
+            )
+            if source is not None:
+                payload["market_price_source"] = source
+            return payload
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -679,6 +690,7 @@ def create_app(
             str | None,
             Query(description="Comma-separated prices, e.g. 005930:83000,000660:140000"),
         ] = None,
+        include_latest_prices: bool = False,
     ) -> dict:
         repo = request.app.state.repository
         if repo is None:
@@ -686,11 +698,21 @@ def create_app(
         user_id = resolve_member_user_id(request, x_tradingagents_user_id)
         _require_watchlist_owner(repo, watchlist_id, user_id)
         try:
-            return build_watchlist_payload(
+            prices, source = _watchlist_current_prices(
                 repo,
                 watchlist_id,
-                current_prices=_parse_current_prices(current_prices),
+                current_prices=current_prices,
+                include_latest_prices=include_latest_prices,
+                max_tickers=request.app.state.max_price_tickers,
             )
+            payload = build_watchlist_payload(
+                repo,
+                watchlist_id,
+                current_prices=prices,
+            )
+            if source is not None:
+                payload["market_price_source"] = source
+            return payload
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1037,6 +1059,58 @@ def _parse_current_prices(value: str | None) -> dict[str, Decimal]:
             raise ValueError("current_prices values must be numeric") from exc
         prices[ticker] = parsed
     return prices
+
+
+def _portfolio_current_prices(
+    repo: StorageRepository,
+    portfolio_id: str,
+    *,
+    current_prices: str | None,
+    include_latest_prices: bool,
+    max_tickers: int,
+) -> tuple[dict[str, Decimal], dict | None]:
+    parsed = _parse_current_prices(current_prices)
+    if parsed or not include_latest_prices:
+        return parsed, None
+    return _latest_current_prices(repo.manual_positions(portfolio_id).keys(), max_tickers=max_tickers)
+
+
+def _watchlist_current_prices(
+    repo: StorageRepository,
+    watchlist_id: str,
+    *,
+    current_prices: str | None,
+    include_latest_prices: bool,
+    max_tickers: int,
+) -> tuple[dict[str, Decimal], dict | None]:
+    parsed = _parse_current_prices(current_prices)
+    if parsed or not include_latest_prices:
+        return parsed, None
+    return _latest_current_prices(
+        [str(row["ticker_code"]) for row in repo.watchlist_items(watchlist_id)],
+        max_tickers=max_tickers,
+    )
+
+
+def _latest_current_prices(tickers, *, max_tickers: int) -> tuple[dict[str, Decimal], dict]:
+    cleaned = [str(ticker).strip().upper() for ticker in tickers if str(ticker).strip()]
+    if not cleaned:
+        return {}, {"status": "empty", "vendor": "pykrx", "priced_ticker_count": 0}
+    payload = build_latest_prices_payload(cleaned, ignore_errors=True, max_tickers=max_tickers)
+    prices = {
+        str(ticker): Decimal(str(item["close"]))
+        for ticker, item in (payload.get("prices") or {}).items()
+        if item.get("close") is not None
+    }
+    source = {
+        "status": payload.get("status"),
+        "vendor": payload.get("vendor"),
+        "as_of_date": payload.get("as_of_date"),
+        "requested_tickers": payload.get("requested_tickers") or [],
+        "priced_ticker_count": len(prices),
+        "errors": payload.get("errors") or {},
+    }
+    return prices, source
 
 
 def _parse_date(value: str, field_name: str):
