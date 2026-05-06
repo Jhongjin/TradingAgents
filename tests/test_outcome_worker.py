@@ -1,7 +1,13 @@
 from datetime import date
 
 from tradingagents.site.outcome_worker import evaluate_public_analysis_outcomes
-from tradingagents.storage import AnalysisRunInput, StorageRepository, TradeDecisionInput, create_storage_engine
+from tradingagents.storage import (
+    AnalysisOutcomeInput,
+    AnalysisRunInput,
+    StorageRepository,
+    TradeDecisionInput,
+    create_storage_engine,
+)
 
 
 def _repo() -> StorageRepository:
@@ -93,3 +99,41 @@ def test_evaluate_public_analysis_outcomes_marks_vendor_errors_unavailable(monke
     assert results[0].status == "unavailable"
     assert "RuntimeError" in results[0].error
     assert outcomes[0]["status"] == "unavailable"
+
+
+def test_evaluate_public_analysis_outcomes_skips_completed_horizons(monkeypatch):
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            trade_date=date(2026, 5, 1),
+            visibility="public",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            trade_date=date(2026, 5, 1),
+            evaluated_at=date(2026, 6, 1),
+            horizon_days=5,
+            actual_holding_days=5,
+            raw_return=0.05,
+            benchmark_return=0.03,
+            alpha_return=0.02,
+            status="completed",
+        )
+    )
+
+    def should_not_fetch(*args, **kwargs):
+        raise AssertionError("completed outcomes should not be fetched again")
+
+    monkeypatch.setattr("tradingagents.site.outcome_worker.fetch_korean_returns", should_not_fetch)
+
+    results = evaluate_public_analysis_outcomes(repo, horizons=(5,), as_of_date="2026-06-02")
+
+    assert results[0].status == "skipped"
+    assert results[0].error == "already_completed"
+    assert results[0].alpha_return == 0.02
+    assert len(repo.list_analysis_outcomes(analysis_run_id=run_id)) == 1

@@ -205,7 +205,9 @@ curl -X POST "https://your-domain.example/api/admin/analysis-outcomes/process" \
 Use `GET /api/analysis-outcomes?ticker=005930` to inspect the public track
 record that feeds the stock page outcome cards. If a horizon has not yet
 elapsed or market data is unavailable, the row is stored as `pending` or
-`unavailable` instead of failing the worker.
+`unavailable` instead of failing the worker. Completed horizons are idempotent:
+later worker runs skip them unless the code is changed to support an explicit
+force/recompute mode.
 
 Member routes require an authenticated user context before they will return
 portfolio or watchlist data. By default the API verifies `Authorization: Bearer

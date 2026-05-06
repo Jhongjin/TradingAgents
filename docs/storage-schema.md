@@ -95,7 +95,9 @@ helper reads public completed analyses, evaluates configured horizons such as 5
 and 20 trading days, and upserts `analysis_outcomes` rows. Completed rows store
 raw return, benchmark return, alpha return, and holding-day metadata. Rows stay
 `pending` when a horizon has not elapsed yet, and become `unavailable` when
-market data cannot be fetched.
+market data cannot be fetched. Existing `completed` horizons are skipped on
+later worker runs so scheduled jobs do not repeatedly call the data vendor for
+immutable realised outcomes.
 
 ## Analysis Persistence Hook
 

@@ -57,6 +57,10 @@ def evaluate_public_analysis_outcomes(
         benchmark_symbol = _benchmark_symbol(ticker_code)
 
         for horizon in horizon_values:
+            existing = _existing_outcome_for_horizon(bundle.get("outcomes") or [], horizon)
+            if existing is not None and existing.get("status") == "completed":
+                results.append(_skipped_completed_result(run, existing))
+                continue
             result = _evaluate_one(
                 repo,
                 analysis_run_id=str(run["id"]),
@@ -71,6 +75,27 @@ def evaluate_public_analysis_outcomes(
             )
             results.append(result)
     return results
+
+
+def _existing_outcome_for_horizon(outcomes: list[dict], horizon_days: int) -> dict | None:
+    for outcome in outcomes:
+        if int(outcome.get("horizon_days") or 0) == horizon_days:
+            return outcome
+    return None
+
+
+def _skipped_completed_result(run: dict, outcome: dict) -> AnalysisOutcomeResult:
+    return AnalysisOutcomeResult(
+        analysis_run_id=str(run["id"]),
+        ticker_code=str(run["ticker_code"]),
+        horizon_days=int(outcome["horizon_days"]),
+        status="skipped",
+        actual_holding_days=outcome.get("actual_holding_days"),
+        raw_return=outcome.get("raw_return"),
+        benchmark_return=outcome.get("benchmark_return"),
+        alpha_return=outcome.get("alpha_return"),
+        error="already_completed",
+    )
 
 
 def _evaluate_one(
