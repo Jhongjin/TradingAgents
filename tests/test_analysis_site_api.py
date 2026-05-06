@@ -2,8 +2,12 @@ from datetime import date
 
 import pytest
 
-from tradingagents.site import build_public_analysis_feed_payload, queue_analysis_refresh_request
-from tradingagents.storage import AnalysisRunInput, StorageRepository, create_storage_engine
+from tradingagents.site import (
+    build_public_analysis_feed_payload,
+    build_public_analysis_outcomes_payload,
+    queue_analysis_refresh_request,
+)
+from tradingagents.storage import AnalysisOutcomeInput, AnalysisRunInput, StorageRepository, create_storage_engine
 
 
 USER_ID = "00000000-0000-0000-0000-000000000001"
@@ -115,3 +119,40 @@ def test_public_analysis_feed_validates_limit():
 
     with pytest.raises(ValueError, match="cannot exceed 1"):
         build_public_analysis_feed_payload(repo, limit=2, max_limit=1)
+
+
+def test_public_analysis_outcomes_payload_summarizes_completed_alpha():
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 12),
+            horizon_days=5,
+            raw_return=0.04,
+            benchmark_return=0.01,
+            alpha_return=0.03,
+            status="completed",
+        )
+    )
+
+    payload = build_public_analysis_outcomes_payload(repo, ticker="005930")
+
+    assert payload["ticker_code"] == "005930"
+    assert payload["item_count"] == 1
+    assert payload["summary"]["completed_count"] == 1
+    assert payload["summary"]["positive_alpha_count"] == 1
+    assert payload["summary"]["average_alpha_return"] == 0.03

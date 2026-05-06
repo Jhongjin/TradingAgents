@@ -43,6 +43,7 @@ def render_public_stock_page(
     structured_data_json = _script_json(_structured_data(model, payload))
     reports_html = _report_cards(model["reports"])
     lenses_html = _strategy_lens_cards(payload.get("strategy_lenses") or [])
+    outcomes_html = _outcome_cards((payload.get("analysis") or {}).get("outcomes") or [])
     notices_html = "".join(f"<li>{_h(notice)}</li>" for notice in payload.get("notices", []))
 
     return f"""<!doctype html>
@@ -138,6 +139,8 @@ def render_public_stock_page(
     </section>
 
     {lenses_html}
+
+    {outcomes_html}
 
     <section class="report-section" aria-labelledby="reports-title">
       <div class="panel-heading">
@@ -761,6 +764,59 @@ def _strategy_lens_cards(lenses: list[dict[str, Any]]) -> str:
     """
 
 
+def _outcome_cards(outcomes: list[dict[str, Any]]) -> str:
+    if not outcomes:
+        cards = """
+        <article class="outcome-card empty">
+          <span>pending</span>
+          <h3>검증 대기</h3>
+          <p>분석 기준일 이후 충분한 거래일이 쌓이면 5일/20일 성과가 표시됩니다.</p>
+        </article>
+        """
+    else:
+        cards = "\n".join(_outcome_card(outcome) for outcome in outcomes[:6])
+    return f"""
+    <section class="outcome-section" aria-labelledby="outcome-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Outcome Track Record</p>
+          <h2 id="outcome-title">사후 성과 검증</h2>
+        </div>
+        <span class="status-pill">ALPHA</span>
+      </div>
+      <div class="outcome-grid">
+        {cards}
+      </div>
+    </section>
+    """
+
+
+def _outcome_card(outcome: dict[str, Any]) -> str:
+    status = str(outcome.get("status") or "pending")
+    horizon = outcome.get("horizon_days") or "-"
+    raw_return = _percent(outcome.get("raw_return"))
+    alpha_return = _percent(outcome.get("alpha_return"), signed=True)
+    actual_days = outcome.get("actual_holding_days")
+    title = f"{horizon}일 검증"
+    if status == "completed":
+        summary = f"종목 수익률 {raw_return}, benchmark alpha {alpha_return}"
+    elif status == "pending":
+        summary = f"현재 {actual_days or 0}거래일만 관측되어 검증을 기다리는 중입니다."
+    else:
+        summary = "성과 검증 데이터를 아직 확보하지 못했습니다."
+    return f"""
+    <article class="outcome-card outcome-{_h(status)}">
+      <span>{_h(_outcome_status_label(status))}</span>
+      <h3>{_h(title)}</h3>
+      <p>{_h(summary)}</p>
+      <dl>
+        <div><dt>Raw</dt><dd>{_h(raw_return)}</dd></div>
+        <div><dt>Alpha</dt><dd>{_h(alpha_return)}</dd></div>
+      </dl>
+    </article>
+    """
+
+
 def _structured_data(model: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     ticker = payload.get("ticker", {})
     return {
@@ -849,10 +905,26 @@ def _lens_metric_bits(metrics: dict[str, Any]) -> str:
     return " / ".join(bits)
 
 
+def _outcome_status_label(status: str) -> str:
+    return {
+        "completed": "완료",
+        "pending": "대기",
+        "unavailable": "불가",
+    }.get(status, "확인")
+
+
 def _money(value: Any) -> str:
     if value is None:
         return "-"
     return f"{float(value):,.0f}원"
+
+
+def _percent(value: Any, *, signed: bool = False) -> str:
+    if value is None:
+        return "-"
+    parsed = float(value) * 100
+    prefix = "+" if signed and parsed > 0 else ""
+    return f"{prefix}{parsed:.2f}%"
 
 
 def _change(value: float | None, rate: float | None) -> str:
@@ -1394,6 +1466,68 @@ h3 {
   line-height: 1.12;
 }
 
+.outcome-section {
+  margin-top: 18px;
+}
+
+.outcome-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.outcome-card {
+  min-height: 168px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.outcome-card span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.outcome-card h3 {
+  margin: 12px 0 8px;
+}
+
+.outcome-card p {
+  color: var(--muted);
+}
+
+.outcome-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.outcome-card dl div {
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--surface-strong);
+}
+
+.outcome-card dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.outcome-card dd {
+  margin: 4px 0 0;
+  font-weight: 900;
+}
+
 .analysis-panel {
   padding: 18px;
 }
@@ -1660,6 +1794,7 @@ h3 {
   }
 
   .lens-grid,
+  .outcome-grid,
   .report-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -1692,6 +1827,7 @@ h3 {
 
   .metric-grid,
   .lens-grid,
+  .outcome-grid,
   .report-grid,
   .analysis-feed-grid,
   .analysis-summary-grid,

@@ -16,6 +16,7 @@ _EXPORTS = {
     "build_latest_prices_payload": ("tradingagents.site.market_api", "build_latest_prices_payload"),
     "build_manual_portfolio_payload": ("tradingagents.site.portfolio_api", "build_manual_portfolio_payload"),
     "build_public_analysis_feed_payload": ("tradingagents.site.analysis_api", "build_public_analysis_feed_payload"),
+    "build_public_analysis_outcomes_payload": ("tradingagents.site.analysis_api", "build_public_analysis_outcomes_payload"),
     "build_public_stock_payload": ("tradingagents.site.public_api", "build_public_stock_payload"),
     "build_ticker_search_payload": ("tradingagents.site.ticker_api", "build_ticker_search_payload"),
     "build_watchlist_payload": ("tradingagents.site.watchlist_api", "build_watchlist_payload"),

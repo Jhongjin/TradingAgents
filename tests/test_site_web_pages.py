@@ -37,6 +37,16 @@ def _payload():
                 "action": "hold",
                 "rationale": "Wait for stronger earnings confirmation.",
             },
+            "outcomes": [
+                {
+                    "horizon_days": 5,
+                    "status": "completed",
+                    "actual_holding_days": 5,
+                    "raw_return": 0.04,
+                    "benchmark_return": 0.01,
+                    "alpha_return": 0.03,
+                }
+            ],
         },
         "analysis_refresh": {"recommended": False, "reason": "fresh"},
         "chart": {
@@ -98,6 +108,8 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "하락 파랑" in html
     assert "한국형 투자 렌즈" in html
     assert "안전 가드레일" in html
+    assert "사후 성과 검증" in html
+    assert "benchmark alpha +3.00%" in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html
     assert 'type="application/ld+json"' in html

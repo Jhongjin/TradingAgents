@@ -163,6 +163,42 @@ def build_public_analysis_feed_payload(
     )
 
 
+def build_public_analysis_outcomes_payload(
+    repo: StorageRepository,
+    *,
+    ticker: str | None = None,
+    status: str | None = None,
+    limit: int = 20,
+    max_limit: int = 50,
+) -> dict[str, Any]:
+    """Build a public payload of evaluated analysis outcomes."""
+
+    if max_limit <= 0:
+        raise ValueError("max_limit must be positive")
+    if limit <= 0:
+        raise ValueError("limit must be positive")
+    if limit > max_limit:
+        raise ValueError(f"limit cannot exceed {max_limit}")
+    ticker_code = None
+    if ticker:
+        if not is_kr_ticker(ticker):
+            raise ValueError("analysis outcomes currently support Korean 6-digit tickers only")
+        ticker_code = resolve_kr_ticker(ticker, lookup_pykrx=False).code
+
+    rows = repo.list_analysis_outcomes(ticker_code=ticker_code, status=status, limit=limit)
+    return _json_ready(
+        {
+            "status": "available",
+            "ticker_code": ticker_code,
+            "filter_status": status,
+            "limit": limit,
+            "items": rows,
+            "item_count": len(rows),
+            "summary": _analysis_outcome_summary(rows),
+        }
+    )
+
+
 def _analysis_feed_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     market_counts: dict[str, int] = {}
     provider_counts: dict[str, int] = {}
@@ -185,6 +221,22 @@ def _analysis_feed_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "latest_trade_date": latest_trade_date,
         "market_counts": market_counts,
         "model_provider_counts": provider_counts,
+    }
+
+
+def _analysis_outcome_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    completed = [row for row in rows if row.get("status") == "completed"]
+    alpha_values = [float(row["alpha_return"]) for row in completed if row.get("alpha_return") is not None]
+    raw_values = [float(row["raw_return"]) for row in completed if row.get("raw_return") is not None]
+    positive_alpha_count = sum(1 for value in alpha_values if value > 0)
+    return {
+        "completed_count": len(completed),
+        "pending_count": sum(1 for row in rows if row.get("status") == "pending"),
+        "unavailable_count": sum(1 for row in rows if row.get("status") == "unavailable"),
+        "positive_alpha_count": positive_alpha_count,
+        "positive_alpha_rate": (positive_alpha_count / len(alpha_values)) if alpha_values else None,
+        "average_alpha_return": (sum(alpha_values) / len(alpha_values)) if alpha_values else None,
+        "average_raw_return": (sum(raw_values) / len(raw_values)) if raw_values else None,
     }
 
 

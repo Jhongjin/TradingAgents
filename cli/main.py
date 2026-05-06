@@ -1274,5 +1274,71 @@ def process_analysis_requests(
             console.print(f"[red]Failed[/red] {result.ticker_code}: {result.error}")
 
 
+@app.command("process-analysis-outcomes")
+def process_analysis_outcomes(
+    limit: int = typer.Option(20, "--limit", min=1, help="Maximum completed public runs to evaluate."),
+    horizons: str = typer.Option("5,20", "--horizons", help="Comma-separated holding periods in trading days."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="List completed public runs without evaluating returns."),
+):
+    """Evaluate public analysis outcomes and benchmark alpha."""
+
+    import os
+
+    from tradingagents.site.outcome_worker import evaluate_public_analysis_outcomes
+    from tradingagents.storage import StorageRepository, create_storage_engine
+
+    if not os.getenv("DATABASE_URL"):
+        raise typer.BadParameter("DATABASE_URL is required for the analysis outcome worker")
+
+    horizon_values = _parse_horizon_csv(horizons)
+    repo = StorageRepository(create_storage_engine())
+    if dry_run:
+        runs = repo.list_public_analysis_runs(limit=limit)
+        if not runs:
+            console.print("[yellow]No completed public analysis runs.[/yellow]")
+            return
+        table = Table(title="Public Analysis Runs", box=box.SIMPLE_HEAD)
+        table.add_column("ID")
+        table.add_column("Ticker")
+        table.add_column("Trade Date")
+        table.add_column("Horizons")
+        for run in runs:
+            table.add_row(
+                str(run["id"]),
+                str(run["ticker_code"]),
+                str(run["trade_date"]),
+                ",".join(str(value) for value in horizon_values),
+            )
+        console.print(table)
+        return
+
+    results = evaluate_public_analysis_outcomes(repo, horizons=horizon_values, limit=limit)
+    if not results:
+        console.print("[yellow]No completed public analysis runs.[/yellow]")
+        return
+    for result in results:
+        if result.status == "completed":
+            console.print(
+                f"[green]Outcome[/green] {result.ticker_code} {result.horizon_days}d: "
+                f"raw={result.raw_return:.4f} alpha={result.alpha_return:.4f}"
+            )
+        else:
+            console.print(
+                f"[yellow]{result.status}[/yellow] {result.ticker_code} {result.horizon_days}d: {result.error}"
+            )
+
+
+def _parse_horizon_csv(value: str) -> tuple[int, ...]:
+    try:
+        horizons = tuple(int(item.strip()) for item in value.split(",") if item.strip())
+    except ValueError as exc:
+        raise typer.BadParameter("--horizons must contain comma-separated integers") from exc
+    if not horizons:
+        raise typer.BadParameter("--horizons must include at least one value")
+    if any(horizon <= 0 for horizon in horizons):
+        raise typer.BadParameter("--horizons values must be positive")
+    return horizons
+
+
 if __name__ == "__main__":
     app()

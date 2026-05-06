@@ -21,6 +21,7 @@ from .analysis_api import (
     build_member_analysis_request_payload,
     build_member_analysis_requests_payload,
     build_public_analysis_feed_payload,
+    build_public_analysis_outcomes_payload,
     queue_analysis_refresh_request,
 )
 from .auth import SUPABASE_API_KEY_ENV_NAMES, SUPABASE_URL_ENV_NAMES, resolve_member_user_id
@@ -46,6 +47,12 @@ class AnalysisRefreshRequestBody(BaseModel):
 
 class AnalysisWorkerRequestBody(BaseModel):
     limit: int = Field(default=1, ge=1)
+    dry_run: bool = False
+
+
+class OutcomeWorkerRequestBody(BaseModel):
+    limit: int = Field(default=20, ge=1)
+    horizons: list[int] = Field(default_factory=lambda: [5, 20])
     dry_run: bool = False
 
 
@@ -146,7 +153,7 @@ def create_app(
                 "Cache-Control",
                 f"public, max-age={seconds}, stale-while-revalidate={seconds * 2}",
             )
-        elif request.url.path == "/api/analyses":
+        elif request.url.path in {"/api/analyses", "/api/analysis-outcomes"}:
             seconds = request.app.state.public_cache_seconds
             response.headers.setdefault(
                 "Cache-Control",
@@ -363,6 +370,27 @@ def create_app(
             return build_public_analysis_feed_payload(
                 repo,
                 ticker=ticker,
+                limit=limit,
+                max_limit=request.app.state.max_analysis_feed_limit,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/analysis-outcomes")
+    def public_analysis_outcomes(
+        request: Request,
+        ticker: str | None = None,
+        status: str | None = None,
+        limit: int = 20,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        try:
+            return build_public_analysis_outcomes_payload(
+                repo,
+                ticker=ticker,
+                status=status,
                 limit=limit,
                 max_limit=request.app.state.max_analysis_feed_limit,
             )
@@ -601,6 +629,36 @@ def create_app(
         _require_worker_token(request, x_tradingagents_worker_token)
         return _process_analysis_request_queue(repo, limit=_cron_worker_limit())
 
+    @app.post("/api/admin/analysis-outcomes/process", include_in_schema=False)
+    def process_analysis_outcomes_admin(
+        body: OutcomeWorkerRequestBody,
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        _require_worker_token(request, x_tradingagents_worker_token)
+        max_limit = _max_worker_limit()
+        if body.limit > max_limit:
+            raise HTTPException(status_code=400, detail=f"limit cannot exceed {max_limit}")
+        _validate_outcome_horizons(body.horizons)
+        if body.dry_run:
+            runs = repo.list_public_analysis_runs(limit=body.limit)
+            return {"status": "dry_run", "run_count": len(runs), "horizons": body.horizons, "items": runs}
+        return _process_analysis_outcomes(repo, limit=body.limit, horizons=body.horizons)
+
+    @app.get("/api/cron/process-analysis-outcomes", include_in_schema=False)
+    def process_analysis_outcomes_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _process_analysis_outcomes(repo, limit=_cron_worker_limit(), horizons=[5, 20])
+
     @app.post("/api/watchlists")
     def create_manual_watchlist(
         body: WatchlistCreateBody,
@@ -805,6 +863,24 @@ def _process_analysis_request_queue(repo: StorageRepository, *, limit: int) -> d
         "item_count": len(results),
         "results": [result.__dict__ for result in results],
     }
+
+
+def _process_analysis_outcomes(repo: StorageRepository, *, limit: int, horizons: list[int]) -> dict:
+    from .outcome_worker import evaluate_public_analysis_outcomes
+
+    results = evaluate_public_analysis_outcomes(repo, limit=limit, horizons=horizons)
+    return {
+        "status": "processed",
+        "item_count": len(results),
+        "results": [result.__dict__ for result in results],
+    }
+
+
+def _validate_outcome_horizons(horizons: list[int]) -> None:
+    if not horizons:
+        raise HTTPException(status_code=400, detail="at least one horizon is required")
+    if any(horizon <= 0 for horizon in horizons):
+        raise HTTPException(status_code=400, detail="horizons must be positive")
 
 
 def _load_repo_from_env() -> tuple[StorageRepository | None, str | None]:

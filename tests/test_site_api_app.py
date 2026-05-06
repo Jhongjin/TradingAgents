@@ -10,6 +10,7 @@ from tradingagents.dataflows import pykrx_vendor
 from tradingagents.site.api_app import create_app
 from tradingagents.storage import (
     AgentReportInput,
+    AnalysisOutcomeInput,
     AnalysisRequestInput,
     AnalysisRunInput,
     ManualTradeInput,
@@ -810,6 +811,38 @@ def test_api_app_cron_worker_uses_cron_secret(monkeypatch):
     assert response.json()["results"][0]["status"] == "completed"
 
 
+def test_api_app_admin_outcome_worker_processes_public_runs(monkeypatch):
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 1),
+            visibility="public",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_TOKEN", "secret")
+    monkeypatch.setattr(
+        "tradingagents.site.outcome_worker.fetch_korean_returns",
+        lambda ticker, trade_date, holding_days: (0.04, 0.01, holding_days),
+    )
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.post(
+        "/api/admin/analysis-outcomes/process",
+        headers={"Authorization": "Bearer secret"},
+        json={"limit": 1, "horizons": [5]},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.json()["status"] == "processed"
+    assert response.json()["results"][0]["status"] == "completed"
+    assert repo.list_analysis_outcomes(analysis_run_id=run_id)[0]["alpha_return"] == 0.01
+
+
 def test_api_app_serves_public_analysis_feed():
     repo = _repo()
     run_id = repo.create_analysis_run(
@@ -831,6 +864,42 @@ def test_api_app_serves_public_analysis_feed():
     body = response.json()
     assert body["item_count"] == 1
     assert body["items"][0]["id"] == run_id
+
+
+def test_api_app_serves_public_analysis_outcomes():
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 12),
+            horizon_days=5,
+            raw_return=0.04,
+            benchmark_return=0.01,
+            alpha_return=0.03,
+            status="completed",
+        )
+    )
+
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, public_cache_seconds=60))
+    response = client.get("/api/analysis-outcomes", params={"ticker": "005930", "limit": 1})
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    body = response.json()
+    assert body["item_count"] == 1
+    assert body["summary"]["average_alpha_return"] == 0.03
 
 
 def test_api_app_degrades_public_analysis_feed_on_storage_failure():

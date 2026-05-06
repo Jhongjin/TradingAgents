@@ -21,3 +21,20 @@ def test_cli_worker_requires_database_url(monkeypatch):
 
     assert result.exit_code != 0
     assert "DATABASE_URL is required" in result.output
+
+
+def test_cli_exposes_analysis_outcome_worker_help():
+    result = runner.invoke(app, ["process-analysis-outcomes", "--help"])
+
+    assert result.exit_code == 0
+    assert "Evaluate public analysis outcomes" in result.output
+    assert "--horizons" in result.output
+
+
+def test_cli_outcome_worker_requires_database_url(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    result = runner.invoke(app, ["process-analysis-outcomes", "--dry-run"])
+
+    assert result.exit_code != 0
+    assert "DATABASE_URL is required" in result.output
