@@ -132,7 +132,17 @@ def test_public_analysis_outcomes_payload_summarizes_completed_alpha():
             visibility="public",
         )
     )
+    private_run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 6),
+            visibility="private",
+        )
+    )
     repo.complete_analysis_run(run_id)
+    repo.complete_analysis_run(private_run_id)
     repo.upsert_analysis_outcome(
         AnalysisOutcomeInput(
             analysis_run_id=run_id,
@@ -148,11 +158,27 @@ def test_public_analysis_outcomes_payload_summarizes_completed_alpha():
             status="completed",
         )
     )
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=private_run_id,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 6),
+            evaluated_at=date(2026, 5, 13),
+            horizon_days=5,
+            raw_return=-0.10,
+            benchmark_return=0.01,
+            alpha_return=-0.11,
+            status="completed",
+        )
+    )
 
     payload = build_public_analysis_outcomes_payload(repo, ticker="005930")
 
     assert payload["ticker_code"] == "005930"
     assert payload["item_count"] == 1
+    assert payload["items"][0]["analysis_run_id"] == run_id
     assert payload["summary"]["completed_count"] == 1
     assert payload["summary"]["positive_alpha_count"] == 1
     assert payload["summary"]["average_alpha_return"] == 0.03

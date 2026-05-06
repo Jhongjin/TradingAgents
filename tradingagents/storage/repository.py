@@ -223,6 +223,7 @@ class StorageRepository:
         ticker_code: str | None = None,
         status: str | None = None,
         limit: int = 20,
+        public_only: bool = False,
     ) -> list[dict[str, Any]]:
         if limit <= 0:
             raise ValueError("limit must be positive")
@@ -230,6 +231,10 @@ class StorageRepository:
             desc(analysis_outcomes.c.trade_date),
             analysis_outcomes.c.horizon_days,
         ).limit(limit)
+        if public_only:
+            stmt = stmt.join(analysis_runs, analysis_outcomes.c.analysis_run_id == analysis_runs.c.id).where(
+                analysis_runs.c.visibility == "public"
+            )
         if analysis_run_id:
             _validate_uuid(analysis_run_id, "analysis_run_id")
             stmt = stmt.where(analysis_outcomes.c.analysis_run_id == analysis_run_id)

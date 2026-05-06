@@ -186,7 +186,7 @@ def build_public_analysis_outcomes_payload(
         ticker_code = resolve_kr_ticker(ticker, lookup_pykrx=False).code
 
     try:
-        rows = repo.list_analysis_outcomes(ticker_code=ticker_code, status=status, limit=limit)
+        rows = repo.list_analysis_outcomes(ticker_code=ticker_code, status=status, limit=limit, public_only=True)
     except Exception as exc:
         return _json_ready(
             {
