@@ -66,6 +66,10 @@ def render_public_stock_page(
       <span class="brand-mark">TA</span>
       <span>TradingAgents Korea</span>
     </a>
+    <nav class="top-links" aria-label="서비스 페이지">
+      <a href="/analyses">분석 목록</a>
+      <a href="/member">대시보드</a>
+    </nav>
     <form class="ticker-search" action="/stocks" method="get">
       <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
       <input id="ticker" name="ticker" list="tickerSuggestions" maxlength="80" value="{_h(model["code"])}" placeholder="005930 또는 삼성전자" autocomplete="off">
@@ -399,9 +403,10 @@ def render_member_dashboard_page(*, site_base_url: str | None = None) -> str:
             <input name="password" type="password" autocomplete="current-password" required>
           </label>
           <div class="button-row">
-            <button type="submit" data-auth-action="signin">로그인</button>
-            <button type="submit" data-auth-action="signup">가입</button>
+            <button type="button" data-auth-action="signin">로그인</button>
+            <button type="button" data-auth-action="signup">가입</button>
           </div>
+          <div class="member-empty auth-status" id="authStatus" role="status">이메일과 비밀번호를 입력하세요.</div>
         </form>
       </section>
 
@@ -1633,7 +1638,9 @@ MEMBER_PAGE_JS = """
   const configNode = document.getElementById("member-config");
   const config = JSON.parse(configNode?.textContent || "{}");
   const statusNode = document.getElementById("memberStatus");
+  const authStatusNode = document.getElementById("authStatus");
   const authForm = document.getElementById("authForm");
+  const authButtons = Array.from(document.querySelectorAll("[data-auth-action]"));
   const signOutButton = document.getElementById("signOutButton");
   const refreshButton = document.getElementById("refreshMemberData");
   const portfolioForm = document.getElementById("portfolioForm");
@@ -1649,9 +1656,21 @@ MEMBER_PAGE_JS = """
   const tokenKey = "tradingagents.member.access_token";
 
   function setStatus(message, isError = false) {
-    if (!statusNode) return;
-    statusNode.textContent = message;
-    statusNode.classList.toggle("member-error", isError);
+    if (statusNode) {
+      statusNode.textContent = message;
+      statusNode.classList.toggle("member-error", isError);
+    }
+    if (authStatusNode) {
+      authStatusNode.textContent = message;
+      authStatusNode.classList.toggle("member-error", isError);
+    }
+  }
+
+  function setAuthBusy(isBusy) {
+    authButtons.forEach((button) => {
+      button.disabled = isBusy;
+      button.setAttribute("aria-busy", isBusy ? "true" : "false");
+    });
   }
 
   function accessToken() {
@@ -1676,7 +1695,8 @@ MEMBER_PAGE_JS = """
       headers: {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "apikey": config.supabase_anon_key
+        "apikey": config.supabase_anon_key,
+        "Authorization": `Bearer ${config.supabase_anon_key}`
       },
       body: JSON.stringify(body)
     });
@@ -1804,26 +1824,28 @@ MEMBER_PAGE_JS = """
     return Object.fromEntries(entries.filter(([, value]) => value));
   }
 
-  async function handleAuth(event) {
-    event.preventDefault();
-    const action = event.submitter?.dataset?.authAction || "signin";
+  async function handleAuth(action) {
+    if (!authForm?.reportValidity()) return;
     const form = new FormData(authForm);
     const email = String(form.get("email") || "");
     const password = String(form.get("password") || "");
     try {
+      setAuthBusy(true);
       setStatus(action === "signup" ? "가입 처리 중" : "로그인 중");
       const payload = action === "signup"
         ? await supabaseAuth("/auth/v1/signup", { email, password })
         : await supabaseAuth("/auth/v1/token?grant_type=password", { email, password });
       const token = payload?.access_token || payload?.session?.access_token;
       if (!token) {
-        setStatus("이메일 확인 후 로그인하세요");
+        setStatus("가입 요청 완료. 이메일 확인 후 로그인하세요.");
         return;
       }
       setToken(token);
       await loadMemberData();
     } catch (error) {
       setStatus(error.message, true);
+    } finally {
+      setAuthBusy(false);
     }
   }
 
@@ -1838,7 +1860,14 @@ MEMBER_PAGE_JS = """
     }
   }
 
-  authForm?.addEventListener("submit", handleAuth);
+  authForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleAuth("signin");
+  });
+
+  authButtons.forEach((button) => {
+    button.addEventListener("click", () => handleAuth(button.dataset.authAction || "signin"));
+  });
 
   signOutButton?.addEventListener("click", () => {
     setToken("");

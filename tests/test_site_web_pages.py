@@ -79,6 +79,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert 'type="application/ld+json"' in html
     assert '"@type":"WebPage"' in html
     assert '"additionalType":"KoreanStock"' in html
+    assert 'href="/member"' in html
     assert "005930 또는 삼성전자" in html
     assert '<link rel="canonical" href="https://example.com/stocks/005930">' in html
     assert 'property="og:title"' in html
@@ -124,6 +125,9 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "/api/watchlists" in html
     assert "/api/analysis-requests" in html
     assert "include_latest_prices=true" in html
+    assert 'id="authStatus"' in html
+    assert 'type="button" data-auth-action="signup"' in html
+    assert '"Authorization": `Bearer ${config.supabase_anon_key}`' in html
     assert '"configured":true' in html
     assert "anon-key" in html
     assert "service-role-secret" not in html
