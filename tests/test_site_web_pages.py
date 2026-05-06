@@ -258,12 +258,13 @@ def test_api_app_serves_public_stock_html_page(monkeypatch):
     monkeypatch.setattr("tradingagents.site.api_app.render_public_stock_page", fake_render)
     client = TestClient(create_app(repo=None, load_repo_from_env=False))
 
-    response = client.get("/stocks/005930", params={"chart_start": "2026-01-01"})
+    response = client.get("/stocks/005930", params={"chart_start": "2026-01-01", "chart_vendor": "krx"})
 
     assert response.status_code == 200
     assert response.text.startswith("<!doctype html>")
     assert captured["ticker"] == "005930"
     assert captured["chart_start"] == "2026-01-01"
+    assert captured["chart_vendor"] == "krx"
 
 
 def test_seo_helpers_build_canonical_robots_and_sitemap():

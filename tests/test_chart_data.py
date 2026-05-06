@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from tradingagents.dataflows import chart_data, pykrx_vendor
+from tradingagents.dataflows import chart_data, krx_openapi, pykrx_vendor
 from tradingagents.dataflows.errors import VendorUnavailableError
 
 
@@ -47,9 +47,38 @@ def test_ohlcv_chart_series_rejects_non_korean_ticker():
         chart_data.get_ohlcv_chart_series("AAPL", "2026-01-02", "2026-01-05")
 
 
+def test_ohlcv_chart_series_supports_krx_openapi_vendor(monkeypatch):
+    class FakeKRXClient:
+        def get_stock_daily_trade(self, bas_dd):
+            return {
+                "OutBlock_1": [
+                    {
+                        "BAS_DD": bas_dd,
+                        "ISU_SRT_CD": "005930",
+                        "ISU_NM": "삼성전자",
+                        "TDD_OPNPRC": "70,000",
+                        "TDD_HGPRC": "71,000",
+                        "TDD_LWPRC": "69,000",
+                        "TDD_CLSPRC": "70,500",
+                        "ACC_TRDVOL": "123,456",
+                        "ACC_TRDVAL": "8,700,000,000",
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(krx_openapi, "_get_krx_client", lambda: FakeKRXClient())
+
+    series = chart_data.get_ohlcv_chart_series("005930", "2026-01-02", "2026-01-02", vendor="krx")
+
+    assert series.vendor == "krx"
+    assert series.points[0].close == 70500.0
+    assert series.points[0].volume == 123456
+    assert series.points[0].value == 8_700_000_000.0
+
+
 def test_ohlcv_chart_series_rejects_unknown_vendor():
     with pytest.raises(VendorUnavailableError, match="Unsupported chart data vendor"):
-        chart_data.get_ohlcv_chart_series("005930", "2026-01-02", "2026-01-05", vendor="krx")
+        chart_data.get_ohlcv_chart_series("005930", "2026-01-02", "2026-01-05", vendor="bogus")
 
 
 def test_latest_close_price_uses_last_available_ohlcv_row(monkeypatch):

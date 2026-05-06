@@ -22,6 +22,7 @@ def render_public_stock_page(
     chart_end: str | None = None,
     as_of_date: str | None = None,
     max_analysis_age_days: int = 1,
+    chart_vendor: str | None = None,
     site_base_url: str | None = None,
 ) -> str:
     """Render the first public stock-analysis page.
@@ -37,6 +38,7 @@ def render_public_stock_page(
         chart_end=chart_end,
         as_of_date=as_of_date,
         max_analysis_age_days=max_analysis_age_days,
+        chart_vendor=chart_vendor,
     )
     model = _view_model(payload, site_base_url=site_base_url)
     payload_json = _script_json(payload)

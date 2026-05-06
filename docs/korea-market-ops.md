@@ -34,6 +34,10 @@ Expected state before KRX approval:
 - `kis`: OK when paper credential shape is valid
 - `krx`: SKIP until `KRX_API_KEY` or `KRX_OPENAPI_KEY` is approved
 
+After KRX approval, keep pykrx as the default public chart vendor until quota
+and latency are measured. For explicit KRX Open API chart tests, set
+`TRADINGAGENTS_CHART_DATA_VENDOR=krx` or call `/api/stocks/005930?chart_vendor=krx`.
+
 For local Naver SSL failures, prefer fixing `TRADINGAGENTS_HTTP_CA_BUNDLE`.
 For Vercel/Linux deployment, a custom bundle is usually not needed.
 
@@ -68,6 +72,7 @@ platform dashboard instead of committing secrets:
 - `KIS_ACCOUNT_NO`
 - `KIS_ACCOUNT_PRODUCT_CODE`
 - `KRX_API_KEY` or `KRX_OPENAPI_KEY` once approved
+- `TRADINGAGENTS_CHART_DATA_VENDOR=pykrx` by default; use `krx` only for approved/validated KRX chart data
 
 Do not set `TRADINGAGENTS_HTTP_VERIFY_SSL=false` in production.
 

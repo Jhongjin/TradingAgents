@@ -49,6 +49,7 @@ TRADINGAGENTS_AUTH_TIMEOUT_SECONDS=5
 TRADINGAGENTS_SITE_BASE_URL=https://your-domain.example
 TRADINGAGENTS_SITEMAP_TICKERS=005930,000660,035420,035720,051910,005380,068270,005490
 TRADINGAGENTS_SITEMAP_MAX_ANALYSIS_TICKERS=200
+TRADINGAGENTS_CHART_DATA_VENDOR=pykrx
 TRADINGAGENTS_ADSENSE_PUBLISHER_ID=pub-0000000000000000
 # Or set a full custom ads.txt body with \n between lines:
 TRADINGAGENTS_ADS_TXT=
@@ -130,6 +131,12 @@ The API remains read-only:
 For member portfolio/watchlist detail endpoints, pass
 `include_latest_prices=true` to price Korean tickers with the latest pykrx close
 instead of supplying `current_prices=005930:83000` manually.
+
+Public stock chart data uses `TRADINGAGENTS_CHART_DATA_VENDOR=pykrx` by default.
+Set it to `krx` only after KRX Open API key and service approvals are confirmed,
+or pass `chart_vendor=krx` on `/stocks/{ticker}` and `/api/stocks/{ticker}` for
+an explicit test. Keep `pykrx` for high-traffic public pages until KRX API
+quota, latency, and caching are measured.
 
 No live trading or broker order placement is exposed.
 

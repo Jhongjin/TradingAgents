@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from tradingagents.dataflows import pykrx_vendor
+from tradingagents.dataflows import krx_openapi, pykrx_vendor
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.site import build_public_stock_payload
 from tradingagents.storage import (
@@ -136,6 +136,43 @@ def test_public_stock_payload_handles_missing_optional_sources(monkeypatch):
     assert payload["analysis"]["status"] == "not_configured"
     assert payload["chart"]["status"] == "unavailable"
     assert payload["chart"]["error"] == "chart vendor is offline"
+
+
+def test_public_stock_payload_uses_configured_chart_vendor(monkeypatch):
+    repo = _repo()
+    _seed_public_analysis(repo)
+    monkeypatch.setenv("TRADINGAGENTS_CHART_DATA_VENDOR", "krx")
+
+    class FakeKRXClient:
+        def get_stock_daily_trade(self, bas_dd):
+            return {
+                "OutBlock_1": [
+                    {
+                        "BAS_DD": bas_dd,
+                        "ISU_SRT_CD": "005930",
+                        "ISU_NM": "삼성전자",
+                        "TDD_OPNPRC": 70000,
+                        "TDD_HGPRC": 71000,
+                        "TDD_LWPRC": 69000,
+                        "TDD_CLSPRC": 70500,
+                        "ACC_TRDVOL": 123456,
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(krx_openapi, "_get_krx_client", lambda: FakeKRXClient())
+
+    payload = build_public_stock_payload(
+        "005930",
+        repo=repo,
+        chart_start="2026-05-04",
+        chart_end="2026-05-04",
+        as_of_date="2026-05-05",
+    )
+
+    assert payload["chart"]["status"] == "available"
+    assert payload["chart"]["vendor"] == "krx"
+    assert payload["chart"]["points"][0]["close"] == 70500.0
 
 
 def test_public_stock_payload_recommends_refresh_for_stale_or_missing_analysis():

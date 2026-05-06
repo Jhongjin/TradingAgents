@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+import os
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -30,7 +31,7 @@ def build_public_stock_payload(
     chart_end: str | None = None,
     as_of_date: str | None = None,
     max_analysis_age_days: int = 1,
-    chart_vendor: str = "pykrx",
+    chart_vendor: str | None = None,
     include_chart: bool = True,
     include_analysis: bool = True,
 ) -> dict[str, Any]:
@@ -52,7 +53,8 @@ def build_public_stock_payload(
         raise ValueError("max_analysis_age_days must be non-negative")
     analysis = _analysis_payload(repo, resolved.code) if include_analysis else {"status": "skipped"}
     analysis_refresh = _analysis_refresh_payload(analysis, as_of, max_analysis_age_days)
-    chart = _chart_payload(resolved.code, start, end, chart_vendor) if include_chart else {"status": "skipped"}
+    selected_chart_vendor = chart_vendor or os.getenv("TRADINGAGENTS_CHART_DATA_VENDOR", "pykrx")
+    chart = _chart_payload(resolved.code, start, end, selected_chart_vendor) if include_chart else {"status": "skipped"}
 
     payload = {
         "ticker": {

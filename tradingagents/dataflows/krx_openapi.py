@@ -37,6 +37,17 @@ _FIELD_ALIASES = {
     "Shares": ("LIST_SHRS", "LIST_SHARES", "Shares"),
     "ChangeRate": ("FLUC_RT", "ChangeRate"),
 }
+_NUMERIC_FIELDS = {
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Volume",
+    "Value",
+    "MarketCap",
+    "Shares",
+    "ChangeRate",
+}
 
 
 def get_stock(
@@ -56,6 +67,17 @@ def get_stock(
         f"# Data vendor: KRX Open API\n\n"
     )
     return header + frame.to_csv()
+
+
+def get_ohlcv_frame(
+    symbol: str,
+    start_date: str,
+    end_date: str,
+) -> pd.DataFrame:
+    """Return normalized OHLCV rows for API/chart use."""
+
+    resolved = _require_supported(symbol)
+    return _ohlcv_frame(resolved.code, resolved.market, start_date, end_date)
 
 
 def get_indicator(
@@ -140,6 +162,8 @@ def _normalize_row(row: dict) -> dict:
     for target, aliases in _FIELD_ALIASES.items():
         value = _first_value(row, *aliases)
         if value is not None:
+            if target in _NUMERIC_FIELDS:
+                value = _numeric_value(value)
             normalized[target] = value
     return normalized
 
@@ -149,6 +173,18 @@ def _first_value(row: dict, *aliases: str):
         if alias in row and row[alias] not in {"", None, "-"}:
             return row[alias]
     return None
+
+
+def _numeric_value(value):
+    if isinstance(value, str):
+        cleaned = value.replace(",", "").replace("+", "").strip()
+        if cleaned in {"", "-"}:
+            return None
+        try:
+            return float(cleaned)
+        except ValueError:
+            return value
+    return value
 
 
 def _date_range(start_date: str, end_date: str) -> list[str]:

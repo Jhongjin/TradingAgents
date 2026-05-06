@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import os
 from typing import Any
 
 import pandas as pd
 
 from .errors import VendorUnavailableError
 from .kr_tickers import is_kr_ticker, resolve_kr_ticker
-from . import pykrx_vendor
+from . import krx_openapi, pykrx_vendor
 
 
 @dataclass(frozen=True)
@@ -96,10 +97,16 @@ def get_ohlcv_chart_series(
         raise VendorUnavailableError(f"chart data currently supports Korean 6-digit tickers only: {symbol!r}")
 
     resolved = resolve_kr_ticker(symbol, lookup_pykrx=False)
-    selected_vendor = vendor.strip().lower()
-    if selected_vendor in {"auto", "pykrx"}:
+    selected_vendor = _normalize_vendor(vendor)
+    if selected_vendor == "auto":
+        selected_vendor = _normalize_vendor(os.getenv("TRADINGAGENTS_CHART_DATA_VENDOR", "pykrx"))
+        if selected_vendor == "auto":
+            selected_vendor = "pykrx"
+
+    if selected_vendor == "pykrx":
         frame = pykrx_vendor.get_ohlcv_frame(resolved.code, start_date, end_date)
-        selected_vendor = "pykrx"
+    elif selected_vendor == "krx":
+        frame = krx_openapi.get_ohlcv_frame(resolved.code, start_date, end_date)
     else:
         raise VendorUnavailableError(f"Unsupported chart data vendor: {vendor!r}")
 
@@ -173,6 +180,13 @@ def get_latest_close_prices(
             raise
         prices[price.ticker_code] = price
     return prices
+
+
+def _normalize_vendor(vendor: str | None) -> str:
+    selected = (vendor or "pykrx").strip().lower().replace("_", "-")
+    if selected in {"krx-openapi", "krx-open-api"}:
+        return "krx"
+    return selected
 
 
 def _points_from_frame(frame: pd.DataFrame) -> list[OhlcvPoint]:
