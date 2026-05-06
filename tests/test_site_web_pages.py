@@ -162,10 +162,12 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "/api/analysis-requests" in html
     assert "include_latest_prices=true" in html
     assert 'id="authStatus"' in html
+    assert 'aria-live="polite"' in html
     assert 'type="button" data-auth-action="signup"' in html
     assert "redirect_to: memberRedirectUrl()" in html
     assert "consumeRedirectSession" in html
     assert "window.history.replaceState" in html
+    assert 'throw new Error("Supabase 공개 Auth 설정 대기 중")' in html
     assert '"Authorization": `Bearer ${config.supabase_anon_key}`' in html
     assert '"configured":true' in html
     assert "anon-key" in html

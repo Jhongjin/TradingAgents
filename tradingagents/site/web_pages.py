@@ -418,7 +418,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None) -> str:
             <button type="button" data-auth-action="signin">로그인</button>
             <button type="button" data-auth-action="signup">가입</button>
           </div>
-          <div class="member-empty auth-status" id="authStatus" role="status">이메일과 비밀번호를 입력하세요.</div>
+          <div class="member-empty auth-status" id="authStatus" role="status" aria-live="polite">이메일과 비밀번호를 입력하세요.</div>
         </form>
       </section>
 
@@ -2195,7 +2195,7 @@ MEMBER_PAGE_JS = """
   }
 
   async function supabaseAuth(path, body, params = {}) {
-    if (!requireConfig()) return null;
+    if (!requireConfig()) throw new Error("Supabase 공개 Auth 설정 대기 중");
     const response = await fetch(supabaseAuthUrl(path, params), {
       method: "POST",
       headers: {
