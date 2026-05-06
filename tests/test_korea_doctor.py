@@ -1,3 +1,7 @@
+import pandas as pd
+
+from tradingagents.dataflows import krx_openapi
+from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.ops.korea_doctor import format_results, has_failures, run_korea_market_checks
 
 
@@ -66,6 +70,48 @@ def test_korea_doctor_reports_enabled_analysis_storage(monkeypatch):
 
     assert any(result.name == "analysis storage" and result.status == "PASS" for result in results)
     assert "secret" not in report
+
+
+def test_korea_doctor_skips_krx_online_probe_by_default(monkeypatch):
+    monkeypatch.setenv("KRX_API_KEY", "krx-key")
+
+    results = run_korea_market_checks()
+
+    assert any(result.name == "KRX Open API probe" and result.status == "SKIP" for result in results)
+
+
+def test_korea_doctor_reports_krx_online_probe_failure(monkeypatch):
+    monkeypatch.setenv("KRX_API_KEY", "krx-key")
+    monkeypatch.setenv("TRADINGAGENTS_DOCTOR_CHECK_KRX_ONLINE", "true")
+
+    def fail_probe(*args, **kwargs):
+        raise VendorUnavailableError("Invalid API key (401 Unauthorized)")
+
+    monkeypatch.setattr(krx_openapi, "get_ohlcv_frame", fail_probe)
+
+    results = run_korea_market_checks()
+
+    assert any(
+        result.name == "KRX Open API probe"
+        and result.status == "FAIL"
+        and "Invalid API key" in result.detail
+        for result in results
+    )
+
+
+def test_korea_doctor_reports_krx_online_probe_success(monkeypatch):
+    monkeypatch.setenv("KRX_API_KEY", "krx-key")
+    monkeypatch.setenv("TRADINGAGENTS_DOCTOR_CHECK_KRX_ONLINE", "true")
+    monkeypatch.setenv("TRADINGAGENTS_DOCTOR_KRX_PROBE_DATE", "2026-05-04")
+    monkeypatch.setattr(
+        krx_openapi,
+        "get_ohlcv_frame",
+        lambda *args, **kwargs: pd.DataFrame({"Close": [70500]}, index=[pd.Timestamp("2026-05-04")]),
+    )
+
+    results = run_korea_market_checks()
+
+    assert any(result.name == "KRX Open API probe" and result.status == "PASS" for result in results)
 
 
 def test_korea_doctor_validates_analysis_user_id(monkeypatch):

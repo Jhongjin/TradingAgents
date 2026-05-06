@@ -16,6 +16,7 @@ The doctor prints only non-secret status. It validates:
 - LLM, DART, and Naver credential presence
 - KIS paper credential shape
 - KRX Open API key presence, if already approved
+- Optional KRX Open API service approval with `TRADINGAGENTS_DOCTOR_CHECK_KRX_ONLINE=true`
 - HTTPS verification and optional CA bundle path
 
 ## Local Smoke
@@ -41,6 +42,18 @@ first and fall back to pykrx, or use `TRADINGAGENTS_CHART_DATA_VENDOR=krx` /
 
 For local Naver SSL failures, prefer fixing `TRADINGAGENTS_HTTP_CA_BUNDLE`.
 For Vercel/Linux deployment, a custom bundle is usually not needed.
+
+To diagnose a KRX key that is configured but rejected by the API, run:
+
+```powershell
+$env:TRADINGAGENTS_DOCTOR_CHECK_KRX_ONLINE="true"
+.\.venv\Scripts\python.exe scripts\doctor_korea_market.py
+```
+
+The probe calls Samsung Electronics (`005930`) for the last completed business
+day, or the date in `TRADINGAGENTS_DOCTOR_KRX_PROBE_DATE`. A 401-style failure
+usually means the Vercel/local key value, product type, or KRX service-level API
+approval still needs to be corrected in the KRX dashboard.
 
 ## Korean Execution Assumptions
 

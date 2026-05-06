@@ -139,6 +139,9 @@ back to pykrx if KRX authentication, quota, or availability fails. Set it to
 `/api/stocks/{ticker}`, only for explicit KRX-only diagnostics. Keep `pykrx` or
 `auto` for high-traffic public pages until KRX API quota, latency, and caching
 are measured.
+If readiness shows `krx_configured=true` but `chart_vendor=krx` returns a 401,
+run the local doctor with `TRADINGAGENTS_DOCTOR_CHECK_KRX_ONLINE=true`; the key
+may exist but still lack KRX service-level approval.
 
 No live trading or broker order placement is exposed.
 

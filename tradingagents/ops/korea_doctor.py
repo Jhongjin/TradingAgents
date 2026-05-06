@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 import os
 from pathlib import Path
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
+from tradingagents.dataflows import krx_openapi
 from tradingagents.execution import KISConfig
 
 
@@ -25,6 +28,7 @@ def run_korea_market_checks() -> list[CheckResult]:
         _required_env("DART_API_KEY", "OpenDART key is configured"),
         _paired_env("NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET", "Naver Search credentials are configured"),
         _optional_env("KRX_API_KEY", "KRX Open API key is configured", alias="KRX_OPENAPI_KEY"),
+        _krx_online_check(),
         _database_url_check(),
         _storage_config_check(),
         _analysis_user_id_check(),
@@ -65,6 +69,26 @@ def _paired_env(left: str, right: str, ok_detail: str) -> CheckResult:
         return CheckResult(f"{left}/{right}", "PASS", ok_detail)
     missing = [name for name, present in ((left, left_set), (right, right_set)) if not present]
     return CheckResult(f"{left}/{right}", "FAIL", "Missing " + ", ".join(missing))
+
+
+def _krx_online_check() -> CheckResult:
+    if not _env_bool("TRADINGAGENTS_DOCTOR_CHECK_KRX_ONLINE", False):
+        return CheckResult(
+            "KRX Open API probe",
+            "SKIP",
+            "Set TRADINGAGENTS_DOCTOR_CHECK_KRX_ONLINE=true to validate KRX service approval",
+        )
+    if not krx_openapi.is_configured():
+        return CheckResult("KRX Open API probe", "SKIP", "KRX_API_KEY or KRX_OPENAPI_KEY is not configured")
+
+    probe_date = os.getenv("TRADINGAGENTS_DOCTOR_KRX_PROBE_DATE") or _last_business_day()
+    try:
+        frame = krx_openapi.get_ohlcv_frame("005930", probe_date, probe_date)
+    except Exception as exc:
+        return CheckResult("KRX Open API probe", "FAIL", f"KRX probe failed: {_safe_error(exc)}")
+    if frame.empty:
+        return CheckResult("KRX Open API probe", "WARN", f"KRX probe returned no rows for {probe_date}")
+    return CheckResult("KRX Open API probe", "PASS", f"KRX Open API returned OHLCV for 005930 on {probe_date}")
 
 
 def _ssl_config_check() -> CheckResult:
@@ -167,3 +191,15 @@ def _env_bool(name: str, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _last_business_day() -> str:
+    current = datetime.now(ZoneInfo("Asia/Seoul")).date() - timedelta(days=1)
+    while current.weekday() >= 5:
+        current -= timedelta(days=1)
+    return current.isoformat()
+
+
+def _safe_error(exc: Exception) -> str:
+    message = str(exc).strip() or exc.__class__.__name__
+    return message[:180]
