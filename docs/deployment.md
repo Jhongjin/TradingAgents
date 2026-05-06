@@ -167,6 +167,26 @@ portfolio or watchlist data. By default the API verifies `Authorization: Bearer
 `SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_URL`, plus `SUPABASE_ANON_KEY`,
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`, or `SUPABASE_PUBLISHABLE_KEY`.
 
+Supabase Auth email confirmations must return to the member dashboard. In
+**Supabase Dashboard -> Authentication -> URL Configuration**, set **Site URL**
+to the public site origin and add the member callback URL to **Redirect URLs**:
+
+```text
+https://your-domain.example/member
+```
+
+For Vercel Preview testing, also allow the active preview member URL, for
+example:
+
+```text
+https://trading-agents-git-codex-kr-market-jeonhongjins-projects.vercel.app/member
+```
+
+Keep `http://localhost:3000` only for local development. The `/member` browser
+client sends Supabase signup requests with an explicit `redirect_to` value and
+removes Supabase access-token fragments from the address bar after confirmation,
+but Supabase still has to allow the destination URL.
+
 `X-TradingAgents-User-Id` is accepted only when
 `TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=true`, which should be used only
 behind a trusted auth proxy that sets the header from a verified Supabase user

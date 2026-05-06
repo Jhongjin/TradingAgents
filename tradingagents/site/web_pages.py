@@ -1688,9 +1688,48 @@ MEMBER_PAGE_JS = """
     return false;
   }
 
-  async function supabaseAuth(path, body) {
+  function memberRedirectUrl() {
+    return new URL("/member", window.location.origin).toString();
+  }
+
+  function supabaseAuthUrl(path, params = {}) {
+    const url = new URL(path, config.supabase_url);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) url.searchParams.set(key, value);
+    });
+    return url.toString();
+  }
+
+  function consumeRedirectSession() {
+    if (!window.location.hash) return { shouldLoad: true };
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const isAuthRedirect = params.has("access_token")
+      || params.has("refresh_token")
+      || params.has("error")
+      || params.has("type");
+    if (!isAuthRedirect) return { shouldLoad: true };
+
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    const errorMessage = params.get("error_description") || params.get("error");
+    if (errorMessage) {
+      setStatus(errorMessage, true);
+      return { shouldLoad: false };
+    }
+
+    const token = params.get("access_token");
+    if (!token) {
+      setStatus("이메일 확인 완료. 로그인해 주세요.");
+      return { shouldLoad: false };
+    }
+
+    setToken(token);
+    setStatus("이메일 확인 완료. 로그인되었습니다.");
+    return { shouldLoad: true };
+  }
+
+  async function supabaseAuth(path, body, params = {}) {
     if (!requireConfig()) return null;
-    const response = await fetch(`${config.supabase_url}${path}`, {
+    const response = await fetch(supabaseAuthUrl(path, params), {
       method: "POST",
       headers: {
         "Accept": "application/json",
@@ -1833,7 +1872,7 @@ MEMBER_PAGE_JS = """
       setAuthBusy(true);
       setStatus(action === "signup" ? "가입 처리 중" : "로그인 중");
       const payload = action === "signup"
-        ? await supabaseAuth("/auth/v1/signup", { email, password })
+        ? await supabaseAuth("/auth/v1/signup", { email, password }, { redirect_to: memberRedirectUrl() })
         : await supabaseAuth("/auth/v1/token?grant_type=password", { email, password });
       const token = payload?.access_token || payload?.session?.access_token;
       if (!token) {
@@ -1930,6 +1969,9 @@ MEMBER_PAGE_JS = """
     });
   });
 
-  loadMemberData().catch((error) => setStatus(error.message, true));
+  const redirectSession = consumeRedirectSession();
+  if (redirectSession.shouldLoad) {
+    loadMemberData().catch((error) => setStatus(error.message, true));
+  }
 })();
 """
