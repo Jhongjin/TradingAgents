@@ -5,18 +5,23 @@ member-only manual portfolio features.
 
 ## Supabase Migration
 
-Apply the migration in:
+Apply the migrations in order:
 
 ```text
 supabase/migrations/202605050001_tradingagents_public_site.sql
+supabase/migrations/202605050002_manual_watchlists.sql
+supabase/migrations/202605050003_analysis_refresh_requests.sql
+supabase/migrations/202605050004_analysis_request_run_link.sql
+supabase/migrations/202605060001_analysis_outcomes.sql
 ```
 
-The migration creates:
+The migrations create:
 
 - `analysis_runs`: one AI analysis execution for a ticker/date
 - `analysis_refresh_requests`: queued member requests for a background analysis worker
 - `agent_reports`: market/news/fundamentals/trader/risk report bodies
 - `trade_decisions`: final rating/action from the analysis workflow
+- `analysis_outcomes`: realised return, benchmark return, and alpha after public analysis horizons elapse
 - `manual_portfolios`: member-owned manual portfolios
 - `manual_trades`: member-entered buy/sell history
 - `manual_price_targets`: target/stop prices for member-entered holdings
@@ -84,6 +89,14 @@ provides the first runner-injection skeleton for that background process.
 is the concrete adapter for invoking `TradingAgentsGraph` once a worker is ready
 to process queued rows.
 
+Analysis outcomes are intentionally calculated after completed public runs. The
+`tradingagents.site.outcome_worker.evaluate_public_analysis_outcomes(...)`
+helper reads public completed analyses, evaluates configured horizons such as 5
+and 20 trading days, and upserts `analysis_outcomes` rows. Completed rows store
+raw return, benchmark return, alpha return, and holding-day metadata. Rows stay
+`pending` when a horizon has not elapsed yet, and become `unavailable` when
+market data cannot be fetched.
+
 ## Analysis Persistence Hook
 
 The TradingAgents graph can persist completed runs after the existing JSON log
@@ -109,6 +122,8 @@ to fetch the newest public run with reports and final decision, or
 runs are excluded from these public helpers, and the default listing includes
 only `completed` analyses. Pass `status=None` only for internal admin views that
 need pending or failed rows.
+The public stock bundle includes `analysis_outcomes` so the site can show a
+visible track record next to the latest agent report.
 
 ## Product Boundary
 

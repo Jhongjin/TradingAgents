@@ -359,8 +359,9 @@ The first read-only API adapter is available through FastAPI:
 uvicorn tradingagents.site.api_app:app --reload
 ```
 
-It exposes `/api/stocks/{ticker}` for public Korean stock pages and
+It exposes `/api/stocks/{ticker}` for public Korean stock pages,
 `/api/analyses` for public completed-analysis feeds,
+`/api/analysis-outcomes` for realised-return/benchmark-alpha track records,
 `/api/prices/latest` for latest close-price snapshots, plus
 `/api/analysis-requests`, `/api/portfolio/{portfolio_id}`, and
 `/api/watchlists/{watchlist_id}` for member-entered workflows.
@@ -375,6 +376,9 @@ rewrites, and production environment checklist.
 Queued analysis refreshes can be inspected with
 `tradingagents process-analysis-requests --dry-run` and processed with
 `tradingagents process-analysis-requests --limit 1`.
+Public analysis track records can be backfilled with
+`tradingagents process-analysis-outcomes --dry-run` and processed with
+`tradingagents process-analysis-outcomes --limit 20 --horizons 5,20`.
 
 ## Contributing
 

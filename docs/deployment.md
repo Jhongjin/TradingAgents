@@ -55,6 +55,8 @@ TRADINGAGENTS_ADS_TXT=
 TRADINGAGENTS_WORKER_TOKEN=
 TRADINGAGENTS_WORKER_MAX_REQUESTS=1
 TRADINGAGENTS_WORKER_CRON_LIMIT=1
+TRADINGAGENTS_OUTCOME_WORKER_MAX_RUNS=20
+TRADINGAGENTS_OUTCOME_WORKER_CRON_LIMIT=5
 # Optional Vercel Cron secret. If set, Vercel sends it as Authorization: Bearer <CRON_SECRET>.
 CRON_SECRET=
 TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=false
@@ -104,12 +106,15 @@ The API remains read-only:
 - `GET /api/tickers/search?q=삼성`: Korean ticker code/name search
 - `GET /api/stocks/{ticker}`: public Korean stock payload
 - `GET /api/analyses?ticker=005930`: public completed-analysis feed
+- `GET /api/analysis-outcomes?ticker=005930`: public realised-return and benchmark-alpha outcome feed
 - `GET /api/prices/latest?tickers=005930,000660`: latest close-price snapshots
 - `POST /api/analysis-requests`: queue an authenticated member analysis refresh request
 - `GET /api/analysis-requests`: list authenticated member analysis refresh requests
 - `GET /api/analysis-requests/{request_id}`: inspect one authenticated member analysis refresh request
 - `POST /api/admin/analysis-requests/process`: protected operator endpoint for queued analysis processing
 - `GET /api/cron/process-analysis-requests`: protected Vercel Cron-compatible processing endpoint
+- `POST /api/admin/analysis-outcomes/process`: protected operator endpoint for realised-return outcome processing
+- `GET /api/cron/process-analysis-outcomes`: protected Vercel Cron-compatible outcome processing endpoint
 - `POST /api/portfolios`: create an authenticated member manual portfolio
 - `GET /api/portfolios`: list authenticated member manual portfolios
 - `POST /api/portfolio/{portfolio_id}/trades`: add a user-entered buy/sell record
@@ -160,6 +165,35 @@ Vercel Cron invokes endpoints with GET requests. The repo therefore includes
 `GET /api/cron/process-analysis-requests`, which accepts the same worker token
 or Vercel's `CRON_SECRET` bearer header. Add a `crons` entry in `vercel.json`
 only after you are ready to pay for scheduled LLM runs.
+
+Public analysis outcomes are a separate post-analysis verification pass. They
+look at completed public analysis runs, fetch later Korean-market returns, and
+store raw return, benchmark return, and alpha in `analysis_outcomes`. This is
+market-data work, not a new LLM analysis, so it uses separate limits:
+`TRADINGAGENTS_OUTCOME_WORKER_MAX_RUNS` for manual/API calls and
+`TRADINGAGENTS_OUTCOME_WORKER_CRON_LIMIT` for cron calls. The default horizons
+are 5 and 20 trading days.
+
+For an operator-run outcome worker:
+
+```bash
+tradingagents process-analysis-outcomes --dry-run
+tradingagents process-analysis-outcomes --limit 20 --horizons 5,20
+```
+
+The protected API endpoint accepts the same worker token style:
+
+```bash
+curl -X POST "https://your-domain.example/api/admin/analysis-outcomes/process" \
+  -H "Authorization: Bearer <TRADINGAGENTS_WORKER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"limit":20,"horizons":[5,20]}'
+```
+
+Use `GET /api/analysis-outcomes?ticker=005930` to inspect the public track
+record that feeds the stock page outcome cards. If a horizon has not yet
+elapsed or market data is unavailable, the row is stored as `pending` or
+`unavailable` instead of failing the worker.
 
 Member routes require an authenticated user context before they will return
 portfolio or watchlist data. By default the API verifies `Authorization: Bearer

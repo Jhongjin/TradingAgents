@@ -843,6 +843,63 @@ def test_api_app_admin_outcome_worker_processes_public_runs(monkeypatch):
     assert repo.list_analysis_outcomes(analysis_run_id=run_id)[0]["alpha_return"] == 0.01
 
 
+def test_api_app_outcome_worker_uses_separate_limit_from_analysis_worker(monkeypatch):
+    repo = _repo()
+    for ticker_code, trade_date in (("005930", date(2026, 5, 1)), ("000660", date(2026, 5, 2))):
+        run_id = repo.create_analysis_run(
+            AnalysisRunInput(
+                ticker_code=ticker_code,
+                ticker_name="테스트",
+                market="KOSPI",
+                trade_date=trade_date,
+                visibility="public",
+            )
+        )
+        repo.complete_analysis_run(run_id)
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_TOKEN", "secret")
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_MAX_REQUESTS", "1")
+    monkeypatch.delenv("TRADINGAGENTS_OUTCOME_WORKER_MAX_RUNS", raising=False)
+    monkeypatch.setattr(
+        "tradingagents.site.outcome_worker.fetch_korean_returns",
+        lambda ticker, trade_date, holding_days: (0.02, 0.01, holding_days),
+    )
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.post(
+        "/api/admin/analysis-outcomes/process",
+        headers={"Authorization": "Bearer secret"},
+        json={"limit": 2, "horizons": [5]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["item_count"] == 2
+
+
+def test_api_app_outcome_worker_respects_outcome_specific_limit(monkeypatch):
+    repo = _repo()
+    repo.complete_analysis_run(
+        repo.create_analysis_run(
+            AnalysisRunInput(
+                ticker_code="005930",
+                trade_date=date(2026, 5, 1),
+                visibility="public",
+            )
+        )
+    )
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_TOKEN", "secret")
+    monkeypatch.setenv("TRADINGAGENTS_OUTCOME_WORKER_MAX_RUNS", "1")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.post(
+        "/api/admin/analysis-outcomes/process",
+        headers={"Authorization": "Bearer secret"},
+        json={"limit": 2, "horizons": [5]},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "limit cannot exceed 1"
+
+
 def test_api_app_serves_public_analysis_feed():
     repo = _repo()
     run_id = repo.create_analysis_run(

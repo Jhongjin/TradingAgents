@@ -639,7 +639,7 @@ def create_app(
         if repo is None:
             raise HTTPException(status_code=503, detail="Storage repository is not configured")
         _require_worker_token(request, x_tradingagents_worker_token)
-        max_limit = _max_worker_limit()
+        max_limit = _max_outcome_worker_limit()
         if body.limit > max_limit:
             raise HTTPException(status_code=400, detail=f"limit cannot exceed {max_limit}")
         _validate_outcome_horizons(body.horizons)
@@ -657,7 +657,7 @@ def create_app(
         if repo is None:
             raise HTTPException(status_code=503, detail="Storage repository is not configured")
         _require_worker_token(request, x_tradingagents_worker_token)
-        return _process_analysis_outcomes(repo, limit=_cron_worker_limit(), horizons=[5, 20])
+        return _process_analysis_outcomes(repo, limit=_outcome_cron_worker_limit(), horizons=[5, 20])
 
     @app.post("/api/watchlists")
     def create_manual_watchlist(
@@ -1060,6 +1060,13 @@ def _max_worker_limit() -> int:
     return raw
 
 
+def _max_outcome_worker_limit() -> int:
+    raw = int(os.getenv("TRADINGAGENTS_OUTCOME_WORKER_MAX_RUNS", "20"))
+    if raw <= 0:
+        raise ValueError("TRADINGAGENTS_OUTCOME_WORKER_MAX_RUNS must be positive")
+    return raw
+
+
 def _cron_worker_limit() -> int:
     raw = int(os.getenv("TRADINGAGENTS_WORKER_CRON_LIMIT", str(_max_worker_limit())))
     max_limit = _max_worker_limit()
@@ -1067,6 +1074,16 @@ def _cron_worker_limit() -> int:
         raise ValueError("TRADINGAGENTS_WORKER_CRON_LIMIT must be positive")
     if raw > max_limit:
         raise HTTPException(status_code=400, detail=f"cron limit cannot exceed {max_limit}")
+    return raw
+
+
+def _outcome_cron_worker_limit() -> int:
+    max_limit = _max_outcome_worker_limit()
+    raw = int(os.getenv("TRADINGAGENTS_OUTCOME_WORKER_CRON_LIMIT", str(min(5, max_limit))))
+    if raw <= 0:
+        raise ValueError("TRADINGAGENTS_OUTCOME_WORKER_CRON_LIMIT must be positive")
+    if raw > max_limit:
+        raise HTTPException(status_code=400, detail=f"outcome cron limit cannot exceed {max_limit}")
     return raw
 
 
