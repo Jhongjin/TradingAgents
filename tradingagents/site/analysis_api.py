@@ -148,6 +148,7 @@ def build_public_analysis_feed_payload(
                 "items": [],
                 "item_count": 0,
                 "error": exc.__class__.__name__,
+                "summary": _analysis_feed_summary([]),
             }
         )
     return _json_ready(
@@ -157,8 +158,34 @@ def build_public_analysis_feed_payload(
             "limit": limit,
             "items": rows,
             "item_count": len(rows),
+            "summary": _analysis_feed_summary(rows),
         }
     )
+
+
+def _analysis_feed_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    market_counts: dict[str, int] = {}
+    provider_counts: dict[str, int] = {}
+    ticker_codes = set()
+    latest_trade_date = None
+    for row in rows:
+        ticker = row.get("ticker_code")
+        if ticker:
+            ticker_codes.add(str(ticker))
+        market = str(row.get("market") or "KR")
+        market_counts[market] = market_counts.get(market, 0) + 1
+        provider = str(row.get("model_provider") or "unknown")
+        provider_counts[provider] = provider_counts.get(provider, 0) + 1
+        trade_date = row.get("trade_date")
+        if trade_date is not None and (latest_trade_date is None or str(trade_date) > str(latest_trade_date)):
+            latest_trade_date = trade_date
+    return {
+        "completed_count": len(rows),
+        "unique_ticker_count": len(ticker_codes),
+        "latest_trade_date": latest_trade_date,
+        "market_counts": market_counts,
+        "model_provider_counts": provider_counts,
+    }
 
 
 def _trade_date(value: str | None) -> date:

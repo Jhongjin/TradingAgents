@@ -195,6 +195,9 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "<!doctype html>" in html
     assert "공개 분석 목록" in html
     assert "삼성전자" in html
+    assert "공개 분석 커버리지 요약" in html
+    assert "완료 리포트" in html
+    assert "KOSPI 1" in html
     assert "/stocks/005930" in html
     assert '<link rel="canonical" href="https://example.com/analyses">' in html
 

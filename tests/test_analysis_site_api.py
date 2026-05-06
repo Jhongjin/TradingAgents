@@ -102,6 +102,10 @@ def test_public_analysis_feed_lists_completed_public_runs_only():
 
     assert payload["ticker_code"] == "005930"
     assert [item["id"] for item in payload["items"]] == [public_run_id]
+    assert payload["summary"]["completed_count"] == 1
+    assert payload["summary"]["unique_ticker_count"] == 1
+    assert payload["summary"]["market_counts"] == {"KOSPI": 1}
+    assert payload["summary"]["latest_trade_date"] == "2026-05-05"
     assert private_run_id not in [item["id"] for item in payload["items"]]
     assert pending_run_id not in [item["id"] for item in payload["items"]]
 

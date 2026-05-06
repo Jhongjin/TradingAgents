@@ -175,6 +175,7 @@ def render_public_analysis_feed_page(
 
     payload = _analysis_feed_payload(repo, ticker=ticker, limit=limit, max_limit=max_limit)
     model = _analysis_feed_view_model(payload, site_base_url=site_base_url)
+    summary_html = _analysis_summary_cards(model["summary"])
     cards_html = _analysis_feed_cards(model["items"])
     payload_json = _script_json(payload)
 
@@ -219,6 +220,8 @@ def render_public_analysis_feed_page(
         <span>{_h(model["status"])}</span>
       </div>
     </section>
+
+    {summary_html}
 
     <section class="report-section" aria-labelledby="feed-list-title">
       <div class="panel-heading">
@@ -547,6 +550,13 @@ def _analysis_feed_payload(
             "limit": limit,
             "items": [],
             "item_count": 0,
+            "summary": {
+                "completed_count": 0,
+                "unique_ticker_count": 0,
+                "latest_trade_date": None,
+                "market_counts": {},
+                "model_provider_counts": {},
+            },
         }
     return build_public_analysis_feed_payload(repo, ticker=ticker, limit=limit, max_limit=max_limit)
 
@@ -556,6 +566,7 @@ def _analysis_feed_view_model(payload: dict[str, Any], *, site_base_url: str | N
     items = payload.get("items") or []
     title = "공개 분석 목록 | TradingAgents Korea"
     description = "TradingAgents Korea의 한국 주식 AI 공개 분석 목록입니다."
+    summary = payload.get("summary") or {}
     return {
         "title": title,
         "description": description,
@@ -564,6 +575,7 @@ def _analysis_feed_view_model(payload: dict[str, Any], *, site_base_url: str | N
         "status": _analysis_feed_status_label(payload.get("status")),
         "filter_label": f"{ticker_code} 필터" if ticker_code else "전체 종목",
         "item_count": str(len(items)),
+        "summary": summary,
         "items": items,
     }
 
@@ -604,6 +616,36 @@ def _quick_ticker_cards() -> str:
     return "\n".join(cards)
 
 
+def _analysis_summary_cards(summary: dict[str, Any]) -> str:
+    latest = summary.get("latest_trade_date") or "-"
+    markets = summary.get("market_counts") if isinstance(summary.get("market_counts"), dict) else {}
+    providers = summary.get("model_provider_counts") if isinstance(summary.get("model_provider_counts"), dict) else {}
+    top_market = _top_count_label(markets) or "-"
+    top_provider = _top_count_label(providers) or "-"
+    cards = [
+        ("완료 리포트", summary.get("completed_count", 0), "현재 목록 기준"),
+        ("커버 종목", summary.get("unique_ticker_count", 0), "중복 제외"),
+        ("최신 기준일", latest, "trade date"),
+        ("주요 시장/모델", top_market, top_provider),
+    ]
+    html_cards = []
+    for label, value, note in cards:
+        html_cards.append(
+            f"""
+            <article>
+              <span>{_h(label)}</span>
+              <strong>{_h(value)}</strong>
+              <small>{_h(note)}</small>
+            </article>
+            """
+        )
+    return f"""
+    <section class="analysis-summary-grid" aria-label="공개 분석 커버리지 요약">
+      {"".join(html_cards)}
+    </section>
+    """
+
+
 def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
     if not items:
         return """
@@ -635,6 +677,13 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
             """
         )
     return "\n".join(cards)
+
+
+def _top_count_label(counts: dict[str, Any]) -> str | None:
+    if not counts:
+        return None
+    key, value = sorted(counts.items(), key=lambda item: (-int(item[1]), str(item[0])))[0]
+    return f"{key} {value}"
 
 
 def _analysis_feed_status_label(status: Any) -> str:
@@ -1314,6 +1363,37 @@ h3 {
   border-left-color: #9aa6a1;
 }
 
+.analysis-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.analysis-summary-grid article {
+  min-height: 112px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.analysis-summary-grid span,
+.analysis-summary-grid small {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.analysis-summary-grid strong {
+  display: block;
+  margin: 10px 0 8px;
+  overflow-wrap: anywhere;
+  font-size: 24px;
+  line-height: 1.12;
+}
+
 .analysis-panel {
   padding: 18px;
 }
@@ -1585,6 +1665,7 @@ h3 {
   }
 
   .analysis-feed-grid,
+  .analysis-summary-grid,
   .member-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -1613,6 +1694,7 @@ h3 {
   .lens-grid,
   .report-grid,
   .analysis-feed-grid,
+  .analysis-summary-grid,
   .member-grid,
   .compact-form,
   .trade-form {
