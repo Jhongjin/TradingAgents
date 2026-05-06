@@ -103,6 +103,7 @@ def render_public_stock_page(
         </div>
         <div class="chart-wrap">
           <canvas id="priceChart" aria-label="{_h(model["name"])} 가격 차트"></canvas>
+          <div class="chart-legend" id="chartLegend" aria-hidden="true"></div>
           <p id="chartFallback" class="chart-fallback" hidden>차트 데이터 대기 중</p>
         </div>
       </section>
@@ -1088,6 +1089,32 @@ h3 {
   height: 100%;
 }
 
+.chart-legend {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: min(520px, calc(100% - 24px));
+  pointer-events: none;
+}
+
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(220, 227, 223, 0.9);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .chart-fallback {
   position: absolute;
   inset: 0;
@@ -1513,6 +1540,7 @@ PAGE_JS = """
 
   const node = document.getElementById("stock-payload");
   const canvas = document.getElementById("priceChart");
+  const legend = document.getElementById("chartLegend");
   const fallback = document.getElementById("chartFallback");
   if (!node || !canvas) return;
 
@@ -1525,13 +1553,35 @@ PAGE_JS = """
 
   const ctx = canvas.getContext("2d");
   const money = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 });
+  const compact = new Intl.NumberFormat("ko-KR", { notation: "compact", maximumFractionDigits: 1 });
   const dates = points.map((point) => point.date);
-  const closes = points.map((point) => Number(point.close));
-  const min = Math.min(...closes);
-  const max = Math.max(...closes);
+  const bars = points.map((point) => ({
+    date: point.date,
+    open: Number.isFinite(point.open) ? Number(point.open) : Number(point.close),
+    high: Number.isFinite(point.high) ? Number(point.high) : Number(point.close),
+    low: Number.isFinite(point.low) ? Number(point.low) : Number(point.close),
+    close: Number(point.close),
+    volume: Number.isFinite(point.volume) ? Number(point.volume) : 0
+  }));
+  const closes = bars.map((point) => point.close);
+  const priceValues = bars.flatMap((point) => [point.open, point.high, point.low, point.close]);
+  const min = Math.min(...priceValues);
+  const max = Math.max(...priceValues);
+  const maxVolume = Math.max(...bars.map((point) => point.volume), 1);
   const pad = Math.max((max - min) * 0.12, max * 0.01, 1);
   const yMin = min - pad;
   const yMax = max + pad;
+
+  function movingAverage(values, windowSize) {
+    return values.map((_, index) => {
+      if (index + 1 < windowSize) return null;
+      const slice = values.slice(index + 1 - windowSize, index + 1);
+      return slice.reduce((total, value) => total + value, 0) / windowSize;
+    });
+  }
+
+  const ma5 = movingAverage(closes, 5);
+  const ma20 = movingAverage(closes, 20);
 
   function fitCanvas() {
     const rect = canvas.getBoundingClientRect();
@@ -1543,22 +1593,69 @@ PAGE_JS = """
   }
 
   function xAt(index, width, left, right) {
-    if (points.length === 1) return left;
-    return left + (index / (points.length - 1)) * (width - left - right);
+    if (bars.length === 1) return left;
+    return left + (index / (bars.length - 1)) * (width - left - right);
   }
 
-  function yAt(value, height, top, bottom) {
-    return top + ((yMax - value) / (yMax - yMin)) * (height - top - bottom);
+  function yAt(value, top, bottom) {
+    return top + ((yMax - value) / (yMax - yMin)) * (bottom - top);
+  }
+
+  function drawLine(values, width, left, right, top, bottom, color, dash = []) {
+    ctx.beginPath();
+    let started = false;
+    values.forEach((value, index) => {
+      if (!Number.isFinite(value)) return;
+      const x = xAt(index, width, left, right);
+      const y = yAt(value, top, bottom);
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    if (!started) return;
+    ctx.save();
+    ctx.setLineDash(dash);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawLegend() {
+    if (!legend) return;
+    const latest = bars[bars.length - 1];
+    const chips = [
+      `종가 ${money.format(latest.close)}원`,
+      `거래량 ${compact.format(latest.volume)}`,
+      "상승 빨강",
+      "하락 파랑",
+      ma5[ma5.length - 1] ? `MA5 ${money.format(ma5[ma5.length - 1])}` : "MA5 대기",
+      ma20[ma20.length - 1] ? `MA20 ${money.format(ma20[ma20.length - 1])}` : "MA20 대기"
+    ];
+    legend.replaceChildren(...chips.map((label) => {
+      const node = document.createElement("span");
+      node.textContent = label;
+      return node;
+    }));
   }
 
   function draw() {
     const rect = fitCanvas();
     const width = rect.width;
     const height = rect.height;
-    const left = 58;
-    const right = 18;
-    const top = 24;
+    const left = 62;
+    const right = 24;
+    const top = 34;
     const bottom = 42;
+    const volumeHeight = Math.min(92, Math.max(52, height * 0.22));
+    const priceBottom = height - bottom - volumeHeight - 18;
+    const volumeTop = priceBottom + 12;
+    const volumeBottom = height - bottom;
+    const slot = (width - left - right) / Math.max(bars.length - 1, 1);
+    const candleWidth = Math.max(3, Math.min(12, slot * 0.58));
 
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = "#ffffff";
@@ -1571,7 +1668,7 @@ PAGE_JS = """
     ctx.textBaseline = "middle";
 
     for (let i = 0; i <= 4; i += 1) {
-      const y = top + (i / 4) * (height - top - bottom);
+      const y = top + (i / 4) * (priceBottom - top);
       const value = yMax - (i / 4) * (yMax - yMin);
       ctx.beginPath();
       ctx.moveTo(left, y);
@@ -1580,40 +1677,42 @@ PAGE_JS = """
       ctx.fillText(money.format(value), 0, y);
     }
 
-    const firstX = xAt(0, width, left, right);
-    const lastX = xAt(points.length - 1, width, left, right);
-    const baseY = height - bottom;
-
-    const area = ctx.createLinearGradient(0, top, 0, baseY);
-    area.addColorStop(0, "rgba(20, 107, 99, 0.22)");
-    area.addColorStop(1, "rgba(20, 107, 99, 0.02)");
-
+    ctx.strokeStyle = "#eef2ef";
     ctx.beginPath();
-    closes.forEach((close, index) => {
-      const x = xAt(index, width, left, right);
-      const y = yAt(close, height, top, bottom);
-      if (index === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.lineTo(lastX, baseY);
-    ctx.lineTo(firstX, baseY);
-    ctx.closePath();
-    ctx.fillStyle = area;
-    ctx.fill();
-
-    ctx.beginPath();
-    closes.forEach((close, index) => {
-      const x = xAt(index, width, left, right);
-      const y = yAt(close, height, top, bottom);
-      if (index === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.strokeStyle = "#146b63";
-    ctx.lineWidth = 2.4;
+    ctx.moveTo(left, volumeTop);
+    ctx.lineTo(width - right, volumeTop);
     ctx.stroke();
 
+    bars.forEach((bar, index) => {
+      const x = xAt(index, width, left, right);
+      const isUp = bar.close >= bar.open;
+      const color = isUp ? "#c0392b" : "#1f5f9f";
+      const volumeY = volumeBottom - (bar.volume / maxVolume) * (volumeBottom - volumeTop);
+      ctx.fillStyle = isUp ? "rgba(192, 57, 43, 0.24)" : "rgba(31, 95, 159, 0.22)";
+      ctx.fillRect(x - candleWidth / 2, volumeY, candleWidth, Math.max(1, volumeBottom - volumeY));
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 1.2;
+      const highY = yAt(bar.high, top, priceBottom);
+      const lowY = yAt(bar.low, top, priceBottom);
+      const openY = yAt(bar.open, top, priceBottom);
+      const closeY = yAt(bar.close, top, priceBottom);
+      ctx.beginPath();
+      ctx.moveTo(x, highY);
+      ctx.lineTo(x, lowY);
+      ctx.stroke();
+      const bodyTop = Math.min(openY, closeY);
+      const bodyHeight = Math.max(1.5, Math.abs(closeY - openY));
+      ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+    });
+
+    drawLine(closes, width, left, right, top, priceBottom, "rgba(20, 107, 99, 0.72)");
+    drawLine(ma5, width, left, right, top, priceBottom, "#d39c1d");
+    drawLine(ma20, width, left, right, top, priceBottom, "#5a6acf", [4, 4]);
+
     const lastClose = closes[closes.length - 1];
-    const lastY = yAt(lastClose, height, top, bottom);
+    const lastX = xAt(bars.length - 1, width, left, right);
+    const lastY = yAt(lastClose, top, priceBottom);
     ctx.fillStyle = "#146b63";
     ctx.beginPath();
     ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
@@ -1625,6 +1724,7 @@ PAGE_JS = """
     ctx.textAlign = "right";
     ctx.fillText(dates[dates.length - 1], width - right, height - 12);
     ctx.textAlign = "left";
+    drawLegend();
   }
 
   draw();

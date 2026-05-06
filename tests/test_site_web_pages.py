@@ -74,6 +74,10 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "TradingAgents Korea" in html
     assert "삼성전자" in html
     assert "priceChart" in html
+    assert "chartLegend" in html
+    assert "movingAverage" in html
+    assert "상승 빨강" in html
+    assert "하락 파랑" in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html
     assert 'type="application/ld+json"' in html
