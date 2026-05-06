@@ -156,3 +156,17 @@ def test_public_analysis_outcomes_payload_summarizes_completed_alpha():
     assert payload["summary"]["completed_count"] == 1
     assert payload["summary"]["positive_alpha_count"] == 1
     assert payload["summary"]["average_alpha_return"] == 0.03
+
+
+def test_public_analysis_outcomes_payload_degrades_on_storage_failure():
+    class BrokenRepo:
+        def list_analysis_outcomes(self, *args, **kwargs):
+            raise RuntimeError("secret database detail")
+
+    payload = build_public_analysis_outcomes_payload(BrokenRepo(), ticker="005930")
+
+    assert payload["status"] == "unavailable"
+    assert payload["ticker_code"] == "005930"
+    assert payload["item_count"] == 0
+    assert payload["error"] == "RuntimeError"
+    assert "secret" not in str(payload)

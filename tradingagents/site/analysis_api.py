@@ -185,7 +185,21 @@ def build_public_analysis_outcomes_payload(
             raise ValueError("analysis outcomes currently support Korean 6-digit tickers only")
         ticker_code = resolve_kr_ticker(ticker, lookup_pykrx=False).code
 
-    rows = repo.list_analysis_outcomes(ticker_code=ticker_code, status=status, limit=limit)
+    try:
+        rows = repo.list_analysis_outcomes(ticker_code=ticker_code, status=status, limit=limit)
+    except Exception as exc:
+        return _json_ready(
+            {
+                "status": "unavailable",
+                "ticker_code": ticker_code,
+                "filter_status": status,
+                "limit": limit,
+                "items": [],
+                "item_count": 0,
+                "error": exc.__class__.__name__,
+                "summary": _analysis_outcome_summary([]),
+            }
+        )
     return _json_ready(
         {
             "status": "available",

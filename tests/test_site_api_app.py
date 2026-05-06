@@ -34,6 +34,9 @@ class BrokenPublicAnalysisRepo:
     def list_public_analysis_runs(self, *args, **kwargs):
         raise RuntimeError("secret database detail")
 
+    def list_analysis_outcomes(self, *args, **kwargs):
+        raise RuntimeError("secret database detail")
+
     def latest_public_analysis_bundle(self, *args, **kwargs):
         raise RuntimeError("secret database detail")
 
@@ -963,6 +966,19 @@ def test_api_app_degrades_public_analysis_feed_on_storage_failure():
     client = TestClient(create_app(repo=BrokenPublicAnalysisRepo(), load_repo_from_env=False))
 
     response = client.get("/api/analyses", params={"limit": 1})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "unavailable"
+    assert body["items"] == []
+    assert body["error"] == "RuntimeError"
+    assert "secret database detail" not in response.text
+
+
+def test_api_app_degrades_public_analysis_outcomes_on_storage_failure():
+    client = TestClient(create_app(repo=BrokenPublicAnalysisRepo(), load_repo_from_env=False))
+
+    response = client.get("/api/analysis-outcomes", params={"limit": 1})
 
     assert response.status_code == 200
     body = response.json()
