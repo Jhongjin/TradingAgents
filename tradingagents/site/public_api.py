@@ -93,6 +93,7 @@ def _analysis_payload(repo: StorageRepository | None, ticker_code: str) -> dict[
         "run": bundle["run"],
         "reports": bundle["reports"],
         "decision": bundle["decision"],
+        "outcomes": bundle.get("outcomes", []),
     }
 
 

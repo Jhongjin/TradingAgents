@@ -9,6 +9,7 @@ from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.site import build_public_stock_payload
 from tradingagents.storage import (
     AgentReportInput,
+    AnalysisOutcomeInput,
     AnalysisRunInput,
     StorageRepository,
     TradeDecisionInput,
@@ -58,6 +59,21 @@ def _seed_public_analysis(repo: StorageRepository) -> str:
 def test_public_stock_payload_combines_analysis_and_chart(monkeypatch):
     repo = _repo()
     run_id = _seed_public_analysis(repo)
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 12),
+            horizon_days=5,
+            raw_return=0.04,
+            benchmark_return=0.01,
+            alpha_return=0.03,
+            status="completed",
+        )
+    )
     fake_stock = MagicMock()
     fake_stock.get_market_ohlcv_by_date.return_value = pd.DataFrame(
         {
@@ -91,6 +107,8 @@ def test_public_stock_payload_combines_analysis_and_chart(monkeypatch):
     assert payload["analysis"]["run"]["trade_date"] == "2026-05-05"
     assert payload["analysis"]["reports"][0]["role"] == "market"
     assert payload["analysis"]["decision"]["rating"] == "Hold"
+    assert payload["analysis"]["outcomes"][0]["horizon_days"] == 5
+    assert payload["analysis"]["outcomes"][0]["alpha_return"] == 0.03
     assert payload["analysis_refresh"]["recommended"] is False
     assert payload["analysis_refresh"]["reason"] == "fresh"
     assert payload["chart"]["status"] == "available"
