@@ -55,6 +55,31 @@ class TradeDecisionInput:
 
 
 @dataclass(frozen=True)
+class AnalysisOutcomeInput:
+    analysis_run_id: str
+    ticker_code: str
+    trade_date: date
+    evaluated_at: date
+    horizon_days: int
+    ticker_name: str | None = None
+    market: str = "KR"
+    actual_holding_days: int | None = None
+    entry_close: Decimal | None = None
+    exit_close: Decimal | None = None
+    benchmark_symbol: str | None = None
+    benchmark_entry_close: Decimal | None = None
+    benchmark_exit_close: Decimal | None = None
+    raw_return: float | None = None
+    benchmark_return: float | None = None
+    alpha_return: float | None = None
+    decision_rating: str | None = None
+    decision_action: str | None = None
+    status: str = "pending"
+    error: str | None = None
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class ManualTradeInput:
     portfolio_id: str
     ticker_code: str

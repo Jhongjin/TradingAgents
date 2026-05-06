@@ -9,15 +9,23 @@ from typing import Any
 from uuid import UUID
 from uuid import uuid4
 
-from sqlalchemy import Engine, create_engine, delete, desc, insert, select, text, update
+from sqlalchemy import Engine, and_, create_engine, delete, desc, insert, select, text, update
 from sqlalchemy.pool import StaticPool
 
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
 
-from .models import AgentReportInput, AnalysisRequestInput, AnalysisRunInput, ManualTradeInput, TradeDecisionInput
+from .models import (
+    AgentReportInput,
+    AnalysisOutcomeInput,
+    AnalysisRequestInput,
+    AnalysisRunInput,
+    ManualTradeInput,
+    TradeDecisionInput,
+)
 from .portfolio import ManualPosition, calculate_manual_positions
 from .tables import (
     agent_reports,
+    analysis_outcomes,
     analysis_refresh_requests,
     analysis_runs,
     manual_portfolios,
@@ -159,6 +167,81 @@ class StorageRepository:
             )
         return decision_id
 
+    def upsert_analysis_outcome(self, data: AnalysisOutcomeInput) -> str:
+        _validate_uuid(data.analysis_run_id, "analysis_run_id")
+        _validate_analysis_outcome_status(data.status)
+        if data.horizon_days <= 0:
+            raise ValueError("horizon_days must be positive")
+        if data.actual_holding_days is not None and data.actual_holding_days < 0:
+            raise ValueError("actual_holding_days cannot be negative")
+
+        values = {
+            "analysis_run_id": data.analysis_run_id,
+            "ticker_code": _normalize_ticker_code(data.ticker_code),
+            "ticker_name": data.ticker_name,
+            "market": data.market,
+            "trade_date": data.trade_date,
+            "evaluated_at": data.evaluated_at,
+            "horizon_days": data.horizon_days,
+            "actual_holding_days": data.actual_holding_days,
+            "entry_close": data.entry_close,
+            "exit_close": data.exit_close,
+            "benchmark_symbol": data.benchmark_symbol,
+            "benchmark_entry_close": data.benchmark_entry_close,
+            "benchmark_exit_close": data.benchmark_exit_close,
+            "raw_return": data.raw_return,
+            "benchmark_return": data.benchmark_return,
+            "alpha_return": data.alpha_return,
+            "decision_rating": data.decision_rating,
+            "decision_action": data.decision_action,
+            "status": data.status,
+            "error": data.error,
+            "metadata_json": dict(data.metadata),
+            "updated_at": datetime.now(timezone.utc),
+        }
+        with self.engine.begin() as conn:
+            existing = conn.execute(
+                select(analysis_outcomes.c.id).where(
+                    and_(
+                        analysis_outcomes.c.analysis_run_id == data.analysis_run_id,
+                        analysis_outcomes.c.horizon_days == data.horizon_days,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing:
+                conn.execute(update(analysis_outcomes).where(analysis_outcomes.c.id == existing).values(**values))
+                return str(existing)
+
+            outcome_id = _id()
+            conn.execute(insert(analysis_outcomes).values(id=outcome_id, **values))
+            return outcome_id
+
+    def list_analysis_outcomes(
+        self,
+        *,
+        analysis_run_id: str | None = None,
+        ticker_code: str | None = None,
+        status: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        stmt = select(analysis_outcomes).order_by(
+            desc(analysis_outcomes.c.trade_date),
+            analysis_outcomes.c.horizon_days,
+        ).limit(limit)
+        if analysis_run_id:
+            _validate_uuid(analysis_run_id, "analysis_run_id")
+            stmt = stmt.where(analysis_outcomes.c.analysis_run_id == analysis_run_id)
+        if ticker_code:
+            stmt = stmt.where(analysis_outcomes.c.ticker_code == _normalize_ticker_code(ticker_code))
+        if status:
+            _validate_analysis_outcome_status(status)
+            stmt = stmt.where(analysis_outcomes.c.status == status)
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+
     def get_analysis_bundle(self, analysis_run_id: str) -> dict[str, Any] | None:
         _validate_uuid(analysis_run_id, "analysis_run_id")
         with self.engine.begin() as conn:
@@ -173,10 +256,16 @@ class StorageRepository:
             decision = conn.execute(
                 select(trade_decisions).where(trade_decisions.c.analysis_run_id == analysis_run_id)
             ).mappings().first()
+            outcomes = conn.execute(
+                select(analysis_outcomes)
+                .where(analysis_outcomes.c.analysis_run_id == analysis_run_id)
+                .order_by(analysis_outcomes.c.horizon_days)
+            ).mappings().all()
         return {
             "run": dict(run),
             "reports": [dict(report) for report in reports],
             "decision": dict(decision) if decision else None,
+            "outcomes": [dict(outcome) for outcome in outcomes],
         }
 
     def list_public_analysis_runs(
@@ -577,6 +666,11 @@ def _validate_visibility(value: str) -> None:
 def _validate_analysis_request_status(value: str) -> None:
     if value not in {"queued", "running", "completed", "failed", "skipped"}:
         raise ValueError("analysis request status is invalid")
+
+
+def _validate_analysis_outcome_status(value: str) -> None:
+    if value not in {"pending", "completed", "unavailable"}:
+        raise ValueError("analysis outcome status is invalid")
 
 
 def _validate_manual_trade(data: ManualTradeInput) -> None:

@@ -5,6 +5,7 @@ import pytest
 
 from tradingagents.storage import (
     AgentReportInput,
+    AnalysisOutcomeInput,
     AnalysisRequestInput,
     AnalysisRunInput,
     ManualTradeInput,
@@ -86,6 +87,63 @@ def test_storage_repository_persists_public_analysis_bundle():
     assert bundle["run"]["status"] == "completed"
     assert bundle["reports"][0]["role"] == "market"
     assert bundle["decision"]["rating"] == "Neutral"
+
+
+def test_storage_repository_upserts_analysis_outcomes():
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+
+    outcome_id = repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 12),
+            horizon_days=5,
+            actual_holding_days=5,
+            raw_return=0.04,
+            benchmark_return=0.01,
+            alpha_return=0.03,
+            decision_rating="Hold",
+            decision_action="hold",
+            status="completed",
+        )
+    )
+    same_id = repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 13),
+            horizon_days=5,
+            actual_holding_days=5,
+            raw_return=0.05,
+            benchmark_return=0.02,
+            alpha_return=0.03,
+            status="completed",
+        )
+    )
+
+    outcomes = repo.list_analysis_outcomes(analysis_run_id=run_id)
+    bundle = repo.get_analysis_bundle(run_id)
+
+    assert same_id == outcome_id
+    assert len(outcomes) == 1
+    assert outcomes[0]["raw_return"] == 0.05
+    assert outcomes[0]["alpha_return"] == 0.03
+    assert bundle is not None
+    assert bundle["outcomes"][0]["id"] == outcome_id
 
 
 def test_storage_repository_lists_latest_public_analysis_bundle():

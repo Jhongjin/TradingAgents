@@ -69,6 +69,36 @@ trade_decisions = Table(
     UniqueConstraint("analysis_run_id", name="uq_trade_decisions_run"),
 )
 
+analysis_outcomes = Table(
+    "analysis_outcomes",
+    metadata,
+    Column("id", Uuid(as_uuid=False), primary_key=True),
+    Column("analysis_run_id", Uuid(as_uuid=False), ForeignKey("analysis_runs.id", ondelete="CASCADE"), nullable=False),
+    Column("ticker_code", String(12), nullable=False, index=True),
+    Column("ticker_name", String(120), nullable=True),
+    Column("market", String(32), nullable=False, default="KR"),
+    Column("trade_date", Date, nullable=False, index=True),
+    Column("evaluated_at", Date, nullable=False),
+    Column("horizon_days", Integer, nullable=False),
+    Column("actual_holding_days", Integer, nullable=True),
+    Column("entry_close", Numeric(18, 4), nullable=True),
+    Column("exit_close", Numeric(18, 4), nullable=True),
+    Column("benchmark_symbol", String(32), nullable=True),
+    Column("benchmark_entry_close", Numeric(18, 4), nullable=True),
+    Column("benchmark_exit_close", Numeric(18, 4), nullable=True),
+    Column("raw_return", Float, nullable=True),
+    Column("benchmark_return", Float, nullable=True),
+    Column("alpha_return", Float, nullable=True),
+    Column("decision_rating", String(64), nullable=True),
+    Column("decision_action", String(64), nullable=True),
+    Column("status", String(32), nullable=False, default="pending"),
+    Column("error", Text, nullable=True),
+    Column("metadata_json", JSON, nullable=False, default=dict),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    UniqueConstraint("analysis_run_id", "horizon_days", name="uq_analysis_outcomes_run_horizon"),
+)
+
 analysis_refresh_requests = Table(
     "analysis_refresh_requests",
     metadata,
