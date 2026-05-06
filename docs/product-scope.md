@@ -82,8 +82,9 @@ as product inspiration. Do not clone their UI or copy proprietary content.
 The backend chart data shape starts in `tradingagents.dataflows.chart_data`.
 It returns JSON-friendly OHLCV points from pykrx by default, with a selectable
 vendor boundary so KRX Open API can replace the source without changing the web
-layer. Use `TRADINGAGENTS_CHART_DATA_VENDOR=krx` or `chart_vendor=krx` only
-after KRX service approval, quota, and latency are confirmed.
+layer. Use `TRADINGAGENTS_CHART_DATA_VENDOR=auto` for KRX-first fallback, and
+reserve `TRADINGAGENTS_CHART_DATA_VENDOR=krx` or `chart_vendor=krx` for explicit
+KRX-only diagnostics after service approval, quota, and latency are confirmed.
 The same module exposes latest close-price snapshots so manual portfolio pages
 can value holdings without coupling directly to pykrx. The read-only API exposes
 that snapshot through `/api/prices/latest`.

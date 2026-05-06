@@ -99,15 +99,24 @@ def get_ohlcv_chart_series(
     resolved = resolve_kr_ticker(symbol, lookup_pykrx=False)
     selected_vendor = _normalize_vendor(vendor)
     if selected_vendor == "auto":
-        selected_vendor = _normalize_vendor(os.getenv("TRADINGAGENTS_CHART_DATA_VENDOR", "pykrx"))
-        if selected_vendor == "auto":
-            selected_vendor = "pykrx"
-
-    if selected_vendor == "pykrx":
-        frame = pykrx_vendor.get_ohlcv_frame(resolved.code, start_date, end_date)
-    elif selected_vendor == "krx":
-        frame = krx_openapi.get_ohlcv_frame(resolved.code, start_date, end_date)
+        vendor_candidates = ["krx", "pykrx"] if krx_openapi.is_configured() else ["pykrx"]
     else:
+        vendor_candidates = [selected_vendor]
+
+    last_error: Exception | None = None
+    for candidate in vendor_candidates:
+        try:
+            frame = _ohlcv_frame_for_vendor(candidate, resolved.code, start_date, end_date)
+        except Exception as exc:
+            if selected_vendor == "auto":
+                last_error = exc
+                continue
+            raise
+        selected_vendor = candidate
+        break
+    else:
+        if last_error is not None:
+            raise last_error
         raise VendorUnavailableError(f"Unsupported chart data vendor: {vendor!r}")
 
     return ChartSeries(
@@ -187,6 +196,14 @@ def _normalize_vendor(vendor: str | None) -> str:
     if selected in {"krx-openapi", "krx-open-api"}:
         return "krx"
     return selected
+
+
+def _ohlcv_frame_for_vendor(vendor: str, code: str, start_date: str, end_date: str) -> pd.DataFrame:
+    if vendor == "pykrx":
+        return pykrx_vendor.get_ohlcv_frame(code, start_date, end_date)
+    if vendor == "krx":
+        return krx_openapi.get_ohlcv_frame(code, start_date, end_date)
+    raise VendorUnavailableError(f"Unsupported chart data vendor: {vendor!r}")
 
 
 def _points_from_frame(frame: pd.DataFrame) -> list[OhlcvPoint]:

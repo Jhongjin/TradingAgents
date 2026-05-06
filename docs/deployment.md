@@ -133,10 +133,12 @@ For member portfolio/watchlist detail endpoints, pass
 instead of supplying `current_prices=005930:83000` manually.
 
 Public stock chart data uses `TRADINGAGENTS_CHART_DATA_VENDOR=pykrx` by default.
-Set it to `krx` only after KRX Open API key and service approvals are confirmed,
-or pass `chart_vendor=krx` on `/stocks/{ticker}` and `/api/stocks/{ticker}` for
-an explicit test. Keep `pykrx` for high-traffic public pages until KRX API
-quota, latency, and caching are measured.
+Set it to `auto` to try KRX Open API first when a key is configured and fall
+back to pykrx if KRX authentication, quota, or availability fails. Set it to
+`krx`, or pass `chart_vendor=krx` on `/stocks/{ticker}` and
+`/api/stocks/{ticker}`, only for explicit KRX-only diagnostics. Keep `pykrx` or
+`auto` for high-traffic public pages until KRX API quota, latency, and caching
+are measured.
 
 No live trading or broker order placement is exposed.
 

@@ -212,6 +212,10 @@ def _get_krx_client():
     return KRXOpenAPI(api_key=api_key, timeout=timeout)
 
 
+def is_configured() -> bool:
+    return bool(os.getenv("KRX_API_KEY") or os.getenv("KRX_OPENAPI_KEY"))
+
+
 def _require_ready() -> str:
     api_key = os.getenv("KRX_API_KEY") or os.getenv("KRX_OPENAPI_KEY")
     if not api_key:

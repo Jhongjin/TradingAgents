@@ -76,6 +76,32 @@ def test_ohlcv_chart_series_supports_krx_openapi_vendor(monkeypatch):
     assert series.points[0].value == 8_700_000_000.0
 
 
+def test_ohlcv_chart_series_auto_falls_back_to_pykrx_when_krx_fails(monkeypatch):
+    monkeypatch.setenv("KRX_API_KEY", "configured-but-rejected")
+
+    def failing_krx(*args, **kwargs):
+        raise VendorUnavailableError("KRX Open API request failed")
+
+    fake_stock = MagicMock()
+    fake_stock.get_market_ohlcv_by_date.return_value = pd.DataFrame(
+        {
+            "시가": [70000],
+            "고가": [71000],
+            "저가": [69000],
+            "종가": [70500],
+            "거래량": [123456],
+        },
+        index=[pd.Timestamp("2026-01-02")],
+    )
+    monkeypatch.setattr(krx_openapi, "get_ohlcv_frame", failing_krx)
+    monkeypatch.setattr(pykrx_vendor, "_get_pykrx_stock_module", lambda: fake_stock)
+
+    series = chart_data.get_ohlcv_chart_series("005930", "2026-01-02", "2026-01-02", vendor="auto")
+
+    assert series.vendor == "pykrx"
+    assert series.points[0].close == 70500.0
+
+
 def test_ohlcv_chart_series_rejects_unknown_vendor():
     with pytest.raises(VendorUnavailableError, match="Unsupported chart data vendor"):
         chart_data.get_ohlcv_chart_series("005930", "2026-01-02", "2026-01-05", vendor="bogus")
