@@ -95,6 +95,8 @@ def test_public_stock_payload_combines_analysis_and_chart(monkeypatch):
     assert payload["analysis_refresh"]["reason"] == "fresh"
     assert payload["chart"]["status"] == "available"
     assert payload["chart"]["points"][0]["close"] == 70500.0
+    assert len(payload["strategy_lenses"]) == 6
+    assert payload["strategy_lenses"][0]["id"] == "trend"
     assert "notices" in payload
     assert payload["generated_at"]
 

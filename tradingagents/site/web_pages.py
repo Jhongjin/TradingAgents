@@ -42,6 +42,7 @@ def render_public_stock_page(
     payload_json = _script_json(payload)
     structured_data_json = _script_json(_structured_data(model, payload))
     reports_html = _report_cards(model["reports"])
+    lenses_html = _strategy_lens_cards(payload.get("strategy_lenses") or [])
     notices_html = "".join(f"<li>{_h(notice)}</li>" for notice in payload.get("notices", []))
 
     return f"""<!doctype html>
@@ -135,6 +136,8 @@ def render_public_stock_page(
         </section>
       </aside>
     </section>
+
+    {lenses_html}
 
     <section class="report-section" aria-labelledby="reports-title">
       <div class="panel-heading">
@@ -668,6 +671,47 @@ def _report_cards(reports: list[dict[str, Any]]) -> str:
     return "\n".join(cards)
 
 
+def _strategy_lens_cards(lenses: list[dict[str, Any]]) -> str:
+    if not lenses:
+        return ""
+
+    cards = []
+    for lens in lenses:
+        status = str(lens.get("status") or "neutral")
+        title = str(lens.get("title") or lens.get("id") or "렌즈")
+        summary = str(lens.get("summary") or "데이터를 확인 중입니다.")
+        metrics = lens.get("metrics") if isinstance(lens.get("metrics"), dict) else {}
+        metric_bits = _lens_metric_bits(metrics)
+        metrics_html = f"<p>{_h(metric_bits)}</p>" if metric_bits else ""
+        cards.append(
+            f"""
+            <article class="lens-card lens-{_h(status)}">
+              <div>
+                <span>{_h(_lens_status_label(status))}</span>
+                <h3>{_h(title)}</h3>
+              </div>
+              <p>{_h(summary)}</p>
+              {metrics_html}
+            </article>
+            """
+        )
+
+    return f"""
+    <section class="lens-section" aria-labelledby="lens-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Korean Strategy Lenses</p>
+          <h2 id="lens-title">한국형 투자 렌즈</h2>
+        </div>
+        <span class="status-pill">READ-ONLY</span>
+      </div>
+      <div class="lens-grid">
+        {"".join(cards)}
+      </div>
+    </section>
+    """
+
+
 def _structured_data(model: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     ticker = payload.get("ticker", {})
     return {
@@ -725,6 +769,35 @@ def _chart_status_label(status: Any) -> str:
         "unavailable": "차트 대기",
         "skipped": "차트 제외",
     }.get(str(status), "차트 확인")
+
+
+def _lens_status_label(status: str) -> str:
+    return {
+        "positive": "긍정",
+        "neutral": "중립",
+        "caution": "주의",
+        "unavailable": "대기",
+    }.get(status, "확인")
+
+
+def _lens_metric_bits(metrics: dict[str, Any]) -> str:
+    preferred = [
+        "return_20d",
+        "volume_ratio",
+        "drawdown_from_window_high",
+        "annualized_volatility_20d",
+        "analysis_status",
+        "refresh_reason",
+        "live_trading",
+    ]
+    bits = []
+    for key in preferred:
+        if key not in metrics or metrics[key] is None:
+            continue
+        bits.append(f"{key}: {metrics[key]}")
+        if len(bits) >= 2:
+            break
+    return " / ".join(bits)
 
 
 def _money(value: Any) -> str:
@@ -1169,6 +1242,78 @@ h3 {
   color: var(--ink);
 }
 
+.lens-section {
+  margin-top: 18px;
+}
+
+.lens-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.lens-card {
+  min-height: 164px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.lens-card div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.lens-card span {
+  order: 2;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.lens-card h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.lens-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.lens-card p + p {
+  margin-top: 10px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  word-break: break-word;
+}
+
+.lens-positive {
+  border-left-color: #c0392b;
+}
+
+.lens-caution {
+  border-left-color: #1f5f9f;
+}
+
+.lens-neutral,
+.lens-unavailable {
+  border-left-color: #9aa6a1;
+}
+
 .analysis-panel {
   padding: 18px;
 }
@@ -1434,6 +1579,7 @@ h3 {
     min-width: 0;
   }
 
+  .lens-grid,
   .report-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -1464,6 +1610,7 @@ h3 {
   }
 
   .metric-grid,
+  .lens-grid,
   .report-grid,
   .analysis-feed-grid,
   .member-grid,

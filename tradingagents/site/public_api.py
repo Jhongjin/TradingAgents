@@ -12,6 +12,7 @@ from tradingagents.dataflows.chart_data import get_ohlcv_chart_series
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
 from tradingagents.storage import StorageRepository
+from .strategy_lenses import build_korean_strategy_lenses
 
 
 SEO_DISCLAIMER = (
@@ -50,6 +51,8 @@ def build_public_stock_payload(
     if max_analysis_age_days < 0:
         raise ValueError("max_analysis_age_days must be non-negative")
     analysis = _analysis_payload(repo, resolved.code) if include_analysis else {"status": "skipped"}
+    analysis_refresh = _analysis_refresh_payload(analysis, as_of, max_analysis_age_days)
+    chart = _chart_payload(resolved.code, start, end, chart_vendor) if include_chart else {"status": "skipped"}
 
     payload = {
         "ticker": {
@@ -60,8 +63,14 @@ def build_public_stock_payload(
             "benchmark_symbol": resolved.benchmark_symbol,
         },
         "analysis": analysis,
-        "analysis_refresh": _analysis_refresh_payload(analysis, as_of, max_analysis_age_days),
-        "chart": _chart_payload(resolved.code, start, end, chart_vendor) if include_chart else {"status": "skipped"},
+        "analysis_refresh": analysis_refresh,
+        "chart": chart,
+        "strategy_lenses": build_korean_strategy_lenses(
+            chart=chart,
+            analysis=analysis,
+            analysis_refresh=analysis_refresh,
+            market=resolved.market,
+        ),
         "notices": [SEO_DISCLAIMER, TRADING_BOUNDARY],
         "generated_at": datetime.now(ZoneInfo("Asia/Seoul")).isoformat(),
     }

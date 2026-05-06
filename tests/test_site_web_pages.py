@@ -51,6 +51,24 @@ def _payload():
                 {"date": "2026-05-05", "open": 70600.0, "high": 72000.0, "low": 70200.0, "close": 71800.0, "volume": 2000},
             ],
         },
+        "strategy_lenses": [
+            {
+                "id": "trend",
+                "title": "추세",
+                "status": "positive",
+                "score": 1.8,
+                "summary": "단기 가격이 20일 평균 위에서 움직입니다.",
+                "metrics": {"return_20d": 0.08},
+            },
+            {
+                "id": "safety",
+                "title": "안전 가드레일",
+                "status": "positive",
+                "score": None,
+                "summary": "실거래 주문은 차단되어 있습니다.",
+                "metrics": {"live_trading": "disabled"},
+            },
+        ],
         "notices": [
             "AI analysis is for informational purposes only and is not investment advice.",
             "Live trading and broker order placement are intentionally not supported.",
@@ -78,6 +96,8 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "movingAverage" in html
     assert "상승 빨강" in html
     assert "하락 파랑" in html
+    assert "한국형 투자 렌즈" in html
+    assert "안전 가드레일" in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html
     assert 'type="application/ld+json"' in html
