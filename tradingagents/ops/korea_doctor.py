@@ -13,9 +13,15 @@ import requests
 
 from tradingagents.dataflows.http_trust import apply_system_truststore_if_available
 from tradingagents.dataflows import krx_openapi
+from tradingagents.dataflows.kr_tickers import resolve_kr_ticker
 from tradingagents.execution import KISConfig
 
 _KRX_DAILY_TRADE_DIAGNOSTIC_URL = "https://data-dbg.krx.co.kr/svc/apis/sto/stk_bydd_trd"
+_KRX_DAILY_TRADE_ENDPOINTS = {
+    "KOSPI": "stk_bydd_trd",
+    "KOSDAQ": "ksq_bydd_trd",
+    "KONEX": "knx_bydd_trd",
+}
 
 
 @dataclass(frozen=True)
@@ -114,30 +120,32 @@ def _krx_online_check() -> CheckResult:
     if not krx_openapi.is_configured():
         return CheckResult("KRX Open API probe", "SKIP", "KRX_API_KEY or KRX_OPENAPI_KEY is not configured")
 
+    probe_symbol = _krx_probe_symbol()
     probe_date = os.getenv("TRADINGAGENTS_DOCTOR_KRX_PROBE_DATE") or _last_business_day()
     try:
-        frame = krx_openapi.get_ohlcv_frame("005930", probe_date, probe_date)
+        frame = krx_openapi.get_ohlcv_frame(probe_symbol, probe_date, probe_date)
     except Exception as exc:
         detail = f"KRX probe failed: {_safe_error(exc)}"
-        raw_detail = _krx_raw_unauthorized_detail(probe_date)
+        raw_detail = _krx_raw_unauthorized_detail(probe_symbol, probe_date)
         if raw_detail:
             detail = f"{detail}; {raw_detail}"
         return CheckResult("KRX Open API probe", "FAIL", detail)
     if frame.empty:
-        return CheckResult("KRX Open API probe", "WARN", f"KRX probe returned no rows for {probe_date}")
-    return CheckResult("KRX Open API probe", "PASS", f"KRX Open API returned OHLCV for 005930 on {probe_date}")
+        return CheckResult("KRX Open API probe", "WARN", f"KRX probe returned no rows for {probe_symbol} on {probe_date}")
+    return CheckResult("KRX Open API probe", "PASS", f"KRX Open API returned OHLCV for {probe_symbol} on {probe_date}")
 
 
-def _krx_raw_unauthorized_detail(probe_date: str) -> str | None:
+def _krx_raw_unauthorized_detail(probe_symbol: str, probe_date: str) -> str | None:
     api_key = _clean_env("KRX_API_KEY") or _clean_env("KRX_OPENAPI_KEY")
     if not api_key:
         return None
 
+    endpoint = _krx_daily_trade_endpoint(probe_symbol)
     apply_system_truststore_if_available()
     bas_dd = probe_date.replace("-", "")
     try:
         response = requests.get(
-            _KRX_DAILY_TRADE_DIAGNOSTIC_URL,
+            _krx_diagnostic_url(endpoint),
             params={"basDd": bas_dd},
             headers={"AUTH_KEY": api_key},
             timeout=float(os.getenv("KRX_OPENAPI_TIMEOUT", "30")),
@@ -156,11 +164,39 @@ def _krx_raw_unauthorized_detail(probe_date: str) -> str | None:
     if message == "Unauthorized API Call":
         return (
             "KRX raw response=Unauthorized API Call; verify service-level approval "
-            "for sto/stk_bydd_trd (유가증권 일별매매정보) on this exact API key"
+            f"for sto/{endpoint} ({_krx_endpoint_label(endpoint)}) on this exact API key"
         )
     if message == "Unauthorized Key":
         return "KRX raw response=Unauthorized Key; verify the copied Open API auth key value"
     return f"KRX raw response={_safe_error(Exception(message))}"
+
+
+def _krx_probe_symbol() -> str:
+    return (
+        os.getenv("TRADINGAGENTS_DOCTOR_KRX_PROBE_TICKER")
+        or os.getenv("TRADINGAGENTS_KRX_PROBE_TICKER")
+        or "005930"
+    ).strip()
+
+
+def _krx_daily_trade_endpoint(symbol: str) -> str:
+    try:
+        market = resolve_kr_ticker(symbol, lookup_pykrx=False).market
+    except Exception:
+        market = "KOSPI"
+    return _KRX_DAILY_TRADE_ENDPOINTS.get(market, "stk_bydd_trd")
+
+
+def _krx_diagnostic_url(endpoint: str) -> str:
+    return _KRX_DAILY_TRADE_DIAGNOSTIC_URL.rsplit("/", 1)[0] + f"/{endpoint}"
+
+
+def _krx_endpoint_label(endpoint: str) -> str:
+    return {
+        "stk_bydd_trd": "유가증권 일별매매정보",
+        "ksq_bydd_trd": "코스닥 일별매매정보",
+        "knx_bydd_trd": "코넥스 일별매매정보",
+    }.get(endpoint, endpoint)
 
 
 def _ssl_config_check() -> CheckResult:

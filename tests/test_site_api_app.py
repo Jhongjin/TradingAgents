@@ -192,10 +192,17 @@ def test_api_app_readiness_checks_storage_connection():
 def test_api_app_readiness_can_probe_krx_online(monkeypatch):
     repo = _repo()
     monkeypatch.setenv("KRX_API_KEY", "krx-key")
+    monkeypatch.setenv("TRADINGAGENTS_KRX_PROBE_TICKER", "086520")
     monkeypatch.setenv("TRADINGAGENTS_READINESS_KRX_PROBE_DATE", "2026-05-14")
+    captured = {}
+
+    def fake_frame(symbol, start_date, end_date):
+        captured["symbol"] = symbol
+        return pd.DataFrame({"Close": [270500]})
+
     monkeypatch.setattr(
         "tradingagents.site.api_app.krx_openapi.get_ohlcv_frame",
-        lambda *args, **kwargs: pd.DataFrame({"Close": [270500]}),
+        fake_frame,
     )
     client = TestClient(create_app(repo=repo, load_repo_from_env=False))
 
@@ -206,6 +213,7 @@ def test_api_app_readiness_can_probe_krx_online(monkeypatch):
     assert body["status"] == "ok"
     assert body["checks"]["krx_configured"] is True
     assert body["checks"]["krx_online"] is True
+    assert captured["symbol"] == "086520"
     assert "krx_online" not in body["configuration_errors"]
 
 

@@ -2,6 +2,7 @@ import pandas as pd
 
 from tradingagents.dataflows import krx_openapi
 from tradingagents.dataflows.errors import VendorUnavailableError
+from tradingagents.ops import korea_doctor
 from tradingagents.ops.korea_doctor import format_results, has_failures, run_korea_market_checks
 
 
@@ -124,15 +125,19 @@ def test_korea_doctor_warns_when_krx_key_has_outer_whitespace(monkeypatch):
 def test_korea_doctor_reports_krx_online_probe_failure(monkeypatch):
     monkeypatch.setenv("KRX_API_KEY", "krx-key")
     monkeypatch.setenv("TRADINGAGENTS_DOCTOR_CHECK_KRX_ONLINE", "true")
+    monkeypatch.setenv("TRADINGAGENTS_KRX_PROBE_TICKER", "086520")
 
     def fail_probe(*args, **kwargs):
         raise VendorUnavailableError("Invalid API key (401 Unauthorized)")
 
+    captured = {}
+
+    def raw_detail(symbol, probe_date):
+        captured["symbol"] = symbol
+        return "KRX raw response=Unauthorized API Call"
+
     monkeypatch.setattr(krx_openapi, "get_ohlcv_frame", fail_probe)
-    monkeypatch.setattr(
-        "tradingagents.ops.korea_doctor._krx_raw_unauthorized_detail",
-        lambda probe_date: "KRX raw response=Unauthorized API Call",
-    )
+    monkeypatch.setattr("tradingagents.ops.korea_doctor._krx_raw_unauthorized_detail", raw_detail)
 
     results = run_korea_market_checks()
 
@@ -142,7 +147,15 @@ def test_korea_doctor_reports_krx_online_probe_failure(monkeypatch):
         and "Invalid API key" in result.detail
         for result in results
     )
+    assert captured["symbol"] == "086520"
     assert "Unauthorized API Call" in format_results(results)
+
+
+def test_korea_doctor_maps_kosdaq_probe_to_kosdaq_krx_endpoint(monkeypatch):
+    monkeypatch.setenv("KRX_API_KEY", "krx-key")
+
+    assert korea_doctor._krx_daily_trade_endpoint("086520") == "ksq_bydd_trd"
+    assert korea_doctor._krx_endpoint_label("ksq_bydd_trd") == "코스닥 일별매매정보"
 
 
 def test_korea_doctor_reports_krx_online_probe_success(monkeypatch):

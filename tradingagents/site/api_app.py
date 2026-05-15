@@ -1015,13 +1015,17 @@ def _krx_online_readiness_error() -> str | None:
     if not krx_openapi.is_configured():
         return "KRX_API_KEY or KRX_OPENAPI_KEY is not configured"
 
+    probe_symbol = _krx_readiness_probe_symbol()
     probe_date = os.getenv("TRADINGAGENTS_READINESS_KRX_PROBE_DATE") or _last_korea_business_date()
     try:
-        frame = krx_openapi.get_ohlcv_frame("005930", probe_date, probe_date)
+        frame = krx_openapi.get_ohlcv_frame(probe_symbol, probe_date, probe_date)
     except Exception as exc:
-        return f"KRX Open API probe failed for {probe_date} ({_safe_error_name(exc)}); check key value and service-level approval"
+        return (
+            f"KRX Open API probe failed for {probe_symbol} on {probe_date} ({_safe_error_name(exc)}); "
+            "check key value and service-level approval"
+        )
     if frame.empty:
-        return f"KRX Open API returned no rows for 005930 on {probe_date}"
+        return f"KRX Open API returned no rows for {probe_symbol} on {probe_date}"
     return None
 
 
@@ -1087,6 +1091,14 @@ def _last_korea_business_date() -> str:
     while current.weekday() >= 5:
         current -= timedelta(days=1)
     return current.isoformat()
+
+
+def _krx_readiness_probe_symbol() -> str:
+    return (
+        os.getenv("TRADINGAGENTS_READINESS_KRX_PROBE_TICKER")
+        or os.getenv("TRADINGAGENTS_KRX_PROBE_TICKER")
+        or "005930"
+    ).strip()
 
 
 def _safe_error_name(exc: Exception) -> str:

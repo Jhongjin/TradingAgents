@@ -57,14 +57,20 @@ $env:TRADINGAGENTS_DOCTOR_CHECK_KRX_ONLINE="true"
 Use either `KRX_API_KEY` or `KRX_OPENAPI_KEY`; if both are configured,
 `KRX_API_KEY` takes precedence. The doctor warns when both aliases differ or
 when a copied key contains leading/trailing whitespace.
+Set `TRADINGAGENTS_KRX_PROBE_TICKER=005930` to verify the KOSPI daily trade
+API (`sto/stk_bydd_trd`) or `TRADINGAGENTS_KRX_PROBE_TICKER=086520` to verify
+the KOSDAQ daily trade API (`sto/ksq_bydd_trd`). This is useful when a KRX
+application has approved only one market or data family.
 
-The probe calls Samsung Electronics (`005930`) for the last completed business
-day, or the date in `TRADINGAGENTS_DOCTOR_KRX_PROBE_DATE`. A 401-style failure
-usually means the Vercel/local key value, product type, or KRX service-level API
-approval still needs to be corrected in the KRX dashboard. When the raw KRX
-response is `Unauthorized API Call`, verify that the exact auth key has
-service-level approval for `sto/stk_bydd_trd` (`유가증권 일별매매정보`). When
-it is `Unauthorized Key`, re-copy the Open API auth key itself.
+The probe uses Samsung Electronics (`005930`) by default for the last completed
+business day, or the date in `TRADINGAGENTS_DOCTOR_KRX_PROBE_DATE`. A 401-style
+failure usually means the Vercel/local key value, product type, or KRX
+service-level API approval still needs to be corrected in the KRX dashboard.
+When the raw KRX response is `Unauthorized API Call`, verify that the exact auth
+key has service-level approval for the endpoint printed by the doctor, such as
+`sto/stk_bydd_trd` (`유가증권 일별매매정보`) or `sto/ksq_bydd_trd` (`코스닥
+일별매매정보`). When it is `Unauthorized Key`, re-copy the Open API auth key
+itself.
 
 ## Korean Execution Assumptions
 
