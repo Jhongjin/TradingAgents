@@ -14,6 +14,7 @@ from typing import Annotated
 import pandas as pd
 
 from .errors import VendorUnavailableError
+from .http_trust import apply_system_truststore_if_available
 from .kr_tickers import is_kr_ticker, resolve_kr_ticker
 
 
@@ -204,6 +205,7 @@ def _date_range(start_date: str, end_date: str) -> list[str]:
 
 def _get_krx_client():
     api_key = _require_ready()
+    apply_system_truststore_if_available()
     try:
         from pykrx_openapi import KRXOpenAPI
     except Exception as exc:

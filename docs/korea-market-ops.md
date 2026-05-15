@@ -42,6 +42,10 @@ first and fall back to pykrx, or use `TRADINGAGENTS_CHART_DATA_VENDOR=krx` /
 
 For local Naver SSL failures, prefer fixing `TRADINGAGENTS_HTTP_CA_BUNDLE`.
 For Vercel/Linux deployment, a custom bundle is usually not needed.
+On Windows, the project can also use the OS certificate store through the
+optional `truststore` package. Keep `TRADINGAGENTS_HTTP_USE_SYSTEM_CERTS=true`
+for local diagnostics when PowerShell/browser HTTPS works but Python reports
+`self-signed certificate in certificate chain`.
 
 To diagnose a KRX key that is configured but rejected by the API, run:
 

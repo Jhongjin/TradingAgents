@@ -1,4 +1,6 @@
 from datetime import datetime
+import sys
+import types
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -243,3 +245,20 @@ def test_krx_openapi_adapter_formats_daily_trade_rows(monkeypatch):
     assert "KRX Open API daily trade data for 삼성전자" in result
     assert "Open,High,Low,Close,Volume,Value,MarketCap" in result
     assert "70500" in result
+
+
+def test_krx_openapi_applies_system_truststore_before_client_import(monkeypatch):
+    monkeypatch.setenv("KRX_API_KEY", "krx-key")
+    calls = []
+
+    class FakeKRXOpenAPI:
+        def __init__(self, **kwargs):
+            calls.append(("client", kwargs["api_key"]))
+
+    fake_module = types.SimpleNamespace(KRXOpenAPI=FakeKRXOpenAPI)
+    monkeypatch.setitem(sys.modules, "pykrx_openapi", fake_module)
+    monkeypatch.setattr(krx_openapi, "apply_system_truststore_if_available", lambda: calls.append(("trust", None)))
+
+    krx_openapi._get_krx_client()
+
+    assert calls == [("trust", None), ("client", "krx-key")]
