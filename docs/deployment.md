@@ -142,6 +142,9 @@ are measured.
 If readiness shows `krx_configured=true` but `chart_vendor=krx` returns a 401,
 run the local doctor with `TRADINGAGENTS_DOCTOR_CHECK_KRX_ONLINE=true`; the key
 may exist but still lack KRX service-level approval.
+You can also call `/api/readiness?probe_krx=true` after deploys to run an
+explicit Samsung Electronics (`005930`) KRX Open API probe. The default
+`/api/readiness` response does not call external market-data vendors.
 
 No live trading or broker order placement is exposed.
 

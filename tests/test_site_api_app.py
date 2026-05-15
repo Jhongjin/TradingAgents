@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from tradingagents.dataflows.chart_data import LatestPrice
 from tradingagents.dataflows import pykrx_vendor
+from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.site.api_app import create_app
 from tradingagents.storage import (
     AgentReportInput,
@@ -184,7 +185,50 @@ def test_api_app_readiness_checks_storage_connection():
     assert body["checks"]["storage_configured"] is True
     assert body["checks"]["storage_online"] is True
     assert body["checks"]["storage_schema_ready"] is True
+    assert "krx_online" not in body["checks"]
     assert body["configuration_errors"] == {}
+
+
+def test_api_app_readiness_can_probe_krx_online(monkeypatch):
+    repo = _repo()
+    monkeypatch.setenv("KRX_API_KEY", "krx-key")
+    monkeypatch.setenv("TRADINGAGENTS_READINESS_KRX_PROBE_DATE", "2026-05-14")
+    monkeypatch.setattr(
+        "tradingagents.site.api_app.krx_openapi.get_ohlcv_frame",
+        lambda *args, **kwargs: pd.DataFrame({"Close": [270500]}),
+    )
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.get("/api/readiness", params={"probe_krx": "true"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["checks"]["krx_configured"] is True
+    assert body["checks"]["krx_online"] is True
+    assert "krx_online" not in body["configuration_errors"]
+
+
+def test_api_app_readiness_reports_krx_probe_failure(monkeypatch):
+    repo = _repo()
+    monkeypatch.setenv("KRX_API_KEY", "krx-key")
+    monkeypatch.setenv("TRADINGAGENTS_READINESS_KRX_PROBE_DATE", "2026-05-14")
+
+    def fail_probe(*args, **kwargs):
+        raise VendorUnavailableError("Invalid API key (401 Unauthorized)")
+
+    monkeypatch.setattr("tradingagents.site.api_app.krx_openapi.get_ohlcv_frame", fail_probe)
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.get("/api/readiness", params={"probe_krx": "true"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["checks"]["krx_configured"] is True
+    assert body["checks"]["krx_online"] is False
+    assert "KRX Open API probe failed" in body["configuration_errors"]["krx_online"]
+    assert "krx-key" not in response.text
 
 
 def test_api_app_readiness_checks_storage_schema():

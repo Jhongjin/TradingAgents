@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import os
 import hmac
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Annotated
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from starlette.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.middleware.cors import CORSMiddleware
 
+from tradingagents.dataflows import krx_openapi
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.storage import ManualTradeInput, StorageRepository, create_storage_engine
 
@@ -183,11 +185,13 @@ def create_app(
 
     @app.get("/api/readiness")
     def readiness(request: Request) -> dict[str, object]:
+        probe_krx = _query_bool(request, "probe_krx", default=False)
         storage_connectivity_error = _storage_connectivity_error(request.app.state.repository)
         storage_schema_error = _storage_schema_error(
             request.app.state.repository,
             storage_connectivity_error=storage_connectivity_error,
         )
+        krx_online_error = _krx_online_readiness_error() if probe_krx else None
         checks = {
             "storage_configured": request.app.state.repository is not None,
             "storage_online": request.app.state.repository is not None and storage_connectivity_error is None,
@@ -206,7 +210,11 @@ def create_app(
             "krx_configured": bool(os.getenv("KRX_API_KEY") or os.getenv("KRX_OPENAPI_KEY")),
             "live_trading_disabled": _live_trading_disabled(),
         }
+        if probe_krx:
+            checks["krx_online"] = checks["krx_configured"] and krx_online_error is None
         required = ["storage_configured", "storage_online", "storage_schema_ready", "live_trading_disabled"]
+        if probe_krx:
+            required.append("krx_online")
         status = "ok" if all(checks[name] for name in required) else "degraded"
         return {
             "status": status,
@@ -217,6 +225,7 @@ def create_app(
                 request,
                 storage_connectivity_error=storage_connectivity_error,
                 storage_schema_error=storage_schema_error,
+                krx_online_error=krx_online_error,
             ),
         }
 
@@ -1002,11 +1011,26 @@ def _storage_schema_error(
     return None
 
 
+def _krx_online_readiness_error() -> str | None:
+    if not krx_openapi.is_configured():
+        return "KRX_API_KEY or KRX_OPENAPI_KEY is not configured"
+
+    probe_date = os.getenv("TRADINGAGENTS_READINESS_KRX_PROBE_DATE") or _last_korea_business_date()
+    try:
+        frame = krx_openapi.get_ohlcv_frame("005930", probe_date, probe_date)
+    except Exception as exc:
+        return f"KRX Open API probe failed for {probe_date} ({_safe_error_name(exc)}); check key value and service-level approval"
+    if frame.empty:
+        return f"KRX Open API returned no rows for 005930 on {probe_date}"
+    return None
+
+
 def _readiness_configuration_errors(
     request: Request,
     *,
     storage_connectivity_error: str | None,
     storage_schema_error: str | None,
+    krx_online_error: str | None = None,
 ) -> dict[str, str]:
     errors: dict[str, str] = {}
     storage_error = getattr(request.app.state, "storage_configuration_error", None)
@@ -1025,6 +1049,8 @@ def _readiness_configuration_errors(
             f"Storage schema check failed ({storage_schema_error}); "
             "apply the Supabase migrations in order"
         )
+    if krx_online_error:
+        errors["krx_online"] = krx_online_error
     if not _live_trading_disabled():
         errors["live_trading_disabled"] = "Set TRADINGAGENTS_ENABLE_LIVE_TRADING=false before public deployment"
     return errors
@@ -1047,6 +1073,27 @@ def _short_sha(value: str | None) -> str | None:
     if not value:
         return None
     return value[:12]
+
+
+def _query_bool(request: Request, name: str, *, default: bool = False) -> bool:
+    value = request.query_params.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _last_korea_business_date() -> str:
+    current = datetime.now(ZoneInfo("Asia/Seoul")).date() - timedelta(days=1)
+    while current.weekday() >= 5:
+        current -= timedelta(days=1)
+    return current.isoformat()
+
+
+def _safe_error_name(exc: Exception) -> str:
+    message = str(exc).strip()
+    if not message:
+        return exc.__class__.__name__
+    return message[:160]
 
 
 def _trust_member_user_header(value: bool | None) -> bool:
