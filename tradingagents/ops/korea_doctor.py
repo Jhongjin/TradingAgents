@@ -9,8 +9,13 @@ from pathlib import Path
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+import requests
+
+from tradingagents.dataflows.http_trust import apply_system_truststore_if_available
 from tradingagents.dataflows import krx_openapi
 from tradingagents.execution import KISConfig
+
+_KRX_DAILY_TRADE_DIAGNOSTIC_URL = "https://data-dbg.krx.co.kr/svc/apis/sto/stk_bydd_trd"
 
 
 @dataclass(frozen=True)
@@ -27,7 +32,7 @@ def run_korea_market_checks() -> list[CheckResult]:
         _required_env("OPENAI_API_KEY", "LLM key is configured"),
         _required_env("DART_API_KEY", "OpenDART key is configured"),
         _paired_env("NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET", "Naver Search credentials are configured"),
-        _optional_env("KRX_API_KEY", "KRX Open API key is configured", alias="KRX_OPENAPI_KEY"),
+        _krx_key_check(),
         _krx_online_check(),
         _database_url_check(),
         _storage_config_check(),
@@ -71,6 +76,34 @@ def _paired_env(left: str, right: str, ok_detail: str) -> CheckResult:
     return CheckResult(f"{left}/{right}", "FAIL", "Missing " + ", ".join(missing))
 
 
+def _krx_key_check() -> CheckResult:
+    primary_raw = os.getenv("KRX_API_KEY")
+    alias_raw = os.getenv("KRX_OPENAPI_KEY")
+    primary = _clean_env("KRX_API_KEY")
+    alias = _clean_env("KRX_OPENAPI_KEY")
+    if not primary and not alias:
+        return CheckResult("KRX_API_KEY", "SKIP", "KRX_API_KEY or KRX_OPENAPI_KEY is not configured yet")
+
+    if _has_outer_whitespace(primary_raw) or _has_outer_whitespace(alias_raw):
+        return CheckResult(
+            "KRX_API_KEY",
+            "WARN",
+            "KRX key has leading or trailing whitespace; remove it before online diagnostics",
+        )
+
+    if primary and alias and primary != alias:
+        return CheckResult(
+            "KRX_API_KEY",
+            "WARN",
+            "Both KRX_API_KEY and KRX_OPENAPI_KEY are set with different values; KRX_API_KEY will be used",
+        )
+    if primary and alias:
+        return CheckResult("KRX_API_KEY", "PASS", "KRX Open API key is configured; both aliases match")
+    if primary:
+        return CheckResult("KRX_API_KEY", "PASS", "KRX Open API key is configured via KRX_API_KEY")
+    return CheckResult("KRX_API_KEY", "PASS", "KRX Open API key is configured via KRX_OPENAPI_KEY")
+
+
 def _krx_online_check() -> CheckResult:
     if not _env_bool("TRADINGAGENTS_DOCTOR_CHECK_KRX_ONLINE", False):
         return CheckResult(
@@ -85,10 +118,49 @@ def _krx_online_check() -> CheckResult:
     try:
         frame = krx_openapi.get_ohlcv_frame("005930", probe_date, probe_date)
     except Exception as exc:
-        return CheckResult("KRX Open API probe", "FAIL", f"KRX probe failed: {_safe_error(exc)}")
+        detail = f"KRX probe failed: {_safe_error(exc)}"
+        raw_detail = _krx_raw_unauthorized_detail(probe_date)
+        if raw_detail:
+            detail = f"{detail}; {raw_detail}"
+        return CheckResult("KRX Open API probe", "FAIL", detail)
     if frame.empty:
         return CheckResult("KRX Open API probe", "WARN", f"KRX probe returned no rows for {probe_date}")
     return CheckResult("KRX Open API probe", "PASS", f"KRX Open API returned OHLCV for 005930 on {probe_date}")
+
+
+def _krx_raw_unauthorized_detail(probe_date: str) -> str | None:
+    api_key = _clean_env("KRX_API_KEY") or _clean_env("KRX_OPENAPI_KEY")
+    if not api_key:
+        return None
+
+    apply_system_truststore_if_available()
+    bas_dd = probe_date.replace("-", "")
+    try:
+        response = requests.get(
+            _KRX_DAILY_TRADE_DIAGNOSTIC_URL,
+            params={"basDd": bas_dd},
+            headers={"AUTH_KEY": api_key},
+            timeout=float(os.getenv("KRX_OPENAPI_TIMEOUT", "30")),
+        )
+    except requests.RequestException:
+        return None
+
+    if response.status_code != 401:
+        return None
+    try:
+        payload = response.json()
+    except ValueError:
+        return "KRX raw 401 response could not be parsed as JSON"
+
+    message = str(payload.get("respMsg") or "Unauthorized").strip()
+    if message == "Unauthorized API Call":
+        return (
+            "KRX raw response=Unauthorized API Call; verify service-level approval "
+            "for sto/stk_bydd_trd (유가증권 일별매매정보) on this exact API key"
+        )
+    if message == "Unauthorized Key":
+        return "KRX raw response=Unauthorized Key; verify the copied Open API auth key value"
+    return f"KRX raw response={_safe_error(Exception(message))}"
 
 
 def _ssl_config_check() -> CheckResult:
@@ -182,8 +254,16 @@ def _kis_config_check() -> CheckResult:
 
 
 def _env_set(name: str) -> bool:
+    return bool(_clean_env(name))
+
+
+def _clean_env(name: str) -> str:
     value = os.getenv(name)
-    return value is not None and bool(value.strip())
+    return "" if value is None else value.strip()
+
+
+def _has_outer_whitespace(value: str | None) -> bool:
+    return value is not None and value != value.strip()
 
 
 def _env_bool(name: str, default: bool) -> bool:

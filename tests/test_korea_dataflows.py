@@ -207,6 +207,7 @@ def test_dart_statement_adapter_uses_latest_quarterly_report_code(monkeypatch):
 
 def test_krx_openapi_scaffold_is_fallback_friendly(monkeypatch):
     monkeypatch.delenv("KRX_API_KEY", raising=False)
+    monkeypatch.delenv("KRX_OPENAPI_KEY", raising=False)
 
     try:
         krx_openapi.get_stock("005930", "2026-01-02", "2026-01-02")

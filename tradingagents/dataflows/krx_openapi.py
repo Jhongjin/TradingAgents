@@ -215,14 +215,18 @@ def _get_krx_client():
 
 
 def is_configured() -> bool:
-    return bool(os.getenv("KRX_API_KEY") or os.getenv("KRX_OPENAPI_KEY"))
+    return bool(_configured_key())
 
 
 def _require_ready() -> str:
-    api_key = os.getenv("KRX_API_KEY") or os.getenv("KRX_OPENAPI_KEY")
+    api_key = _configured_key()
     if not api_key:
-        raise VendorUnavailableError("KRX_API_KEY is not configured")
+        raise VendorUnavailableError("KRX_API_KEY or KRX_OPENAPI_KEY is not configured")
     return api_key
+
+
+def _configured_key() -> str:
+    return (os.getenv("KRX_API_KEY") or os.getenv("KRX_OPENAPI_KEY") or "").strip()
 
 
 def _require_supported(symbol: str):

@@ -80,6 +80,47 @@ def test_korea_doctor_skips_krx_online_probe_by_default(monkeypatch):
     assert any(result.name == "KRX Open API probe" and result.status == "SKIP" for result in results)
 
 
+def test_korea_doctor_reports_matching_krx_key_aliases(monkeypatch):
+    monkeypatch.setenv("KRX_API_KEY", "krx-key")
+    monkeypatch.setenv("KRX_OPENAPI_KEY", "krx-key")
+
+    results = run_korea_market_checks()
+
+    assert any(
+        result.name == "KRX_API_KEY"
+        and result.status == "PASS"
+        and "both aliases match" in result.detail
+        for result in results
+    )
+
+
+def test_korea_doctor_warns_when_krx_key_aliases_differ(monkeypatch):
+    monkeypatch.setenv("KRX_API_KEY", "primary-key")
+    monkeypatch.setenv("KRX_OPENAPI_KEY", "alias-key")
+
+    results = run_korea_market_checks()
+
+    assert any(
+        result.name == "KRX_API_KEY"
+        and result.status == "WARN"
+        and "different values" in result.detail
+        for result in results
+    )
+
+
+def test_korea_doctor_warns_when_krx_key_has_outer_whitespace(monkeypatch):
+    monkeypatch.setenv("KRX_API_KEY", " krx-key ")
+
+    results = run_korea_market_checks()
+
+    assert any(
+        result.name == "KRX_API_KEY"
+        and result.status == "WARN"
+        and "whitespace" in result.detail
+        for result in results
+    )
+
+
 def test_korea_doctor_reports_krx_online_probe_failure(monkeypatch):
     monkeypatch.setenv("KRX_API_KEY", "krx-key")
     monkeypatch.setenv("TRADINGAGENTS_DOCTOR_CHECK_KRX_ONLINE", "true")
@@ -88,6 +129,10 @@ def test_korea_doctor_reports_krx_online_probe_failure(monkeypatch):
         raise VendorUnavailableError("Invalid API key (401 Unauthorized)")
 
     monkeypatch.setattr(krx_openapi, "get_ohlcv_frame", fail_probe)
+    monkeypatch.setattr(
+        "tradingagents.ops.korea_doctor._krx_raw_unauthorized_detail",
+        lambda probe_date: "KRX raw response=Unauthorized API Call",
+    )
 
     results = run_korea_market_checks()
 
@@ -97,6 +142,7 @@ def test_korea_doctor_reports_krx_online_probe_failure(monkeypatch):
         and "Invalid API key" in result.detail
         for result in results
     )
+    assert "Unauthorized API Call" in format_results(results)
 
 
 def test_korea_doctor_reports_krx_online_probe_success(monkeypatch):
