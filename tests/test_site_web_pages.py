@@ -166,6 +166,14 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "/api/watchlists" in html
     assert "/api/analysis-requests" in html
     assert "/api/member/dashboard?include_latest_prices=true" in html
+    assert 'id="targetForm"' in html
+    assert "/targets/${encodeURIComponent(tickerCode)}" in html
+    assert 'name="target_price"' in html
+    assert 'name="stop_price"' in html
+    assert 'name="fee"' in html
+    assert 'name="tax"' in html
+    assert "tradeLines" in html
+    assert "target_memo" in html
     assert "include_latest_prices=true" in html
     assert 'id="authStatus"' in html
     assert 'aria-live="polite"' in html

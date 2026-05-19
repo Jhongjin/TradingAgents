@@ -406,6 +406,39 @@ def test_api_app_creates_manual_portfolio_and_trade():
     assert trade_response.json()["portfolio"]["positions"][0]["quantity"] == 10
 
 
+def test_api_app_rejects_manual_sell_before_persisting_trade():
+    repo = _repo()
+    portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")
+    repo.add_manual_trade(
+        ManualTradeInput(
+            portfolio_id=portfolio_id,
+            ticker_code="005930",
+            side="buy",
+            trade_date=date(2026, 1, 2),
+            price=Decimal("70000"),
+            quantity=3,
+        )
+    )
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    response = client.post(
+        f"/api/portfolio/{portfolio_id}/trades",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+        json={
+            "ticker_code": "005930",
+            "side": "sell",
+            "trade_date": "2026-01-03",
+            "price": "72000",
+            "quantity": 4,
+        },
+    )
+
+    assert response.status_code == 400
+    assert "sell quantity exceeds current 005930 position (3)" in response.json()["detail"]
+    assert len(repo.manual_trades_for_portfolio(portfolio_id)) == 1
+    assert repo.manual_positions(portfolio_id)["005930"].quantity == 3
+
+
 def test_api_app_lists_member_manual_portfolios():
     repo = _repo()
     portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")

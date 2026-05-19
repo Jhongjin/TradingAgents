@@ -456,7 +456,17 @@ def render_member_dashboard_page(*, site_base_url: str | None = None) -> str:
           <input name="trade_date" type="date" required>
           <input name="price" type="number" min="1" step="1" placeholder="단가" required>
           <input name="quantity" type="number" min="1" step="1" placeholder="수량" required>
+          <input name="fee" type="number" min="0" step="1" placeholder="수수료">
+          <input name="tax" type="number" min="0" step="1" placeholder="세금">
           <button type="submit">기록</button>
+        </form>
+        <form class="member-form target-form" id="targetForm">
+          <select name="portfolio_id" required></select>
+          <input name="ticker_code" maxlength="12" placeholder="005930" required>
+          <input name="target_price" type="number" min="1" step="1" placeholder="목표가">
+          <input name="stop_price" type="number" min="1" step="1" placeholder="손절가">
+          <input name="memo" maxlength="500" placeholder="목표 메모">
+          <button type="submit">저장</button>
         </form>
         <div class="member-list" id="portfolioList"></div>
       </section>
@@ -1965,6 +1975,19 @@ h3 {
   width: 100%;
 }
 
+.target-form {
+  grid-template-columns: minmax(120px, 1.2fr) minmax(88px, 0.8fr) minmax(96px, 0.8fr) minmax(96px, 0.8fr);
+  align-items: end;
+}
+
+.target-form input[name="memo"] {
+  grid-column: span 3;
+}
+
+.target-form button {
+  width: 100%;
+}
+
 .button-row {
   display: flex;
   gap: 8px;
@@ -2025,6 +2048,12 @@ h3 {
   font-size: 12px;
   line-height: 1.45;
   list-style: none;
+  overflow-wrap: anywhere;
+}
+
+.member-sublist-label {
+  color: var(--ink);
+  font-weight: 800;
 }
 
 .member-empty {
@@ -2080,8 +2109,13 @@ h3 {
     grid-template-columns: 1fr 1fr;
   }
 
-  .trade-form {
+  .trade-form,
+  .target-form {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .target-form input[name="memo"] {
+    grid-column: auto;
   }
 }
 
@@ -2123,7 +2157,8 @@ h3 {
   .analysis-summary-grid,
   .member-grid,
   .compact-form,
-  .trade-form {
+  .trade-form,
+  .target-form {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -2471,6 +2506,7 @@ MEMBER_PAGE_JS = """
   const refreshButton = document.getElementById("refreshMemberData");
   const portfolioForm = document.getElementById("portfolioForm");
   const tradeForm = document.getElementById("tradeForm");
+  const targetForm = document.getElementById("targetForm");
   const watchlistForm = document.getElementById("watchlistForm");
   const watchlistItemForm = document.getElementById("watchlistItemForm");
   const analysisRequestForm = document.getElementById("analysisRequestForm");
@@ -2478,6 +2514,7 @@ MEMBER_PAGE_JS = """
   const watchlistList = document.getElementById("watchlistList");
   const analysisRequestList = document.getElementById("analysisRequestList");
   const portfolioSelect = tradeForm?.elements?.portfolio_id;
+  const targetPortfolioSelect = targetForm?.elements?.portfolio_id;
   const watchlistSelect = watchlistItemForm?.elements?.watchlist_id;
   const accessTokenKey = "tradingagents.member.access_token";
   const refreshTokenKey = "tradingagents.member.refresh_token";
@@ -2701,9 +2738,20 @@ MEMBER_PAGE_JS = """
     return `${sign}${money(number)}`;
   }
 
-  function miniList(lines, emptyMessage) {
+  function optionalDecimal(value) {
+    const text = String(value || "").trim();
+    return text || null;
+  }
+
+  function miniList(lines, emptyMessage, label = "") {
     const list = document.createElement("ul");
     list.className = "member-sublist";
+    if (label) {
+      const heading = document.createElement("li");
+      heading.className = "member-sublist-label";
+      heading.textContent = label;
+      list.append(heading);
+    }
     const rendered = lines.length ? lines : [emptyMessage];
     rendered.forEach((line) => {
       const item = document.createElement("li");
@@ -2713,11 +2761,33 @@ MEMBER_PAGE_JS = """
     return list;
   }
 
+  function riskText(position) {
+    const parts = [];
+    if (position.target_price !== null && position.target_price !== undefined) {
+      parts.push(`목표 ${money(position.target_price)}${position.target_hit ? " 도달" : ""}`);
+    }
+    if (position.stop_price !== null && position.stop_price !== undefined) {
+      parts.push(`손절 ${money(position.stop_price)}${position.stop_hit ? " 도달" : ""}`);
+    }
+    if (position.target_memo) parts.push(position.target_memo);
+    return parts.length ? parts.join(" / ") : "목표·손절 미설정";
+  }
+
   function portfolioLines(detail) {
     return (detail?.positions || []).slice(0, 4).map((position) => {
       const quantity = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 4 }).format(Number(position.quantity || 0));
       const pnl = signedMoney(position.total_pnl ?? position.unrealized_pnl ?? position.realized_pnl);
-      return `${position.ticker_name || position.ticker_code} ${quantity}주 / 평단 ${money(position.average_cost)} / 손익 ${pnl}`;
+      return `${position.ticker_name || position.ticker_code} ${quantity}주 / 평단 ${money(position.average_cost)} / 손익 ${pnl} / ${riskText(position)}`;
+    });
+  }
+
+  function tradeLines(detail) {
+    return (detail?.trades || []).slice(0, 5).map((trade) => {
+      const side = trade.side === "sell" ? "매도" : "매수";
+      const quantity = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 4 }).format(Number(trade.quantity || 0));
+      const costs = Number(trade.fee || 0) + Number(trade.tax || 0);
+      const costText = costs > 0 ? ` / 비용 ${money(costs)}` : "";
+      return `${trade.trade_date} ${side} ${trade.ticker_name || trade.ticker_code} ${quantity}주 @ ${money(trade.price)}${costText}`;
     });
   }
 
@@ -2739,22 +2809,30 @@ MEMBER_PAGE_JS = """
     }));
   }
 
+  function fillPortfolioSelects(rows) {
+    fillSelect(portfolioSelect, rows, "name");
+    fillSelect(targetPortfolioSelect, rows, "name");
+  }
+
   function renderPortfolios(payload, details = {}, error = "") {
     if (error) {
-      fillSelect(portfolioSelect, [], "name");
+      fillPortfolioSelects([]);
       portfolioList.replaceChildren(emptyNode(`포트폴리오를 불러오지 못했습니다: ${error}`));
       return;
     }
     const rows = payload.items || [];
-    fillSelect(portfolioSelect, rows, "name");
+    fillPortfolioSelects(rows);
     portfolioList.replaceChildren(
       ...(rows.length ? rows.map((row) => {
         const detail = details[row.id];
         const totals = detail?.totals || {};
         const meta = detail
-          ? `${row.base_currency || "KRW"} / 평가 ${money(totals.market_value)} / 손익 ${money(totals.total_pnl)}`
+          ? `${row.base_currency || "KRW"} / 평가 ${money(totals.market_value)} / 손익 ${signedMoney(totals.total_pnl)} / 거래 ${detail.trade_count || 0}건`
           : `${row.base_currency || "KRW"} / ${row.id}`;
-        return itemCard(row.name, meta, [miniList(portfolioLines(detail), "아직 보유 종목이 없습니다")]);
+        return itemCard(row.name, meta, [
+          miniList(portfolioLines(detail), "아직 보유 종목이 없습니다", "보유"),
+          miniList(tradeLines(detail), "아직 거래 내역이 없습니다", "최근 거래")
+        ]);
       }) : [emptyNode("저장된 포트폴리오가 없습니다")])
     );
   }
@@ -2932,7 +3010,7 @@ MEMBER_PAGE_JS = """
   signOutButton?.addEventListener("click", async () => {
     await supabaseLogout();
     clearSession();
-    fillSelect(portfolioSelect, [], "name");
+    fillPortfolioSelects([]);
     fillSelect(watchlistSelect, [], "name");
     portfolioList?.replaceChildren(emptyNode("로그인 후 포트폴리오가 표시됩니다"));
     watchlistList?.replaceChildren(emptyNode("로그인 후 관심목록이 표시됩니다"));
@@ -2962,8 +3040,20 @@ MEMBER_PAGE_JS = """
       trade_date: String(form.get("trade_date") || ""),
       price: String(form.get("price") || ""),
       quantity: Number(form.get("quantity") || 0),
-      fee: "0",
-      tax: "0"
+      fee: optionalDecimal(form.get("fee")) || "0",
+      tax: optionalDecimal(form.get("tax")) || "0"
+    }));
+  });
+
+  targetForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(targetForm);
+    const portfolioId = String(form.get("portfolio_id") || "");
+    const tickerCode = String(form.get("ticker_code") || "");
+    submitJson(targetForm, `/api/portfolio/${encodeURIComponent(portfolioId)}/targets/${encodeURIComponent(tickerCode)}`, (values) => ({
+      target_price: optionalDecimal(values.get("target_price")),
+      stop_price: optionalDecimal(values.get("stop_price")),
+      memo: String(values.get("memo") || "") || null
     }));
   });
 

@@ -7,7 +7,7 @@ from typing import Any, Mapping
 
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
 from tradingagents.storage import StorageRepository
-from tradingagents.storage.portfolio import ManualPosition
+from tradingagents.storage.portfolio import ManualPosition, calculate_manual_positions
 
 from .public_api import _json_ready
 
@@ -16,6 +16,7 @@ MANUAL_PORTFOLIO_NOTICE = (
     "Manual portfolio values are calculated from user-entered trades and supplied "
     "prices. They are recordkeeping estimates, not broker-verified account data."
 )
+RECENT_MANUAL_TRADE_LIMIT = 20
 
 
 def build_manual_portfolio_payload(
@@ -27,7 +28,8 @@ def build_manual_portfolio_payload(
     """Build a JSON-ready manual portfolio summary payload."""
 
     prices = _normalize_price_map(current_prices or {})
-    positions = repo.manual_positions(portfolio_id)
+    trades = repo.manual_trades_for_portfolio(portfolio_id)
+    positions = calculate_manual_positions(trades)
     targets = {
         str(row["ticker_code"]).upper(): row
         for row in repo.price_targets_for_portfolio(portfolio_id)
@@ -64,6 +66,8 @@ def build_manual_portfolio_payload(
         "base_currency": "KRW",
         "pricing_status": _pricing_status(len(position_payloads), priced_count),
         "positions": position_payloads,
+        "trades": [_trade_payload(row) for row in reversed(trades[-RECENT_MANUAL_TRADE_LIMIT:])],
+        "trade_count": len(trades),
         "totals": {
             "position_count": len(position_payloads),
             "priced_position_count": priced_count,
@@ -134,9 +138,27 @@ def _position_payload(
         "total_taxes": position.total_taxes,
         "target_price": target_price,
         "stop_price": stop_price,
+        "target_memo": target.get("memo") if target else None,
         "target_hit": bool(current_price is not None and target_price is not None and current_price >= target_price),
         "stop_hit": bool(current_price is not None and stop_price is not None and current_price <= stop_price),
         "weight": None,
+    }
+
+
+def _trade_payload(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": row.get("id"),
+        "ticker_code": row.get("ticker_code"),
+        "ticker_name": row.get("ticker_name"),
+        "market": row.get("market"),
+        "side": row.get("side"),
+        "trade_date": row.get("trade_date"),
+        "price": row.get("price"),
+        "quantity": row.get("quantity"),
+        "fee": row.get("fee"),
+        "tax": row.get("tax"),
+        "memo": row.get("memo"),
+        "created_at": row.get("created_at"),
     }
 
 
@@ -187,6 +209,12 @@ def _normalize_ticker(value: str) -> str:
     if is_kr_ticker(value):
         return resolve_kr_ticker(value, lookup_pykrx=False).code
     return value.upper()
+
+
+def normalize_portfolio_ticker(value: str) -> str:
+    """Normalize ticker input the same way manual portfolio payloads do."""
+
+    return _normalize_ticker(value)
 
 
 def _decimal_or_none(value: Any) -> Decimal | None:

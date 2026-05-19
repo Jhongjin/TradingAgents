@@ -73,6 +73,9 @@ def test_manual_portfolio_payload_calculates_summary_and_alerts():
 
     position = payload["positions"][0]
     assert payload["pricing_status"] == "complete"
+    assert payload["trade_count"] == 3
+    assert [trade["side"] for trade in payload["trades"]] == ["sell", "buy", "buy"]
+    assert payload["trades"][0]["trade_date"] == "2026-01-06"
     assert payload["totals"]["position_count"] == 1
     assert payload["totals"]["invested_cost"] == 777480.0
     assert payload["totals"]["market_value"] == 913000.0
@@ -81,6 +84,9 @@ def test_manual_portfolio_payload_calculates_summary_and_alerts():
     assert payload["totals"]["total_pnl"] == 144166.0
     assert position["ticker_name"] == "삼성전자"
     assert position["weight"] == 1.0
+    assert position["target_price"] == 82000.0
+    assert position["stop_price"] == 65000.0
+    assert position["target_memo"] is None
     assert position["target_hit"] is True
     assert position["stop_hit"] is False
     assert payload["alerts"] == [

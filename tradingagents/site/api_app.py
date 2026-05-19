@@ -28,7 +28,7 @@ from .analysis_api import (
 )
 from .auth import SUPABASE_API_KEY_ENV_NAMES, SUPABASE_URL_ENV_NAMES, resolve_member_user_id
 from .market_api import build_latest_prices_payload
-from .portfolio_api import build_manual_portfolio_list_payload, build_manual_portfolio_payload
+from .portfolio_api import build_manual_portfolio_list_payload, build_manual_portfolio_payload, normalize_portfolio_ticker
 from .public_api import build_public_stock_payload
 from .seo import build_ads_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
 from .ticker_api import build_ticker_search_payload
@@ -492,6 +492,8 @@ def create_app(
         _validate_non_negative_money(body.fee, "fee")
         _validate_non_negative_money(body.tax, "tax")
         _validate_positive_money(body.price, "price")
+        if body.side == "sell":
+            _require_sellable_manual_quantity(repo, portfolio_id, body.ticker_code, body.quantity)
         try:
             trade_id = repo.add_manual_trade(
                 ManualTradeInput(
@@ -1312,6 +1314,20 @@ def _require_portfolio_owner(repo: StorageRepository, portfolio_id: str, user_id
         raise HTTPException(status_code=404, detail="Portfolio not found")
     if str(portfolio["user_id"]) != user_id:
         raise HTTPException(status_code=403, detail="Portfolio does not belong to the authenticated user")
+
+
+def _require_sellable_manual_quantity(repo: StorageRepository, portfolio_id: str, ticker_code: str, quantity: int) -> None:
+    try:
+        ticker = normalize_portfolio_ticker(ticker_code)
+        position = repo.manual_positions(portfolio_id).get(ticker)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    available = position.quantity if position is not None else 0
+    if quantity > available:
+        raise HTTPException(
+            status_code=400,
+            detail=f"sell quantity exceeds current {ticker} position ({available})",
+        )
 
 
 def _require_watchlist_owner(repo: StorageRepository, watchlist_id: str, user_id: str) -> None:
