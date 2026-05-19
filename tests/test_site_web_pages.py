@@ -277,6 +277,7 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "판단 Hold" in html
     assert "<dt>알파</dt><dd>+3.00%</dd>" in html
     assert "<dt>리포트</dt><dd>1개</dd>" in html
+    assert f'href="/api/analyses/{run_id}">JSON</a>' in html
     assert "/stocks/005930" in html
     assert '<link rel="canonical" href="https://example.com/analyses">' in html
 

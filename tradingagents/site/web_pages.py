@@ -832,6 +832,7 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
         alpha = _percent(item.get("alpha_return"), signed=True)
         report_count = item.get("report_count")
         reports = f"{report_count}개" if report_count is not None else "-"
+        api_path = item.get("api_path") or f"/api/analyses/{item.get('id')}"
         cards.append(
             f"""
             <article class="analysis-feed-card">
@@ -843,6 +844,7 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
                 <div><dt>모델</dt><dd>{_h(str(model_provider))}</dd></div>
                 <div><dt>리포트</dt><dd>{_h(reports)}</dd></div>
                 <div><dt>알파</dt><dd>{_h(alpha)}</dd></div>
+                <div><dt>원문</dt><dd><a href="{_h(str(api_path))}">JSON</a></dd></div>
               </dl>
             </article>
             """

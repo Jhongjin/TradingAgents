@@ -117,6 +117,30 @@ def build_member_analysis_request_payload(
     return _json_ready({"status": "available", "item": row})
 
 
+def build_public_analysis_bundle_payload(repo: StorageRepository, *, analysis_run_id: str) -> dict[str, Any] | None:
+    """Build an addressable public analysis bundle by run id."""
+
+    bundle = repo.get_analysis_bundle(analysis_run_id)
+    if bundle is None:
+        return None
+    run = bundle.get("run") or {}
+    if run.get("visibility") != "public" or run.get("status") != "completed":
+        return None
+    reports = bundle.get("reports") or []
+    decision = bundle.get("decision")
+    outcomes = bundle.get("outcomes") or []
+    return _json_ready(
+        {
+            "status": "available",
+            "run": run,
+            "reports": reports,
+            "decision": decision,
+            "outcomes": outcomes,
+            "summary": _analysis_bundle_summary(reports=reports, decision=decision, outcomes=outcomes),
+        }
+    )
+
+
 def build_public_analysis_feed_payload(
     repo: StorageRepository,
     *,
@@ -256,6 +280,7 @@ def _enrich_public_analysis_item(repo: StorageRepository, row: dict[str, Any]) -
     run_id = item.get("id")
     if not run_id:
         return item
+    item["api_path"] = f"/api/analyses/{run_id}"
     try:
         bundle = repo.get_analysis_bundle(str(run_id))
     except Exception:
@@ -278,6 +303,26 @@ def _enrich_public_analysis_item(repo: StorageRepository, row: dict[str, Any]) -
         item["benchmark_return"] = preferred.get("benchmark_return")
         item["alpha_return"] = preferred.get("alpha_return")
     return item
+
+
+def _analysis_bundle_summary(
+    *,
+    reports: list[dict[str, Any]],
+    decision: dict[str, Any] | None,
+    outcomes: list[dict[str, Any]],
+) -> dict[str, Any]:
+    completed_outcomes = [outcome for outcome in outcomes if outcome.get("status") == "completed"]
+    alpha_values = [float(outcome["alpha_return"]) for outcome in completed_outcomes if outcome.get("alpha_return") is not None]
+    return {
+        "report_count": len(reports),
+        "report_roles": [str(report.get("role") or "agent") for report in reports],
+        "has_decision": decision is not None,
+        "decision_rating": decision.get("rating") if decision else None,
+        "decision_action": decision.get("action") if decision else None,
+        "outcome_count": len(outcomes),
+        "completed_outcome_count": len(completed_outcomes),
+        "average_alpha_return": (sum(alpha_values) / len(alpha_values)) if alpha_values else None,
+    }
 
 
 def _analysis_request_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:

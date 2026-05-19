@@ -22,6 +22,7 @@ from tradingagents.storage import ManualTradeInput, StorageRepository, create_st
 from .analysis_api import (
     build_member_analysis_request_payload,
     build_member_analysis_requests_payload,
+    build_public_analysis_bundle_payload,
     build_public_analysis_feed_payload,
     build_public_analysis_outcomes_payload,
     queue_analysis_refresh_request,
@@ -155,7 +156,7 @@ def create_app(
                 "Cache-Control",
                 f"public, max-age={seconds}, stale-while-revalidate={seconds * 2}",
             )
-        elif request.url.path in {"/api/analyses", "/api/analysis-outcomes"}:
+        elif request.url.path == "/api/analyses" or request.url.path.startswith("/api/analyses/") or request.url.path == "/api/analysis-outcomes":
             seconds = request.app.state.public_cache_seconds
             response.headers.setdefault(
                 "Cache-Control",
@@ -394,6 +395,19 @@ def create_app(
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/analyses/{analysis_run_id}")
+    def public_analysis_bundle(analysis_run_id: str, request: Request) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        try:
+            payload = build_public_analysis_bundle_payload(repo, analysis_run_id=analysis_run_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if payload is None:
+            raise HTTPException(status_code=404, detail="Public analysis not found")
+        return payload
 
     @app.get("/api/analysis-outcomes")
     def public_analysis_outcomes(

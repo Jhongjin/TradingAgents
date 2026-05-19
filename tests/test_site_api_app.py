@@ -1159,6 +1159,60 @@ def test_api_app_serves_public_analysis_feed():
     assert body["summary"]["average_alpha_return"] == 0.03
 
 
+def test_api_app_serves_public_analysis_bundle_by_run_id():
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+        )
+    )
+    private_run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="000660",
+            ticker_name="SK하이닉스",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="private",
+        )
+    )
+    repo.add_agent_report(
+        AgentReportInput(
+            analysis_run_id=run_id,
+            role="market",
+            title="Market report",
+            content="market report",
+        )
+    )
+    repo.record_trade_decision(
+        TradeDecisionInput(
+            analysis_run_id=run_id,
+            rating="Hold",
+            action="hold",
+            raw_decision="Rating: Hold",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+    repo.complete_analysis_run(private_run_id)
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, public_cache_seconds=60))
+
+    response = client.get(f"/api/analyses/{run_id}")
+    private_response = client.get(f"/api/analyses/{private_run_id}")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    body = response.json()
+    assert body["run"]["id"] == run_id
+    assert body["reports"][0]["role"] == "market"
+    assert body["decision"]["rating"] == "Hold"
+    assert body["summary"]["report_roles"] == ["market"]
+    assert body["summary"]["has_decision"] is True
+    assert private_response.status_code == 404
+
+
 def test_api_app_serves_public_analysis_outcomes():
     repo = _repo()
     run_id = repo.create_analysis_run(
