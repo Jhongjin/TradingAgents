@@ -348,8 +348,11 @@ def test_seo_helpers_build_canonical_robots_and_sitemap():
     assert "Disallow: /api/" in robots
     assert "Disallow: /member" in robots
     assert "Sitemap: https://example.com/sitemap.xml" in robots
+    assert "https://example.com/analyses" in sitemap
     assert "https://example.com/stocks/005930" in sitemap
     assert "https://example.com/stocks/000660" in sitemap
+    assert "<changefreq>hourly</changefreq>" in sitemap
+    assert "<priority>0.8</priority>" in sitemap
     assert "AAPL" not in sitemap
 
 
@@ -386,6 +389,7 @@ def test_api_app_serves_robots_sitemap_and_ads_txt(monkeypatch):
     assert "Sitemap: http://testserver/sitemap.xml" in robots_response.text
     assert sitemap_response.status_code == 200
     assert sitemap_response.headers["content-type"].startswith("application/xml")
+    assert "http://testserver/analyses" in sitemap_response.text
     assert "http://testserver/stocks/005930" in sitemap_response.text
     assert ads_response.status_code == 200
     assert ads_response.headers["content-type"].startswith("text/plain")

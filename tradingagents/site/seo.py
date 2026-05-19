@@ -101,16 +101,26 @@ def build_sitemap_xml(
         raise ValueError("site base URL is required for sitemap.xml")
 
     date_value = generated_date or datetime.utcnow().date().isoformat()
-    urls = [canonical_url("/", site_base_url=base)]
-    urls.extend(stock_canonical_url(ticker, site_base_url=base) for ticker in _sitemap_tickers(tickers))
+    urls = [
+        (canonical_url("/", site_base_url=base), "daily", "1.0"),
+        (canonical_url("/analyses", site_base_url=base), "hourly", "0.8"),
+    ]
+    urls.extend(
+        (stock_canonical_url(ticker, site_base_url=base), "daily", "0.7")
+        for ticker in _sitemap_tickers(tickers)
+    )
 
     urlset = ET.Element("urlset", xmlns="http://www.sitemaps.org/schemas/sitemap/0.9")
-    for url in urls:
+    for url, changefreq_value, priority_value in urls:
         item = ET.SubElement(urlset, "url")
         loc = ET.SubElement(item, "loc")
         loc.text = url
         lastmod = ET.SubElement(item, "lastmod")
         lastmod.text = date_value
+        changefreq = ET.SubElement(item, "changefreq")
+        changefreq.text = changefreq_value
+        priority = ET.SubElement(item, "priority")
+        priority.text = priority_value
     return ET.tostring(urlset, encoding="unicode", xml_declaration=True)
 
 
