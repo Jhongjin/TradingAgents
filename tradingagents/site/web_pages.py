@@ -2104,6 +2104,34 @@ h3 {
   color: var(--gain);
 }
 
+.member-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.member-status-strip .status-pill {
+  min-height: 24px;
+  font-size: 12px;
+}
+
+.analysis-status-queued,
+.analysis-status-running {
+  border-color: #d6a73b;
+  color: var(--warn);
+}
+
+.analysis-status-completed {
+  border-color: #87b391;
+  color: #23633a;
+}
+
+.analysis-status-failed {
+  border-color: var(--gain);
+  color: var(--gain);
+}
+
 .member-empty {
   padding: 12px;
   border: 1px dashed var(--line);
@@ -2926,6 +2954,44 @@ MEMBER_PAGE_JS = """
     return list;
   }
 
+  function statusLabel(status) {
+    return {
+      queued: "대기",
+      running: "처리 중",
+      completed: "완료",
+      failed: "실패",
+      skipped: "건너뜀"
+    }[status] || status || "미확인";
+  }
+
+  function analysisRequestSummary(summary = {}) {
+    const counts = summary.status_counts || {};
+    const strip = document.createElement("div");
+    strip.className = "member-status-strip";
+    [
+      ["queued", "대기"],
+      ["running", "처리 중"],
+      ["completed", "완료"],
+      ["failed", "실패"]
+    ].forEach(([key, label]) => {
+      const pill = document.createElement("span");
+      pill.className = `status-pill analysis-status-${key}`;
+      pill.textContent = `${label} ${counts[key] || 0}`;
+      strip.append(pill);
+    });
+    return strip;
+  }
+
+  function analysisRequestCard(row) {
+    const title = `${row.ticker_name || row.ticker_code} ${row.ticker_code}`;
+    const meta = `${statusLabel(row.status)} / ${row.requested_trade_date}`;
+    const details = [];
+    if (row.reason) details.push(`메모 ${row.reason}`);
+    if (row.analysis_run_id) details.push(`리포트 ${row.analysis_run_id.slice(0, 8)}`);
+    details.push(`업데이트 ${String(row.updated_at || row.created_at || "").slice(0, 10) || "-"}`);
+    return itemCard(title, meta, [miniList(details, "상세 상태 대기", "큐 상태")]);
+  }
+
   function fillSelect(select, rows, labelKey) {
     if (!select) return;
     select.replaceChildren(...rows.map((row) => {
@@ -2993,7 +3059,8 @@ MEMBER_PAGE_JS = """
     }
     const rows = payload.items || [];
     analysisRequestList.replaceChildren(
-      ...(rows.length ? rows.map((row) => itemCard(`${row.ticker_name || row.ticker_code} ${row.ticker_code}`, `${row.status} / ${row.requested_trade_date}`)) : [emptyNode("분석 요청 내역이 없습니다")])
+      analysisRequestSummary(payload.summary),
+      ...(rows.length ? rows.map((row) => analysisRequestCard(row)) : [emptyNode("분석 요청 내역이 없습니다")])
     );
   }
 

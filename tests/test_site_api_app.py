@@ -877,6 +877,8 @@ def test_api_app_lists_member_analysis_requests():
     assert list_response.headers["cache-control"] == "private, no-store"
     assert list_response.json()["item_count"] == 1
     assert list_response.json()["items"][0]["id"] == request_id
+    assert list_response.json()["summary"]["active_count"] == 1
+    assert list_response.json()["summary"]["status_counts"] == {"queued": 1}
     assert item_response.status_code == 200
     assert item_response.json()["item"]["reason"] == "refresh"
     assert rejected.status_code == 403

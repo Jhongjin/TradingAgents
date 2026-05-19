@@ -96,6 +96,7 @@ def build_member_analysis_requests_payload(
             "limit": limit,
             "items": rows,
             "item_count": len(rows),
+            "summary": _analysis_request_summary(rows),
         }
     )
 
@@ -235,6 +236,29 @@ def _analysis_feed_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "latest_trade_date": latest_trade_date,
         "market_counts": market_counts,
         "model_provider_counts": provider_counts,
+    }
+
+
+def _analysis_request_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    status_counts: dict[str, int] = {}
+    ticker_codes = set()
+    latest_updated_at = None
+    for row in rows:
+        status = str(row.get("status") or "unknown")
+        status_counts[status] = status_counts.get(status, 0) + 1
+        ticker = row.get("ticker_code")
+        if ticker:
+            ticker_codes.add(str(ticker))
+        updated_at = row.get("updated_at") or row.get("created_at")
+        if updated_at is not None and (latest_updated_at is None or str(updated_at) > str(latest_updated_at)):
+            latest_updated_at = updated_at
+    return {
+        "status_counts": status_counts,
+        "active_count": status_counts.get("queued", 0) + status_counts.get("running", 0),
+        "failed_count": status_counts.get("failed", 0),
+        "completed_count": status_counts.get("completed", 0),
+        "unique_ticker_count": len(ticker_codes),
+        "latest_updated_at": latest_updated_at,
     }
 
 

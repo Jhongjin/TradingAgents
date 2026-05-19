@@ -177,6 +177,9 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "watchlistActionList" in html
     assert "member-action-item" in html
     assert 'method: "DELETE"' in html
+    assert "analysisRequestSummary" in html
+    assert "analysis-status-running" in html
+    assert "status_counts" in html
     assert "include_latest_prices=true" in html
     assert 'id="authStatus"' in html
     assert 'aria-live="polite"' in html

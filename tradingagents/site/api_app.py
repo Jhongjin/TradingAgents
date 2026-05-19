@@ -600,7 +600,7 @@ def create_app(
     def member_analysis_requests(
         request: Request,
         x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
-        status: Annotated[str | None, Query(pattern=r"^(queued|running|completed|failed)$")] = None,
+        status: Annotated[str | None, Query(pattern=r"^(queued|running|completed|failed|skipped)$")] = None,
         limit: int = 20,
     ) -> dict:
         repo = request.app.state.repository
