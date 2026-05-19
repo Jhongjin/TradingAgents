@@ -240,6 +240,10 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @app.get("/favicon.ico", include_in_schema=False)
+    def favicon() -> Response:
+        return Response(status_code=204)
+
     @app.get("/sitemap.xml", include_in_schema=False)
     def sitemap_xml(request: Request) -> Response:
         try:

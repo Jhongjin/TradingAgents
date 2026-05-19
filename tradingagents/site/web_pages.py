@@ -5,7 +5,9 @@ from __future__ import annotations
 import html
 import json
 import os
+from datetime import date, datetime, timedelta
 from typing import Any
+from urllib.parse import urlencode
 
 from tradingagents.storage import StorageRepository
 
@@ -43,6 +45,7 @@ def render_public_stock_page(
     model = _view_model(payload, site_base_url=site_base_url)
     payload_json = _script_json(payload)
     structured_data_json = _script_json(_structured_data(model, payload))
+    chart_controls_html = _chart_controls(model)
     reports_html = _report_cards(model["reports"])
     lenses_html = _strategy_lens_cards(payload.get("strategy_lenses") or [])
     outcomes_html = _outcome_cards((payload.get("analysis") or {}).get("outcomes") or [])
@@ -103,12 +106,18 @@ def render_public_stock_page(
             <p class="eyebrow">KRW OHLCV</p>
             <h2 id="chart-title">가격 흐름</h2>
           </div>
-          <span class="status-pill">{_h(model["chart_status"])}</span>
+          <div class="chart-heading-meta">
+            <span class="status-pill">{_h(model["chart_status"])}</span>
+            <span class="data-pill">{_h(model["chart_vendor_label"])}</span>
+          </div>
         </div>
+        {chart_controls_html}
+        <p class="chart-caption">{_h(model["chart_caption"])}</p>
         <div class="chart-wrap">
           <canvas id="priceChart" aria-label="{_h(model["name"])} 가격 차트"></canvas>
           <div class="chart-legend" id="chartLegend" aria-hidden="true"></div>
-          <p id="chartFallback" class="chart-fallback" hidden>차트 데이터 대기 중</p>
+          <div class="chart-tooltip" id="chartTooltip" hidden></div>
+          <p id="chartFallback" class="chart-fallback" hidden>{_h(model["chart_fallback"])}</p>
         </div>
       </section>
 
@@ -538,7 +547,143 @@ def _view_model(payload: dict[str, Any], *, site_base_url: str | None = None) ->
         "reports": reports[:6],
         "refresh_state": "업데이트 권장" if refresh.get("recommended") else "분석 최신",
         "chart_status": _chart_status_label(chart.get("status")),
+        "chart_vendor": _chart_vendor_value(chart.get("vendor")),
+        "chart_vendor_label": _chart_vendor_label(chart.get("vendor")),
+        "chart_start_date": str(chart.get("start_date") or ""),
+        "chart_end_date": str(chart.get("end_date") or ""),
+        "chart_range_days": _chart_range_days(chart.get("start_date"), chart.get("end_date")),
+        "chart_point_count": len(points),
+        "chart_caption": _chart_caption(chart, points),
+        "chart_fallback": _chart_fallback_message(chart),
     }
+
+
+def _chart_controls(model: dict[str, Any]) -> str:
+    code = str(model.get("code") or "")
+    end = _date_or_today(model.get("chart_end_date"))
+    active_days = model.get("chart_range_days")
+    period_options = [
+        ("1W", "1주", 7),
+        ("1M", "1개월", 30),
+        ("3M", "3개월", 90),
+        ("6M", "6개월", 180),
+    ]
+    range_links = []
+    for key, label, days in period_options:
+        start = end - timedelta(days=days)
+        href = _stock_query_href(
+            code,
+            {
+                "chart_start": start.isoformat(),
+                "chart_end": end.isoformat(),
+            },
+        )
+        active = _period_is_active(active_days, days)
+        range_links.append(
+            f'<a class="chart-tab{" is-active" if active else ""}" href="{_h(href)}"'
+            f'{" aria-current=\"page\"" if active else ""}>{_h(label)}</a>'
+        )
+
+    pykrx_href = _stock_query_href(code, {"chart_vendor": "pykrx"})
+    krx_href = _stock_query_href(code, {"chart_vendor": "krx"})
+    vendor = model.get("chart_vendor")
+    vendor_links = [
+        f'<a class="chart-tab{" is-active" if vendor == "pykrx" else ""}" href="{_h(pykrx_href)}">pykrx</a>',
+        f'<a class="chart-tab{" is-active" if vendor == "krx" else ""}" href="{_h(krx_href)}">KRX 14D</a>',
+    ]
+
+    return (
+        '<div class="chart-toolbar">'
+        '<nav class="chart-tabs" aria-label="차트 기간">'
+        + "".join(range_links)
+        + "</nav>"
+        '<nav class="chart-tabs chart-vendor-tabs" aria-label="차트 데이터 소스">'
+        + "".join(vendor_links)
+        + "</nav>"
+        "</div>"
+    )
+
+
+def _stock_query_href(code: str, params: dict[str, str]) -> str:
+    query = urlencode({key: value for key, value in params.items() if value})
+    return f"/stocks/{code}?{query}" if query else f"/stocks/{code}"
+
+
+def _period_is_active(active_days: Any, option_days: int) -> bool:
+    if active_days is None:
+        return option_days == 180
+    try:
+        days = int(active_days)
+    except (TypeError, ValueError):
+        return False
+    if option_days == 7:
+        return days <= 10
+    if option_days == 30:
+        return 10 < days <= 45
+    if option_days == 90:
+        return 45 < days <= 120
+    return days > 120
+
+
+def _date_or_today(value: Any) -> date:
+    parsed = _parse_date(value)
+    if parsed is not None:
+        return parsed
+    return datetime.now().date()
+
+
+def _parse_date(value: Any) -> date | None:
+    if not value:
+        return None
+    try:
+        return datetime.strptime(str(value)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _chart_range_days(start: Any, end: Any) -> int | None:
+    start_date = _parse_date(start)
+    end_date = _parse_date(end)
+    if start_date is None or end_date is None or end_date < start_date:
+        return None
+    return (end_date - start_date).days
+
+
+def _chart_vendor_value(value: Any) -> str:
+    selected = str(value or "unknown").strip().lower().replace("_", "-")
+    if selected in {"krx-openapi", "krx-open-api"}:
+        return "krx"
+    return selected
+
+
+def _chart_vendor_label(value: Any) -> str:
+    selected = _chart_vendor_value(value)
+    if selected == "krx":
+        return "KRX Open API"
+    if selected == "pykrx":
+        return "pykrx"
+    if selected == "auto":
+        return "auto"
+    return "vendor 확인"
+
+
+def _chart_caption(chart: dict[str, Any], points: list[dict[str, Any]]) -> str:
+    start = chart.get("start_date") or "-"
+    end = chart.get("end_date") or "-"
+    vendor = _chart_vendor_label(chart.get("vendor"))
+    point_label = f"{len(points):,}개 거래일" if points else "거래일 데이터 없음"
+    return f"{start} - {end} / {vendor} / {point_label}"
+
+
+def _chart_fallback_message(chart: dict[str, Any]) -> str:
+    if chart.get("status") == "unavailable":
+        error = chart.get("error")
+        if error:
+            return f"차트 데이터를 불러오지 못했습니다: {error}"
+        return "차트 데이터 공급원이 현재 응답하지 않습니다."
+    if chart.get("status") == "skipped":
+        return "차트 표시가 비활성화되었습니다."
+    return "차트 데이터가 부족합니다."
 
 
 def _analysis_feed_payload(
@@ -1013,6 +1158,10 @@ PAGE_CSS = """
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -1237,6 +1386,10 @@ h3 {
   align-items: stretch;
 }
 
+.workspace > * {
+  min-width: 0;
+}
+
 .chart-panel,
 .analysis-panel,
 .report-section,
@@ -1246,10 +1399,12 @@ h3 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
+  max-width: 100%;
 }
 
 .chart-panel,
 .report-section {
+  width: 100%;
   padding: 20px;
   box-shadow: var(--shadow);
 }
@@ -1259,7 +1414,66 @@ h3 {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
+}
+
+.chart-heading-meta,
+.chart-toolbar,
+.chart-tabs {
+  display: flex;
+  align-items: center;
+}
+
+.chart-heading-meta {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.chart-toolbar {
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+
+.chart-tabs {
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chart-tab,
+.data-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.chart-tab:hover,
+.chart-tab.is-active {
+  border-color: rgba(20, 107, 99, 0.45);
+  background: var(--surface-strong);
+  color: var(--accent-strong);
+}
+
+.chart-tab.is-active {
+  box-shadow: inset 0 0 0 1px rgba(20, 107, 99, 0.18);
+}
+
+.chart-caption {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .status-pill {
@@ -1317,6 +1531,32 @@ h3 {
   display: grid;
   place-items: center;
   margin: 0;
+  color: var(--muted);
+}
+
+.chart-tooltip {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  max-width: min(260px, calc(100% - 24px));
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 32px rgba(20, 31, 28, 0.12);
+  color: var(--ink);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.chart-tooltip strong,
+.chart-tooltip span {
+  display: block;
+  white-space: nowrap;
+}
+
+.chart-tooltip span {
+  margin-top: 4px;
   color: var(--muted);
 }
 
@@ -1784,7 +2024,7 @@ h3 {
   .summary-band,
   .workspace,
   .home-search-band {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .summary-band {
@@ -1822,6 +2062,21 @@ h3 {
     width: 100%;
   }
 
+  .chart-toolbar,
+  .chart-heading-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .chart-tabs {
+    width: 100%;
+  }
+
+  .chart-tab {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
   .shell {
     width: min(100% - 24px, 1280px);
     padding-top: 18px;
@@ -1836,7 +2091,7 @@ h3 {
   .member-grid,
   .compact-form,
   .trade-form {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .chart-wrap {
@@ -1909,11 +2164,14 @@ PAGE_JS = """
   const canvas = document.getElementById("priceChart");
   const legend = document.getElementById("chartLegend");
   const fallback = document.getElementById("chartFallback");
+  const tooltip = document.getElementById("chartTooltip");
   if (!node || !canvas) return;
 
   const payload = JSON.parse(node.textContent || "{}");
+  const chart = payload.chart || {};
   const points = (payload.chart?.points || []).filter((point) => Number.isFinite(point.close));
   if (points.length < 2) {
+    if (fallback && chart.error) fallback.textContent = `차트 데이터를 불러오지 못했습니다: ${chart.error}`;
     if (fallback) fallback.hidden = false;
     return;
   }
@@ -1938,6 +2196,7 @@ PAGE_JS = """
   const pad = Math.max((max - min) * 0.12, max * 0.01, 1);
   const yMin = min - pad;
   const yMax = max + pad;
+  let hoverIndex = null;
 
   function movingAverage(values, windowSize) {
     return values.map((_, index) => {
@@ -2009,12 +2268,9 @@ PAGE_JS = """
     }));
   }
 
-  function draw() {
-    const rect = fitCanvas();
-    const width = rect.width;
-    const height = rect.height;
-    const left = 62;
-    const right = 24;
+  function chartLayout(width, height) {
+    const left = width < 520 ? 48 : 62;
+    const right = width < 520 ? 12 : 24;
     const top = 34;
     const bottom = 42;
     const volumeHeight = Math.min(92, Math.max(52, height * 0.22));
@@ -2023,6 +2279,44 @@ PAGE_JS = """
     const volumeBottom = height - bottom;
     const slot = (width - left - right) / Math.max(bars.length - 1, 1);
     const candleWidth = Math.max(3, Math.min(12, slot * 0.58));
+    return { left, right, top, bottom, volumeHeight, priceBottom, volumeTop, volumeBottom, slot, candleWidth };
+  }
+
+  function nearestIndex(mouseX, width, left, right) {
+    const span = Math.max(1, width - left - right);
+    const ratio = Math.min(1, Math.max(0, (mouseX - left) / span));
+    return Math.min(bars.length - 1, Math.max(0, Math.round(ratio * (bars.length - 1))));
+  }
+
+  function updateTooltip(index, rect, layout) {
+    if (!tooltip) return;
+    if (index === null || index === undefined) {
+      tooltip.hidden = true;
+      return;
+    }
+    const bar = bars[index];
+    const x = xAt(index, rect.width, layout.left, layout.right);
+    const title = document.createElement("strong");
+    title.textContent = bar.date;
+    const close = document.createElement("span");
+    close.textContent = `종가 ${money.format(bar.close)}원`;
+    const range = document.createElement("span");
+    range.textContent = `고가 ${money.format(bar.high)} / 저가 ${money.format(bar.low)}`;
+    const volume = document.createElement("span");
+    volume.textContent = `거래량 ${compact.format(bar.volume)}`;
+    tooltip.replaceChildren(title, close, range, volume);
+    tooltip.hidden = false;
+    const tooltipWidth = Math.min(260, Math.max(190, tooltip.offsetWidth || 190));
+    const left = Math.min(rect.width - tooltipWidth - 12, Math.max(12, x - tooltipWidth / 2));
+    tooltip.style.left = `${left}px`;
+  }
+
+  function draw() {
+    const rect = fitCanvas();
+    const width = rect.width;
+    const height = rect.height;
+    const layout = chartLayout(width, height);
+    const { left, right, top, priceBottom, volumeTop, volumeBottom, candleWidth } = layout;
 
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = "#ffffff";
@@ -2085,6 +2379,25 @@ PAGE_JS = """
     ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
     ctx.fill();
 
+    if (hoverIndex !== null) {
+      const hovered = bars[hoverIndex];
+      const hoverX = xAt(hoverIndex, width, left, right);
+      const hoverY = yAt(hovered.close, top, priceBottom);
+      ctx.save();
+      ctx.strokeStyle = "rgba(23, 32, 31, 0.28)";
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(hoverX, top);
+      ctx.lineTo(hoverX, volumeBottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#17201f";
+      ctx.beginPath();
+      ctx.arc(hoverX, hoverY, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     ctx.fillStyle = "#66716f";
     ctx.textBaseline = "alphabetic";
     ctx.fillText(dates[0], left, height - 12);
@@ -2096,6 +2409,18 @@ PAGE_JS = """
 
   draw();
   window.addEventListener("resize", draw);
+  canvas.addEventListener("pointermove", (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const layout = chartLayout(rect.width, rect.height);
+    hoverIndex = nearestIndex(event.clientX - rect.left, rect.width, layout.left, layout.right);
+    updateTooltip(hoverIndex, rect, layout);
+    draw();
+  });
+  canvas.addEventListener("pointerleave", () => {
+    hoverIndex = null;
+    updateTooltip(null);
+    draw();
+  });
 })();
 """
 

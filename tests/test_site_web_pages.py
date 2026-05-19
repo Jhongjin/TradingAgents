@@ -103,6 +103,11 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "삼성전자" in html
     assert "priceChart" in html
     assert "chartLegend" in html
+    assert "chartTooltip" in html
+    assert "chart-tab" in html
+    assert "1개월" in html
+    assert "KRX 14D" in html
+    assert "pykrx / 2개 거래일" in html
     assert "movingAverage" in html
     assert "상승 빨강" in html
     assert "하락 파랑" in html
@@ -312,6 +317,7 @@ def test_api_app_serves_robots_sitemap_and_ads_txt(monkeypatch):
     robots_response = client.get("/robots.txt")
     sitemap_response = client.get("/sitemap.xml")
     ads_response = client.get("/ads.txt")
+    favicon_response = client.get("/favicon.ico")
 
     assert robots_response.status_code == 200
     assert robots_response.headers["content-type"].startswith("text/plain")
@@ -323,6 +329,7 @@ def test_api_app_serves_robots_sitemap_and_ads_txt(monkeypatch):
     assert ads_response.status_code == 200
     assert ads_response.headers["content-type"].startswith("text/plain")
     assert "google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0" in ads_response.text
+    assert favicon_response.status_code == 204
 
 
 def test_api_app_sitemap_includes_stored_public_analysis_tickers(monkeypatch):

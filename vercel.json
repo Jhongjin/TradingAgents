@@ -36,6 +36,10 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/favicon.ico",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/sitemap.xml",
       "destination": "/api/index.py"
     },
