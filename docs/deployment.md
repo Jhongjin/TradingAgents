@@ -133,12 +133,14 @@ For member portfolio/watchlist detail endpoints, pass
 instead of supplying `current_prices=005930:83000` manually.
 
 Public stock chart data uses `TRADINGAGENTS_CHART_DATA_VENDOR=pykrx` by default.
-Set it to `auto` to try KRX Open API first when a key is configured and fall
-back to pykrx if KRX authentication, quota, or availability fails. Set it to
-`krx`, or pass `chart_vendor=krx` on `/stocks/{ticker}` and
-`/api/stocks/{ticker}`, only for explicit KRX-only diagnostics. Keep `pykrx` or
-`auto` for high-traffic public pages until KRX API quota, latency, and caching
-are measured.
+Set it to `auto` to try KRX Open API first only when the requested chart range
+is within `TRADINGAGENTS_KRX_CHART_MAX_DAYS` (default `14`), then fall back to
+pykrx if KRX authentication, quota, availability, or range limits fail. Set it
+to `krx`, or pass `chart_vendor=krx` on `/stocks/{ticker}` and
+`/api/stocks/{ticker}`, only for explicit KRX-only diagnostics. KRX-only
+requests without `chart_start` use that same short max-days window to avoid
+serverless function timeouts. Keep `pykrx` or `auto` for high-traffic public
+pages until KRX API quota, latency, and caching are measured.
 If readiness shows `krx_configured=true` but `chart_vendor=krx` returns a 401,
 run the local doctor with `TRADINGAGENTS_DOCTOR_CHECK_KRX_ONLINE=true`; the key
 may exist but still lack KRX service-level approval.

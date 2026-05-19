@@ -37,8 +37,12 @@ Expected state before KRX approval:
 
 After KRX approval, keep pykrx as the default public chart vendor until quota
 and latency are measured. Set `TRADINGAGENTS_CHART_DATA_VENDOR=auto` to try KRX
-first and fall back to pykrx, or use `TRADINGAGENTS_CHART_DATA_VENDOR=krx` /
-`/api/stocks/005930?chart_vendor=krx` for explicit KRX-only diagnostics.
+first only for short chart ranges and fall back to pykrx, or use
+`TRADINGAGENTS_CHART_DATA_VENDOR=krx` /
+`/api/stocks/005930?chart_vendor=krx` for explicit KRX-only diagnostics. The
+short synchronous KRX chart window is controlled by
+`TRADINGAGENTS_KRX_CHART_MAX_DAYS` (default `14`) because KRX daily trade data
+is date-based and long ranges can hit serverless function timeouts.
 
 For local Naver SSL failures, prefer fixing `TRADINGAGENTS_HTTP_CA_BUNDLE`.
 For Vercel/Linux deployment, a custom bundle is usually not needed.
@@ -103,7 +107,8 @@ platform dashboard instead of committing secrets:
 - `KIS_ACCOUNT_NO`
 - `KIS_ACCOUNT_PRODUCT_CODE`
 - `KRX_API_KEY` or `KRX_OPENAPI_KEY` once approved
-- `TRADINGAGENTS_CHART_DATA_VENDOR=pykrx` by default; use `auto` for KRX-first fallback or `krx` for diagnostics
+- `TRADINGAGENTS_CHART_DATA_VENDOR=pykrx` by default; use `auto` for short-range KRX-first fallback or `krx` for diagnostics
+- `TRADINGAGENTS_KRX_CHART_MAX_DAYS=14` until KRX latency, quota, and caching are measured
 
 Do not set `TRADINGAGENTS_HTTP_VERIFY_SSL=false` in production.
 

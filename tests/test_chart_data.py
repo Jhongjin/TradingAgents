@@ -102,6 +102,45 @@ def test_ohlcv_chart_series_auto_falls_back_to_pykrx_when_krx_fails(monkeypatch)
     assert series.points[0].close == 70500.0
 
 
+def test_ohlcv_chart_series_auto_uses_pykrx_for_large_ranges(monkeypatch):
+    monkeypatch.setenv("KRX_API_KEY", "krx-key")
+    monkeypatch.setenv("TRADINGAGENTS_KRX_CHART_MAX_DAYS", "14")
+
+    def unexpected_krx_request(*args, **kwargs):
+        raise AssertionError("large auto chart ranges should not call KRX")
+
+    fake_stock = MagicMock()
+    fake_stock.get_market_ohlcv_by_date.return_value = pd.DataFrame(
+        {
+            "시가": [70000],
+            "고가": [71000],
+            "저가": [69000],
+            "종가": [70500],
+            "거래량": [123456],
+        },
+        index=[pd.Timestamp("2026-01-02")],
+    )
+    monkeypatch.setattr(krx_openapi, "get_ohlcv_frame", unexpected_krx_request)
+    monkeypatch.setattr(pykrx_vendor, "_get_pykrx_stock_module", lambda: fake_stock)
+
+    series = chart_data.get_ohlcv_chart_series("005930", "2026-01-02", "2026-05-19", vendor="auto")
+
+    assert series.vendor == "pykrx"
+    assert series.points[0].close == 70500.0
+
+
+def test_ohlcv_chart_series_rejects_large_krx_ranges_before_request(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_KRX_CHART_MAX_DAYS", "1")
+
+    def unexpected_krx_request(*args, **kwargs):
+        raise AssertionError("oversized KRX ranges should fail before requesting")
+
+    monkeypatch.setattr(krx_openapi, "get_ohlcv_frame", unexpected_krx_request)
+
+    with pytest.raises(VendorUnavailableError, match="too wide"):
+        chart_data.get_ohlcv_chart_series("005930", "2026-01-02", "2026-01-05", vendor="krx")
+
+
 def test_ohlcv_chart_series_rejects_unknown_vendor():
     with pytest.raises(VendorUnavailableError, match="Unsupported chart data vendor"):
         chart_data.get_ohlcv_chart_series("005930", "2026-01-02", "2026-01-05", vendor="bogus")

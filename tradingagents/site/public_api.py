@@ -9,7 +9,7 @@ import os
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from tradingagents.dataflows.chart_data import get_ohlcv_chart_series
+from tradingagents.dataflows.chart_data import get_krx_chart_max_days, get_ohlcv_chart_series
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
 from tradingagents.storage import StorageRepository
@@ -46,14 +46,14 @@ def build_public_stock_payload(
         raise VendorUnavailableError(f"public stock pages currently support Korean 6-digit tickers only: {ticker!r}")
 
     resolved = resolve_kr_ticker(ticker, lookup_pykrx=False)
+    selected_chart_vendor = chart_vendor or os.getenv("TRADINGAGENTS_CHART_DATA_VENDOR", "pykrx")
     end = _parse_or_default_end(chart_end)
-    start = _parse_or_default_start(chart_start, end)
+    start = _parse_or_default_start(chart_start, end, selected_chart_vendor)
     as_of = _parse_or_default_end(as_of_date)
     if max_analysis_age_days < 0:
         raise ValueError("max_analysis_age_days must be non-negative")
     analysis = _analysis_payload(repo, resolved.code) if include_analysis else {"status": "skipped"}
     analysis_refresh = _analysis_refresh_payload(analysis, as_of, max_analysis_age_days)
-    selected_chart_vendor = chart_vendor or os.getenv("TRADINGAGENTS_CHART_DATA_VENDOR", "pykrx")
     chart = _chart_payload(resolved.code, start, end, selected_chart_vendor) if include_chart else {"status": "skipped"}
 
     payload = {
@@ -177,10 +177,19 @@ def _coerce_date(value: Any) -> date:
     return datetime.strptime(str(value), "%Y-%m-%d").date()
 
 
-def _parse_or_default_start(value: str | None, end: date) -> date:
+def _parse_or_default_start(value: str | None, end: date, chart_vendor: str = "pykrx") -> date:
     if value:
         return datetime.strptime(value, "%Y-%m-%d").date()
+    if _normalize_chart_vendor(chart_vendor) == "krx":
+        return end - timedelta(days=get_krx_chart_max_days())
     return end - timedelta(days=180)
+
+
+def _normalize_chart_vendor(vendor: str | None) -> str:
+    selected = (vendor or "pykrx").strip().lower().replace("_", "-")
+    if selected in {"krx-openapi", "krx-open-api"}:
+        return "krx"
+    return selected
 
 
 def _json_ready(value: Any) -> Any:

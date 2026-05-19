@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from tradingagents.dataflows import krx_openapi, pykrx_vendor
+from tradingagents.dataflows.chart_data import ChartSeries
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.site import build_public_stock_payload
 from tradingagents.storage import (
@@ -173,6 +174,49 @@ def test_public_stock_payload_uses_configured_chart_vendor(monkeypatch):
     assert payload["chart"]["status"] == "available"
     assert payload["chart"]["vendor"] == "krx"
     assert payload["chart"]["points"][0]["close"] == 70500.0
+
+
+def test_public_stock_payload_limits_default_krx_diagnostic_window(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_KRX_CHART_MAX_DAYS", "7")
+    captured: dict[str, str] = {}
+
+    def fake_chart_series(symbol, start_date, end_date, *, vendor):
+        captured.update(
+            {
+                "symbol": symbol,
+                "start_date": start_date,
+                "end_date": end_date,
+                "vendor": vendor,
+            }
+        )
+        return ChartSeries(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            currency="KRW",
+            vendor="krx",
+            points=[],
+        )
+
+    monkeypatch.setattr("tradingagents.site.public_api.get_ohlcv_chart_series", fake_chart_series)
+
+    payload = build_public_stock_payload(
+        "005930",
+        chart_end="2026-05-19",
+        as_of_date="2026-05-19",
+        chart_vendor="krx",
+        include_analysis=False,
+    )
+
+    assert captured == {
+        "symbol": "005930",
+        "start_date": "2026-05-12",
+        "end_date": "2026-05-19",
+        "vendor": "krx",
+    }
+    assert payload["chart"]["status"] == "available"
+    assert payload["chart"]["start_date"] == "2026-05-12"
+    assert payload["chart"]["vendor"] == "krx"
 
 
 def test_public_stock_payload_recommends_refresh_for_stale_or_missing_analysis():

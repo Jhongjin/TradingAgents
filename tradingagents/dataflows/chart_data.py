@@ -14,6 +14,9 @@ from .kr_tickers import is_kr_ticker, resolve_kr_ticker
 from . import krx_openapi, pykrx_vendor
 
 
+DEFAULT_KRX_CHART_MAX_DAYS = 14
+
+
 @dataclass(frozen=True)
 class OhlcvPoint:
     date: str
@@ -99,8 +102,14 @@ def get_ohlcv_chart_series(
     resolved = resolve_kr_ticker(symbol, lookup_pykrx=False)
     selected_vendor = _normalize_vendor(vendor)
     if selected_vendor == "auto":
-        vendor_candidates = ["krx", "pykrx"] if krx_openapi.is_configured() else ["pykrx"]
+        vendor_candidates = (
+            ["krx", "pykrx"]
+            if krx_openapi.is_configured() and _krx_chart_range_is_safe(start_date, end_date)
+            else ["pykrx"]
+        )
     else:
+        if selected_vendor == "krx":
+            _ensure_krx_chart_range_is_safe(start_date, end_date)
         vendor_candidates = [selected_vendor]
 
     last_error: Exception | None = None
@@ -196,6 +205,42 @@ def _normalize_vendor(vendor: str | None) -> str:
     if selected in {"krx-openapi", "krx-open-api"}:
         return "krx"
     return selected
+
+
+def get_krx_chart_max_days() -> int:
+    """Return the maximum KRX Open API chart span to attempt synchronously."""
+
+    raw = os.getenv("TRADINGAGENTS_KRX_CHART_MAX_DAYS")
+    if raw is None or raw.strip() == "":
+        return DEFAULT_KRX_CHART_MAX_DAYS
+    value = int(raw)
+    if value < 0:
+        raise ValueError("TRADINGAGENTS_KRX_CHART_MAX_DAYS must be non-negative")
+    return value
+
+
+def _krx_chart_range_is_safe(start_date: str, end_date: str) -> bool:
+    return _date_span_days(start_date, end_date) <= get_krx_chart_max_days()
+
+
+def _ensure_krx_chart_range_is_safe(start_date: str, end_date: str) -> None:
+    span_days = _date_span_days(start_date, end_date)
+    max_days = get_krx_chart_max_days()
+    if span_days <= max_days:
+        return
+    raise VendorUnavailableError(
+        "KRX Open API chart range is too wide for synchronous public API use "
+        f"({span_days} days requested, max {max_days}). "
+        "Use chart_start/chart_end for a shorter KRX diagnostic window or chart_vendor=pykrx for long charts."
+    )
+
+
+def _date_span_days(start_date: str, end_date: str) -> int:
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
+    if end < start:
+        raise ValueError("end_date must be on or after start_date")
+    return (end - start).days
 
 
 def _ohlcv_frame_for_vendor(vendor: str, code: str, start_date: str, end_date: str) -> pd.DataFrame:
