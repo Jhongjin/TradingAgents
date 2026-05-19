@@ -35,6 +35,7 @@ _SUBMODULES = {
     "api_app": "tradingagents.site.api_app",
     "auth": "tradingagents.site.auth",
     "market_api": "tradingagents.site.market_api",
+    "outcome_worker": "tradingagents.site.outcome_worker",
     "portfolio_api": "tradingagents.site.portfolio_api",
     "public_api": "tradingagents.site.public_api",
     "seo": "tradingagents.site.seo",

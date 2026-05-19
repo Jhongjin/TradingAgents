@@ -182,8 +182,9 @@ serverless duration limits.
 
 Vercel Cron invokes endpoints with GET requests. The repo therefore includes
 `GET /api/cron/process-analysis-requests`, which accepts the same worker token
-or Vercel's `CRON_SECRET` bearer header. Add a `crons` entry in `vercel.json`
-only after you are ready to pay for scheduled LLM runs.
+or Vercel's `CRON_SECRET` bearer header. `vercel.json` schedules this endpoint
+for 18:10 KST on weekdays (`10 9 * * 1-5` in UTC). Keep the cron active only
+when you are ready to pay for scheduled LLM runs.
 
 Public analysis outcomes are a separate post-analysis verification pass. They
 look at completed public analysis runs, fetch later Korean-market returns, and
@@ -191,7 +192,8 @@ store raw return, benchmark return, and alpha in `analysis_outcomes`. This is
 market-data work, not a new LLM analysis, so it uses separate limits:
 `TRADINGAGENTS_OUTCOME_WORKER_MAX_RUNS` for manual/API calls and
 `TRADINGAGENTS_OUTCOME_WORKER_CRON_LIMIT` for cron calls. The default horizons
-are 5 and 20 trading days.
+are 5 and 20 trading days. `vercel.json` schedules the outcome pass for 19:10
+KST on weekdays (`10 10 * * 1-5` in UTC).
 
 For an operator-run outcome worker:
 

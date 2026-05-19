@@ -6,6 +6,16 @@
       "maxDuration": 60
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/process-analysis-requests",
+      "schedule": "10 9 * * 1-5"
+    },
+    {
+      "path": "/api/cron/process-analysis-outcomes",
+      "schedule": "10 10 * * 1-5"
+    }
+  ],
   "rewrites": [
     {
       "source": "/",

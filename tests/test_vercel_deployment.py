@@ -14,6 +14,16 @@ def test_vercel_json_routes_api_and_health_to_fastapi_entrypoint():
     assert config["$schema"] == "https://openapi.vercel.sh/vercel.json"
     assert config["framework"] is None
     assert config["functions"]["api/index.py"]["maxDuration"] == 60
+    assert config["crons"] == [
+        {
+            "path": "/api/cron/process-analysis-requests",
+            "schedule": "10 9 * * 1-5",
+        },
+        {
+            "path": "/api/cron/process-analysis-outcomes",
+            "schedule": "10 10 * * 1-5",
+        },
+    ]
     assert {
         "source": "/",
         "destination": "/api/index.py",
