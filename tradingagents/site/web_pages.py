@@ -3162,9 +3162,9 @@ h3 {
   display: grid;
   grid-template-columns: minmax(0, 0.82fr) minmax(0, 0.9fr);
   gap: clamp(28px, 5vw, 72px);
-  align-items: center;
-  min-height: calc(100svh - 120px);
-  padding: clamp(32px, 4.5vw, 64px) 0 clamp(28px, 4vw, 52px);
+  align-items: start;
+  min-height: min(820px, calc(100svh - 88px));
+  padding: clamp(44px, 7vh, 92px) 0 clamp(28px, 4vw, 52px);
   border-bottom: 1px solid var(--home-line);
 }
 
@@ -3324,6 +3324,7 @@ h3 {
 .home-signal-art {
   position: relative;
   max-width: 100%;
+  margin-top: clamp(8px, 2vh, 28px);
   min-height: clamp(380px, 42vw, 620px);
   aspect-ratio: 1.06 / 1;
   overflow: hidden;
@@ -3757,6 +3758,7 @@ h3 {
   }
 
   .home-signal-art {
+    margin-top: 0;
     aspect-ratio: 16 / 10;
     min-height: 380px;
   }
