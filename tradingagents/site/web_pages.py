@@ -2056,6 +2056,54 @@ h3 {
   font-weight: 800;
 }
 
+.member-action-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.member-action-item {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) minmax(96px, 0.8fr) minmax(120px, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.member-action-item strong,
+.member-action-item small {
+  min-width: 0;
+}
+
+.member-action-item small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.member-action-item input {
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.member-action-item button {
+  height: 34px;
+  padding: 0 10px;
+}
+
+.member-action-item .danger-button {
+  border: 1px solid var(--gain);
+  background: var(--surface);
+  color: var(--gain);
+}
+
 .member-empty {
   padding: 12px;
   border: 1px dashed var(--line);
@@ -2117,6 +2165,16 @@ h3 {
   .target-form input[name="memo"] {
     grid-column: auto;
   }
+
+  .member-action-item {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .member-action-item strong,
+  .member-action-item small,
+  .member-action-item input {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 640px) {
@@ -2165,6 +2223,16 @@ h3 {
   .chart-wrap {
     min-height: 260px;
     aspect-ratio: 4 / 3;
+  }
+
+  .member-action-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .member-action-item strong,
+  .member-action-item small,
+  .member-action-item input {
+    grid-column: auto;
   }
 }
 """
@@ -2719,6 +2787,14 @@ MEMBER_PAGE_JS = """
     return node;
   }
 
+  function smallButton(label, className = "ghost-button") {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = className;
+    button.textContent = label;
+    return button;
+  }
+
   function emptyNode(message) {
     const node = document.createElement("div");
     node.className = "member-empty";
@@ -2799,6 +2875,57 @@ MEMBER_PAGE_JS = """
     });
   }
 
+  function watchlistActionList(detail) {
+    const list = document.createElement("div");
+    list.className = "member-action-list";
+    const items = detail?.items || [];
+    if (!items.length) {
+      list.append(emptyNode("담긴 관심 종목이 없습니다"));
+      return list;
+    }
+    items.forEach((item) => {
+      const row = document.createElement("div");
+      row.className = "member-action-item";
+      const title = document.createElement("strong");
+      title.textContent = `${item.ticker_name || item.ticker_code} ${item.ticker_code}`;
+      const meta = document.createElement("small");
+      const price = item.current_price === null || item.current_price === undefined ? "가격 대기" : money(item.current_price);
+      meta.textContent = `${item.market || "KR"} / ${price}`;
+      const memo = document.createElement("input");
+      memo.type = "text";
+      memo.maxLength = 500;
+      memo.value = item.memo || "";
+      memo.placeholder = "메모";
+      memo.setAttribute("aria-label", `${item.ticker_code} 메모`);
+      const save = smallButton("수정");
+      save.addEventListener("click", async () => {
+        try {
+          await memberApi(`/api/watchlists/${encodeURIComponent(detail.watchlist.id)}/items`, {
+            method: "POST",
+            body: JSON.stringify({ ticker_code: item.ticker_code, memo: memo.value || null })
+          });
+          await loadMemberData();
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      });
+      const remove = smallButton("삭제", "ghost-button danger-button");
+      remove.addEventListener("click", async () => {
+        try {
+          await memberApi(`/api/watchlists/${encodeURIComponent(detail.watchlist.id)}/items/${encodeURIComponent(item.ticker_code)}`, {
+            method: "DELETE"
+          });
+          await loadMemberData();
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      });
+      row.append(title, meta, memo, save, remove);
+      list.append(row);
+    });
+    return list;
+  }
+
   function fillSelect(select, rows, labelKey) {
     if (!select) return;
     select.replaceChildren(...rows.map((row) => {
@@ -2849,9 +2976,12 @@ MEMBER_PAGE_JS = """
       ...(rows.length ? rows.map((row) => {
         const detail = details[row.id];
         const meta = detail
-          ? `${detail.item_count}종목 / 가격 ${detail.priced_item_count}개`
+          ? `${detail.item_count}종목 / 가격 ${detail.priced_item_count}개 / ${detail.market_price_source?.vendor || "수동"}`
           : row.id;
-        return itemCard(row.name, meta, [miniList(watchlistLines(detail), "아직 관심 종목이 없습니다")]);
+        return itemCard(row.name, meta, [
+          miniList(watchlistLines(detail), "아직 관심 종목이 없습니다", "요약"),
+          watchlistActionList(detail)
+        ]);
       }) : [emptyNode("저장된 관심목록이 없습니다")])
     );
   }
