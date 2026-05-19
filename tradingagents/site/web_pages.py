@@ -783,13 +783,15 @@ def _analysis_summary_cards(summary: dict[str, Any]) -> str:
     latest = summary.get("latest_trade_date") or "-"
     markets = summary.get("market_counts") if isinstance(summary.get("market_counts"), dict) else {}
     providers = summary.get("model_provider_counts") if isinstance(summary.get("model_provider_counts"), dict) else {}
+    ratings = summary.get("decision_rating_counts") if isinstance(summary.get("decision_rating_counts"), dict) else {}
     top_market = _top_count_label(markets) or "-"
     top_provider = _top_count_label(providers) or "-"
+    top_rating = _top_count_label(ratings) or "-"
     cards = [
         ("완료 리포트", summary.get("completed_count", 0), "현재 목록 기준"),
         ("커버 종목", summary.get("unique_ticker_count", 0), "중복 제외"),
-        ("최신 기준일", latest, "trade date"),
-        ("주요 시장/모델", top_market, top_provider),
+        ("최신 기준일", latest, f"평균 알파 {_percent(summary.get('average_alpha_return'), signed=True)}"),
+        ("주요 판단/시장", top_rating, top_market),
     ]
     html_cards = []
     for label, value, note in cards:
@@ -826,15 +828,21 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
         market = item.get("market") or "KR"
         trade_date = item.get("trade_date") or "-"
         model_provider = item.get("model_provider") or "AI"
+        decision = item.get("decision_rating") or item.get("decision_action") or "-"
+        alpha = _percent(item.get("alpha_return"), signed=True)
+        report_count = item.get("report_count")
+        reports = f"{report_count}개" if report_count is not None else "-"
         cards.append(
             f"""
             <article class="analysis-feed-card">
               <span>{_h(str(market))}</span>
               <h3><a href="/stocks/{_h(str(code))}">{_h(str(name))} <small>{_h(str(code))}</small></a></h3>
-              <p>{_h(str(trade_date))} 기준 공개 분석</p>
+              <p>{_h(str(trade_date))} 기준 공개 분석 / 판단 {_h(str(decision))}</p>
               <dl>
                 <div><dt>상태</dt><dd>{_h(str(item.get("status") or "-"))}</dd></div>
                 <div><dt>모델</dt><dd>{_h(str(model_provider))}</dd></div>
+                <div><dt>리포트</dt><dd>{_h(reports)}</dd></div>
+                <div><dt>알파</dt><dd>{_h(alpha)}</dd></div>
               </dl>
             </article>
             """

@@ -2,7 +2,14 @@ from datetime import date
 
 from fastapi.testclient import TestClient
 
-from tradingagents.storage import AnalysisRunInput, StorageRepository, create_storage_engine
+from tradingagents.storage import (
+    AgentReportInput,
+    AnalysisOutcomeInput,
+    AnalysisRunInput,
+    StorageRepository,
+    TradeDecisionInput,
+    create_storage_engine,
+)
 from tradingagents.site.api_app import create_app
 from tradingagents.site.seo import build_ads_txt, build_robots_txt, build_sitemap_xml, stock_canonical_url
 from tradingagents.site.web_pages import (
@@ -227,6 +234,34 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
             model_provider="openai",
         )
     )
+    repo.add_agent_report(
+        AgentReportInput(
+            analysis_run_id=run_id,
+            role="market",
+            content="market report",
+        )
+    )
+    repo.record_trade_decision(
+        TradeDecisionInput(
+            analysis_run_id=run_id,
+            rating="Hold",
+            action="hold",
+            raw_decision="Rating: Hold",
+        )
+    )
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 12),
+            horizon_days=5,
+            status="completed",
+            raw_return=0.04,
+            benchmark_return=0.01,
+            alpha_return=0.03,
+        )
+    )
     repo.complete_analysis_run(run_id)
 
     html = render_public_analysis_feed_page(repo=repo, site_base_url="https://example.com")
@@ -237,6 +272,11 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "공개 분석 커버리지 요약" in html
     assert "완료 리포트" in html
     assert "KOSPI 1" in html
+    assert "Hold 1" in html
+    assert "평균 알파 +3.00%" in html
+    assert "판단 Hold" in html
+    assert "<dt>알파</dt><dd>+3.00%</dd>" in html
+    assert "<dt>리포트</dt><dd>1개</dd>" in html
     assert "/stocks/005930" in html
     assert '<link rel="canonical" href="https://example.com/analyses">' in html
 

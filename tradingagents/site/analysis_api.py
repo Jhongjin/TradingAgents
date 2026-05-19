@@ -140,6 +140,7 @@ def build_public_analysis_feed_payload(
 
     try:
         rows = repo.list_public_analysis_runs(ticker_code=ticker_code, limit=limit)
+        items = [_enrich_public_analysis_item(repo, row) for row in rows]
     except Exception as exc:
         return _json_ready(
             {
@@ -157,9 +158,9 @@ def build_public_analysis_feed_payload(
             "status": "available",
             "ticker_code": ticker_code,
             "limit": limit,
-            "items": rows,
-            "item_count": len(rows),
-            "summary": _analysis_feed_summary(rows),
+            "items": items,
+            "item_count": len(items),
+            "summary": _analysis_feed_summary(items),
         }
     )
 
@@ -217,8 +218,10 @@ def build_public_analysis_outcomes_payload(
 def _analysis_feed_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     market_counts: dict[str, int] = {}
     provider_counts: dict[str, int] = {}
+    rating_counts: dict[str, int] = {}
     ticker_codes = set()
     latest_trade_date = None
+    alpha_values = []
     for row in rows:
         ticker = row.get("ticker_code")
         if ticker:
@@ -227,6 +230,12 @@ def _analysis_feed_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         market_counts[market] = market_counts.get(market, 0) + 1
         provider = str(row.get("model_provider") or "unknown")
         provider_counts[provider] = provider_counts.get(provider, 0) + 1
+        rating = row.get("decision_rating")
+        if rating:
+            key = str(rating)
+            rating_counts[key] = rating_counts.get(key, 0) + 1
+        if row.get("alpha_return") is not None:
+            alpha_values.append(float(row["alpha_return"]))
         trade_date = row.get("trade_date")
         if trade_date is not None and (latest_trade_date is None or str(trade_date) > str(latest_trade_date)):
             latest_trade_date = trade_date
@@ -236,7 +245,39 @@ def _analysis_feed_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "latest_trade_date": latest_trade_date,
         "market_counts": market_counts,
         "model_provider_counts": provider_counts,
+        "decision_rating_counts": rating_counts,
+        "completed_outcome_count": sum(int(row.get("completed_outcome_count") or 0) for row in rows),
+        "average_alpha_return": (sum(alpha_values) / len(alpha_values)) if alpha_values else None,
     }
+
+
+def _enrich_public_analysis_item(repo: StorageRepository, row: dict[str, Any]) -> dict[str, Any]:
+    item = dict(row)
+    run_id = item.get("id")
+    if not run_id:
+        return item
+    try:
+        bundle = repo.get_analysis_bundle(str(run_id))
+    except Exception:
+        return item
+    if not bundle:
+        return item
+    reports = bundle.get("reports") or []
+    decision = bundle.get("decision")
+    outcomes = bundle.get("outcomes") or []
+    item["report_count"] = len(reports)
+    if decision:
+        item["decision_rating"] = decision.get("rating")
+        item["decision_action"] = decision.get("action")
+    completed_outcomes = [outcome for outcome in outcomes if outcome.get("status") == "completed"]
+    item["completed_outcome_count"] = len(completed_outcomes)
+    if completed_outcomes:
+        preferred = sorted(completed_outcomes, key=lambda outcome: int(outcome.get("horizon_days") or 0))[0]
+        item["outcome_horizon_days"] = preferred.get("horizon_days")
+        item["raw_return"] = preferred.get("raw_return")
+        item["benchmark_return"] = preferred.get("benchmark_return")
+        item["alpha_return"] = preferred.get("alpha_return")
+    return item
 
 
 def _analysis_request_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:

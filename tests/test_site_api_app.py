@@ -1114,6 +1114,34 @@ def test_api_app_serves_public_analysis_feed():
             visibility="public",
         )
     )
+    repo.add_agent_report(
+        AgentReportInput(
+            analysis_run_id=run_id,
+            role="market",
+            content="market report",
+        )
+    )
+    repo.record_trade_decision(
+        TradeDecisionInput(
+            analysis_run_id=run_id,
+            rating="Hold",
+            action="hold",
+            raw_decision="Rating: Hold",
+        )
+    )
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 12),
+            horizon_days=5,
+            status="completed",
+            raw_return=0.04,
+            benchmark_return=0.01,
+            alpha_return=0.03,
+        )
+    )
     repo.complete_analysis_run(run_id)
 
     client = TestClient(create_app(repo=repo, load_repo_from_env=False, public_cache_seconds=60))
@@ -1124,6 +1152,11 @@ def test_api_app_serves_public_analysis_feed():
     body = response.json()
     assert body["item_count"] == 1
     assert body["items"][0]["id"] == run_id
+    assert body["items"][0]["decision_rating"] == "Hold"
+    assert body["items"][0]["report_count"] == 1
+    assert body["items"][0]["alpha_return"] == 0.03
+    assert body["summary"]["decision_rating_counts"] == {"Hold": 1}
+    assert body["summary"]["average_alpha_return"] == 0.03
 
 
 def test_api_app_serves_public_analysis_outcomes():
