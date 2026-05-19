@@ -193,6 +193,10 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "status_counts" in html
     assert "include_latest_prices=true" in html
     assert 'id="authStatus"' in html
+    assert 'id="memberSignedIn"' in html
+    assert "대시보드 준비 완료" in html
+    assert "setSignedInState" in html
+    assert "로그인 세션이 만료되었습니다" in html
     assert 'aria-live="polite"' in html
     assert 'id="passwordToggle"' in html
     assert 'type="button" data-auth-action="signup"' in html

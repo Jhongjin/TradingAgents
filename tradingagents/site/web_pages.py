@@ -520,6 +520,11 @@ def render_member_dashboard_page(*, site_base_url: str | None = None) -> str:
           </div>
           <div class="member-empty auth-status" id="authStatus" role="status" aria-live="polite">이메일과 비밀번호를 입력하세요.</div>
         </form>
+        <div class="member-signed-in" id="memberSignedIn" hidden>
+          <span class="status-pill" id="memberSignedInState">대시보드 확인 중</span>
+          <strong id="memberSignedInUser">회원 세션</strong>
+          <small id="memberSignedInMeta">대시보드를 불러오고 있습니다.</small>
+        </div>
       </section>
 
       <section class="member-panel">
@@ -2602,6 +2607,33 @@ h3 {
   color: var(--ink);
 }
 
+.auth-panel.is-signed-in .member-form {
+  display: none;
+}
+
+.auth-panel:not(.is-signed-in) #signOutButton {
+  display: none;
+}
+
+.member-signed-in {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.member-signed-in strong {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.member-signed-in small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .member-list {
   display: grid;
   gap: 10px;
@@ -3356,6 +3388,11 @@ MEMBER_PAGE_JS = """
   const statusNode = document.getElementById("memberStatus");
   const authStatusNode = document.getElementById("authStatus");
   const authForm = document.getElementById("authForm");
+  const authPanel = document.querySelector(".auth-panel");
+  const signedInPanel = document.getElementById("memberSignedIn");
+  const signedInState = document.getElementById("memberSignedInState");
+  const signedInUser = document.getElementById("memberSignedInUser");
+  const signedInMeta = document.getElementById("memberSignedInMeta");
   const authButtons = Array.from(document.querySelectorAll("[data-auth-action]"));
   const passwordToggle = document.getElementById("passwordToggle");
   const signOutButton = document.getElementById("signOutButton");
@@ -3375,6 +3412,8 @@ MEMBER_PAGE_JS = """
   const accessTokenKey = "tradingagents.member.access_token";
   const refreshTokenKey = "tradingagents.member.refresh_token";
   const expiresAtKey = "tradingagents.member.expires_at";
+  const userEmailKey = "tradingagents.member.user_email";
+  const userIdKey = "tradingagents.member.user_id";
 
   function setStatus(message, isError = false) {
     if (statusNode) {
@@ -3394,6 +3433,24 @@ MEMBER_PAGE_JS = """
     });
   }
 
+  function setSignedInState(isSignedIn, options = {}) {
+    authPanel?.classList.toggle("is-signed-in", Boolean(isSignedIn));
+    if (signedInPanel) signedInPanel.hidden = !isSignedIn;
+    if (!isSignedIn) return;
+    const label = options.label || "대시보드 확인 중";
+    const user = options.user || sessionStorage.getItem(userEmailKey) || sessionStorage.getItem(userIdKey) || "회원 세션";
+    const meta = options.meta || "세션을 확인하고 있습니다.";
+    if (signedInState) {
+      signedInState.textContent = label;
+      signedInState.classList.toggle("member-error", Boolean(options.isError));
+    }
+    if (signedInUser) signedInUser.textContent = user;
+    if (signedInMeta) {
+      signedInMeta.textContent = meta;
+      signedInMeta.classList.toggle("member-error", Boolean(options.isError));
+    }
+  }
+
   function accessToken() {
     return sessionStorage.getItem(accessTokenKey) || "";
   }
@@ -3410,10 +3467,14 @@ MEMBER_PAGE_JS = """
     sessionStorage.removeItem(accessTokenKey);
     sessionStorage.removeItem(refreshTokenKey);
     sessionStorage.removeItem(expiresAtKey);
+    sessionStorage.removeItem(userEmailKey);
+    sessionStorage.removeItem(userIdKey);
+    setSignedInState(false);
   }
 
   function setSession(payload) {
     const session = payload?.session || payload || {};
+    const user = session.user || payload?.user || {};
     const token = session.access_token || "";
     const refresh = session.refresh_token || "";
     const expiresAt = session.expires_at
@@ -3423,6 +3484,9 @@ MEMBER_PAGE_JS = """
     sessionStorage.setItem(accessTokenKey, token);
     if (refresh) sessionStorage.setItem(refreshTokenKey, refresh);
     if (Number.isFinite(expiresAt)) sessionStorage.setItem(expiresAtKey, String(expiresAt));
+    if (user.email) sessionStorage.setItem(userEmailKey, String(user.email));
+    if (user.id) sessionStorage.setItem(userIdKey, String(user.id));
+    setSignedInState(true, { label: "세션 확인 중", user: user.email || user.id || "", meta: "대시보드 권한을 확인하고 있습니다." });
     return true;
   }
 
@@ -3476,7 +3540,7 @@ MEMBER_PAGE_JS = """
       refresh_token: params.get("refresh_token") || "",
       expires_in: Number(params.get("expires_in") || 3600)
     });
-    setStatus("이메일 확인 완료. 로그인되었습니다.");
+    setStatus("이메일 확인 완료. 대시보드 확인 중");
     return { shouldLoad: true };
   }
 
@@ -3550,6 +3614,10 @@ MEMBER_PAGE_JS = """
       } catch (_) {
         clearSession();
       }
+    }
+    if (response.status === 401) {
+      clearSession();
+      throw new Error("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.");
     }
     if (!response.ok) throw new Error(payload.detail || "Request failed");
     return payload;
@@ -3843,8 +3911,22 @@ MEMBER_PAGE_JS = """
     return String(value);
   }
 
+  function errorSummary(errors) {
+    return Object.entries(errors || {})
+      .map(([key]) => {
+        const text = errorText(errors, key);
+        return text ? `${key}: ${text}` : key;
+      })
+      .filter(Boolean)
+      .join(" / ");
+  }
+
   function renderDashboard(payload) {
     const errors = payload?.errors || {};
+    const member = payload?.member || {};
+    const userId = member.user_id || sessionStorage.getItem(userIdKey) || "";
+    if (userId) sessionStorage.setItem(userIdKey, String(userId));
+    const userLabel = sessionStorage.getItem(userEmailKey) || userId || "회원 세션";
     renderPortfolios(
       payload?.portfolios || { items: [] },
       payload?.portfolio_details || {},
@@ -3860,17 +3942,42 @@ MEMBER_PAGE_JS = """
       errorText(errors, "analysis_requests")
     );
     const errorCount = flattenErrorCount(errors);
-    setStatus(errorCount ? `로그인됨 / ${errorCount}개 영역 확인 필요` : "로그인됨", Boolean(errorCount));
+    const status = payload?.status || (errorCount ? "partial" : "available");
+    if (status === "available" && !errorCount) {
+      setSignedInState(true, {
+        label: "대시보드 준비 완료",
+        user: userLabel,
+        meta: "포트폴리오, 관심종목, 분석 요청 큐를 불러왔습니다."
+      });
+      setStatus("대시보드 준비 완료");
+      return;
+    }
+    const summary = errorSummary(errors) || "일부 영역을 불러오지 못했습니다.";
+    setSignedInState(true, {
+      label: "부분 연결",
+      user: userLabel,
+      meta: `확인 필요: ${summary}`,
+      isError: true
+    });
+    setStatus(`로그인됨 / 대시보드 ${Math.max(errorCount, 1)}개 영역 확인 필요`, true);
   }
 
   async function loadMemberData() {
     if (!accessToken() && !refreshToken()) {
+      setSignedInState(false);
       setStatus(config.configured ? "로그인 필요" : "Supabase 공개 Auth 설정 대기 중", !config.configured);
       return;
     }
+    setSignedInState(true, { label: "세션 확인 중", meta: "대시보드를 불러오고 있습니다." });
+    setStatus("대시보드 불러오는 중");
     const dashboardResult = await safeMemberApi("/api/member/dashboard?include_latest_prices=true");
     if (dashboardResult.ok) {
       renderDashboard(dashboardResult.payload);
+      return;
+    }
+    if (!accessToken() && !refreshToken()) {
+      setSignedInState(false);
+      setStatus(dashboardResult.error, true);
       return;
     }
     await loadLegacyMemberData(dashboardResult.error);
@@ -3898,7 +4005,29 @@ MEMBER_PAGE_JS = """
     renderAnalysisRequests(requests, requestsResult.error);
     const errors = [portfoliosResult, watchlistsResult, requestsResult].filter((result) => !result.ok).length
       + (dashboardError ? 1 : 0);
-    setStatus(errors ? `로그인됨 / ${errors}개 영역 확인 필요` : "로그인됨", Boolean(errors));
+    const userLabel = sessionStorage.getItem(userEmailKey) || sessionStorage.getItem(userIdKey) || "회원 세션";
+    if (errors) {
+      const fallbackErrors = [
+        dashboardError ? `dashboard: ${dashboardError}` : "",
+        portfoliosResult.ok ? "" : `portfolios: ${portfoliosResult.error}`,
+        watchlistsResult.ok ? "" : `watchlists: ${watchlistsResult.error}`,
+        requestsResult.ok ? "" : `analysis_requests: ${requestsResult.error}`
+      ].filter(Boolean).join(" / ");
+      setSignedInState(true, {
+        label: "기본 화면으로 표시 중",
+        user: userLabel,
+        meta: fallbackErrors ? `확인 필요: ${fallbackErrors}` : "대시보드 일부 영역을 확인해야 합니다.",
+        isError: true
+      });
+      setStatus(`로그인됨 / ${errors}개 영역 확인 필요`, true);
+      return;
+    }
+    setSignedInState(true, {
+      label: "기본 화면 준비 완료",
+      user: userLabel,
+      meta: "통합 대시보드 대신 기본 API 응답으로 화면을 구성했습니다."
+    });
+    setStatus("대시보드 준비 완료");
   }
 
   async function detailMap(rows, pathForRow) {
