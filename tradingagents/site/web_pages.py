@@ -421,7 +421,10 @@ def render_member_dashboard_page(*, site_base_url: str | None = None) -> str:
           </label>
           <label>
             <span>비밀번호</span>
-            <input name="password" type="password" autocomplete="current-password" required>
+            <span class="password-row">
+              <input name="password" type="password" autocomplete="current-password" required>
+              <button class="ghost-button password-toggle" id="passwordToggle" type="button" aria-pressed="false">보기</button>
+            </span>
           </label>
           <div class="button-row">
             <button type="button" data-auth-action="signin">로그인</button>
@@ -1931,6 +1934,20 @@ h3 {
   font: inherit;
 }
 
+.password-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.member-form .password-row input {
+  min-width: 0;
+}
+
+.password-toggle {
+  height: 40px;
+}
+
 .compact-form {
   grid-template-columns: minmax(0, 1fr) auto;
 }
@@ -1940,8 +1957,12 @@ h3 {
 }
 
 .trade-form {
-  grid-template-columns: minmax(150px, 1.1fr) minmax(96px, 0.8fr) minmax(92px, 0.7fr) minmax(128px, 0.9fr) minmax(96px, 0.8fr) minmax(84px, 0.7fr) auto;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(88px, 0.8fr) minmax(82px, 0.7fr) minmax(122px, 1fr);
   align-items: end;
+}
+
+.trade-form button {
+  width: 100%;
 }
 
 .button-row {
@@ -1992,6 +2013,18 @@ h3 {
 .member-empty {
   color: var(--muted);
   font-size: 13px;
+}
+
+.member-sublist {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  list-style: none;
 }
 
 .member-empty {
@@ -2433,6 +2466,7 @@ MEMBER_PAGE_JS = """
   const authStatusNode = document.getElementById("authStatus");
   const authForm = document.getElementById("authForm");
   const authButtons = Array.from(document.querySelectorAll("[data-auth-action]"));
+  const passwordToggle = document.getElementById("passwordToggle");
   const signOutButton = document.getElementById("signOutButton");
   const refreshButton = document.getElementById("refreshMemberData");
   const portfolioForm = document.getElementById("portfolioForm");
@@ -2445,7 +2479,9 @@ MEMBER_PAGE_JS = """
   const analysisRequestList = document.getElementById("analysisRequestList");
   const portfolioSelect = tradeForm?.elements?.portfolio_id;
   const watchlistSelect = watchlistItemForm?.elements?.watchlist_id;
-  const tokenKey = "tradingagents.member.access_token";
+  const accessTokenKey = "tradingagents.member.access_token";
+  const refreshTokenKey = "tradingagents.member.refresh_token";
+  const expiresAtKey = "tradingagents.member.expires_at";
 
   function setStatus(message, isError = false) {
     if (statusNode) {
@@ -2466,12 +2502,40 @@ MEMBER_PAGE_JS = """
   }
 
   function accessToken() {
-    return sessionStorage.getItem(tokenKey) || "";
+    return sessionStorage.getItem(accessTokenKey) || "";
   }
 
-  function setToken(token) {
-    if (token) sessionStorage.setItem(tokenKey, token);
-    else sessionStorage.removeItem(tokenKey);
+  function refreshToken() {
+    return sessionStorage.getItem(refreshTokenKey) || "";
+  }
+
+  function sessionExpiresAt() {
+    return Number(sessionStorage.getItem(expiresAtKey) || 0);
+  }
+
+  function clearSession() {
+    sessionStorage.removeItem(accessTokenKey);
+    sessionStorage.removeItem(refreshTokenKey);
+    sessionStorage.removeItem(expiresAtKey);
+  }
+
+  function setSession(payload) {
+    const session = payload?.session || payload || {};
+    const token = session.access_token || "";
+    const refresh = session.refresh_token || "";
+    const expiresAt = session.expires_at
+      ? Number(session.expires_at) * 1000
+      : Date.now() + Math.max(Number(session.expires_in || 3600) - 30, 60) * 1000;
+    if (!token) return false;
+    sessionStorage.setItem(accessTokenKey, token);
+    if (refresh) sessionStorage.setItem(refreshTokenKey, refresh);
+    if (Number.isFinite(expiresAt)) sessionStorage.setItem(expiresAtKey, String(expiresAt));
+    return true;
+  }
+
+  function tokenNeedsRefresh() {
+    const expiresAt = sessionExpiresAt();
+    return Boolean(refreshToken() && (!accessToken() || !expiresAt || Date.now() > expiresAt - 60_000));
   }
 
   function requireConfig() {
@@ -2514,7 +2578,11 @@ MEMBER_PAGE_JS = """
       return { shouldLoad: false };
     }
 
-    setToken(token);
+    setSession({
+      access_token: token,
+      refresh_token: params.get("refresh_token") || "",
+      expires_in: Number(params.get("expires_in") || 3600)
+    });
     setStatus("이메일 확인 완료. 로그인되었습니다.");
     return { shouldLoad: true };
   }
@@ -2538,8 +2606,40 @@ MEMBER_PAGE_JS = """
     return payload;
   }
 
-  async function memberApi(path, options = {}) {
-    const token = accessToken();
+  async function refreshSession() {
+    if (!refreshToken()) return false;
+    const payload = await supabaseAuth(
+      "/auth/v1/token?grant_type=refresh_token",
+      { refresh_token: refreshToken() }
+    );
+    return setSession(payload);
+  }
+
+  async function ensureAccessToken() {
+    if (tokenNeedsRefresh()) {
+      try {
+        await refreshSession();
+      } catch (_) {
+        clearSession();
+      }
+    }
+    return accessToken();
+  }
+
+  async function supabaseLogout() {
+    if (!requireConfig() || !accessToken()) return;
+    await fetch(supabaseAuthUrl("/auth/v1/logout"), {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "apikey": config.supabase_anon_key,
+        "Authorization": `Bearer ${accessToken()}`
+      }
+    }).catch(() => {});
+  }
+
+  async function memberApi(path, options = {}, retry = true) {
+    const token = await ensureAccessToken();
     if (!token) throw new Error("로그인이 필요합니다");
     const response = await fetch(path, {
       ...options,
@@ -2551,11 +2651,26 @@ MEMBER_PAGE_JS = """
       }
     });
     const payload = await response.json().catch(() => ({}));
+    if (response.status === 401 && retry && refreshToken()) {
+      try {
+        if (await refreshSession()) return memberApi(path, options, false);
+      } catch (_) {
+        clearSession();
+      }
+    }
     if (!response.ok) throw new Error(payload.detail || "Request failed");
     return payload;
   }
 
-  function itemCard(title, meta) {
+  async function safeMemberApi(path, options = {}) {
+    try {
+      return { ok: true, payload: await memberApi(path, options) };
+    } catch (error) {
+      return { ok: false, error: error.message || "Request failed" };
+    }
+  }
+
+  function itemCard(title, meta, children = []) {
     const node = document.createElement("article");
     node.className = "member-item";
     const strong = document.createElement("strong");
@@ -2563,6 +2678,7 @@ MEMBER_PAGE_JS = """
     const small = document.createElement("small");
     small.textContent = meta;
     node.append(strong, small);
+    children.forEach((child) => node.append(child));
     return node;
   }
 
@@ -2578,6 +2694,41 @@ MEMBER_PAGE_JS = """
     return `${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 }).format(Number(value))}원`;
   }
 
+  function signedMoney(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+    const number = Number(value);
+    const sign = number > 0 ? "+" : "";
+    return `${sign}${money(number)}`;
+  }
+
+  function miniList(lines, emptyMessage) {
+    const list = document.createElement("ul");
+    list.className = "member-sublist";
+    const rendered = lines.length ? lines : [emptyMessage];
+    rendered.forEach((line) => {
+      const item = document.createElement("li");
+      item.textContent = line;
+      list.append(item);
+    });
+    return list;
+  }
+
+  function portfolioLines(detail) {
+    return (detail?.positions || []).slice(0, 4).map((position) => {
+      const quantity = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 4 }).format(Number(position.quantity || 0));
+      const pnl = signedMoney(position.total_pnl ?? position.unrealized_pnl ?? position.realized_pnl);
+      return `${position.ticker_name || position.ticker_code} ${quantity}주 / 평단 ${money(position.average_cost)} / 손익 ${pnl}`;
+    });
+  }
+
+  function watchlistLines(detail) {
+    return (detail?.items || []).slice(0, 5).map((item) => {
+      const price = item.current_price === null || item.current_price === undefined ? "가격 대기" : money(item.current_price);
+      const memo = item.memo ? ` / ${item.memo}` : "";
+      return `${item.ticker_name || item.ticker_code} ${item.ticker_code} / ${price}${memo}`;
+    });
+  }
+
   function fillSelect(select, rows, labelKey) {
     if (!select) return;
     select.replaceChildren(...rows.map((row) => {
@@ -2588,7 +2739,12 @@ MEMBER_PAGE_JS = """
     }));
   }
 
-  function renderPortfolios(payload, details = {}) {
+  function renderPortfolios(payload, details = {}, error = "") {
+    if (error) {
+      fillSelect(portfolioSelect, [], "name");
+      portfolioList.replaceChildren(emptyNode(`포트폴리오를 불러오지 못했습니다: ${error}`));
+      return;
+    }
     const rows = payload.items || [];
     fillSelect(portfolioSelect, rows, "name");
     portfolioList.replaceChildren(
@@ -2598,12 +2754,17 @@ MEMBER_PAGE_JS = """
         const meta = detail
           ? `${row.base_currency || "KRW"} / 평가 ${money(totals.market_value)} / 손익 ${money(totals.total_pnl)}`
           : `${row.base_currency || "KRW"} / ${row.id}`;
-        return itemCard(row.name, meta);
+        return itemCard(row.name, meta, [miniList(portfolioLines(detail), "아직 보유 종목이 없습니다")]);
       }) : [emptyNode("저장된 포트폴리오가 없습니다")])
     );
   }
 
-  function renderWatchlists(payload, details = {}) {
+  function renderWatchlists(payload, details = {}, error = "") {
+    if (error) {
+      fillSelect(watchlistSelect, [], "name");
+      watchlistList.replaceChildren(emptyNode(`관심목록을 불러오지 못했습니다: ${error}`));
+      return;
+    }
     const rows = payload.items || [];
     fillSelect(watchlistSelect, rows, "name");
     watchlistList.replaceChildren(
@@ -2612,36 +2773,97 @@ MEMBER_PAGE_JS = """
         const meta = detail
           ? `${detail.item_count}종목 / 가격 ${detail.priced_item_count}개`
           : row.id;
-        return itemCard(row.name, meta);
+        return itemCard(row.name, meta, [miniList(watchlistLines(detail), "아직 관심 종목이 없습니다")]);
       }) : [emptyNode("저장된 관심목록이 없습니다")])
     );
   }
 
-  function renderAnalysisRequests(payload) {
+  function renderAnalysisRequests(payload, error = "") {
+    if (error) {
+      analysisRequestList.replaceChildren(emptyNode(`분석 요청을 불러오지 못했습니다: ${error}`));
+      return;
+    }
     const rows = payload.items || [];
     analysisRequestList.replaceChildren(
       ...(rows.length ? rows.map((row) => itemCard(`${row.ticker_name || row.ticker_code} ${row.ticker_code}`, `${row.status} / ${row.requested_trade_date}`)) : [emptyNode("분석 요청 내역이 없습니다")])
     );
   }
 
+  function flattenErrorCount(errors) {
+    return Object.values(errors || {}).reduce((count, value) => {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        return count + Math.max(Object.keys(value).length, 1);
+      }
+      return count + 1;
+    }, 0);
+  }
+
+  function errorText(errors, key) {
+    const value = errors?.[key];
+    if (!value) return "";
+    if (typeof value === "string") return value;
+    if (value && typeof value === "object") {
+      return Object.values(value).filter(Boolean).join(", ");
+    }
+    return String(value);
+  }
+
+  function renderDashboard(payload) {
+    const errors = payload?.errors || {};
+    renderPortfolios(
+      payload?.portfolios || { items: [] },
+      payload?.portfolio_details || {},
+      errorText(errors, "portfolios")
+    );
+    renderWatchlists(
+      payload?.watchlists || { items: [] },
+      payload?.watchlist_details || {},
+      errorText(errors, "watchlists")
+    );
+    renderAnalysisRequests(
+      payload?.analysis_requests || { items: [] },
+      errorText(errors, "analysis_requests")
+    );
+    const errorCount = flattenErrorCount(errors);
+    setStatus(errorCount ? `로그인됨 / ${errorCount}개 영역 확인 필요` : "로그인됨", Boolean(errorCount));
+  }
+
   async function loadMemberData() {
-    if (!accessToken()) {
+    if (!accessToken() && !refreshToken()) {
       setStatus(config.configured ? "로그인 필요" : "Supabase 공개 Auth 설정 대기 중", !config.configured);
       return;
     }
-    const [portfolios, watchlists, requests] = await Promise.all([
-      memberApi("/api/portfolios"),
-      memberApi("/api/watchlists"),
-      memberApi("/api/analysis-requests?limit=20")
+    const dashboardResult = await safeMemberApi("/api/member/dashboard?include_latest_prices=true");
+    if (dashboardResult.ok) {
+      renderDashboard(dashboardResult.payload);
+      return;
+    }
+    await loadLegacyMemberData(dashboardResult.error);
+  }
+
+  async function loadLegacyMemberData(dashboardError = "") {
+    const [portfoliosResult, watchlistsResult, requestsResult] = await Promise.all([
+      safeMemberApi("/api/portfolios"),
+      safeMemberApi("/api/watchlists"),
+      safeMemberApi("/api/analysis-requests?limit=20")
     ]);
+    const portfolios = portfoliosResult.payload || { items: [] };
+    const watchlists = watchlistsResult.payload || { items: [] };
+    const requests = requestsResult.payload || { items: [] };
     const [portfolioDetails, watchlistDetails] = await Promise.all([
-      detailMap((portfolios.items || []).slice(0, 6), (row) => `/api/portfolio/${encodeURIComponent(row.id)}?include_latest_prices=true`),
-      detailMap((watchlists.items || []).slice(0, 6), (row) => `/api/watchlists/${encodeURIComponent(row.id)}?include_latest_prices=true`)
+      portfoliosResult.ok
+        ? detailMap((portfolios.items || []).slice(0, 6), (row) => `/api/portfolio/${encodeURIComponent(row.id)}?include_latest_prices=true`)
+        : Promise.resolve({}),
+      watchlistsResult.ok
+        ? detailMap((watchlists.items || []).slice(0, 6), (row) => `/api/watchlists/${encodeURIComponent(row.id)}?include_latest_prices=true`)
+        : Promise.resolve({})
     ]);
-    renderPortfolios(portfolios, portfolioDetails);
-    renderWatchlists(watchlists, watchlistDetails);
-    renderAnalysisRequests(requests);
-    setStatus("로그인됨");
+    renderPortfolios(portfolios, portfolioDetails, portfoliosResult.error);
+    renderWatchlists(watchlists, watchlistDetails, watchlistsResult.error);
+    renderAnalysisRequests(requests, requestsResult.error);
+    const errors = [portfoliosResult, watchlistsResult, requestsResult].filter((result) => !result.ok).length
+      + (dashboardError ? 1 : 0);
+    setStatus(errors ? `로그인됨 / ${errors}개 영역 확인 필요` : "로그인됨", Boolean(errors));
   }
 
   async function detailMap(rows, pathForRow) {
@@ -2666,12 +2888,10 @@ MEMBER_PAGE_JS = """
       const payload = action === "signup"
         ? await supabaseAuth("/auth/v1/signup", { email, password }, { redirect_to: memberRedirectUrl() })
         : await supabaseAuth("/auth/v1/token?grant_type=password", { email, password });
-      const token = payload?.access_token || payload?.session?.access_token;
-      if (!token) {
+      if (!setSession(payload)) {
         setStatus("가입 요청 완료. 이메일 확인 후 로그인하세요.");
         return;
       }
-      setToken(token);
       await loadMemberData();
     } catch (error) {
       setStatus(error.message, true);
@@ -2700,8 +2920,23 @@ MEMBER_PAGE_JS = """
     button.addEventListener("click", () => handleAuth(button.dataset.authAction || "signin"));
   });
 
-  signOutButton?.addEventListener("click", () => {
-    setToken("");
+  passwordToggle?.addEventListener("click", () => {
+    const input = authForm?.elements?.password;
+    if (!input) return;
+    const showing = input.type === "text";
+    input.type = showing ? "password" : "text";
+    passwordToggle.textContent = showing ? "보기" : "숨김";
+    passwordToggle.setAttribute("aria-pressed", showing ? "false" : "true");
+  });
+
+  signOutButton?.addEventListener("click", async () => {
+    await supabaseLogout();
+    clearSession();
+    fillSelect(portfolioSelect, [], "name");
+    fillSelect(watchlistSelect, [], "name");
+    portfolioList?.replaceChildren(emptyNode("로그인 후 포트폴리오가 표시됩니다"));
+    watchlistList?.replaceChildren(emptyNode("로그인 후 관심목록이 표시됩니다"));
+    analysisRequestList?.replaceChildren(emptyNode("로그인 후 분석 요청이 표시됩니다"));
     setStatus("로그아웃됨");
   });
 

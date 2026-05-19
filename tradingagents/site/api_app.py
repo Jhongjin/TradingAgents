@@ -167,6 +167,8 @@ def create_app(
             response.headers.setdefault("Cache-Control", "public, max-age=300, stale-while-revalidate=600")
         elif request.url.path == "/api/readiness":
             response.headers.setdefault("Cache-Control", "private, no-store")
+        elif request.url.path.startswith("/api/member/"):
+            response.headers.setdefault("Cache-Control", "private, no-store")
         elif request.url.path.startswith("/api/portfolio/") or request.url.path.startswith("/api/portfolios"):
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif request.url.path.startswith("/api/watchlists"):
@@ -436,6 +438,24 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"status": "created", "portfolio_id": portfolio_id}
+
+    @app.get("/api/member/dashboard")
+    def member_dashboard_bootstrap(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+        include_latest_prices: bool = False,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        return _member_dashboard_payload(
+            repo,
+            user_id=user_id,
+            include_latest_prices=include_latest_prices,
+            max_tickers=request.app.state.max_price_tickers,
+            max_list_limit=request.app.state.max_analysis_feed_limit,
+        )
 
     @app.get("/api/portfolios")
     def member_manual_portfolios(
@@ -1110,6 +1130,109 @@ def _safe_error_name(exc: Exception) -> str:
     if not message:
         return exc.__class__.__name__
     return message[:160]
+
+
+def _member_dashboard_payload(
+    repo: StorageRepository,
+    *,
+    user_id: str,
+    include_latest_prices: bool,
+    max_tickers: int,
+    max_list_limit: int,
+) -> dict:
+    list_limit = min(20, max_list_limit)
+    detail_limit = 6
+    errors: dict[str, object] = {}
+    portfolios: dict = {"status": "unavailable", "limit": list_limit, "items": [], "item_count": 0}
+    portfolio_details: dict[str, dict] = {}
+    watchlists: dict = {"status": "unavailable", "limit": list_limit, "items": [], "item_count": 0}
+    watchlist_details: dict[str, dict] = {}
+    analysis_requests: dict = {"status": "unavailable", "limit": list_limit, "items": [], "item_count": 0}
+
+    try:
+        portfolios = build_manual_portfolio_list_payload(
+            repo,
+            user_id=user_id,
+            limit=list_limit,
+            max_limit=max_list_limit,
+        )
+    except Exception as exc:
+        errors["portfolios"] = _safe_error_name(exc)
+    else:
+        detail_errors: dict[str, str] = {}
+        for portfolio in portfolios.get("items", [])[:detail_limit]:
+            portfolio_id = str(portfolio.get("id") or "")
+            if not portfolio_id:
+                continue
+            try:
+                prices, source = _portfolio_current_prices(
+                    repo,
+                    portfolio_id,
+                    current_prices=None,
+                    include_latest_prices=include_latest_prices,
+                    max_tickers=max_tickers,
+                )
+                payload = build_manual_portfolio_payload(repo, portfolio_id, current_prices=prices)
+                if source is not None:
+                    payload["market_price_source"] = source
+                portfolio_details[portfolio_id] = payload
+            except Exception as exc:
+                detail_errors[portfolio_id] = _safe_error_name(exc)
+        if detail_errors:
+            errors["portfolio_details"] = detail_errors
+
+    try:
+        watchlists = build_watchlist_list_payload(
+            repo,
+            user_id=user_id,
+            limit=list_limit,
+            max_limit=max_list_limit,
+        )
+    except Exception as exc:
+        errors["watchlists"] = _safe_error_name(exc)
+    else:
+        detail_errors = {}
+        for watchlist in watchlists.get("items", [])[:detail_limit]:
+            watchlist_id = str(watchlist.get("id") or "")
+            if not watchlist_id:
+                continue
+            try:
+                prices, source = _watchlist_current_prices(
+                    repo,
+                    watchlist_id,
+                    current_prices=None,
+                    include_latest_prices=include_latest_prices,
+                    max_tickers=max_tickers,
+                )
+                payload = build_watchlist_payload(repo, watchlist_id, current_prices=prices)
+                if source is not None:
+                    payload["market_price_source"] = source
+                watchlist_details[watchlist_id] = payload
+            except Exception as exc:
+                detail_errors[watchlist_id] = _safe_error_name(exc)
+        if detail_errors:
+            errors["watchlist_details"] = detail_errors
+
+    try:
+        analysis_requests = build_member_analysis_requests_payload(
+            repo,
+            user_id=user_id,
+            limit=list_limit,
+            max_limit=max_list_limit,
+        )
+    except Exception as exc:
+        errors["analysis_requests"] = _safe_error_name(exc)
+
+    return {
+        "status": "partial" if errors else "available",
+        "member": {"user_id": user_id},
+        "portfolios": portfolios,
+        "portfolio_details": portfolio_details,
+        "watchlists": watchlists,
+        "watchlist_details": watchlist_details,
+        "analysis_requests": analysis_requests,
+        "errors": errors,
+    }
 
 
 def _trust_member_user_header(value: bool | None) -> bool:

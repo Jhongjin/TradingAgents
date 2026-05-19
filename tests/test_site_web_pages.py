@@ -165,12 +165,18 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "/api/portfolios" in html
     assert "/api/watchlists" in html
     assert "/api/analysis-requests" in html
+    assert "/api/member/dashboard?include_latest_prices=true" in html
     assert "include_latest_prices=true" in html
     assert 'id="authStatus"' in html
     assert 'aria-live="polite"' in html
+    assert 'id="passwordToggle"' in html
     assert 'type="button" data-auth-action="signup"' in html
     assert "redirect_to: memberRedirectUrl()" in html
     assert "consumeRedirectSession" in html
+    assert "refresh_token" in html
+    assert "grant_type=refresh_token" in html
+    assert "safeMemberApi" in html
+    assert "member-sublist" in html
     assert "window.history.replaceState" in html
     assert 'throw new Error("Supabase 공개 Auth 설정 대기 중")' in html
     assert '"Authorization": `Bearer ${config.supabase_anon_key}`' in html

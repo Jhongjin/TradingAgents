@@ -668,6 +668,119 @@ def test_api_app_member_routes_accept_verified_supabase_bearer(monkeypatch):
     assert captured["headers"]["apikey"] == "anon-key"
 
 
+def test_api_app_serves_member_dashboard_bootstrap_with_single_bearer_auth(monkeypatch):
+    repo = _repo()
+    portfolio_ids = [repo.create_manual_portfolio(user_id=USER_ID, name=f"Portfolio {index}") for index in range(7)]
+    repo.add_manual_trade(
+        ManualTradeInput(
+            portfolio_id=portfolio_ids[0],
+            ticker_code="005930",
+            side="buy",
+            trade_date=date(2026, 1, 2),
+            price=Decimal("70000"),
+            quantity=10,
+        )
+    )
+    other_portfolio_id = repo.create_manual_portfolio(user_id=OTHER_USER_ID, name="Other")
+    watchlist_id = repo.create_watchlist(user_id=USER_ID, name="관심종목")
+    repo.add_watchlist_item(watchlist_id=watchlist_id, ticker_code="005930")
+    other_watchlist_id = repo.create_watchlist(user_id=OTHER_USER_ID, name="Other")
+    request_id = repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="005930",
+            requested_trade_date=date(2026, 5, 5),
+            reason="refresh",
+        )
+    )
+    other_request_id = repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=OTHER_USER_ID,
+            ticker_code="000660",
+            requested_trade_date=date(2026, 5, 5),
+        )
+    )
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_ANON_KEY", "anon-key")
+    auth_response = MagicMock()
+    auth_response.status_code = 200
+    auth_response.json.return_value = {"id": USER_ID}
+    auth_calls = []
+
+    def fake_get(url, **kwargs):
+        auth_calls.append((url, kwargs))
+        return auth_response
+
+    monkeypatch.setattr("tradingagents.site.auth.requests.get", fake_get)
+
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+    response = client.get(
+        "/api/member/dashboard",
+        headers={"Authorization": "Bearer user-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
+    body = response.json()
+    assert len(auth_calls) == 1
+    assert body["status"] == "available"
+    assert body["member"]["user_id"] == USER_ID
+    assert body["errors"] == {}
+    assert body["portfolios"]["item_count"] == 7
+    assert other_portfolio_id not in {item["id"] for item in body["portfolios"]["items"]}
+    assert len(body["portfolio_details"]) == 6
+    assert set(body["portfolio_details"]).issubset({item["id"] for item in body["portfolios"]["items"]})
+    assert body["watchlists"]["item_count"] == 1
+    assert body["watchlists"]["items"][0]["id"] == watchlist_id
+    assert other_watchlist_id not in body["watchlist_details"]
+    assert body["watchlist_details"][watchlist_id]["items"][0]["ticker_code"] == "005930"
+    assert body["analysis_requests"]["item_count"] == 1
+    assert body["analysis_requests"]["items"][0]["id"] == request_id
+    assert other_request_id not in {item["id"] for item in body["analysis_requests"]["items"]}
+
+
+def test_api_app_member_dashboard_returns_partial_errors_and_keeps_owner_scope(monkeypatch):
+    repo = _repo()
+    portfolio_id = repo.create_manual_portfolio(user_id=USER_ID, name="Main")
+    watchlist_id = repo.create_watchlist(user_id=USER_ID, name="관심종목")
+    other_watchlist_id = repo.create_watchlist(user_id=OTHER_USER_ID, name="Other")
+    repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="005930",
+            requested_trade_date=date(2026, 5, 5),
+            reason="refresh",
+        )
+    )
+
+    def broken_watchlist_payload(repo_arg, payload_watchlist_id, **kwargs):
+        if payload_watchlist_id == watchlist_id:
+            raise RuntimeError("watchlist detail unavailable")
+        raise AssertionError("dashboard should not load another member's watchlist detail")
+
+    monkeypatch.setattr("tradingagents.site.api_app.build_watchlist_payload", broken_watchlist_payload)
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    unauthenticated = client.get("/api/member/dashboard")
+    response = client.get(
+        "/api/member/dashboard",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
+
+    assert unauthenticated.status_code == 401
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "partial"
+    assert body["portfolios"]["item_count"] == 1
+    assert portfolio_id in body["portfolio_details"]
+    assert body["watchlists"]["item_count"] == 1
+    assert body["watchlists"]["items"][0]["id"] == watchlist_id
+    assert body["watchlist_details"] == {}
+    assert body["errors"] == {"watchlist_details": {watchlist_id: "watchlist detail unavailable"}}
+    assert other_watchlist_id not in {item["id"] for item in body["watchlists"]["items"]}
+    assert body["analysis_requests"]["item_count"] == 1
+
+
 def test_api_app_queues_analysis_refresh_request_with_bearer(monkeypatch):
     repo = _repo()
     monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
