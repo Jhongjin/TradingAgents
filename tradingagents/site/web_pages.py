@@ -306,9 +306,23 @@ def render_public_home_page(
   <main class="home-shell home-shell-art">
     <section class="home-hero home-hero-artboard" aria-labelledby="home-title">
       <div class="home-hero-copy home-hero-content">
-        <p class="home-kicker">Market Signal Studio / KR AI Agents</p>
-        <h1 id="home-title">한국 주식 AI 리서치를 신호로 읽다</h1>
-        <p class="home-lede">가격 흐름, 공시, 뉴스, 공개 리포트를 하나의 market signal로 합성해 한국 종목의 판단 근거를 빠르게 탐색합니다.</p>
+        <p class="home-kicker">KR Market Signal Desk / Read-only AI Research</p>
+        <h1 id="home-title">한국 투자자를 위한 AI 리서치 신호망</h1>
+        <p class="home-lede">KRX 시세, DART 공시, Naver 뉴스와 공개 리포트를 한 화면에 연결합니다. 5일/20일 사후 성과와 주문 차단 원칙까지 드러내, 투자 판단의 근거를 확인하게 합니다.</p>
+        <div class="home-trust-panel" aria-label="신뢰 운영 기준">
+          <div>
+            <span>공식·공개 데이터</span>
+            <strong>KRX / DART / Naver</strong>
+          </div>
+          <div>
+            <span>사후 검증</span>
+            <strong>5D / 20D outcome</strong>
+          </div>
+          <div>
+            <span>투자자 보호</span>
+            <strong>실거래 주문 기능 차단</strong>
+          </div>
+        </div>
         <form class="ticker-search home-search home-command-search" action="/stocks" method="get">
           <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
           <input id="ticker" name="ticker" list="tickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" autocomplete="off">
@@ -321,16 +335,16 @@ def render_public_home_page(
         </div>
         <dl class="home-proof-row home-signal-strip" aria-label="운영 상태">
           <div>
-            <dt>Market</dt>
+            <dt>시장</dt>
             <dd>KOSPI/KOSDAQ</dd>
           </div>
           <div>
-            <dt>Inputs</dt>
-            <dd>KRX + DART + News</dd>
+            <dt>데이터</dt>
+            <dd>공식·공개 출처</dd>
           </div>
           <div>
-            <dt>Mode</dt>
-            <dd>Read-only</dd>
+            <dt>모드</dt>
+            <dd>읽기 전용</dd>
           </div>
         </dl>
       </div>
@@ -347,9 +361,9 @@ def render_public_home_page(
             <span>READ-ONLY LAB</span>
           </div>
           <div class="home-console-focus">
-            <span>005930 / 삼성전자</span>
-            <strong>HOLD WATCH</strong>
-            <small>price + disclosure + news + benchmark alpha</small>
+            <span id="homeSignalTicker">005930 / 삼성전자</span>
+            <strong id="homeSignalDecision">HOLD WATCH</strong>
+            <small id="homeSignalMeta">price + disclosure + news + benchmark alpha</small>
           </div>
           <div class="home-sparkline" aria-hidden="true">
             <i style="--h: 38%"></i>
@@ -374,6 +388,16 @@ def render_public_home_page(
           <span>NEWS</span>
           <span>AGENTS</span>
           <span>REPORT</span>
+        </div>
+        <div class="home-live-tape" aria-hidden="true">
+          <div class="home-live-tape-track">
+            <span>005930 삼성전자 / KRX OHLCV / DART event</span>
+            <span>000660 SK하이닉스 / benchmark alpha / news impulse</span>
+            <span>035420 NAVER / disclosure watch / 20D outcome</span>
+            <span>086520 에코프로 / volatility guard / read-only</span>
+            <span>005930 삼성전자 / KRX OHLCV / DART event</span>
+            <span>000660 SK하이닉스 / benchmark alpha / news impulse</span>
+          </div>
         </div>
       </div>
     </section>
@@ -3175,12 +3199,12 @@ h3 {
 }
 
 .home-hero-artboard h1 {
-  max-width: 760px;
+  max-width: 640px;
   margin-bottom: 22px;
   color: var(--home-ink);
-  font-size: clamp(48px, 7.2vw, 104px);
+  font-size: clamp(44px, 5.6vw, 82px);
   font-weight: 900;
-  line-height: 0.9;
+  line-height: 0.96;
   letter-spacing: 0;
   text-wrap: balance;
   word-break: keep-all;
@@ -3230,6 +3254,51 @@ h3 {
   margin-top: 16px;
 }
 
+.home-trust-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(100%, 650px);
+  margin-top: 18px;
+  border: 1px solid rgba(246, 243, 232, 0.16);
+  background:
+    linear-gradient(90deg, rgba(215, 255, 63, 0.08), transparent 28%),
+    rgba(251, 250, 244, 0.045);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.home-trust-panel div {
+  min-width: 0;
+  padding: 14px 16px;
+  border-right: 1px solid rgba(246, 243, 232, 0.12);
+}
+
+.home-trust-panel div:last-child {
+  border-right: 0;
+}
+
+.home-trust-panel span {
+  display: block;
+  color: var(--home-celadon);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.home-trust-panel strong {
+  display: block;
+  margin-top: 7px;
+  color: var(--home-ink);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.34;
+  word-break: keep-all;
+}
+
+.home-trust-panel + .home-command-search {
+  margin-top: 18px;
+}
+
 .home-signal-strip {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   max-width: 710px;
@@ -3269,6 +3338,19 @@ h3 {
   box-shadow: 0 34px 90px rgba(0, 0, 0, 0.34);
 }
 
+.home-signal-art::after {
+  content: "";
+  position: absolute;
+  inset: -28%;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    conic-gradient(from 40deg at 50% 50%, transparent 0deg, rgba(215, 255, 63, 0.14) 38deg, transparent 72deg, rgba(143, 216, 189, 0.1) 138deg, transparent 194deg, rgba(199, 154, 58, 0.1) 250deg, transparent 320deg),
+    radial-gradient(circle at 50% 50%, transparent 0 36%, rgba(246, 243, 232, 0.1) 36.5%, transparent 37.5%);
+  opacity: 0.56;
+  transform: rotate(0deg);
+}
+
 .home-signal-canvas,
 .home-market-field {
   position: absolute;
@@ -3281,8 +3363,13 @@ h3 {
 }
 
 .home-market-field {
+  z-index: 1;
   pointer-events: none;
   mix-blend-mode: screen;
+}
+
+.home-signal-canvas {
+  z-index: 1;
 }
 
 .home-market-field::before,
@@ -3374,6 +3461,35 @@ h3 {
   color: var(--home-acid);
 }
 
+.home-live-tape {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  overflow: hidden;
+  border-top: 1px solid rgba(246, 243, 232, 0.14);
+  background: rgba(16, 19, 15, 0.72);
+}
+
+.home-live-tape-track {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+}
+
+.home-live-tape span {
+  flex: 0 0 auto;
+  padding: 10px 18px;
+  border-right: 1px solid rgba(246, 243, 232, 0.1);
+  color: rgba(246, 243, 232, 0.72);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
 .signal-stock-card {
   left: 44px;
   right: 44px;
@@ -3397,10 +3513,12 @@ h3 {
 .signal-stock-card .home-console-focus strong {
   color: var(--home-ink);
   font-size: clamp(36px, 4vw, 58px);
+  overflow-wrap: anywhere;
 }
 
 .signal-stock-card .home-console-focus small {
   color: rgba(246, 243, 232, 0.64);
+  overflow-wrap: anywhere;
 }
 
 .signal-vector-row {
@@ -3556,6 +3674,10 @@ h3 {
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  .home-signal-art::after {
+    animation: homeRadarSweep 18s linear infinite;
+  }
+
   .home-scanline {
     animation: homeScan 15s linear infinite;
   }
@@ -3567,6 +3689,20 @@ h3 {
   .home-sparkline i {
     animation: homePulse 2.8s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * 120ms);
+  }
+
+  .home-live-tape-track {
+    animation: homeTickerTape 26s linear infinite;
+  }
+}
+
+@keyframes homeRadarSweep {
+  from {
+    transform: rotate(0deg) scale(1);
+  }
+
+  to {
+    transform: rotate(360deg) scale(1);
   }
 }
 
@@ -3601,6 +3737,16 @@ h3 {
   50% {
     opacity: 0.95;
     transform: scaleY(1);
+  }
+}
+
+@keyframes homeTickerTape {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
   }
 }
 
@@ -3660,6 +3806,19 @@ h3 {
     overflow-wrap: anywhere;
   }
 
+  .home-trust-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-trust-panel div {
+    border-right: 0;
+    border-bottom: 1px solid rgba(246, 243, 232, 0.12);
+  }
+
+  .home-trust-panel div:last-child {
+    border-bottom: 0;
+  }
+
   .home-signal-art {
     min-height: 360px;
     aspect-ratio: auto;
@@ -3681,7 +3840,7 @@ h3 {
     left: 16px;
     right: 16px;
     top: auto;
-    bottom: 16px;
+    bottom: 48px;
   }
 
   .signal-stock-card .home-console-focus {
@@ -3689,7 +3848,8 @@ h3 {
   }
 
   .signal-stock-card .home-console-focus strong {
-    font-size: 30px;
+    font-size: clamp(24px, 8vw, 30px);
+    line-height: 0.98;
   }
 
   .signal-vector-row {
@@ -3773,10 +3933,54 @@ PAGE_JS = """
     });
   }
 
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const signalTicker = document.getElementById("homeSignalTicker");
+  const signalDecision = document.getElementById("homeSignalDecision");
+  const signalMeta = document.getElementById("homeSignalMeta");
+  const signalStates = [
+    {
+      ticker: "005930 / 삼성전자",
+      decision: "HOLD WATCH",
+      meta: "KRX price + DART disclosure + benchmark alpha"
+    },
+    {
+      ticker: "000660 / SK하이닉스",
+      decision: "RISK CHECK",
+      meta: "volatility guard + news impulse + 20D outcome"
+    },
+    {
+      ticker: "035420 / NAVER",
+      decision: "NEWS TRACE",
+      meta: "Naver news cluster + disclosure watch"
+    },
+    {
+      ticker: "086520 / 에코프로",
+      decision: "DATA REVIEW",
+      meta: "KOSDAQ flow + read-only investor guard"
+    }
+  ];
+
+  if (signalTicker && signalDecision && signalMeta) {
+    let signalIndex = 0;
+    const renderSignalState = (index) => {
+      const state = signalStates[index % signalStates.length];
+      signalTicker.textContent = state.ticker;
+      signalDecision.textContent = state.decision;
+      signalMeta.textContent = state.meta;
+    };
+    renderSignalState(signalIndex);
+    if (!prefersReducedMotion) {
+      window.setInterval(() => {
+        signalIndex = (signalIndex + 1) % signalStates.length;
+        renderSignalState(signalIndex);
+      }, 3200);
+    }
+  }
+
   const homeCanvas = document.getElementById("homeSignalCanvas");
   if (homeCanvas) {
     const homeCtx = homeCanvas.getContext("2d");
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reducedMotion = prefersReducedMotion;
     const nodes = [
       { x: 0.14, y: 0.68, label: "KRX", tone: "#d7ff3f" },
       { x: 0.3, y: 0.38, label: "DART", tone: "#8fd8bd" },
@@ -3784,6 +3988,8 @@ PAGE_JS = """
       { x: 0.7, y: 0.28, label: "AGENTS", tone: "#8fd8bd" },
       { x: 0.86, y: 0.5, label: "REPORT", tone: "#d7ff3f" }
     ];
+    let homeFrameId = null;
+    let homePaused = false;
 
     function fitHomeCanvas() {
       const rect = homeCanvas.getBoundingClientRect();
@@ -3797,6 +4003,8 @@ PAGE_JS = """
     let homeCanvasRect = fitHomeCanvas();
 
     function drawHomeSignal(time = 0) {
+      homeFrameId = null;
+      if (homePaused && !reducedMotion) return;
       const width = homeCanvasRect.width;
       const height = homeCanvasRect.height;
       homeCtx.clearRect(0, 0, width, height);
@@ -3814,6 +4022,26 @@ PAGE_JS = """
         else homeCtx.lineTo(x, y);
       });
       homeCtx.stroke();
+
+      for (let packetIndex = 0; packetIndex < 3; packetIndex += 1) {
+        const phase = reducedMotion ? 0.22 + packetIndex * 0.24 : ((time / 2800) + packetIndex * 0.34) % 1;
+        const scaled = phase * (nodes.length - 1);
+        const segment = Math.min(nodes.length - 2, Math.floor(scaled));
+        const local = scaled - segment;
+        const from = nodes[segment];
+        const to = nodes[segment + 1];
+        const x = (from.x + (to.x - from.x) * local) * width;
+        const y = (from.y + (to.y - from.y) * local) * height;
+        const angle = Math.atan2((to.y - from.y) * height, (to.x - from.x) * width);
+        homeCtx.save();
+        homeCtx.translate(x, y);
+        homeCtx.rotate(angle);
+        homeCtx.fillStyle = packetIndex === 1 ? "rgba(143, 216, 189, 0.78)" : "rgba(215, 255, 63, 0.82)";
+        homeCtx.fillRect(-13, -2, 26, 4);
+        homeCtx.globalAlpha = 0.28;
+        homeCtx.fillRect(-30, -1, 16, 2);
+        homeCtx.restore();
+      }
 
       nodes.forEach((node, index) => {
         const x = node.x * width;
@@ -3845,7 +4073,21 @@ PAGE_JS = """
       }
 
       homeCtx.restore();
-      if (!reducedMotion) window.requestAnimationFrame(drawHomeSignal);
+      if (!reducedMotion && !homePaused) homeFrameId = window.requestAnimationFrame(drawHomeSignal);
+    }
+
+    function startHomeSignal() {
+      if (reducedMotion || homeFrameId !== null) return;
+      homePaused = false;
+      homeFrameId = window.requestAnimationFrame(drawHomeSignal);
+    }
+
+    function stopHomeSignal() {
+      homePaused = true;
+      if (homeFrameId !== null) {
+        window.cancelAnimationFrame(homeFrameId);
+        homeFrameId = null;
+      }
     }
 
     drawHomeSignal();
@@ -3853,6 +4095,14 @@ PAGE_JS = """
       homeCanvasRect = fitHomeCanvas();
       if (reducedMotion) drawHomeSignal();
     }).observe(homeCanvas);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) stopHomeSignal();
+      else {
+        homePaused = false;
+        if (reducedMotion) drawHomeSignal();
+        else startHomeSignal();
+      }
+    });
   }
 
   const node = document.getElementById("stock-payload");
