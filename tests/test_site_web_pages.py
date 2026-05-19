@@ -153,7 +153,11 @@ def test_api_app_serves_public_home_page(monkeypatch):
 def test_render_public_home_page_is_usable_analysis_explorer():
     html = render_public_home_page(site_base_url="https://example.com")
 
+    assert "TradingAgents Korea" in html
     assert "한국 주식 AI 분석" in html
+    assert "공개 리포트 탐색" in html
+    assert "KRX SIGNAL" in html
+    assert "READ-ONLY 리서치" in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html
     assert "/stocks/005930" in html

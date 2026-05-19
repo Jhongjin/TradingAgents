@@ -268,7 +268,7 @@ def render_public_home_page(
     repo: StorageRepository | None = None,
     site_base_url: str | None = None,
 ) -> str:
-    """Render the public analysis explorer home page."""
+    """Render the public landing page for Korean stock analysis."""
 
     payload = _analysis_feed_payload(repo, ticker=None, limit=6, max_limit=50)
     model = _home_view_model(payload, site_base_url=site_base_url)
@@ -290,7 +290,7 @@ def render_public_home_page(
   <meta property="og:url" content="{_h(model["canonical_url"])}">
   <style>{PAGE_CSS}</style>
 </head>
-<body>
+<body class="public-home">
   <header class="topbar">
     <a class="brand" href="/" aria-label="TradingAgents Korea home">
       <span class="brand-mark">TA</span>
@@ -303,52 +303,140 @@ def render_public_home_page(
     </nav>
   </header>
 
-  <main class="shell">
-    <section class="home-search-band" aria-labelledby="home-title">
-      <div>
-        <p class="eyebrow">Korean Stock AI Analysis</p>
-        <h1 id="home-title">한국 주식 AI 분석</h1>
-        <p class="asof">6자리 종목코드나 종목명으로 바로 분석 페이지를 열 수 있습니다.</p>
+  <main class="home-shell">
+    <section class="home-hero" aria-labelledby="home-title">
+      <div class="home-hero-copy">
+        <p class="eyebrow">KR Market Research Desk</p>
+        <h1 id="home-title">TradingAgents Korea</h1>
+        <p class="home-lede">한국 주식 AI 분석을 종목코드, 공시, 뉴스, KRW 차트, 공개 리포트까지 한 화면에서 확인하는 리서치 허브입니다.</p>
+        <form class="ticker-search home-search home-hero-search" action="/stocks" method="get">
+          <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
+          <input id="ticker" name="ticker" list="tickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" autocomplete="off">
+          <datalist id="tickerSuggestions"></datalist>
+          <button type="submit">조회</button>
+        </form>
+        <div class="home-cta-row" aria-label="주요 링크">
+          <a class="home-primary-link" href="/analyses">공개 리포트 탐색</a>
+          <a class="home-secondary-link" href="/member">내 투자 노트</a>
+        </div>
+        <dl class="home-proof-row" aria-label="운영 상태">
+          <div>
+            <dt>Market</dt>
+            <dd>KOSPI/KOSDAQ</dd>
+          </div>
+          <div>
+            <dt>Data</dt>
+            <dd>KRX + DART + News</dd>
+          </div>
+          <div>
+            <dt>Trading</dt>
+            <dd>Read-only</dd>
+          </div>
+        </dl>
       </div>
-      <form class="ticker-search home-search" action="/stocks" method="get">
-        <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
-        <input id="ticker" name="ticker" list="tickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" autocomplete="off">
-        <datalist id="tickerSuggestions"></datalist>
-        <button type="submit">조회</button>
-      </form>
+      <div class="home-hero-visual" aria-label="한국 시장 분석 신호 미리보기">
+        <div class="home-radar" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <div class="home-console">
+          <div class="home-console-top">
+            <span>KRX SIGNAL</span>
+            <span>READ-ONLY</span>
+          </div>
+          <div class="home-console-focus">
+            <span>005930 / 삼성전자</span>
+            <strong>AI HOLD WATCH</strong>
+            <small>KRW chart, filings, news, benchmark alpha</small>
+          </div>
+          <div class="home-sparkline" aria-hidden="true">
+            <i style="--h: 38%"></i>
+            <i style="--h: 62%"></i>
+            <i style="--h: 48%"></i>
+            <i style="--h: 74%"></i>
+            <i style="--h: 55%"></i>
+            <i style="--h: 86%"></i>
+            <i style="--h: 68%"></i>
+            <i style="--h: 79%"></i>
+          </div>
+          <div class="home-console-grid">
+            <div><span>공시</span><strong>DART</strong></div>
+            <div><span>뉴스</span><strong>Naver</strong></div>
+            <div><span>성과</span><strong>5D / 20D</strong></div>
+            <div><span>주문</span><strong>OFF</strong></div>
+          </div>
+        </div>
+        <div class="home-pipeline" aria-hidden="true">
+          <span>PRICE</span>
+          <span>DISCLOSURE</span>
+          <span>NEWS</span>
+          <span>REPORT</span>
+        </div>
+      </div>
     </section>
 
-    <section class="report-section" aria-labelledby="quick-title">
-      <div class="panel-heading">
+    <section class="home-band" aria-labelledby="quick-title">
+      <div class="home-section-heading">
         <div>
           <p class="eyebrow">Quick Start</p>
           <h2 id="quick-title">주요 종목 바로가기</h2>
         </div>
-        <span class="status-pill">KRW</span>
+        <p>삼성전자, SK하이닉스, NAVER처럼 자주 확인하는 종목은 바로 차트와 공개 분석 페이지로 이동합니다.</p>
       </div>
-      <div class="analysis-feed-grid">
+      <div class="home-ticker-rail">
         {quick_html}
       </div>
     </section>
 
-    <section class="report-section" aria-labelledby="recent-title">
-      <div class="panel-heading">
-        <div>
-          <p class="eyebrow">Recent Analyses</p>
-          <h2 id="recent-title">최근 공개 분석</h2>
-        </div>
-        <a class="status-pill" href="/analyses">전체 보기</a>
+    <section class="home-analysis-zone" aria-labelledby="recent-title">
+      <div class="home-section-copy">
+        <p class="eyebrow">Public Intelligence</p>
+        <h2 id="recent-title">최근 공개 분석</h2>
+        <p>완료된 AI 분석은 종목 페이지와 공개 피드에 누적됩니다. 판단, 모델, 리포트 수, 벤치마크 대비 알파를 빠르게 훑고 원문 JSON까지 확인할 수 있습니다.</p>
+        <a class="home-secondary-link" href="/analyses">전체 분석 목록</a>
       </div>
-      <div class="analysis-feed-grid">
+      <div class="home-analysis-grid">
         {recent_html}
       </div>
     </section>
 
-    <section class="notice-strip" aria-label="투자 유의사항">
+    <section class="home-ops-strip" aria-label="서비스 원칙">
+      <div>
+        <p class="eyebrow">Operating Boundary</p>
+        <h2>조회와 기록에 집중한 READ-ONLY 리서치</h2>
+      </div>
       <ul>
-        <li>AI analysis is for informational purposes only and is not investment advice.</li>
-        <li>Live trading and broker order placement are intentionally not supported.</li>
+        <li>실거래 주문 기능은 의도적으로 지원하지 않습니다.</li>
+        <li>AI analysis is informational and is not investment advice.</li>
       </ul>
+    </section>
+
+    <section class="home-band home-member-band" aria-labelledby="member-title">
+      <div class="home-section-heading">
+        <div>
+          <p class="eyebrow">Member Workspace</p>
+          <h2 id="member-title">회원은 포트폴리오와 관심종목을 따로 관리합니다</h2>
+        </div>
+        <a class="home-primary-link" href="/member">대시보드 열기</a>
+      </div>
+      <div class="home-flow-list">
+        <article>
+          <span>01</span>
+          <strong>수동 포트폴리오</strong>
+          <p>매수/매도 기록, 평균단가, 목표가, 손절가를 직접 입력합니다.</p>
+        </article>
+        <article>
+          <span>02</span>
+          <strong>관심종목</strong>
+          <p>한국 종목코드 기준으로 메모와 함께 watchlist를 관리합니다.</p>
+        </article>
+        <article>
+          <span>03</span>
+          <strong>분석 요청 큐</strong>
+          <p>원하는 종목을 요청하면 worker가 공개 분석 흐름으로 처리합니다.</p>
+        </article>
+      </div>
     </section>
   </main>
 
@@ -1190,7 +1278,7 @@ body {
   min-width: 320px;
   background: var(--bg);
   color: var(--ink);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: Pretendard, Geist, Satoshi, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 a {
@@ -1282,6 +1370,7 @@ a {
 }
 
 .ticker-search button {
+  min-width: 68px;
   height: 40px;
   padding: 0 16px;
   border: 0;
@@ -1290,6 +1379,7 @@ a {
   color: white;
   font: inherit;
   font-weight: 700;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -1297,6 +1387,495 @@ a {
   width: min(1280px, calc(100% - 32px));
   margin: 0 auto;
   padding: 28px 0 48px;
+}
+
+.public-home {
+  background:
+    linear-gradient(90deg, rgba(20, 107, 99, 0.05) 1px, transparent 1px),
+    linear-gradient(#f7f4ec, #eef3ef 46%, #f6f7f4 100%);
+  background-size: 72px 100%, auto;
+}
+
+.public-home .topbar {
+  background: rgba(247, 244, 236, 0.92);
+}
+
+.home-shell {
+  width: min(1440px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 24px 0 60px;
+}
+
+.home-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.94fr) minmax(420px, 0.76fr);
+  gap: 56px;
+  align-items: center;
+  min-height: 560px;
+  padding: 30px 0 40px;
+  border-bottom: 1px solid rgba(23, 32, 31, 0.14);
+}
+
+.home-hero-copy {
+  max-width: 720px;
+}
+
+.home-hero h1 {
+  margin-bottom: 18px;
+  font-size: 68px;
+  line-height: 0.94;
+  letter-spacing: 0;
+}
+
+.home-lede {
+  max-width: 660px;
+  margin-bottom: 24px;
+  color: #3d4846;
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+.home-hero-search {
+  width: min(100%, 620px);
+  padding: 8px;
+  border: 1px solid rgba(23, 32, 31, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 24px 60px rgba(23, 32, 31, 0.08);
+}
+
+.home-hero-search input,
+.home-hero-search button {
+  height: 48px;
+}
+
+.home-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.home-primary-link,
+.home-secondary-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 800;
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+.home-primary-link {
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: #ffffff;
+}
+
+.home-secondary-link {
+  border: 1px solid rgba(23, 32, 31, 0.18);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ink);
+}
+
+.home-primary-link:hover,
+.home-secondary-link:hover {
+  transform: translateY(-1px);
+}
+
+.home-primary-link:active,
+.home-secondary-link:active {
+  transform: translateY(1px);
+}
+
+.home-proof-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  max-width: 690px;
+  margin: 34px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid rgba(23, 32, 31, 0.16);
+}
+
+.home-proof-row div {
+  min-width: 0;
+}
+
+.home-proof-row dt {
+  margin-bottom: 8px;
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.home-proof-row dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.home-hero-visual {
+  position: relative;
+  min-height: 480px;
+  overflow: hidden;
+  border: 1px solid rgba(243, 245, 239, 0.14);
+  border-radius: 8px;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    #111817;
+  background-size: 44px 44px, 44px 44px, auto;
+  color: #f3f5ef;
+  box-shadow: 0 32px 80px rgba(18, 25, 23, 0.24);
+}
+
+.home-hero-visual::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(120deg, transparent 0 18%, rgba(20, 107, 99, 0.16) 18% 19%, transparent 19% 100%),
+    linear-gradient(74deg, transparent 0 64%, rgba(214, 167, 59, 0.22) 64% 65%, transparent 65% 100%);
+  opacity: 0.8;
+}
+
+.home-radar {
+  position: absolute;
+  top: 28px;
+  right: 28px;
+  width: 330px;
+  aspect-ratio: 1;
+  border: 1px solid rgba(119, 196, 184, 0.34);
+  border-radius: 50%;
+  opacity: 0.62;
+}
+
+.home-radar span,
+.home-radar::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+}
+
+.home-radar span {
+  inset: var(--ring);
+  border: 1px solid rgba(119, 196, 184, 0.28);
+}
+
+.home-radar span:nth-child(1) {
+  --ring: 56px;
+}
+
+.home-radar span:nth-child(2) {
+  --ring: 112px;
+}
+
+.home-radar span:nth-child(3) {
+  --ring: 156px;
+  background: rgba(119, 196, 184, 0.12);
+}
+
+.home-radar::after {
+  left: 50%;
+  top: 50%;
+  width: 1px;
+  height: 44%;
+  border-radius: 0;
+  background: linear-gradient(rgba(214, 167, 59, 0.92), transparent);
+  transform-origin: top center;
+  animation: homeRadarSweep 9s linear infinite;
+}
+
+.home-console {
+  position: absolute;
+  left: 34px;
+  right: 34px;
+  bottom: 34px;
+  z-index: 1;
+  border: 1px solid rgba(243, 245, 239, 0.16);
+  border-radius: 8px;
+  background: rgba(17, 24, 23, 0.82);
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.home-console-top,
+.home-console-grid,
+.home-pipeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.home-console-top {
+  border-bottom: 1px solid rgba(243, 245, 239, 0.12);
+}
+
+.home-console-top span,
+.home-pipeline span {
+  padding: 12px;
+  color: rgba(243, 245, 239, 0.58);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.home-console-top span:first-child {
+  grid-column: span 3;
+  color: #77c4b8;
+}
+
+.home-console-focus {
+  padding: 26px 24px 18px;
+}
+
+.home-console-focus span,
+.home-console-focus small {
+  display: block;
+  color: rgba(243, 245, 239, 0.62);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.home-console-focus strong {
+  display: block;
+  margin: 6px 0;
+  color: #ffffff;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.home-sparkline {
+  display: flex;
+  align-items: end;
+  gap: 7px;
+  height: 84px;
+  margin: 0 24px 22px;
+  border-bottom: 1px solid rgba(243, 245, 239, 0.22);
+}
+
+.home-sparkline i {
+  flex: 1;
+  height: var(--h);
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(#d6a73b, #77c4b8);
+  opacity: 0.86;
+}
+
+.home-console-grid {
+  border-top: 1px solid rgba(243, 245, 239, 0.12);
+}
+
+.home-console-grid div {
+  min-width: 0;
+  padding: 14px;
+  border-right: 1px solid rgba(243, 245, 239, 0.12);
+}
+
+.home-console-grid div:last-child {
+  border-right: 0;
+}
+
+.home-console-grid span {
+  display: block;
+  margin-bottom: 6px;
+  color: rgba(243, 245, 239, 0.52);
+  font-size: 12px;
+}
+
+.home-console-grid strong {
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+}
+
+.home-pipeline {
+  position: absolute;
+  left: 34px;
+  right: 34px;
+  top: 34px;
+  z-index: 1;
+  border: 1px solid rgba(243, 245, 239, 0.12);
+  border-radius: 8px;
+  background: rgba(17, 24, 23, 0.56);
+}
+
+.home-pipeline span {
+  border-right: 1px solid rgba(243, 245, 239, 0.12);
+}
+
+.home-pipeline span:last-child {
+  border-right: 0;
+}
+
+.home-band,
+.home-analysis-zone,
+.home-ops-strip {
+  border-bottom: 1px solid rgba(23, 32, 31, 0.13);
+}
+
+.home-band {
+  padding: 48px 0;
+}
+
+.home-section-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(280px, 0.3fr);
+  gap: 28px;
+  align-items: end;
+  margin-bottom: 22px;
+}
+
+.home-section-heading p,
+.home-section-copy p {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.home-section-heading .home-primary-link {
+  justify-self: end;
+}
+
+.home-ticker-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(230px, 1fr);
+  gap: 12px;
+  overflow-x: auto;
+  padding: 2px 0 8px;
+  scroll-snap-type: x mandatory;
+}
+
+.home-ticker-rail .analysis-feed-card {
+  min-height: 186px;
+  scroll-snap-align: start;
+}
+
+.home-ticker-rail .analysis-feed-card:hover,
+.home-analysis-grid .analysis-feed-card:hover {
+  transform: translateY(-2px);
+}
+
+.home-ticker-rail .analysis-feed-card,
+.home-analysis-grid .analysis-feed-card {
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.home-analysis-zone {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.36fr) minmax(0, 0.64fr);
+  gap: 42px;
+  align-items: start;
+  padding: 54px 0;
+}
+
+.home-section-copy {
+  position: sticky;
+  top: 92px;
+}
+
+.home-section-copy h2 {
+  margin-bottom: 14px;
+  font-size: 34px;
+  line-height: 1.05;
+}
+
+.home-section-copy .home-secondary-link {
+  margin-top: 22px;
+}
+
+.home-analysis-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  gap: 14px;
+}
+
+.home-analysis-grid .analysis-feed-card:first-child:not(.empty) {
+  grid-row: span 2;
+  min-height: 370px;
+  background: #ffffff;
+}
+
+.home-ops-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 0.46fr) minmax(0, 0.54fr);
+  gap: 32px;
+  align-items: center;
+  padding: 28px 0;
+}
+
+.home-ops-strip h2 {
+  font-size: 24px;
+  line-height: 1.16;
+}
+
+.home-ops-strip ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.home-ops-strip li {
+  padding-top: 10px;
+  border-top: 1px solid rgba(23, 32, 31, 0.13);
+}
+
+.home-member-band {
+  border-bottom: 0;
+}
+
+.home-flow-list {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid rgba(23, 32, 31, 0.14);
+}
+
+.home-flow-list article {
+  display: grid;
+  grid-template-columns: 60px minmax(180px, 0.32fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: baseline;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(23, 32, 31, 0.12);
+}
+
+.home-flow-list span {
+  color: var(--accent-strong);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.home-flow-list strong {
+  font-size: 18px;
+}
+
+.home-flow-list p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+@keyframes homeRadarSweep {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .summary-band {
@@ -2175,6 +2754,39 @@ h3 {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .home-hero,
+  .home-section-heading,
+  .home-analysis-zone,
+  .home-ops-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-hero {
+    min-height: 0;
+    gap: 32px;
+    padding-top: 28px;
+  }
+
+  .home-hero-copy {
+    max-width: none;
+  }
+
+  .home-hero-visual {
+    min-height: 440px;
+  }
+
+  .home-section-heading .home-primary-link {
+    justify-self: start;
+  }
+
+  .home-section-copy {
+    position: static;
+  }
+
+  .home-analysis-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .summary-band {
     display: grid;
   }
@@ -2245,10 +2857,148 @@ h3 {
     padding-top: 18px;
   }
 
+  .home-shell {
+    width: min(100% - 24px, 1440px);
+    padding-top: 14px;
+  }
+
+  .home-hero {
+    gap: 22px;
+    padding: 22px 0 28px;
+  }
+
+  .home-hero h1 {
+    font-size: 40px;
+  }
+
+  .home-lede {
+    margin-bottom: 18px;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  .home-hero-search {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 8px;
+  }
+
+  .home-proof-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 20px;
+    padding-top: 14px;
+  }
+
+  .home-proof-row dt {
+    font-size: 10px;
+  }
+
+  .home-proof-row dd {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .home-console-grid,
+  .home-pipeline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-hero-visual {
+    min-height: 130px;
+  }
+
+  .home-radar {
+    right: -70px;
+    width: 280px;
+  }
+
+  .home-console,
+  .home-pipeline {
+    left: 16px;
+    right: 16px;
+  }
+
+  .home-console {
+    top: 12px;
+    bottom: auto;
+  }
+
+  .home-console-top {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .home-console-top span:first-child {
+    grid-column: auto;
+  }
+
+  .home-console-top span:last-child {
+    white-space: nowrap;
+  }
+
+  .home-pipeline {
+    display: none;
+  }
+
+  .home-console-focus {
+    padding: 10px 16px 12px;
+  }
+
+  .home-console-focus span,
+  .home-console-focus small {
+    font-size: 11px;
+  }
+
+  .home-sparkline {
+    display: none;
+  }
+
+  .home-console-grid {
+    display: none;
+  }
+
+  .home-console-grid div,
+  .home-pipeline span {
+    border-bottom: 1px solid rgba(243, 245, 239, 0.12);
+  }
+
+  .home-console-grid div:nth-child(2n),
+  .home-pipeline span:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .home-console-grid div:nth-last-child(-n + 2),
+  .home-pipeline span:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+
+  .home-console-focus strong {
+    font-size: 18px;
+  }
+
+  .home-console-focus small {
+    display: none;
+  }
+
+  .home-band,
+  .home-analysis-zone {
+    padding: 22px 0 34px;
+  }
+
+  .home-section-copy h2 {
+    font-size: 28px;
+  }
+
+  .home-flow-list article {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
   .metric-grid,
   .lens-grid,
   .outcome-grid,
   .report-grid,
+  .home-analysis-grid,
   .analysis-feed-grid,
   .analysis-summary-grid,
   .member-grid,
