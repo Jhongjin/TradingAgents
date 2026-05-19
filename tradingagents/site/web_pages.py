@@ -303,52 +303,53 @@ def render_public_home_page(
     </nav>
   </header>
 
-  <main class="home-shell">
-    <section class="home-hero" aria-labelledby="home-title">
-      <div class="home-hero-copy">
-        <p class="eyebrow">KR Market Research Desk</p>
-        <h1 id="home-title">TradingAgents Korea</h1>
-        <p class="home-lede">한국 주식 AI 분석을 종목코드, 공시, 뉴스, KRW 차트, 공개 리포트까지 한 화면에서 확인하는 리서치 허브입니다.</p>
-        <form class="ticker-search home-search home-hero-search" action="/stocks" method="get">
+  <main class="home-shell home-shell-art">
+    <section class="home-hero home-hero-artboard" aria-labelledby="home-title">
+      <div class="home-hero-copy home-hero-content">
+        <p class="home-kicker">Market Signal Studio / KR AI Agents</p>
+        <h1 id="home-title">한국 주식 AI 리서치를 신호로 읽다</h1>
+        <p class="home-lede">가격 흐름, 공시, 뉴스, 공개 리포트를 하나의 market signal로 합성해 한국 종목의 판단 근거를 빠르게 탐색합니다.</p>
+        <form class="ticker-search home-search home-command-search" action="/stocks" method="get">
           <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
           <input id="ticker" name="ticker" list="tickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" autocomplete="off">
           <datalist id="tickerSuggestions"></datalist>
           <button type="submit">조회</button>
         </form>
-        <div class="home-cta-row" aria-label="주요 링크">
-          <a class="home-primary-link" href="/analyses">공개 리포트 탐색</a>
-          <a class="home-secondary-link" href="/member">내 투자 노트</a>
+        <div class="home-cta-row home-action-row" aria-label="주요 링크">
+          <a class="home-primary-link" href="/stocks/005930">샘플 분석 보기</a>
+          <a class="home-secondary-link" href="/analyses">최근 공개 분석</a>
         </div>
-        <dl class="home-proof-row" aria-label="운영 상태">
+        <dl class="home-proof-row home-signal-strip" aria-label="운영 상태">
           <div>
             <dt>Market</dt>
             <dd>KOSPI/KOSDAQ</dd>
           </div>
           <div>
-            <dt>Data</dt>
+            <dt>Inputs</dt>
             <dd>KRX + DART + News</dd>
           </div>
           <div>
-            <dt>Trading</dt>
+            <dt>Mode</dt>
             <dd>Read-only</dd>
           </div>
         </dl>
       </div>
-      <div class="home-hero-visual" aria-label="한국 시장 분석 신호 미리보기">
-        <div class="home-radar" aria-hidden="true">
-          <span></span>
-          <span></span>
-          <span></span>
+      <div class="home-hero-visual home-signal-art" aria-label="한국 주식 AI 분석 신호 아트보드">
+        <canvas id="homeSignalCanvas" class="home-signal-canvas" aria-hidden="true"></canvas>
+        <div class="home-market-field" aria-hidden="true">
+          <span class="home-scanline"></span>
+          <span class="home-index-map"></span>
+          <span class="home-signal-thread"></span>
         </div>
-        <div class="home-console">
+        <div class="home-console signal-stock-card">
           <div class="home-console-top">
             <span>KRX SIGNAL</span>
-            <span>READ-ONLY</span>
+            <span>READ-ONLY LAB</span>
           </div>
           <div class="home-console-focus">
             <span>005930 / 삼성전자</span>
-            <strong>AI HOLD WATCH</strong>
-            <small>KRW chart, filings, news, benchmark alpha</small>
+            <strong>HOLD WATCH</strong>
+            <small>price + disclosure + news + benchmark alpha</small>
           </div>
           <div class="home-sparkline" aria-hidden="true">
             <i style="--h: 38%"></i>
@@ -360,23 +361,53 @@ def render_public_home_page(
             <i style="--h: 68%"></i>
             <i style="--h: 79%"></i>
           </div>
-          <div class="home-console-grid">
-            <div><span>공시</span><strong>DART</strong></div>
-            <div><span>뉴스</span><strong>Naver</strong></div>
-            <div><span>성과</span><strong>5D / 20D</strong></div>
-            <div><span>주문</span><strong>OFF</strong></div>
+          <div class="home-console-grid signal-vector-row">
+            <div><span>Price</span><strong>OHLCV</strong></div>
+            <div><span>Disclosure</span><strong>DART</strong></div>
+            <div><span>News</span><strong>Naver</strong></div>
+            <div><span>Outcome</span><strong>5D / 20D</strong></div>
           </div>
         </div>
-        <div class="home-pipeline" aria-hidden="true">
-          <span>PRICE</span>
-          <span>DISCLOSURE</span>
+        <div class="home-pipeline signal-flow-row" aria-hidden="true">
+          <span>KRX</span>
+          <span>DART</span>
           <span>NEWS</span>
+          <span>AGENTS</span>
           <span>REPORT</span>
         </div>
       </div>
     </section>
 
-    <section class="home-band" aria-labelledby="quick-title">
+    <section class="home-lens-band" aria-labelledby="lens-home-title">
+      <div class="home-section-heading">
+        <div>
+          <p class="eyebrow">Analysis Lenses</p>
+          <h2 id="lens-home-title">종목을 다섯 개의 신호로 분해합니다</h2>
+        </div>
+        <p>차트만 보거나 뉴스만 읽는 화면이 아니라, 가격과 이벤트를 함께 묶어 공개 분석의 맥락을 만듭니다.</p>
+      </div>
+      <div class="home-lens-grid">
+        <article><span>01</span><strong>Price</strong><p>KRW OHLCV와 이동평균, 거래량 흐름을 확인합니다.</p></article>
+        <article><span>02</span><strong>Disclosure</strong><p>DART 공시와 재무 이벤트를 분석 흐름에 반영합니다.</p></article>
+        <article><span>03</span><strong>News</strong><p>Naver 뉴스 신호로 단기 이슈와 시장 반응을 추적합니다.</p></article>
+        <article><span>04</span><strong>Agents</strong><p>복수 에이전트 판단을 공개 리포트 구조로 정리합니다.</p></article>
+        <article><span>05</span><strong>Outcome</strong><p>5일/20일 성과 검증으로 판단 이후를 기록합니다.</p></article>
+      </div>
+    </section>
+
+    <section class="home-analysis-zone home-recent-intel" aria-labelledby="recent-title">
+      <div class="home-section-copy">
+        <p class="eyebrow">Public Intelligence</p>
+        <h2 id="recent-title">최근 공개 분석</h2>
+        <p>완료된 AI 분석은 종목 페이지와 공개 피드에 누적됩니다. 판단, 모델, 리포트 수, 벤치마크 대비 알파를 빠르게 훑고 원문 JSON까지 확인할 수 있습니다.</p>
+        <a class="home-secondary-link" href="/analyses">전체 분석 목록</a>
+      </div>
+      <div class="home-analysis-grid">
+        {recent_html}
+      </div>
+    </section>
+
+    <section class="home-band home-stock-jump" aria-labelledby="quick-title">
       <div class="home-section-heading">
         <div>
           <p class="eyebrow">Quick Start</p>
@@ -386,18 +417,6 @@ def render_public_home_page(
       </div>
       <div class="home-ticker-rail">
         {quick_html}
-      </div>
-    </section>
-
-    <section class="home-analysis-zone" aria-labelledby="recent-title">
-      <div class="home-section-copy">
-        <p class="eyebrow">Public Intelligence</p>
-        <h2 id="recent-title">최근 공개 분석</h2>
-        <p>완료된 AI 분석은 종목 페이지와 공개 피드에 누적됩니다. 판단, 모델, 리포트 수, 벤치마크 대비 알파를 빠르게 훑고 원문 JSON까지 확인할 수 있습니다.</p>
-        <a class="home-secondary-link" href="/analyses">전체 분석 목록</a>
-      </div>
-      <div class="home-analysis-grid">
-        {recent_html}
       </div>
     </section>
 
@@ -3055,6 +3074,644 @@ h3 {
     grid-column: auto;
   }
 }
+
+.public-home {
+  --home-bg: #10130f;
+  --home-ink: #f6f3e8;
+  --home-paper: #fbfaf4;
+  --home-panel: #171a16;
+  --home-panel-2: #22251f;
+  --home-line: rgba(246, 243, 232, 0.16);
+  --home-muted: #a6ada2;
+  --home-celadon: #8fd8bd;
+  --home-acid: #d7ff3f;
+  --home-vermilion: #ff5a3d;
+  --home-brass: #c79a3a;
+  background:
+    radial-gradient(circle at 72% 8%, rgba(215, 255, 63, 0.14), transparent 28%),
+    radial-gradient(circle at 12% 34%, rgba(143, 216, 189, 0.13), transparent 31%),
+    linear-gradient(180deg, #10130f 0%, #171a16 48%, #11140f 100%);
+  color: var(--home-ink);
+  overflow-x: clip;
+}
+
+.public-home::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgba(246, 243, 232, 0.045) 1px, transparent 1px),
+    linear-gradient(rgba(246, 243, 232, 0.032) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(180deg, #000 0 72%, transparent 100%);
+}
+
+.public-home .topbar {
+  border-bottom-color: rgba(246, 243, 232, 0.12);
+  background: rgba(16, 19, 15, 0.84);
+  color: var(--home-ink);
+}
+
+.public-home .brand-mark {
+  background: var(--home-acid);
+  color: #10130f;
+}
+
+.public-home .top-links {
+  color: rgba(246, 243, 232, 0.68);
+}
+
+.public-home .top-links a:hover {
+  background: rgba(246, 243, 232, 0.08);
+  color: var(--home-ink);
+}
+
+.home-shell-art {
+  width: min(100% - clamp(24px, 5vw, 72px), 1440px);
+  padding: 0 0 72px;
+}
+
+.home-hero-artboard {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 0.9fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+  min-height: calc(100svh - 120px);
+  padding: clamp(32px, 4.5vw, 64px) 0 clamp(28px, 4vw, 52px);
+  border-bottom: 1px solid var(--home-line);
+}
+
+.home-hero-artboard > * {
+  min-width: 0;
+}
+
+.home-hero-artboard::after {
+  content: "TA-KR / SIGNAL MAP";
+  position: absolute;
+  left: 0;
+  bottom: 16px;
+  color: rgba(246, 243, 232, 0.28);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.home-hero-content {
+  max-width: 760px;
+}
+
+.home-kicker {
+  margin: 0 0 18px;
+  color: var(--home-celadon);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.home-hero-artboard h1 {
+  max-width: 760px;
+  margin-bottom: 22px;
+  color: var(--home-ink);
+  font-size: clamp(48px, 7.2vw, 104px);
+  font-weight: 900;
+  line-height: 0.9;
+  letter-spacing: 0;
+  text-wrap: balance;
+  word-break: keep-all;
+}
+
+.home-hero-artboard .home-lede {
+  max-width: 670px;
+  margin-bottom: 26px;
+  color: rgba(246, 243, 232, 0.76);
+  font-size: clamp(16px, 1.4vw, 20px);
+  line-height: 1.68;
+}
+
+.home-command-search {
+  width: min(100%, 650px);
+  padding: 7px;
+  border: 1px solid rgba(246, 243, 232, 0.18);
+  border-radius: 6px;
+  background: rgba(23, 26, 22, 0.84);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
+}
+
+.home-command-search input {
+  border-color: rgba(246, 243, 232, 0.16);
+  background: rgba(251, 250, 244, 0.06);
+  color: var(--home-ink);
+}
+
+.home-command-search input::placeholder {
+  color: rgba(246, 243, 232, 0.48);
+}
+
+.home-command-search button,
+.public-home .home-primary-link {
+  border-color: var(--home-acid);
+  background: var(--home-acid);
+  color: #10130f;
+}
+
+.public-home .home-secondary-link {
+  border-color: rgba(246, 243, 232, 0.22);
+  background: rgba(246, 243, 232, 0.06);
+  color: var(--home-ink);
+}
+
+.home-action-row {
+  margin-top: 16px;
+}
+
+.home-signal-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 710px;
+  margin-top: 34px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.home-signal-strip div {
+  padding: 14px 0;
+  border-top: 1px solid rgba(246, 243, 232, 0.16);
+}
+
+.home-signal-strip dt {
+  color: var(--home-celadon);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+.home-signal-strip dd {
+  color: var(--home-ink);
+}
+
+.home-signal-art {
+  position: relative;
+  max-width: 100%;
+  min-height: clamp(380px, 42vw, 620px);
+  aspect-ratio: 1.06 / 1;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.18);
+  border-radius: 0;
+  background:
+    linear-gradient(90deg, rgba(215, 255, 63, 0.1) 1px, transparent 1px),
+    linear-gradient(rgba(143, 216, 189, 0.08) 1px, transparent 1px),
+    radial-gradient(circle at 72% 28%, rgba(215, 255, 63, 0.18), transparent 28%),
+    linear-gradient(135deg, #11130f, #1c201a 58%, #0f110e);
+  background-size: 28px 28px, 28px 28px, auto, auto;
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.34);
+}
+
+.home-signal-canvas,
+.home-market-field {
+  position: absolute;
+  inset: 0;
+}
+
+.home-signal-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.home-market-field {
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.home-market-field::before,
+.home-market-field::after {
+  content: "";
+  position: absolute;
+  inset: 10%;
+  border: 1px solid rgba(143, 216, 189, 0.18);
+  transform: skewX(-18deg) rotate(-10deg);
+}
+
+.home-market-field::after {
+  inset: 23% 4% 18% 36%;
+  border-color: rgba(215, 255, 63, 0.18);
+  transform: skewX(22deg) rotate(16deg);
+}
+
+.home-scanline {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 18%;
+  width: 1px;
+  background: linear-gradient(transparent, rgba(215, 255, 63, 0.85), transparent);
+  transform: rotate(18deg);
+}
+
+.home-index-map {
+  position: absolute;
+  right: -8%;
+  top: 12%;
+  width: 58%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(143, 216, 189, 0.22);
+  border-radius: 50%;
+}
+
+.home-index-map::before,
+.home-index-map::after {
+  content: "";
+  position: absolute;
+  inset: 18%;
+  border: 1px solid rgba(143, 216, 189, 0.16);
+  border-radius: 50%;
+}
+
+.home-index-map::after {
+  inset: 37%;
+  background: rgba(143, 216, 189, 0.1);
+}
+
+.home-signal-thread {
+  position: absolute;
+  left: 7%;
+  right: 7%;
+  bottom: 18%;
+  height: 18%;
+  clip-path: polygon(0 72%, 12% 58%, 20% 64%, 30% 22%, 42% 44%, 52% 34%, 62% 70%, 72% 30%, 84% 50%, 100% 18%, 100% 100%, 0 100%);
+  background: linear-gradient(90deg, rgba(215, 255, 63, 0.82), rgba(143, 216, 189, 0.34));
+  opacity: 0.36;
+}
+
+.signal-flow-row {
+  position: absolute;
+  left: 34px;
+  right: 34px;
+  top: 34px;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  background: rgba(16, 19, 15, 0.5);
+}
+
+.signal-flow-row span {
+  min-width: 0;
+  padding: 12px 10px;
+  border-right: 1px solid rgba(246, 243, 232, 0.14);
+  color: rgba(246, 243, 232, 0.66);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+.signal-flow-row span:last-child {
+  border-right: 0;
+  color: var(--home-acid);
+}
+
+.signal-stock-card {
+  left: 44px;
+  right: 44px;
+  bottom: 44px;
+  z-index: 3;
+  border-color: rgba(246, 243, 232, 0.18);
+  border-radius: 0;
+  background: rgba(16, 19, 15, 0.76);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 28px 60px rgba(0, 0, 0, 0.24);
+}
+
+.signal-stock-card .home-console-top {
+  border-bottom-color: rgba(246, 243, 232, 0.12);
+}
+
+.signal-stock-card .home-console-top span:first-child,
+.signal-stock-card .home-console-focus span {
+  color: var(--home-celadon);
+}
+
+.signal-stock-card .home-console-focus strong {
+  color: var(--home-ink);
+  font-size: clamp(36px, 4vw, 58px);
+}
+
+.signal-stock-card .home-console-focus small {
+  color: rgba(246, 243, 232, 0.64);
+}
+
+.signal-vector-row {
+  border-top-color: rgba(246, 243, 232, 0.12);
+}
+
+.signal-vector-row div {
+  border-right-color: rgba(246, 243, 232, 0.12);
+}
+
+.signal-vector-row span {
+  color: rgba(246, 243, 232, 0.56);
+}
+
+.signal-vector-row strong {
+  color: var(--home-ink);
+}
+
+.signal-stock-card .home-sparkline {
+  border-bottom-color: rgba(246, 243, 232, 0.14);
+}
+
+.signal-stock-card .home-sparkline i {
+  background: linear-gradient(var(--home-acid), var(--home-celadon));
+}
+
+.home-lens-band,
+.public-home .home-band,
+.public-home .home-analysis-zone,
+.public-home .home-ops-strip {
+  border-bottom: 1px solid var(--home-line);
+}
+
+.home-lens-band {
+  padding: clamp(48px, 7vw, 96px) 0;
+}
+
+.public-home .home-section-heading {
+  align-items: start;
+}
+
+.public-home .home-section-heading h2,
+.public-home .home-section-copy h2,
+.public-home .home-ops-strip h2 {
+  color: var(--home-ink);
+  font-size: clamp(28px, 4vw, 54px);
+  font-weight: 900;
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+.public-home .home-section-heading p,
+.public-home .home-section-copy p,
+.public-home .home-flow-list p,
+.public-home .home-ops-strip li {
+  color: rgba(246, 243, 232, 0.66);
+}
+
+.home-lens-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(160px, 1fr));
+  gap: 0;
+  margin-top: 28px;
+  border-top: 1px solid var(--home-line);
+}
+
+.home-lens-grid article {
+  min-height: 220px;
+  padding: 22px 18px;
+  border-right: 1px solid var(--home-line);
+}
+
+.home-lens-grid article:last-child {
+  border-right: 0;
+}
+
+.home-lens-grid span,
+.home-flow-list span {
+  color: var(--home-acid);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+.home-lens-grid strong {
+  display: block;
+  margin: 36px 0 12px;
+  color: var(--home-ink);
+  font-size: 22px;
+}
+
+.home-lens-grid p {
+  margin: 0;
+  color: rgba(246, 243, 232, 0.62);
+  line-height: 1.6;
+}
+
+.home-recent-intel {
+  padding: clamp(52px, 8vw, 110px) 0;
+}
+
+.public-home .analysis-feed-card {
+  border-color: rgba(246, 243, 232, 0.14);
+  border-radius: 0;
+  background: rgba(251, 250, 244, 0.055);
+  color: var(--home-ink);
+}
+
+.public-home .analysis-feed-card span {
+  color: var(--home-celadon);
+}
+
+.public-home .analysis-feed-card p,
+.public-home .analysis-feed-card small,
+.public-home .analysis-feed-card dt {
+  color: rgba(246, 243, 232, 0.6);
+}
+
+.public-home .analysis-feed-card dl div {
+  border-top-color: rgba(246, 243, 232, 0.12);
+}
+
+.home-analysis-grid .analysis-feed-card:first-child:not(.empty) {
+  background: rgba(251, 250, 244, 0.09);
+  border-top: 4px solid var(--home-acid);
+}
+
+.home-stock-jump {
+  padding: clamp(42px, 6vw, 76px) 0;
+}
+
+.home-ticker-rail .analysis-feed-card {
+  border-left: 3px solid var(--home-acid);
+  background: transparent;
+}
+
+.public-home .home-ops-strip {
+  color: var(--home-ink);
+}
+
+.public-home .home-ops-strip li {
+  border-top-color: rgba(246, 243, 232, 0.14);
+}
+
+.public-home .home-flow-list {
+  border-top-color: rgba(246, 243, 232, 0.16);
+}
+
+.public-home .home-flow-list article {
+  border-bottom-color: rgba(246, 243, 232, 0.12);
+}
+
+.public-home .home-flow-list strong {
+  color: var(--home-ink);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .home-scanline {
+    animation: homeScan 15s linear infinite;
+  }
+
+  .home-signal-thread {
+    animation: homeThread 7s steps(9) infinite;
+  }
+
+  .home-sparkline i {
+    animation: homePulse 2.8s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * 120ms);
+  }
+}
+
+@keyframes homeScan {
+  from {
+    transform: translateX(-42%) rotate(18deg);
+  }
+
+  to {
+    transform: translateX(520%) rotate(18deg);
+  }
+}
+
+@keyframes homeThread {
+  0%,
+  100% {
+    opacity: 0.22;
+  }
+
+  50% {
+    opacity: 0.48;
+  }
+}
+
+@keyframes homePulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scaleY(0.84);
+  }
+
+  50% {
+    opacity: 0.95;
+    transform: scaleY(1);
+  }
+}
+
+@media (max-width: 1180px) {
+  .home-hero-artboard {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: auto;
+  }
+
+  .home-signal-art {
+    aspect-ratio: 16 / 10;
+    min-height: 380px;
+  }
+
+  .home-lens-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-lens-grid article {
+    border-bottom: 1px solid var(--home-line);
+  }
+}
+
+@media (max-width: 640px) {
+  .home-shell-art {
+    width: min(100% - 24px, 1440px);
+  }
+
+  .home-hero-artboard {
+    padding: 28px 0 46px;
+  }
+
+  .home-hero-artboard h1 {
+    font-size: clamp(36px, 12vw, 52px);
+  }
+
+  .home-command-search {
+    flex-direction: column;
+  }
+
+  .home-signal-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 22px;
+  }
+
+  .home-signal-strip div {
+    padding: 10px 0;
+  }
+
+  .home-signal-strip dt {
+    font-size: 10px;
+  }
+
+  .home-signal-strip dd {
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
+
+  .home-signal-art {
+    min-height: 360px;
+    aspect-ratio: auto;
+  }
+
+  .signal-flow-row {
+    left: 16px;
+    right: 16px;
+    top: 16px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .signal-flow-row span {
+    padding: 10px 4px;
+    font-size: 9px;
+  }
+
+  .signal-stock-card {
+    left: 16px;
+    right: 16px;
+    top: auto;
+    bottom: 16px;
+  }
+
+  .signal-stock-card .home-console-focus {
+    padding: 16px;
+  }
+
+  .signal-stock-card .home-console-focus strong {
+    font-size: 30px;
+  }
+
+  .signal-vector-row {
+    display: none;
+  }
+
+  .signal-stock-card .home-sparkline {
+    display: flex;
+    height: 52px;
+    margin: 0 16px 16px;
+  }
+
+  .home-lens-grid,
+  .home-analysis-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-lens-grid article {
+    min-height: 0;
+    border-right: 0;
+  }
+}
 """
 
 
@@ -3114,6 +3771,88 @@ PAGE_JS = """
         searchForm.submit();
       }
     });
+  }
+
+  const homeCanvas = document.getElementById("homeSignalCanvas");
+  if (homeCanvas) {
+    const homeCtx = homeCanvas.getContext("2d");
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const nodes = [
+      { x: 0.14, y: 0.68, label: "KRX", tone: "#d7ff3f" },
+      { x: 0.3, y: 0.38, label: "DART", tone: "#8fd8bd" },
+      { x: 0.52, y: 0.58, label: "NEWS", tone: "#c79a3a" },
+      { x: 0.7, y: 0.28, label: "AGENTS", tone: "#8fd8bd" },
+      { x: 0.86, y: 0.5, label: "REPORT", tone: "#d7ff3f" }
+    ];
+
+    function fitHomeCanvas() {
+      const rect = homeCanvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      homeCanvas.width = Math.max(1, Math.floor(rect.width * ratio));
+      homeCanvas.height = Math.max(1, Math.floor(rect.height * ratio));
+      homeCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      return rect;
+    }
+
+    let homeCanvasRect = fitHomeCanvas();
+
+    function drawHomeSignal(time = 0) {
+      const width = homeCanvasRect.width;
+      const height = homeCanvasRect.height;
+      homeCtx.clearRect(0, 0, width, height);
+      homeCtx.save();
+      homeCtx.globalCompositeOperation = "screen";
+
+      const pulse = reducedMotion ? 0.5 : (Math.sin(time / 1100) + 1) / 2;
+      homeCtx.lineWidth = 1;
+      homeCtx.strokeStyle = `rgba(215, 255, 63, ${0.18 + pulse * 0.16})`;
+      homeCtx.beginPath();
+      nodes.forEach((node, index) => {
+        const x = node.x * width;
+        const y = node.y * height;
+        if (index === 0) homeCtx.moveTo(x, y);
+        else homeCtx.lineTo(x, y);
+      });
+      homeCtx.stroke();
+
+      nodes.forEach((node, index) => {
+        const x = node.x * width;
+        const y = node.y * height;
+        const radius = 4 + ((index + pulse * 3) % 4);
+        homeCtx.fillStyle = node.tone;
+        homeCtx.globalAlpha = 0.75;
+        homeCtx.beginPath();
+        homeCtx.arc(x, y, radius, 0, Math.PI * 2);
+        homeCtx.fill();
+        homeCtx.globalAlpha = 0.22;
+        homeCtx.beginPath();
+        homeCtx.arc(x, y, radius * 4.2, 0, Math.PI * 2);
+        homeCtx.strokeStyle = node.tone;
+        homeCtx.stroke();
+        homeCtx.globalAlpha = 0.72;
+        homeCtx.font = "700 11px JetBrains Mono, Consolas, monospace";
+        homeCtx.fillText(node.label, x + 10, y - 10);
+      });
+
+      for (let index = 0; index < 9; index += 1) {
+        const y = height * (0.2 + index * 0.075);
+        const offset = reducedMotion ? 0 : (time / 60 + index * 23) % width;
+        homeCtx.strokeStyle = `rgba(143, 216, 189, ${0.06 + index * 0.008})`;
+        homeCtx.beginPath();
+        homeCtx.moveTo(-width * 0.2 + offset, y);
+        homeCtx.lineTo(width * 0.18 + offset, y - height * 0.13);
+        homeCtx.stroke();
+      }
+
+      homeCtx.restore();
+      if (!reducedMotion) window.requestAnimationFrame(drawHomeSignal);
+    }
+
+    drawHomeSignal();
+    new ResizeObserver(() => {
+      homeCanvasRect = fitHomeCanvas();
+      if (reducedMotion) drawHomeSignal();
+    }).observe(homeCanvas);
   }
 
   const node = document.getElementById("stock-payload");

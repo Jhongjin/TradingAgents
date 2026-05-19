@@ -155,9 +155,12 @@ def test_render_public_home_page_is_usable_analysis_explorer():
 
     assert "TradingAgents Korea" in html
     assert "한국 주식 AI 분석" in html
-    assert "공개 리포트 탐색" in html
+    assert "최근 공개 분석" in html
+    assert "한국 주식 AI 리서치를 신호로 읽다" in html
+    assert "Market Signal Studio" in html
     assert "KRX SIGNAL" in html
-    assert "READ-ONLY 리서치" in html
+    assert "homeSignalCanvas" in html
+    assert "Analysis Lenses" in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html
     assert "/stocks/005930" in html
