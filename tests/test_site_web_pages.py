@@ -170,13 +170,17 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "homeSignalDecision" in html
     assert "home-live-tape" in html
     assert "prefers-reduced-motion" in html
+    assert "syncTopAuthLinks" in html
     assert "로그인" in html
     assert "가입하기" in html
     assert 'href="/member?mode=signup"' in html
+    assert 'data-auth-visible="signed-out"' in html
+    assert 'data-auth-visible="signed-in" hidden' in html
     assert "Analysis Lenses" in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html
     assert "/stocks/005930" in html
+    assert 'href="/stocks/005930">삼성전자</a>' not in html
     assert "/analyses" in html
     assert '<link rel="canonical" href="https://example.com/">' in html
 
@@ -188,7 +192,15 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
 
     html = render_member_dashboard_page(site_base_url="https://example.com")
 
+    assert "리서치 노트를 안전하게 보관하세요" in html
+    assert "회원 작업공간은 로그인 후에만 열립니다" in html
     assert "내 투자 노트" in html
+    assert 'id="memberAuthLanding"' in html
+    assert 'id="memberWorkspace" hidden' in html
+    assert 'class="member-page is-member-signed-out"' in html
+    assert 'data-auth-visible="signed-out"' in html
+    assert 'data-auth-visible="signed-in" hidden' in html
+    assert 'href="/stocks/005930">삼성전자</a>' not in html
     assert "/api/portfolios" in html
     assert "/api/watchlists" in html
     assert "/api/analysis-requests" in html
@@ -212,6 +224,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'id="memberSignedIn"' in html
     assert "대시보드 준비 완료" in html
     assert "setSignedInState" in html
+    assert "setAuthUiState" in html
     assert "로그인 세션이 만료되었습니다" in html
     assert 'aria-live="polite"' in html
     assert 'id="passwordToggle"' in html

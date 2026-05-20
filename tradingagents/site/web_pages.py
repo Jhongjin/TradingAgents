@@ -75,9 +75,9 @@ def render_public_stock_page(
     </a>
     <nav class="top-links" aria-label="서비스 페이지">
       <a href="/analyses">분석 목록</a>
-      <a class="top-auth-link" href="/member">로그인</a>
-      <a class="top-join-link" href="/member?mode=signup">가입하기</a>
-      <a href="/member">대시보드</a>
+      <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
+      <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
+      <a class="top-dashboard-link" href="/member" data-auth-visible="signed-in" hidden>대시보드</a>
     </nav>
     <form class="ticker-search" action="/stocks" method="get">
       <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
@@ -218,10 +218,9 @@ def render_public_analysis_feed_page(
     </a>
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/analyses">분석 목록</a>
-      <a href="/stocks/005930">삼성전자</a>
-      <a class="top-auth-link" href="/member">로그인</a>
-      <a class="top-join-link" href="/member?mode=signup">가입하기</a>
-      <a href="/member">대시보드</a>
+      <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
+      <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
+      <a class="top-dashboard-link" href="/member" data-auth-visible="signed-in" hidden>대시보드</a>
     </nav>
   </header>
 
@@ -302,10 +301,9 @@ def render_public_home_page(
     </a>
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/analyses">분석 목록</a>
-      <a href="/stocks/005930">삼성전자</a>
-      <a class="top-auth-link" href="/member">로그인</a>
-      <a class="top-join-link" href="/member?mode=signup">가입하기</a>
-      <a href="/member">대시보드</a>
+      <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
+      <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
+      <a class="top-dashboard-link" href="/member" data-auth-visible="signed-in" hidden>대시보드</a>
     </nav>
   </header>
 
@@ -515,7 +513,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None) -> str:
   <link rel="canonical" href="{_h(model["canonical_url"])}">
   <style>{PAGE_CSS}</style>
 </head>
-<body>
+<body class="member-page is-member-signed-out">
   <header class="topbar">
     <a class="brand" href="/" aria-label="TradingAgents Korea home">
       <span class="brand-mark">TA</span>
@@ -523,37 +521,46 @@ def render_member_dashboard_page(*, site_base_url: str | None = None) -> str:
     </a>
     <nav class="top-links" aria-label="서비스 페이지">
       <a href="/analyses">분석 목록</a>
-      <a href="/stocks/005930">삼성전자</a>
-      <a class="top-auth-link" href="/member">로그인</a>
-      <a class="top-join-link" href="/member?mode=signup">가입하기</a>
-      <a href="/member">대시보드</a>
+      <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
+      <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
+      <a class="top-dashboard-link" href="/member" data-auth-visible="signed-in" hidden>대시보드</a>
     </nav>
   </header>
 
   <main class="shell member-shell">
-    <section class="summary-band" aria-labelledby="member-title">
-      <div>
-        <p class="eyebrow">Member Workspace</p>
-        <h1 id="member-title">내 투자 노트</h1>
-        <p class="asof" id="memberStatus">로그인 상태 확인 중</p>
-      </div>
-      <div class="decision-box">
-        <span class="decision-label">거래 기능</span>
-        <strong>OFF</strong>
-        <span>조회/기록 전용</span>
-      </div>
-    </section>
-
-    <section class="member-grid" aria-label="회원 기능">
-      <section class="member-panel auth-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Supabase Auth</p>
-            <h2>로그인</h2>
-          </div>
-          <button class="ghost-button" id="signOutButton" type="button">나가기</button>
+    <section class="member-auth-landing" id="memberAuthLanding" aria-labelledby="member-auth-title">
+      <div class="member-auth-copy">
+        <p class="eyebrow">Member Access</p>
+        <h1 id="member-auth-title">리서치 노트를 안전하게 보관하세요</h1>
+        <p class="member-auth-lead">회원 작업공간은 로그인 후에만 열립니다. TradingAgents Korea는 계좌 주문을 실행하지 않고, 공개 데이터 기반의 판단 근거를 정리합니다.</p>
+        <div class="member-auth-points" aria-label="회원 영역 원칙">
+          <article>
+            <span>01</span>
+            <strong>읽기 전용 원칙</strong>
+            <small>실거래 주문 기능은 차단하고 기록과 조회 흐름만 제공합니다.</small>
+          </article>
+          <article>
+            <span>02</span>
+            <strong>공식 데이터 기준</strong>
+            <small>KRX, DART, 공개 뉴스 흐름을 분리해 분석 근거를 남깁니다.</small>
+          </article>
+          <article>
+            <span>03</span>
+            <strong>개인 작업공간</strong>
+            <small>로그인한 사용자에게만 저장 기록과 검토 큐를 보여줍니다.</small>
+          </article>
         </div>
-        <form class="member-form" id="authForm">
+      </div>
+
+      <section class="member-panel auth-panel" aria-labelledby="auth-panel-title">
+        <div class="panel-heading auth-heading">
+          <div>
+            <p class="eyebrow">Secure sign-in</p>
+            <h2 id="auth-panel-title">로그인 / 가입</h2>
+          </div>
+          <span class="status-pill">Read only</span>
+        </div>
+        <form class="member-form auth-form" id="authForm">
           <label>
             <span>이메일</span>
             <input name="email" type="email" autocomplete="email" required>
@@ -565,92 +572,110 @@ def render_member_dashboard_page(*, site_base_url: str | None = None) -> str:
               <button class="ghost-button password-toggle" id="passwordToggle" type="button" aria-pressed="false">보기</button>
             </span>
           </label>
-          <div class="button-row">
+          <div class="button-row auth-button-row" aria-label="인증 작업">
             <button type="button" data-auth-action="signin">로그인</button>
             <button type="button" data-auth-action="signup">가입하기</button>
           </div>
           <div class="member-empty auth-status" id="authStatus" role="status" aria-live="polite">이메일과 비밀번호를 입력하세요.</div>
         </form>
+      </section>
+    </section>
+
+    <section class="member-workspace" id="memberWorkspace" hidden>
+      <section class="summary-band member-summary-band" aria-labelledby="member-title">
+        <div>
+          <p class="eyebrow">Member Workspace</p>
+          <h1 id="member-title">내 투자 노트</h1>
+          <p class="asof" id="memberStatus">로그인 상태 확인 중</p>
+        </div>
         <div class="member-signed-in" id="memberSignedIn" hidden>
           <span class="status-pill" id="memberSignedInState">대시보드 확인 중</span>
           <strong id="memberSignedInUser">회원 세션</strong>
           <small id="memberSignedInMeta">대시보드를 불러오고 있습니다.</small>
+          <button class="ghost-button" id="signOutButton" type="button">로그아웃</button>
+        </div>
+        <div class="decision-box">
+          <span class="decision-label">거래 기능</span>
+          <strong>OFF</strong>
+          <span>조회/기록 전용</span>
         </div>
       </section>
 
-      <section class="member-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Manual Portfolio</p>
-            <h2>수동 매수 기록</h2>
+      <section class="member-grid" aria-label="회원 기능">
+        <section class="member-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Manual Portfolio</p>
+              <h2>수동 매수 기록</h2>
+            </div>
+            <button class="ghost-button" id="refreshMemberData" type="button">새로고침</button>
           </div>
-          <button class="ghost-button" id="refreshMemberData" type="button">새로고침</button>
-        </div>
-        <form class="member-form compact-form" id="portfolioForm">
-          <input name="name" maxlength="80" placeholder="포트폴리오 이름" required>
-          <button type="submit">추가</button>
-        </form>
-        <form class="member-form trade-form" id="tradeForm">
-          <select name="portfolio_id" required></select>
-          <input name="ticker_code" maxlength="12" placeholder="005930" required>
-          <select name="side" required>
-            <option value="buy">매수</option>
-            <option value="sell">매도</option>
-          </select>
-          <input name="trade_date" type="date" required>
-          <input name="price" type="number" min="1" step="1" placeholder="단가" required>
-          <input name="quantity" type="number" min="1" step="1" placeholder="수량" required>
-          <input name="fee" type="number" min="0" step="1" placeholder="수수료">
-          <input name="tax" type="number" min="0" step="1" placeholder="세금">
-          <button type="submit">기록</button>
-        </form>
-        <form class="member-form target-form" id="targetForm">
-          <select name="portfolio_id" required></select>
-          <input name="ticker_code" maxlength="12" placeholder="005930" required>
-          <input name="target_price" type="number" min="1" step="1" placeholder="목표가">
-          <input name="stop_price" type="number" min="1" step="1" placeholder="손절가">
-          <input name="memo" maxlength="500" placeholder="목표 메모">
-          <button type="submit">저장</button>
-        </form>
-        <div class="member-list" id="portfolioList"></div>
-      </section>
+          <form class="member-form compact-form" id="portfolioForm">
+            <input name="name" maxlength="80" placeholder="포트폴리오 이름" required>
+            <button type="submit">추가</button>
+          </form>
+          <form class="member-form trade-form" id="tradeForm">
+            <select name="portfolio_id" required></select>
+            <input name="ticker_code" maxlength="12" placeholder="005930" required>
+            <select name="side" required>
+              <option value="buy">매수</option>
+              <option value="sell">매도</option>
+            </select>
+            <input name="trade_date" type="date" required>
+            <input name="price" type="number" min="1" step="1" placeholder="단가" required>
+            <input name="quantity" type="number" min="1" step="1" placeholder="수량" required>
+            <input name="fee" type="number" min="0" step="1" placeholder="수수료">
+            <input name="tax" type="number" min="0" step="1" placeholder="세금">
+            <button type="submit">기록</button>
+          </form>
+          <form class="member-form target-form" id="targetForm">
+            <select name="portfolio_id" required></select>
+            <input name="ticker_code" maxlength="12" placeholder="005930" required>
+            <input name="target_price" type="number" min="1" step="1" placeholder="목표가">
+            <input name="stop_price" type="number" min="1" step="1" placeholder="손절가">
+            <input name="memo" maxlength="500" placeholder="목표 메모">
+            <button type="submit">저장</button>
+          </form>
+          <div class="member-list" id="portfolioList"></div>
+        </section>
 
-      <section class="member-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Watchlist</p>
-            <h2>관심종목</h2>
+        <section class="member-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Watchlist</p>
+              <h2>관심종목</h2>
+            </div>
+            <span class="status-pill">KR</span>
           </div>
-          <span class="status-pill">KR</span>
-        </div>
-        <form class="member-form compact-form" id="watchlistForm">
-          <input name="name" maxlength="80" placeholder="관심목록 이름" required>
-          <button type="submit">추가</button>
-        </form>
-        <form class="member-form compact-form" id="watchlistItemForm">
-          <select name="watchlist_id" required></select>
-          <input name="ticker_code" maxlength="12" placeholder="005930" required>
-          <input name="memo" maxlength="500" placeholder="메모">
-          <button type="submit">담기</button>
-        </form>
-        <div class="member-list" id="watchlistList"></div>
-      </section>
+          <form class="member-form compact-form" id="watchlistForm">
+            <input name="name" maxlength="80" placeholder="관심목록 이름" required>
+            <button type="submit">추가</button>
+          </form>
+          <form class="member-form compact-form" id="watchlistItemForm">
+            <select name="watchlist_id" required></select>
+            <input name="ticker_code" maxlength="12" placeholder="005930" required>
+            <input name="memo" maxlength="500" placeholder="메모">
+            <button type="submit">담기</button>
+          </form>
+          <div class="member-list" id="watchlistList"></div>
+        </section>
 
-      <section class="member-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">AI Analysis</p>
-            <h2>분석 요청</h2>
+        <section class="member-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">AI Analysis</p>
+              <h2>분석 요청</h2>
+            </div>
+            <span class="status-pill">Queued</span>
           </div>
-          <span class="status-pill">Queued</span>
-        </div>
-        <form class="member-form compact-form" id="analysisRequestForm">
-          <input name="ticker" maxlength="12" placeholder="005930" required>
-          <input name="requested_trade_date" type="date">
-          <input name="reason" maxlength="500" placeholder="요청 메모">
-          <button type="submit">요청</button>
-        </form>
-        <div class="member-list" id="analysisRequestList"></div>
+          <form class="member-form compact-form" id="analysisRequestForm">
+            <input name="ticker" maxlength="12" placeholder="005930" required>
+            <input name="requested_trade_date" type="date">
+            <input name="reason" maxlength="500" placeholder="요청 메모">
+            <button type="submit">요청</button>
+          </form>
+          <div class="member-list" id="analysisRequestList"></div>
+        </section>
       </section>
     </section>
   </main>
@@ -1407,7 +1432,12 @@ a {
   color: var(--ink);
 }
 
-.top-links .top-auth-link {
+.top-links a[hidden] {
+  display: none;
+}
+
+.top-links .top-auth-link,
+.top-links .top-dashboard-link {
   border: 1px solid var(--line);
   color: var(--ink);
 }
@@ -2560,6 +2590,121 @@ h3 {
   padding-bottom: 64px;
 }
 
+.member-page {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(20, 107, 99, 0.14), transparent 34%),
+    radial-gradient(circle at 92% 10%, rgba(138, 90, 10, 0.09), transparent 30%),
+    linear-gradient(180deg, #f7f8f5 0%, #eef3f0 100%);
+}
+
+.member-auth-landing {
+  display: grid;
+  grid-template-columns: minmax(0, 0.96fr) minmax(360px, 0.58fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: start;
+  padding: clamp(56px, 8vw, 96px) 0 80px;
+}
+
+.member-auth-copy {
+  display: grid;
+  gap: 22px;
+  max-width: 760px;
+}
+
+.member-auth-copy h1 {
+  max-width: 720px;
+  margin: 0;
+  font-size: clamp(48px, 7vw, 88px);
+  line-height: 0.96;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.member-auth-lead {
+  max-width: 620px;
+  margin: 0;
+  color: var(--muted);
+  font-size: clamp(17px, 2vw, 21px);
+  line-height: 1.72;
+  text-wrap: pretty;
+}
+
+.member-auth-points {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--line);
+}
+
+.member-auth-points article {
+  display: grid;
+  gap: 10px;
+  min-height: 156px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.member-auth-points span {
+  color: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.member-auth-points strong {
+  font-size: 17px;
+}
+
+.member-auth-points small {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.auth-panel {
+  position: sticky;
+  top: 92px;
+  box-shadow: 0 28px 70px rgba(20, 31, 28, 0.12);
+}
+
+.auth-heading {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.auth-form {
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.auth-button-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.auth-status {
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.member-workspace {
+  display: grid;
+  gap: 16px;
+  padding-top: 26px;
+}
+
+.member-summary-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.44fr) minmax(180px, 0.28fr);
+  align-items: stretch;
+}
+
 .member-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2572,6 +2717,13 @@ h3 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
+}
+
+.auth-panel.member-panel {
+  border-color: rgba(20, 107, 99, 0.18);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(240, 245, 244, 0.86)),
+    var(--surface);
 }
 
 .member-panel h2 {
@@ -2704,6 +2856,11 @@ h3 {
 .member-signed-in small {
   color: var(--muted);
   line-height: 1.5;
+}
+
+.member-signed-in .ghost-button {
+  justify-self: start;
+  margin-top: 2px;
 }
 
 .member-list {
@@ -2861,8 +3018,14 @@ h3 {
   .home-hero,
   .home-section-heading,
   .home-analysis-zone,
-  .home-ops-strip {
+  .home-ops-strip,
+  .member-auth-landing,
+  .member-summary-band {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .auth-panel {
+    position: static;
   }
 
   .home-hero {
@@ -2889,6 +3052,10 @@ h3 {
 
   .home-analysis-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .member-auth-points {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .summary-band {
@@ -3006,6 +3173,10 @@ h3 {
   .home-console-grid,
   .home-pipeline {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .member-auth-points {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .home-hero-visual {
@@ -3181,7 +3352,8 @@ h3 {
   color: var(--home-ink);
 }
 
-.public-home .top-links .top-auth-link {
+.public-home .top-links .top-auth-link,
+.public-home .top-links .top-dashboard-link {
   border-color: rgba(246, 243, 232, 0.2);
   color: var(--home-ink);
 }
@@ -3924,10 +4096,28 @@ h3 {
 
 PAGE_JS = """
 (() => {
+  const memberAccessTokenKey = "tradingagents.member.access_token";
+  const memberRefreshTokenKey = "tradingagents.member.refresh_token";
   const searchForm = document.querySelector(".ticker-search");
   const searchInput = document.getElementById("ticker");
   const suggestions = document.getElementById("tickerSuggestions");
   let lastSearchController = null;
+
+  function syncTopAuthLinks() {
+    const signedIn = Boolean(
+      sessionStorage.getItem(memberAccessTokenKey)
+      || sessionStorage.getItem(memberRefreshTokenKey)
+    );
+    document.querySelectorAll('[data-auth-visible="signed-out"]').forEach((node) => {
+      node.hidden = signedIn;
+    });
+    document.querySelectorAll('[data-auth-visible="signed-in"]').forEach((node) => {
+      node.hidden = !signedIn;
+    });
+  }
+
+  syncTopAuthLinks();
+  window.addEventListener("storage", syncTopAuthLinks);
 
   async function searchTickers(query) {
     const trimmed = query.trim();
@@ -4451,6 +4641,25 @@ MEMBER_PAGE_JS = """
   const userEmailKey = "tradingagents.member.user_email";
   const userIdKey = "tradingagents.member.user_id";
   const requestedAuthMode = new URLSearchParams(window.location.search).get("mode");
+  const memberBody = document.body;
+  const authLanding = document.getElementById("memberAuthLanding");
+  const memberWorkspace = document.getElementById("memberWorkspace");
+  const signedOutNavItems = Array.from(document.querySelectorAll('[data-auth-visible="signed-out"]'));
+  const signedInNavItems = Array.from(document.querySelectorAll('[data-auth-visible="signed-in"]'));
+
+  function setAuthUiState(isSignedIn) {
+    const signedIn = Boolean(isSignedIn);
+    memberBody?.classList.toggle("is-member-signed-in", signedIn);
+    memberBody?.classList.toggle("is-member-signed-out", !signedIn);
+    if (authLanding) authLanding.hidden = signedIn;
+    if (memberWorkspace) memberWorkspace.hidden = !signedIn;
+    signedOutNavItems.forEach((node) => {
+      node.hidden = signedIn;
+    });
+    signedInNavItems.forEach((node) => {
+      node.hidden = !signedIn;
+    });
+  }
 
   function setStatus(message, isError = false) {
     if (statusNode) {
@@ -4481,6 +4690,7 @@ MEMBER_PAGE_JS = """
   }
 
   function setSignedInState(isSignedIn, options = {}) {
+    setAuthUiState(Boolean(isSignedIn));
     authPanel?.classList.toggle("is-signed-in", Boolean(isSignedIn));
     if (signedInPanel) signedInPanel.hidden = !isSignedIn;
     if (!isSignedIn) return;
@@ -5219,6 +5429,7 @@ MEMBER_PAGE_JS = """
     });
   });
 
+  setAuthUiState(Boolean(accessToken() || refreshToken()));
   applyRequestedAuthMode();
   const redirectSession = consumeRedirectSession();
   if (redirectSession.shouldLoad) {
