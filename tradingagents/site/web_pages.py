@@ -75,6 +75,8 @@ def render_public_stock_page(
     </a>
     <nav class="top-links" aria-label="서비스 페이지">
       <a href="/analyses">분석 목록</a>
+      <a class="top-auth-link" href="/member">로그인</a>
+      <a class="top-join-link" href="/member?mode=signup">가입하기</a>
       <a href="/member">대시보드</a>
     </nav>
     <form class="ticker-search" action="/stocks" method="get">
@@ -217,6 +219,8 @@ def render_public_analysis_feed_page(
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/analyses">분석 목록</a>
       <a href="/stocks/005930">삼성전자</a>
+      <a class="top-auth-link" href="/member">로그인</a>
+      <a class="top-join-link" href="/member?mode=signup">가입하기</a>
       <a href="/member">대시보드</a>
     </nav>
   </header>
@@ -299,6 +303,8 @@ def render_public_home_page(
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/analyses">분석 목록</a>
       <a href="/stocks/005930">삼성전자</a>
+      <a class="top-auth-link" href="/member">로그인</a>
+      <a class="top-join-link" href="/member?mode=signup">가입하기</a>
       <a href="/member">대시보드</a>
     </nav>
   </header>
@@ -518,6 +524,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None) -> str:
     <nav class="top-links" aria-label="서비스 페이지">
       <a href="/analyses">분석 목록</a>
       <a href="/stocks/005930">삼성전자</a>
+      <a class="top-auth-link" href="/member">로그인</a>
+      <a class="top-join-link" href="/member?mode=signup">가입하기</a>
       <a href="/member">대시보드</a>
     </nav>
   </header>
@@ -559,7 +567,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None) -> str:
           </label>
           <div class="button-row">
             <button type="button" data-auth-action="signin">로그인</button>
-            <button type="button" data-auth-action="signup">가입</button>
+            <button type="button" data-auth-action="signup">가입하기</button>
           </div>
           <div class="member-empty auth-status" id="authStatus" role="status" aria-live="polite">이메일과 비밀번호를 입력하세요.</div>
         </form>
@@ -1383,6 +1391,7 @@ a {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   color: var(--muted);
   font-size: 14px;
   font-weight: 700;
@@ -1396,6 +1405,22 @@ a {
 .top-links a:hover {
   background: var(--surface-strong);
   color: var(--ink);
+}
+
+.top-links .top-auth-link {
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.top-links .top-join-link {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.top-links .top-join-link:hover {
+  background: #0f5d55;
+  color: #ffffff;
 }
 
 .ticker-search {
@@ -2644,6 +2669,10 @@ h3 {
   cursor: pointer;
 }
 
+.member-form button.auth-suggested {
+  background: var(--accent);
+}
+
 .ghost-button {
   border: 1px solid var(--line);
   background: var(--surface);
@@ -3150,6 +3179,22 @@ h3 {
 .public-home .top-links a:hover {
   background: rgba(246, 243, 232, 0.08);
   color: var(--home-ink);
+}
+
+.public-home .top-links .top-auth-link {
+  border-color: rgba(246, 243, 232, 0.2);
+  color: var(--home-ink);
+}
+
+.public-home .top-links .top-join-link {
+  border-color: var(--home-acid);
+  background: var(--home-acid);
+  color: #10130f;
+}
+
+.public-home .top-links .top-join-link:hover {
+  background: #ecff72;
+  color: #10130f;
 }
 
 .home-shell-art {
@@ -4405,6 +4450,7 @@ MEMBER_PAGE_JS = """
   const expiresAtKey = "tradingagents.member.expires_at";
   const userEmailKey = "tradingagents.member.user_email";
   const userIdKey = "tradingagents.member.user_id";
+  const requestedAuthMode = new URLSearchParams(window.location.search).get("mode");
 
   function setStatus(message, isError = false) {
     if (statusNode) {
@@ -4422,6 +4468,16 @@ MEMBER_PAGE_JS = """
       button.disabled = isBusy;
       button.setAttribute("aria-busy", isBusy ? "true" : "false");
     });
+  }
+
+  function applyRequestedAuthMode() {
+    if (requestedAuthMode !== "signup") return;
+    const signupButton = authButtons.find((button) => button.dataset.authAction === "signup");
+    signupButton?.classList.add("auth-suggested");
+    if (!accessToken()) {
+      setStatus("가입하려면 이메일과 비밀번호를 입력한 뒤 가입하기를 선택하세요.");
+      authForm?.elements?.email?.focus();
+    }
   }
 
   function setSignedInState(isSignedIn, options = {}) {
@@ -5163,9 +5219,13 @@ MEMBER_PAGE_JS = """
     });
   });
 
+  applyRequestedAuthMode();
   const redirectSession = consumeRedirectSession();
   if (redirectSession.shouldLoad) {
-    loadMemberData().catch((error) => setStatus(error.message, true));
+    const shouldSkipInitialLoad = requestedAuthMode === "signup" && !accessToken() && !refreshToken();
+    if (!shouldSkipInitialLoad) {
+      loadMemberData().catch((error) => setStatus(error.message, true));
+    }
   }
 })();
 """

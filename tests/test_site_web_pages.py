@@ -128,6 +128,8 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert '"@type":"WebPage"' in html
     assert '"additionalType":"KoreanStock"' in html
     assert 'href="/member"' in html
+    assert 'href="/member?mode=signup"' in html
+    assert "top-join-link" in html
     assert "005930 또는 삼성전자" in html
     assert '<link rel="canonical" href="https://example.com/stocks/005930">' in html
     assert 'property="og:title"' in html
@@ -168,6 +170,9 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "homeSignalDecision" in html
     assert "home-live-tape" in html
     assert "prefers-reduced-motion" in html
+    assert "로그인" in html
+    assert "가입하기" in html
+    assert 'href="/member?mode=signup"' in html
     assert "Analysis Lenses" in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html
@@ -211,6 +216,11 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'aria-live="polite"' in html
     assert 'id="passwordToggle"' in html
     assert 'type="button" data-auth-action="signup"' in html
+    assert "가입하려면 이메일과 비밀번호를 입력한 뒤 가입하기를 선택하세요." in html
+    assert "requestedAuthMode" in html
+    assert "auth-suggested" in html
+    assert "shouldSkipInitialLoad" in html
+    assert 'href="/member?mode=signup"' in html
     assert "redirect_to: memberRedirectUrl()" in html
     assert "consumeRedirectSession" in html
     assert "refresh_token" in html
