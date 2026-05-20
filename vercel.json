@@ -30,6 +30,18 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/mypage",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/admin",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/features/:path*",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/stocks",
       "destination": "/api/index.py"
     },
