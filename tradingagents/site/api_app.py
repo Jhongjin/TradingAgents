@@ -35,6 +35,8 @@ from .seo import build_ads_txt, build_robots_txt, build_sitemap_xml, sitemap_tic
 from .ticker_api import build_ticker_search_payload
 from .watchlist_api import build_watchlist_list_payload, build_watchlist_payload
 from .web_pages import (
+    render_admin_console_page,
+    render_feature_detail_page,
     render_member_dashboard_page,
     render_public_analysis_feed_page,
     render_public_home_page,
@@ -136,13 +138,14 @@ def create_app(
         response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         if request.url.scheme == "https":
             response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-        if request.url.path == "/member":
+        if request.url.path in {"/member", "/mypage", "/admin"}:
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif (
             request.url.path == "/"
             or request.url.path == "/analyses"
             or request.url.path == "/stocks"
             or request.url.path.startswith("/stocks/")
+            or request.url.path.startswith("/features/")
             or request.url.path in {"/ads.txt", "/robots.txt", "/sitemap.xml"}
         ):
             seconds = request.app.state.public_cache_seconds
@@ -289,6 +292,22 @@ def create_app(
     @app.get("/member", response_class=HTMLResponse, include_in_schema=False)
     def member_dashboard(request: Request) -> HTMLResponse:
         return HTMLResponse(render_member_dashboard_page(site_base_url=_request_site_base_url(request)))
+
+    @app.get("/mypage", response_class=HTMLResponse, include_in_schema=False)
+    def mypage(request: Request) -> HTMLResponse:
+        return HTMLResponse(render_member_dashboard_page(site_base_url=_request_site_base_url(request), canonical_path="/mypage"))
+
+    @app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
+    def admin_console(request: Request) -> HTMLResponse:
+        return HTMLResponse(render_admin_console_page(site_base_url=_request_site_base_url(request)))
+
+    @app.get("/features/{feature_slug}", response_class=HTMLResponse, include_in_schema=False)
+    def feature_detail(feature_slug: str, request: Request) -> HTMLResponse:
+        try:
+            html = render_feature_detail_page(feature_slug, site_base_url=_request_site_base_url(request))
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return HTMLResponse(html)
 
     @app.get("/stocks", include_in_schema=False)
     def stocks_lookup(

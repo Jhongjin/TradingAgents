@@ -74,10 +74,11 @@ def render_public_stock_page(
       <span>TradingAgents Korea</span>
     </a>
     <nav class="top-links" aria-label="서비스 페이지">
+      <a href="/features/research">기능</a>
       <a href="/analyses">분석 목록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
-      <a class="top-dashboard-link" href="/member" data-auth-visible="signed-in" hidden>대시보드</a>
+      <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
     </nav>
     <form class="ticker-search" action="/stocks" method="get">
       <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
@@ -217,10 +218,11 @@ def render_public_analysis_feed_page(
       <span>TradingAgents Korea</span>
     </a>
     <nav class="top-links" aria-label="공개 페이지">
+      <a href="/features/research">기능</a>
       <a href="/analyses">분석 목록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
-      <a class="top-dashboard-link" href="/member" data-auth-visible="signed-in" hidden>대시보드</a>
+      <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
     </nav>
   </header>
 
@@ -300,10 +302,11 @@ def render_public_home_page(
       <span>TradingAgents Korea</span>
     </a>
     <nav class="top-links" aria-label="공개 페이지">
+      <a href="/features/research">기능</a>
       <a href="/analyses">분석 목록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
-      <a class="top-dashboard-link" href="/member" data-auth-visible="signed-in" hidden>대시보드</a>
+      <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
     </nav>
   </header>
 
@@ -336,6 +339,7 @@ def render_public_home_page(
         <div class="home-cta-row home-action-row" aria-label="주요 링크">
           <a class="home-primary-link" href="/stocks/005930">샘플 분석 보기</a>
           <a class="home-secondary-link" href="/analyses">최근 공개 분석</a>
+          <a class="home-secondary-link" href="/features/research">기능 구조</a>
         </div>
         <dl class="home-proof-row home-signal-strip" aria-label="운영 상태">
           <div>
@@ -412,7 +416,7 @@ def render_public_home_page(
           <p class="eyebrow">Analysis Lenses</p>
           <h2 id="lens-home-title">종목을 다섯 개의 신호로 분해합니다</h2>
         </div>
-        <p>차트만 보거나 뉴스만 읽는 화면이 아니라, 가격과 이벤트를 함께 묶어 공개 분석의 맥락을 만듭니다.</p>
+        <p>차트만 보거나 뉴스만 읽는 화면이 아니라, 가격과 이벤트를 함께 묶어 공개 분석의 맥락을 만듭니다. <a href="/features/research">리서치 구조 보기</a></p>
       </div>
       <div class="home-lens-grid">
         <article><span>01</span><strong>Price</strong><p>KRW OHLCV와 이동평균, 거래량 흐름을 확인합니다.</p></article>
@@ -465,7 +469,7 @@ def render_public_home_page(
           <p class="eyebrow">Member Workspace</p>
           <h2 id="member-title">회원은 포트폴리오와 관심종목을 따로 관리합니다</h2>
         </div>
-        <a class="home-primary-link" href="/member">대시보드 열기</a>
+        <a class="home-primary-link" href="/mypage">마이페이지 열기</a>
       </div>
       <div class="home-flow-list">
         <article>
@@ -492,13 +496,274 @@ def render_public_home_page(
 </html>"""
 
 
-def render_member_dashboard_page(*, site_base_url: str | None = None) -> str:
+FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
+    "research": {
+        "path": "/features/research",
+        "title": "AI 리서치 파이프라인 | TradingAgents Korea",
+        "description": "KRX, DART, Naver 뉴스와 TradingAgents 리포트를 연결하는 한국 주식 AI 리서치 흐름입니다.",
+        "eyebrow": "Feature / Research Pipeline",
+        "heading": "KRX부터 공개 리포트까지 한 화면에 연결",
+        "lead": "종목 상세 페이지는 가격, 공시, 뉴스, 에이전트 리포트, 사후 검증을 분리해 불러옵니다. 사용자가 종목을 조회할 때 필요한 공개 데이터만 조합하고 회원 전용 기록은 요청하지 않습니다.",
+        "proof": (("공개 페이지", "종목·분석 피드"), ("데이터", "KRX / DART / Naver"), ("주문", "실거래 차단")),
+        "cards": (
+            ("종목 조회", "6자리 한국 종목코드와 종목명 resolver로 KOSPI/KOSDAQ 종목을 찾습니다."),
+            ("차트 payload", "OHLCV 차트, 가격 상태, 데이터 vendor 표기를 종목 화면에만 전달합니다."),
+            ("공개 분석", "완료된 public 리포트와 판단, 모델, 리포트 수를 공개 피드와 연결합니다."),
+        ),
+        "steps": ("Ticker resolver", "KRX OHLCV", "DART disclosure", "Naver news", "Agents report"),
+        "cta_label": "샘플 종목 보기",
+        "cta_href": "/stocks/005930",
+    },
+    "member-workspace": {
+        "path": "/features/member-workspace",
+        "title": "회원 작업공간 | TradingAgents Korea",
+        "description": "로그인한 사용자를 위한 수동 포트폴리오, 관심목록, 분석 요청 큐의 구성 방식입니다.",
+        "eyebrow": "Feature / Member Workspace",
+        "heading": "마이페이지는 로그인 후에만 개인 데이터를 불러옵니다",
+        "lead": "회원 화면은 인증 전에는 로그인/가입만 보여주고, 세션 확인 뒤에만 수동 기록과 요청 큐 API를 호출합니다. 공개 페이지와 개인 기록의 데이터 경계를 명확히 나눕니다.",
+        "proof": (("인증", "Supabase Auth"), ("저장", "사용자별 private API"), ("범위", "조회/기록 전용")),
+        "cards": (
+            ("수동 포트폴리오", "매수·매도 기록, 평균단가, 비용, 목표가, 손절가를 직접 관리합니다."),
+            ("관심목록", "한국 종목코드 기준 watchlist와 메모를 사용자별로 분리합니다."),
+            ("분석 요청 큐", "원하는 종목과 날짜를 큐에 넣고 처리 상태를 확인합니다."),
+        ),
+        "steps": ("Sign in", "Member dashboard", "Private records", "Request queue", "Read-only guard"),
+        "cta_label": "마이페이지 열기",
+        "cta_href": "/mypage",
+    },
+    "outcomes": {
+        "path": "/features/outcomes",
+        "title": "사후 성과 검증 | TradingAgents Korea",
+        "description": "AI 분석 이후 5일/20일 성과와 벤치마크 대비 알파를 공개 검증하는 구조입니다.",
+        "eyebrow": "Feature / Outcome Verification",
+        "heading": "AI 판단 이후의 결과까지 남깁니다",
+        "lead": "공개 분석은 완료 시점에서 끝나지 않습니다. outcome worker가 5일/20일 이후 성과를 계산하고 벤치마크 대비 알파를 남겨, 리포트 품질을 추적할 수 있게 합니다.",
+        "proof": (("검증", "5D / 20D"), ("지표", "raw return / alpha"), ("노출", "public feed")),
+        "cards": (
+            ("성과 저장", "분석 run과 horizon별 outcome을 저장해 공개 리포트와 연결합니다."),
+            ("벤치마크 비교", "KOSPI/KOSDAQ 흐름과 비교한 alpha return을 보여줍니다."),
+            ("운영 점검", "관리자와 cron worker가 큐를 처리하고 실패 상태를 확인합니다."),
+        ),
+        "steps": ("Completed run", "Outcome worker", "Benchmark return", "Alpha return", "Public review"),
+        "cta_label": "공개 분석 보기",
+        "cta_href": "/analyses",
+    },
+}
+
+
+def feature_detail_slugs() -> tuple[str, ...]:
+    return tuple(FEATURE_DETAIL_PAGES)
+
+
+def feature_detail_paths() -> tuple[str, ...]:
+    return tuple(str(page["path"]) for page in FEATURE_DETAIL_PAGES.values())
+
+
+def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -> str:
+    """Render a public feature detail page using the landing-page visual language."""
+
+    page = FEATURE_DETAIL_PAGES.get(slug)
+    if page is None:
+        raise ValueError("Unknown feature page")
+
+    proof_html = "".join(
+        f"""<div><dt>{_h(label)}</dt><dd>{_h(value)}</dd></div>"""
+        for label, value in page["proof"]
+    )
+    card_html = "".join(
+        f"""<article><span>{index:02d}</span><strong>{_h(title)}</strong><p>{_h(copy)}</p></article>"""
+        for index, (title, copy) in enumerate(page["cards"], start=1)
+    )
+    step_html = "".join(f"<span>{_h(step)}</span>" for step in page["steps"])
+    canonical = canonical_url(str(page["path"]), site_base_url=site_base_url)
+
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{_h(page["title"])}</title>
+  <meta name="description" content="{_h(page["description"])}">
+  <link rel="canonical" href="{_h(canonical)}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TradingAgents Korea">
+  <meta property="og:title" content="{_h(page["title"])}">
+  <meta property="og:description" content="{_h(page["description"])}">
+  <meta property="og:url" content="{_h(canonical)}">
+  <style>{PAGE_CSS}</style>
+</head>
+<body class="public-home feature-page">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="TradingAgents Korea home">
+      <span class="brand-mark">TA</span>
+      <span>TradingAgents Korea</span>
+    </a>
+    <nav class="top-links" aria-label="공개 페이지">
+      <a href="/features/research">기능</a>
+      <a href="/analyses">분석 목록</a>
+      <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
+      <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
+      <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+    </nav>
+  </header>
+
+  <main class="home-shell feature-shell">
+    <section class="feature-hero" aria-labelledby="feature-title">
+      <div class="feature-copy">
+        <p class="home-kicker">{_h(page["eyebrow"])}</p>
+        <h1 id="feature-title">{_h(page["heading"])}</h1>
+        <p>{_h(page["lead"])}</p>
+        <dl class="home-proof-row feature-proof-row" aria-label="기능 기준">
+          {proof_html}
+        </dl>
+        <div class="home-cta-row">
+          <a class="home-primary-link" href="{_h(page["cta_href"])}">{_h(page["cta_label"])}</a>
+          <a class="home-secondary-link" href="/features/member-workspace">회원 기능 보기</a>
+        </div>
+      </div>
+      <div class="feature-diagram" aria-label="기능 데이터 흐름">
+        <div class="feature-diagram-top">
+          <span>TA-KR</span>
+          <span>READ-ONLY</span>
+        </div>
+        <div class="feature-step-track">
+          {step_html}
+        </div>
+        <div class="feature-signal-card">
+          <span>{_h(slug.upper())}</span>
+          <strong>{_h(page["heading"])}</strong>
+          <small>{_h(page["description"])}</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="feature-card-grid" aria-label="기능 세부 구성">
+      {card_html}
+    </section>
+
+    <section class="home-ops-strip feature-boundary" aria-label="데이터 로딩 경계">
+      <div>
+        <p class="eyebrow">Loading Boundary</p>
+        <h2>페이지 목적에 맞는 데이터만 요청합니다</h2>
+      </div>
+      <ul>
+        <li>공개 상세 페이지는 정적 설명과 인증 상태 네비게이션만 사용합니다.</li>
+        <li>회원 API는 로그인 세션 확인 뒤 마이페이지에서만 호출합니다.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script>{PAGE_JS}</script>
+</body>
+</html>"""
+
+
+def render_admin_console_page(*, site_base_url: str | None = None) -> str:
+    """Render a noindex operator console that never embeds worker secrets."""
+
+    canonical = canonical_url("/admin", site_base_url=site_base_url)
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>관리자 콘솔 | TradingAgents Korea</title>
+  <meta name="description" content="TradingAgents Korea 운영 큐와 readiness를 점검하는 관리자 콘솔입니다.">
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="canonical" href="{_h(canonical)}">
+  <style>{PAGE_CSS}</style>
+</head>
+<body class="public-home admin-page">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="TradingAgents Korea home">
+      <span class="brand-mark">TA</span>
+      <span>TradingAgents Korea</span>
+    </a>
+    <nav class="top-links" aria-label="관리 페이지">
+      <a href="/features/research">기능</a>
+      <a href="/analyses">분석 목록</a>
+      <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
+      <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+    </nav>
+  </header>
+
+  <main class="home-shell admin-shell">
+    <section class="admin-hero" aria-labelledby="admin-title">
+      <div>
+        <p class="home-kicker">Operator Console / No Secret Embedded</p>
+        <h1 id="admin-title">운영 큐와 readiness만 점검합니다</h1>
+        <p>관리자 화면은 worker token을 코드나 HTML에 포함하지 않습니다. 토큰은 브라우저 세션에만 보관되며 기존 admin API 호출 헤더로만 전송됩니다.</p>
+      </div>
+      <form class="admin-token-panel" id="adminTokenForm">
+        <label>
+          <span>Worker token</span>
+          <input id="adminWorkerToken" name="worker_token" type="password" autocomplete="off" placeholder="TRADINGAGENTS_WORKER_TOKEN">
+        </label>
+        <button type="submit">세션에 저장</button>
+        <small id="adminTokenState">토큰은 서버 렌더 HTML에 저장되지 않습니다.</small>
+      </form>
+    </section>
+
+    <section class="admin-grid" aria-label="운영 작업">
+      <article class="admin-card">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Readiness</p>
+            <h2>서비스 상태</h2>
+          </div>
+          <label class="admin-inline-check"><input id="adminProbeKrx" type="checkbox"> KRX probe</label>
+        </div>
+        <button type="button" data-admin-readiness>상태 확인</button>
+        <pre id="adminReadinessOutput">대기 중</pre>
+      </article>
+
+      <article class="admin-card">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Analysis Queue</p>
+            <h2>분석 요청 처리</h2>
+          </div>
+          <span class="status-pill">admin api</span>
+        </div>
+        <label class="admin-number-field">Limit <input id="adminRequestLimit" type="number" min="1" max="20" value="5"></label>
+        <div class="button-row">
+          <button type="button" data-admin-action="requests-dry-run">Dry run</button>
+          <button type="button" data-admin-action="requests-process">처리 실행</button>
+        </div>
+        <pre id="adminRequestsOutput">대기 중</pre>
+      </article>
+
+      <article class="admin-card">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Outcome Worker</p>
+            <h2>성과 검증 처리</h2>
+          </div>
+          <span class="status-pill">5D / 20D</span>
+        </div>
+        <label class="admin-number-field">Limit <input id="adminOutcomeLimit" type="number" min="1" max="50" value="10"></label>
+        <div class="button-row">
+          <button type="button" data-admin-action="outcomes-dry-run">Dry run</button>
+          <button type="button" data-admin-action="outcomes-process">처리 실행</button>
+        </div>
+        <pre id="adminOutcomesOutput">대기 중</pre>
+      </article>
+    </section>
+  </main>
+
+  <script>{PAGE_JS}</script>
+  <script>{ADMIN_PAGE_JS}</script>
+</body>
+</html>"""
+
+
+def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_path: str = "/member") -> str:
     """Render the authenticated member dashboard shell."""
 
     model = {
         "title": "회원 대시보드 | TradingAgents Korea",
         "description": "수동 포트폴리오, 관심목록, 한국 주식 AI 분석 요청을 관리합니다.",
-        "canonical_url": canonical_url("/member", site_base_url=site_base_url),
+        "canonical_url": canonical_url(canonical_path, site_base_url=site_base_url),
     }
     config_json = _script_json(_public_supabase_config())
 
@@ -520,10 +785,11 @@ def render_member_dashboard_page(*, site_base_url: str | None = None) -> str:
       <span>TradingAgents Korea</span>
     </a>
     <nav class="top-links" aria-label="서비스 페이지">
+      <a href="/features/research">기능</a>
       <a href="/analyses">분석 목록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
-      <a class="top-dashboard-link" href="/member" data-auth-visible="signed-in" hidden>대시보드</a>
+      <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
     </nav>
   </header>
 
@@ -2586,6 +2852,238 @@ h3 {
   grid-column: 1 / -1;
 }
 
+.feature-shell,
+.admin-shell {
+  padding: clamp(52px, 8vw, 96px) 0 80px;
+}
+
+.feature-hero,
+.admin-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(360px, 0.62fr);
+  gap: clamp(28px, 5vw, 76px);
+  align-items: start;
+}
+
+.feature-copy,
+.admin-hero > div {
+  display: grid;
+  gap: 22px;
+}
+
+.feature-copy h1,
+.admin-hero h1 {
+  max-width: 780px;
+  margin: 0;
+  color: var(--home-ink);
+  font-size: clamp(48px, 6.4vw, 92px);
+  line-height: 0.96;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.feature-copy > p,
+.admin-hero > div > p {
+  max-width: 680px;
+  margin: 0;
+  color: rgba(246, 243, 232, 0.72);
+  font-size: clamp(17px, 2vw, 21px);
+  line-height: 1.72;
+}
+
+.feature-proof-row {
+  max-width: 760px;
+}
+
+.feature-diagram {
+  position: sticky;
+  top: 96px;
+  display: grid;
+  gap: 18px;
+  min-height: 520px;
+  padding: 26px;
+  border: 1px solid rgba(246, 243, 232, 0.16);
+  background:
+    linear-gradient(90deg, rgba(246, 243, 232, 0.04) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(246, 243, 232, 0.04) 1px, transparent 1px),
+    rgba(15, 22, 18, 0.78);
+  background-size: 42px 42px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.28);
+}
+
+.feature-diagram-top {
+  display: flex;
+  justify-content: space-between;
+  color: rgba(246, 243, 232, 0.58);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.feature-step-track {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  align-self: start;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+}
+
+.feature-step-track span {
+  min-height: 58px;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  background: rgba(246, 243, 232, 0.05);
+  color: rgba(246, 243, 232, 0.76);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.feature-signal-card {
+  align-self: end;
+  display: grid;
+  gap: 12px;
+  padding: 24px;
+  border: 1px solid rgba(207, 255, 40, 0.24);
+  background: rgba(13, 19, 15, 0.86);
+}
+
+.feature-signal-card span {
+  color: var(--home-mint);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.feature-signal-card strong {
+  color: var(--home-ink);
+  font-size: clamp(28px, 4vw, 54px);
+  line-height: 1;
+}
+
+.feature-signal-card small {
+  color: rgba(246, 243, 232, 0.58);
+  line-height: 1.6;
+}
+
+.feature-card-grid,
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: clamp(42px, 7vw, 88px);
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.14);
+}
+
+.feature-card-grid article,
+.admin-card {
+  display: grid;
+  gap: 16px;
+  min-height: 220px;
+  padding: 24px;
+  background: rgba(15, 22, 18, 0.76);
+}
+
+.feature-card-grid span {
+  color: var(--home-acid);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.feature-card-grid strong,
+.admin-card h2 {
+  color: var(--home-ink);
+  font-size: 22px;
+}
+
+.feature-card-grid p,
+.feature-boundary li,
+.admin-card label,
+.admin-card pre,
+.admin-token-panel small {
+  color: rgba(246, 243, 232, 0.68);
+}
+
+.admin-token-panel,
+.admin-card {
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  background: rgba(15, 22, 18, 0.78);
+}
+
+.admin-token-panel {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+}
+
+.admin-token-panel label,
+.admin-number-field {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-token-panel input,
+.admin-number-field input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid rgba(246, 243, 232, 0.18);
+  border-radius: 6px;
+  background: rgba(246, 243, 232, 0.06);
+  color: var(--home-ink);
+  font: inherit;
+}
+
+.admin-token-panel button,
+.admin-card button {
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--home-acid);
+  border-radius: 6px;
+  background: var(--home-acid);
+  color: #10130f;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.admin-card .button-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-card pre {
+  min-height: 190px;
+  max-height: 360px;
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.admin-inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .member-shell {
   padding-bottom: 64px;
 }
@@ -3019,12 +3517,15 @@ h3 {
   .home-section-heading,
   .home-analysis-zone,
   .home-ops-strip,
+  .feature-hero,
+  .admin-hero,
   .member-auth-landing,
   .member-summary-band {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .auth-panel {
+  .auth-panel,
+  .feature-diagram {
     position: static;
   }
 
@@ -3074,6 +3575,8 @@ h3 {
 
   .analysis-feed-grid,
   .analysis-summary-grid,
+  .feature-card-grid,
+  .admin-grid,
   .member-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -3276,6 +3779,9 @@ h3 {
   .home-analysis-grid,
   .analysis-feed-grid,
   .analysis-summary-grid,
+  .feature-card-grid,
+  .feature-step-track,
+  .admin-grid,
   .member-grid,
   .compact-form,
   .trade-form,
@@ -4602,6 +5108,113 @@ PAGE_JS = """
     hoverIndex = null;
     updateTooltip(null);
     draw();
+  });
+})();
+"""
+
+
+ADMIN_PAGE_JS = """
+(() => {
+  const tokenKey = "tradingagents.admin.worker_token";
+  const tokenForm = document.getElementById("adminTokenForm");
+  const tokenInput = document.getElementById("adminWorkerToken");
+  const tokenState = document.getElementById("adminTokenState");
+  const readinessOutput = document.getElementById("adminReadinessOutput");
+  const requestsOutput = document.getElementById("adminRequestsOutput");
+  const outcomesOutput = document.getElementById("adminOutcomesOutput");
+  const requestLimit = document.getElementById("adminRequestLimit");
+  const outcomeLimit = document.getElementById("adminOutcomeLimit");
+  const probeKrx = document.getElementById("adminProbeKrx");
+
+  function savedToken() {
+    return sessionStorage.getItem(tokenKey) || "";
+  }
+
+  function currentToken() {
+    return (tokenInput?.value || "").trim() || savedToken();
+  }
+
+  function setOutput(node, payload) {
+    if (!node) return;
+    node.textContent = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+  }
+
+  function setBusy(button, isBusy) {
+    if (!button) return;
+    button.disabled = isBusy;
+    button.setAttribute("aria-busy", isBusy ? "true" : "false");
+  }
+
+  async function fetchJson(path, options = {}, requireToken = false) {
+    const headers = {
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    };
+    if (requireToken) {
+      const token = currentToken();
+      if (!token) throw new Error("Worker token을 입력하세요.");
+      headers["X-TradingAgents-Worker-Token"] = token;
+    }
+    const response = await fetch(path, { ...options, headers });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || payload.error || `HTTP ${response.status}`);
+    }
+    return payload;
+  }
+
+  if (tokenInput) tokenInput.value = savedToken();
+  if (savedToken() && tokenState) tokenState.textContent = "세션에 저장된 worker token을 사용합니다.";
+
+  tokenForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const token = (tokenInput?.value || "").trim();
+    if (!token) {
+      sessionStorage.removeItem(tokenKey);
+      if (tokenState) tokenState.textContent = "저장된 worker token을 지웠습니다.";
+      return;
+    }
+    sessionStorage.setItem(tokenKey, token);
+    if (tokenState) tokenState.textContent = "worker token을 이 브라우저 세션에 저장했습니다.";
+  });
+
+  document.querySelector("[data-admin-readiness]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    try {
+      setBusy(button, true);
+      setOutput(readinessOutput, "확인 중");
+      const suffix = probeKrx?.checked ? "?probe_krx=true" : "";
+      setOutput(readinessOutput, await fetchJson(`/api/readiness${suffix}`));
+    } catch (error) {
+      setOutput(readinessOutput, error.message || "Readiness failed");
+    } finally {
+      setBusy(button, false);
+    }
+  });
+
+  async function runAdminAction(action, button) {
+    const isDryRun = action.endsWith("dry-run");
+    const isOutcome = action.startsWith("outcomes");
+    const output = isOutcome ? outcomesOutput : requestsOutput;
+    const limit = Math.max(1, Number((isOutcome ? outcomeLimit : requestLimit)?.value || 1));
+    const path = isOutcome ? "/api/admin/analysis-outcomes/process" : "/api/admin/analysis-requests/process";
+    const body = isOutcome
+      ? { limit, dry_run: isDryRun, horizons: [5, 20] }
+      : { limit, dry_run: isDryRun };
+    try {
+      setBusy(button, true);
+      setOutput(output, isDryRun ? "dry run 확인 중" : "처리 요청 중");
+      setOutput(output, await fetchJson(path, { method: "POST", body: JSON.stringify(body) }, true));
+    } catch (error) {
+      setOutput(output, error.message || "Admin action failed");
+    } finally {
+      setBusy(button, false);
+    }
+  }
+
+  document.querySelectorAll("[data-admin-action]").forEach((button) => {
+    button.addEventListener("click", () => runAdminAction(button.dataset.adminAction || "", button));
   });
 })();
 """

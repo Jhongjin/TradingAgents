@@ -23,6 +23,8 @@ _EXPORTS = {
     "create_app": ("tradingagents.site.api_app", "create_app"),
     "process_queued_analysis_requests": ("tradingagents.site.analysis_worker", "process_queued_analysis_requests"),
     "queue_analysis_refresh_request": ("tradingagents.site.analysis_api", "queue_analysis_refresh_request"),
+    "render_admin_console_page": ("tradingagents.site.web_pages", "render_admin_console_page"),
+    "render_feature_detail_page": ("tradingagents.site.web_pages", "render_feature_detail_page"),
     "render_public_stock_page": ("tradingagents.site.web_pages", "render_public_stock_page"),
     "render_public_analysis_feed_page": ("tradingagents.site.web_pages", "render_public_analysis_feed_page"),
     "render_public_home_page": ("tradingagents.site.web_pages", "render_public_home_page"),

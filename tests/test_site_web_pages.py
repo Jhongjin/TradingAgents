@@ -1,5 +1,6 @@
 from datetime import date
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tradingagents.storage import (
@@ -13,6 +14,8 @@ from tradingagents.storage import (
 from tradingagents.site.api_app import create_app
 from tradingagents.site.seo import build_ads_txt, build_robots_txt, build_sitemap_xml, stock_canonical_url
 from tradingagents.site.web_pages import (
+    render_admin_console_page,
+    render_feature_detail_page,
     render_member_dashboard_page,
     render_public_analysis_feed_page,
     render_public_home_page,
@@ -129,6 +132,8 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert '"additionalType":"KoreanStock"' in html
     assert 'href="/member"' in html
     assert 'href="/member?mode=signup"' in html
+    assert 'href="/features/research"' in html
+    assert 'href="/mypage"' in html
     assert "top-join-link" in html
     assert "005930 또는 삼성전자" in html
     assert '<link rel="canonical" href="https://example.com/stocks/005930">' in html
@@ -174,6 +179,8 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "로그인" in html
     assert "가입하기" in html
     assert 'href="/member?mode=signup"' in html
+    assert 'href="/features/research"' in html
+    assert 'href="/mypage"' in html
     assert 'data-auth-visible="signed-out"' in html
     assert 'data-auth-visible="signed-in" hidden' in html
     assert "Analysis Lenses" in html
@@ -200,6 +207,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'class="member-page is-member-signed-out"' in html
     assert 'data-auth-visible="signed-out"' in html
     assert 'data-auth-visible="signed-in" hidden' in html
+    assert 'href="/features/research"' in html
+    assert 'href="/mypage"' in html
     assert 'href="/stocks/005930">삼성전자</a>' not in html
     assert "/api/portfolios" in html
     assert "/api/watchlists" in html
@@ -249,6 +258,31 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert '<meta name="robots" content="noindex,nofollow">' in html
 
 
+def test_render_feature_detail_pages_use_public_theme():
+    html = render_feature_detail_page("research", site_base_url="https://example.com")
+
+    assert "KRX부터 공개 리포트까지 한 화면에 연결" in html
+    assert "feature-diagram" in html
+    assert "Loading Boundary" in html
+    assert "페이지 목적에 맞는 데이터만 요청합니다" in html
+    assert '<link rel="canonical" href="https://example.com/features/research">' in html
+    assert 'href="/mypage"' in html
+    assert "/api/member/dashboard" not in html
+
+
+def test_render_admin_console_page_keeps_worker_secret_client_supplied():
+    html = render_admin_console_page(site_base_url="https://example.com")
+
+    assert "관리자 콘솔" in html
+    assert '<meta name="robots" content="noindex,nofollow">' in html
+    assert "adminWorkerToken" in html
+    assert "X-TradingAgents-Worker-Token" in html
+    assert "/api/admin/analysis-requests/process" in html
+    assert "/api/admin/analysis-outcomes/process" in html
+    assert '<link rel="canonical" href="https://example.com/admin">' in html
+    assert "TRADINGAGENTS_WORKER_TOKEN=" not in html
+
+
 def test_api_app_serves_member_dashboard(monkeypatch):
     monkeypatch.setattr(
         "tradingagents.site.api_app.render_member_dashboard_page",
@@ -257,11 +291,46 @@ def test_api_app_serves_member_dashboard(monkeypatch):
     client = TestClient(create_app(repo=None, load_repo_from_env=False))
 
     response = client.get("/member")
+    mypage_response = client.get("/mypage")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
     assert response.headers["cache-control"] == "private, no-store"
     assert "member dashboard" in response.text
+    assert mypage_response.status_code == 200
+    assert mypage_response.headers["cache-control"] == "private, no-store"
+    assert "member dashboard" in mypage_response.text
+
+
+def test_api_app_serves_feature_and_admin_pages(monkeypatch):
+    def fake_feature(slug, *args, **kwargs):
+        if slug == "unknown":
+            raise ValueError("Unknown feature page")
+        return f"<!doctype html><html><body>feature {slug}</body></html>"
+
+    monkeypatch.setattr("tradingagents.site.api_app.render_feature_detail_page", fake_feature)
+    monkeypatch.setattr(
+        "tradingagents.site.api_app.render_admin_console_page",
+        lambda *args, **kwargs: "<!doctype html><html><body>admin console</body></html>",
+    )
+    client = TestClient(create_app(repo=None, load_repo_from_env=False, public_cache_seconds=60))
+
+    feature_response = client.get("/features/research")
+    unknown_response = client.get("/features/unknown")
+    admin_response = client.get("/admin")
+
+    assert feature_response.status_code == 200
+    assert feature_response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    assert "feature research" in feature_response.text
+    assert unknown_response.status_code == 404
+    assert admin_response.status_code == 200
+    assert admin_response.headers["cache-control"] == "private, no-store"
+    assert "admin console" in admin_response.text
+
+
+def test_render_feature_detail_page_rejects_unknown_slug():
+    with pytest.raises(ValueError, match="Unknown feature page"):
+        render_feature_detail_page("unknown")
 
 
 def test_render_public_analysis_feed_page_lists_completed_runs():
@@ -389,8 +458,12 @@ def test_seo_helpers_build_canonical_robots_and_sitemap():
     assert "Allow: /" in robots
     assert "Disallow: /api/" in robots
     assert "Disallow: /member" in robots
+    assert "Disallow: /mypage" in robots
+    assert "Disallow: /admin" in robots
     assert "Sitemap: https://example.com/sitemap.xml" in robots
     assert "https://example.com/analyses" in sitemap
+    assert "https://example.com/features/research" in sitemap
+    assert "https://example.com/features/member-workspace" in sitemap
     assert "https://example.com/stocks/005930" in sitemap
     assert "https://example.com/stocks/000660" in sitemap
     assert "<changefreq>hourly</changefreq>" in sitemap
@@ -432,6 +505,7 @@ def test_api_app_serves_robots_sitemap_and_ads_txt(monkeypatch):
     assert sitemap_response.status_code == 200
     assert sitemap_response.headers["content-type"].startswith("application/xml")
     assert "http://testserver/analyses" in sitemap_response.text
+    assert "http://testserver/features/research" in sitemap_response.text
     assert "http://testserver/stocks/005930" in sitemap_response.text
     assert ads_response.status_code == 200
     assert ads_response.headers["content-type"].startswith("text/plain")

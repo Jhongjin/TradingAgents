@@ -19,6 +19,11 @@ DEFAULT_SITEMAP_TICKERS = (
     "068270",
     "005490",
 )
+FEATURE_DETAIL_PATHS = (
+    "/features/research",
+    "/features/member-workspace",
+    "/features/outcomes",
+)
 GOOGLE_ADSENSE_SELLER_DOMAIN = "google.com"
 GOOGLE_ADSENSE_CERTIFICATION_AUTHORITY_ID = "f08c47fec0942fa0"
 
@@ -53,6 +58,8 @@ def build_robots_txt(*, site_base_url: str | None = None) -> str:
         "Allow: /",
         "Disallow: /api/",
         "Disallow: /member",
+        "Disallow: /mypage",
+        "Disallow: /admin",
     ]
     sitemap_url = canonical_url("/sitemap.xml", site_base_url=site_base_url)
     if sitemap_url.startswith("http"):
@@ -105,6 +112,7 @@ def build_sitemap_xml(
         (canonical_url("/", site_base_url=base), "daily", "1.0"),
         (canonical_url("/analyses", site_base_url=base), "hourly", "0.8"),
     ]
+    urls.extend((canonical_url(path, site_base_url=base), "weekly", "0.7") for path in FEATURE_DETAIL_PATHS)
     urls.extend(
         (stock_canonical_url(ticker, site_base_url=base), "daily", "0.7")
         for ticker in _sitemap_tickers(tickers)
