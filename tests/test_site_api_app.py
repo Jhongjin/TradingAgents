@@ -155,6 +155,7 @@ def test_api_app_serves_non_secret_readiness(monkeypatch):
     assert body["deployment"]["vercel_env"] == "preview"
     assert body["deployment"]["git_ref"] == "codex/kr-market"
     assert body["deployment"]["git_sha"] == "1234567890ab"
+    assert "diagnostics" not in body
     assert "sk-test" not in response.text
     assert "anon" not in response.text
 
@@ -214,6 +215,11 @@ def test_api_app_readiness_can_probe_krx_online(monkeypatch):
     assert body["checks"]["krx_configured"] is True
     assert body["checks"]["krx_online"] is True
     assert captured["symbol"] == "086520"
+    assert body["diagnostics"]["krx_probe"]["status"] == "ok"
+    assert body["diagnostics"]["krx_probe"]["ticker"] == "086520"
+    assert body["diagnostics"]["krx_probe"]["date"] == "2026-05-14"
+    assert body["diagnostics"]["krx_probe"]["row_count"] == 1
+    assert isinstance(body["diagnostics"]["krx_probe"]["elapsed_ms"], int)
     assert "krx_online" not in body["configuration_errors"]
 
 
@@ -235,6 +241,8 @@ def test_api_app_readiness_reports_krx_probe_failure(monkeypatch):
     assert body["status"] == "degraded"
     assert body["checks"]["krx_configured"] is True
     assert body["checks"]["krx_online"] is False
+    assert body["diagnostics"]["krx_probe"]["status"] == "failed"
+    assert body["diagnostics"]["krx_probe"]["error_type"] == "VendorUnavailableError"
     assert "KRX Open API probe failed" in body["configuration_errors"]["krx_online"]
     assert "krx-key" not in response.text
 

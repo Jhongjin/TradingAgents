@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import hmac
+import time
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Annotated
@@ -197,7 +198,8 @@ def create_app(
             request.app.state.repository,
             storage_connectivity_error=storage_connectivity_error,
         )
-        krx_online_error = _krx_online_readiness_error() if probe_krx else None
+        krx_probe = _krx_online_readiness_probe() if probe_krx else None
+        krx_online_error = _krx_readiness_probe_error(krx_probe)
         checks = {
             "storage_configured": request.app.state.repository is not None,
             "storage_online": request.app.state.repository is not None and storage_connectivity_error is None,
@@ -217,12 +219,12 @@ def create_app(
             "live_trading_disabled": _live_trading_disabled(),
         }
         if probe_krx:
-            checks["krx_online"] = checks["krx_configured"] and krx_online_error is None
+            checks["krx_online"] = krx_probe is not None and krx_probe.get("status") == "ok"
         required = ["storage_configured", "storage_online", "storage_schema_ready", "live_trading_disabled"]
         if probe_krx:
             required.append("krx_online")
         status = "ok" if all(checks[name] for name in required) else "degraded"
-        return {
+        payload: dict[str, object] = {
             "status": status,
             "deployment": _deployment_context(),
             "checks": checks,
@@ -234,6 +236,9 @@ def create_app(
                 krx_online_error=krx_online_error,
             ),
         }
+        if krx_probe is not None:
+            payload["diagnostics"] = {"krx_probe": krx_probe}
+        return payload
 
     @app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
     def robots_txt(request: Request) -> PlainTextResponse:
@@ -1070,22 +1075,64 @@ def _storage_schema_error(
     return None
 
 
-def _krx_online_readiness_error() -> str | None:
-    if not krx_openapi.is_configured():
-        return "KRX_API_KEY or KRX_OPENAPI_KEY is not configured"
-
+def _krx_online_readiness_probe() -> dict[str, object]:
     probe_symbol = _krx_readiness_probe_symbol()
     probe_date = os.getenv("TRADINGAGENTS_READINESS_KRX_PROBE_DATE") or _last_korea_business_date()
+    result: dict[str, object] = {
+        "vendor": "krx",
+        "ticker": probe_symbol,
+        "date": probe_date,
+        "row_count": 0,
+        "elapsed_ms": 0,
+    }
+    if not krx_openapi.is_configured():
+        result.update(
+            {
+                "status": "not_configured",
+                "error": "KRX_API_KEY or KRX_OPENAPI_KEY is not configured",
+            }
+        )
+        return result
+
+    started = time.perf_counter()
     try:
         frame = krx_openapi.get_ohlcv_frame(probe_symbol, probe_date, probe_date)
     except Exception as exc:
-        return (
-            f"KRX Open API probe failed for {probe_symbol} on {probe_date} ({_safe_error_name(exc)}); "
-            "check key value and service-level approval"
+        result.update(
+            {
+                "status": "failed",
+                "elapsed_ms": _elapsed_ms(started),
+                "error_type": exc.__class__.__name__,
+                "error": (
+                    f"KRX Open API probe failed for {probe_symbol} on {probe_date} ({_safe_error_name(exc)}); "
+                    "check key value and service-level approval"
+                ),
+            }
         )
-    if frame.empty:
-        return f"KRX Open API returned no rows for {probe_symbol} on {probe_date}"
-    return None
+        return result
+
+    row_count = 0 if frame is None else len(frame.index)
+    result.update({"elapsed_ms": _elapsed_ms(started), "row_count": row_count})
+    if frame is None or frame.empty:
+        result.update(
+            {
+                "status": "empty",
+                "error": f"KRX Open API returned no rows for {probe_symbol} on {probe_date}",
+            }
+        )
+        return result
+    result["status"] = "ok"
+    return result
+
+
+def _krx_readiness_probe_error(probe: dict[str, object] | None) -> str | None:
+    if probe is None or probe.get("status") == "ok":
+        return None
+    return str(probe.get("error") or "KRX Open API probe is unavailable")
+
+
+def _elapsed_ms(started: float) -> int:
+    return int(round((time.perf_counter() - started) * 1000))
 
 
 def _readiness_configuration_errors(

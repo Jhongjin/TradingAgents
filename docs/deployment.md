@@ -148,7 +148,10 @@ You can also call `/api/readiness?probe_krx=true` after deploys to run an
 explicit KRX Open API probe. It uses Samsung Electronics (`005930`) by default;
 set `TRADINGAGENTS_KRX_PROBE_TICKER=086520` to probe the KOSDAQ daily trade
 endpoint instead. The default `/api/readiness` response does not call external
-market-data vendors.
+market-data vendors. Probe responses include non-secret `diagnostics.krx_probe`
+metadata such as ticker, date, row count, elapsed milliseconds, and sanitized
+failure type/message so operators can measure vendor health without exposing
+keys.
 
 No live trading or broker order placement is exposed.
 
