@@ -96,7 +96,10 @@ active and rolling 24-hour request limits using existing request status and
 provides the first runner-injection skeleton for that background process.
 `tradingagents.site.analysis_runner.run_tradingagents_graph_for_request(...)`
 is the concrete adapter for invoking `TradingAgentsGraph` once a worker is ready
-to process queued rows.
+to process queued rows. Public report pages render provenance directly from the
+stored run bundle, including `trade_date`, model fields, `metadata_json.source`,
+`metadata_json.selected_analysts`, timestamps, outcome counts, and the matching
+JSON endpoint for audit.
 
 Analysis outcomes are intentionally calculated after completed public runs. The
 `tradingagents.site.outcome_worker.evaluate_public_analysis_outcomes(...)`

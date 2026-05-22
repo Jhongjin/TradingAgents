@@ -433,6 +433,12 @@ def test_render_public_analysis_detail_page_shows_report_context():
             model_provider="openai",
             deep_model="deep",
             quick_model="quick",
+            metadata={
+                "source": "trading_graph",
+                "currency": "KRW",
+                "output_language": "ko-KR",
+                "selected_analysts": ["market", "news", "fundamentals"],
+            },
         )
     )
     repo.add_agent_report(
@@ -472,7 +478,12 @@ def test_render_public_analysis_detail_page_shows_report_context():
     assert 'class="public-home market-page analysis-page analysis-detail-page"' in html
     assert "삼성전자 공개 분석 리포트" in html
     assert "데이터 기준일" in html
-    assert "KRX/DART/Naver/Agents" in html
+    assert "데이터/vendor" in html
+    assert "KRX/DART/Naver" in html
+    assert "Agent coverage" in html
+    assert "market, news, fundamentals" in html
+    assert "source trading_graph / currency KRW / language ko-KR" in html
+    assert "휴장, vendor 장애, 누락 데이터, 모델 오류 가능성" in html
     assert "Decision checkpoint" in html
     assert "Market report" in html
     assert "Outcome Track Record" in html

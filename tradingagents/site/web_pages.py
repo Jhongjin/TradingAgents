@@ -1384,6 +1384,13 @@ def _analysis_detail_view_model(
     provider = str(run.get("model_provider") or "AI")
     deep_model = str(run.get("deep_model") or "")
     quick_model = str(run.get("quick_model") or "")
+    metadata = run.get("metadata_json") if isinstance(run.get("metadata_json"), dict) else {}
+    source_label = str(metadata.get("source") or "stored run")
+    currency_label = str(metadata.get("currency") or "KRW")
+    language_label = str(metadata.get("output_language") or "ko-KR")
+    analyst_label = _metadata_list_label(metadata.get("selected_analysts"), fallback="저장된 agent 목록 없음")
+    created_label = _compact_timestamp(run.get("created_at"))
+    completed_label = _compact_timestamp(run.get("completed_at"))
     rating = str(summary.get("decision_rating") or decision.get("rating") or "-")
     action = str(summary.get("decision_action") or decision.get("action") or "-")
     model_bits = [provider]
@@ -1415,10 +1422,48 @@ def _analysis_detail_view_model(
         "outcomes": outcomes,
         "summary": summary,
         "model_label": " / ".join(model_bits),
+        "source_label": source_label,
+        "currency_label": currency_label,
+        "language_label": language_label,
+        "analyst_label": analyst_label,
+        "timestamp_label": _timestamp_pair_label(created_label, completed_label),
+        "metadata_note": f"source {source_label} / currency {currency_label} / language {language_label}",
         "report_count_label": f"{len(reports)}개 리포트",
         "completed_outcome_label": f"{summary.get('completed_outcome_count', 0)}개 완료",
         "average_alpha_label": _percent(summary.get("average_alpha_return"), signed=True),
     }
+
+
+def _metadata_list_label(value: Any, *, fallback: str) -> str:
+    if isinstance(value, (list, tuple)):
+        items = [str(item).strip() for item in value if str(item).strip()]
+        return ", ".join(items) if items else fallback
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return fallback
+
+
+def _compact_timestamp(value: Any) -> str:
+    if value is None:
+        return "-"
+    text = str(value)
+    if "T" in text:
+        date_part, _, time_part = text.partition("T")
+    elif " " in text:
+        date_part, _, time_part = text.partition(" ")
+    else:
+        return text
+    return f"{date_part} {time_part[:5]}" if time_part else date_part
+
+
+def _timestamp_pair_label(created: str, completed: str) -> str:
+    if created == "-" and completed == "-":
+        return "저장 시각 없음"
+    if completed == "-":
+        return f"created {created}"
+    if created == "-":
+        return f"completed {completed}"
+    return f"created {created} / completed {completed}"
 
 
 def _home_view_model(payload: dict[str, Any], *, site_base_url: str | None = None) -> dict[str, Any]:
@@ -1594,12 +1639,14 @@ def _analysis_detail_decision_card(decision: dict[str, Any]) -> str:
 
 def _analysis_detail_provenance(model: dict[str, Any]) -> str:
     cells = [
-        ("데이터 기준일", model["trade_date"], "리포트 run의 trade_date"),
-        ("파이프라인", "KRX/DART/Naver/Agents", "시장 데이터, 공시, 뉴스, 에이전트 리포트"),
-        ("모델", model["model_label"], "저장된 run metadata 기준"),
+        ("데이터 기준일", model["trade_date"], model["timestamp_label"]),
+        ("데이터/vendor", "KRX/DART/Naver", "시세, 공시, 뉴스 adapter 기반. 장애와 누락은 JSON/본문 기준으로 확인합니다."),
+        ("Agent coverage", model["analyst_label"], "metadata_json.selected_analysts 기준"),
+        ("모델", model["model_label"], model["metadata_note"]),
         ("성과 검증", model["completed_outcome_label"], f"평균 알파 {model['average_alpha_label']}"),
         ("공개 Run ID", model["run_id"], "JSON 원문과 HTML 리포트가 같은 id를 공유"),
-        ("한계", "read-only research", "실거래 주문, 투자 조언, 브로커 placement 없음"),
+        ("검증 경로", "HTML + JSON", f"화면 요약은 저장된 bundle에서 렌더링하며 /api/analyses/{model['run_id']}로 대조합니다."),
+        ("한계", "read-only research", "투자 조언/주문 아님. 휴장, vendor 장애, 누락 데이터, 모델 오류 가능성이 있습니다."),
     ]
     return "".join(
         f"""
