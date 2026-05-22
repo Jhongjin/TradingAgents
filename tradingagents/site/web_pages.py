@@ -50,6 +50,8 @@ def render_public_stock_page(
     lenses_html = _strategy_lens_cards(payload.get("strategy_lenses") or [])
     outcomes_html = _outcome_cards((payload.get("analysis") or {}).get("outcomes") or [])
     notices_html = "".join(f"<li>{_h(notice)}</li>" for notice in payload.get("notices", []))
+    chart_source_html = _data_source_strip(model["chart_source_rows"], label="차트 데이터 출처")
+    analysis_source_html = _data_source_strip(model["analysis_source_rows"], label="공개 분석 출처")
 
     return f"""<!doctype html>
 <html lang="ko">
@@ -118,6 +120,7 @@ def render_public_stock_page(
         </div>
         {chart_controls_html}
         <p class="chart-caption">{_h(model["chart_caption"])}</p>
+        {chart_source_html}
         <div class="chart-wrap">
           <canvas id="priceChart" aria-label="{_h(model["name"])} 가격 차트"></canvas>
           <div class="chart-legend" id="chartLegend" aria-hidden="true"></div>
@@ -150,6 +153,7 @@ def render_public_stock_page(
           <p class="eyebrow">공개 분석</p>
           <h2>{_h(model["analysis_title"])}</h2>
           <p>{_h(model["rationale"])}</p>
+          {analysis_source_html}
         </section>
       </aside>
     </section>
@@ -1186,8 +1190,10 @@ def _view_model(payload: dict[str, Any], *, site_base_url: str | None = None) ->
         "chart_end_date": str(chart.get("end_date") or ""),
         "chart_range_days": _chart_range_days(chart.get("start_date"), chart.get("end_date")),
         "chart_point_count": len(points),
+        "chart_source_rows": _chart_source_rows(chart, points),
         "chart_caption": _chart_caption(chart, points),
         "chart_fallback": _chart_fallback_message(chart),
+        "analysis_source_rows": _analysis_source_rows(analysis, refresh),
     }
 
 
@@ -1240,6 +1246,64 @@ def _chart_controls(model: dict[str, Any]) -> str:
 def _stock_query_href(code: str, params: dict[str, str]) -> str:
     query = urlencode({key: value for key, value in params.items() if value})
     return f"/stocks/{code}?{query}" if query else f"/stocks/{code}"
+
+
+def _data_source_strip(rows: list[tuple[str, str]], *, label: str) -> str:
+    if not rows:
+        return ""
+    items = "".join(
+        f"""
+        <div>
+          <dt>{_h(key)}</dt>
+          <dd>{_h(value)}</dd>
+        </div>
+        """
+        for key, value in rows
+    )
+    return f"""
+    <dl class="data-source-strip" aria-label="{_h(label)}">
+      {items}
+    </dl>
+    """
+
+
+def _chart_source_rows(chart: dict[str, Any], points: list[dict[str, Any]]) -> list[tuple[str, str]]:
+    point_count = chart.get("point_count")
+    if point_count is None:
+        point_count = len(points)
+    requested = chart.get("requested_vendor") or chart.get("vendor") or "-"
+    resolved = chart.get("resolved_vendor") or chart.get("vendor") or "-"
+    return [
+        ("출처", str(chart.get("data_source_label") or _chart_vendor_label(chart.get("vendor")))),
+        ("신선도", f"{chart.get('end_date') or '-'} 기준"),
+        ("범위", f"{point_count}거래일"),
+        ("vendor", f"요청 {requested} / 응답 {resolved}"),
+        ("fallback", "사용" if chart.get("fallback_used") else "없음"),
+    ]
+
+
+def _analysis_source_rows(analysis: dict[str, Any], refresh: dict[str, Any]) -> list[tuple[str, str]]:
+    run = analysis.get("run") or {}
+    provider = run.get("model_provider") or "AI"
+    run_id = str(run.get("id") or "")
+    source = f"public run {run_id[:8]}" if run_id else _analysis_status_label(analysis.get("status"))
+    return [
+        ("출처", source),
+        ("기준일", str(run.get("trade_date") or "-")),
+        ("신선도", _analysis_refresh_label(refresh)),
+        ("모델", str(provider)),
+    ]
+
+
+def _analysis_refresh_label(refresh: dict[str, Any]) -> str:
+    reason = str(refresh.get("reason") or "-")
+    age = refresh.get("age_days")
+    age_label = f" / {age}일 경과" if age is not None else ""
+    if reason in {"storage_not_configured", "analysis_skipped"}:
+        prefix = "확인 대기"
+    else:
+        prefix = "업데이트 권장" if refresh.get("recommended") else "최신"
+    return f"{prefix} ({reason}{age_label})"
 
 
 def _period_is_active(active_days: Any, option_days: int) -> bool:
@@ -1814,6 +1878,8 @@ def _outcome_card(outcome: dict[str, Any]) -> str:
       <dl>
         <div><dt>Raw</dt><dd>{_h(raw_return)}</dd></div>
         <div><dt>Alpha</dt><dd>{_h(alpha_return)}</dd></div>
+        <div><dt>기준일</dt><dd>{_h(outcome.get("trade_date") or "-")}</dd></div>
+        <div><dt>평가일</dt><dd>{_h(outcome.get("evaluated_at") or "-")}</dd></div>
       </dl>
     </article>
     """
@@ -2851,6 +2917,41 @@ h3 {
   font-size: 13px;
 }
 
+.data-source-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 0 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--line);
+}
+
+.data-source-strip div {
+  min-width: 0;
+  padding: 10px;
+  background: var(--surface);
+}
+
+.data-source-strip dt {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.data-source-strip dd {
+  margin: 5px 0 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -3149,7 +3250,12 @@ h3 {
   padding: 18px;
 }
 
-.analysis-panel p:last-child {
+.analysis-panel .data-source-strip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.analysis-panel p {
   margin-bottom: 0;
   color: var(--muted);
   line-height: 1.6;
@@ -3984,6 +4090,10 @@ h3 {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .data-source-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .home-hero,
   .home-section-heading,
   .home-analysis-zone,
@@ -4096,6 +4206,11 @@ h3 {
   .chart-tab {
     flex: 1 1 auto;
     justify-content: center;
+  }
+
+  .data-source-strip,
+  .analysis-panel .data-source-strip {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .shell {
@@ -5190,7 +5305,7 @@ button:disabled {
 
 .market-page .asof,
 .market-page .chart-caption,
-.market-page .analysis-panel p:last-child,
+.market-page .analysis-panel p,
 .market-page .report-card p,
 .market-page .analysis-feed-card p,
 .market-page .analysis-feed-card small,
@@ -5280,6 +5395,23 @@ button:disabled {
   border-color: rgba(246, 243, 232, 0.16);
   background: rgba(246, 243, 232, 0.07);
   color: rgba(246, 243, 232, 0.72);
+}
+
+.market-page .data-source-strip {
+  border-color: rgba(246, 243, 232, 0.13);
+  background: rgba(246, 243, 232, 0.13);
+}
+
+.market-page .data-source-strip div {
+  background: rgba(9, 13, 11, 0.42);
+}
+
+.market-page .data-source-strip dt {
+  color: rgba(198, 221, 192, 0.74);
+}
+
+.market-page .data-source-strip dd {
+  color: var(--home-ink);
 }
 
 .market-page .chart-tab:hover,

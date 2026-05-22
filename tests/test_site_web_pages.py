@@ -35,7 +35,11 @@ def _payload():
         },
         "analysis": {
             "status": "available",
-            "run": {"trade_date": "2026-05-05"},
+            "run": {
+                "id": "00000000-0000-0000-0000-000000000010",
+                "trade_date": "2026-05-05",
+                "model_provider": "openai",
+            },
             "reports": [
                 {
                     "role": "market",
@@ -59,7 +63,7 @@ def _payload():
                 }
             ],
         },
-        "analysis_refresh": {"recommended": False, "reason": "fresh"},
+        "analysis_refresh": {"recommended": False, "reason": "fresh", "age_days": 0},
         "chart": {
             "status": "available",
             "ticker_code": "005930",
@@ -67,6 +71,13 @@ def _payload():
             "market": "KOSPI",
             "currency": "KRW",
             "vendor": "pykrx",
+            "requested_vendor": "auto",
+            "resolved_vendor": "pykrx",
+            "point_count": 2,
+            "data_source_label": "pykrx",
+            "fallback_used": True,
+            "start_date": "2026-05-04",
+            "end_date": "2026-05-05",
             "points": [
                 {"date": "2026-05-04", "open": 70000.0, "high": 71000.0, "low": 69000.0, "close": 70500.0, "volume": 1000},
                 {"date": "2026-05-05", "open": 70600.0, "high": 72000.0, "low": 70200.0, "close": 71800.0, "volume": 2000},
@@ -121,6 +132,15 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "1개월" in html
     assert "KRX 14D" in html
     assert "pykrx / 2개 거래일" in html
+    assert "차트 데이터 출처" in html
+    assert "2026-05-05 기준" in html
+    assert "요청 auto / 응답 pykrx" in html
+    assert "<dd>사용</dd>" in html
+    assert "공개 분석 출처" in html
+    assert "public run 00000000" in html
+    assert "최신 (fresh / 0일 경과)" in html
+    assert "<dt>기준일</dt>" in html
+    assert "<dt>평가일</dt>" in html
     assert "movingAverage" in html
     assert "상승 빨강" in html
     assert "하락 파랑" in html
