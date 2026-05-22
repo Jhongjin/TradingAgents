@@ -1432,6 +1432,7 @@ def test_api_app_serves_public_analysis_bundle_by_run_id():
     body = response.json()
     assert body["run"]["id"] == run_id
     assert body["reports"][0]["role"] == "market"
+    assert body["reports"][0]["quality_checks"]["status"] == "review"
     assert body["decision"]["rating"] == "Hold"
     assert body["summary"]["report_roles"] == ["market"]
     assert body["summary"]["has_decision"] is True
@@ -1486,6 +1487,7 @@ def test_api_app_serves_public_analysis_detail_page_by_run_id():
     assert response.headers["content-type"].startswith("text/html")
     assert response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
     assert "삼성전자 공개 분석 리포트" in response.text
+    assert "근거 점검" in response.text
     assert f"/api/analyses/{run_id}" in response.text
     assert private_response.status_code == 404
 

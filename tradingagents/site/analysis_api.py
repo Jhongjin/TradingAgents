@@ -8,6 +8,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
+from tradingagents.report_quality import enrich_reports_with_quality
 from tradingagents.storage import AnalysisRequestInput, StorageRepository
 
 from .public_api import _json_ready
@@ -197,7 +198,7 @@ def build_public_analysis_bundle_payload(repo: StorageRepository, *, analysis_ru
     run = bundle.get("run") or {}
     if run.get("visibility") != "public" or run.get("status") != "completed":
         return None
-    reports = bundle.get("reports") or []
+    reports = enrich_reports_with_quality(bundle.get("reports") or [], run)
     decision = bundle.get("decision")
     outcomes = bundle.get("outcomes") or []
     return _json_ready(

@@ -549,6 +549,8 @@ def test_render_public_analysis_detail_page_shows_report_context():
     assert "휴장, vendor 장애, 누락 데이터, 모델 오류 가능성" in html
     assert "Decision checkpoint" in html
     assert "Market report" in html
+    assert "근거 점검" in html
+    assert "Ticker anchor" in html
     assert "Outcome Track Record" in html
     assert f'href="/api/analyses/{run_id}">JSON</a>' in html
     assert f'<link rel="canonical" href="https://example.com/analyses/{run_id}">' in html

@@ -107,6 +107,8 @@ def test_public_stock_payload_combines_analysis_and_chart(monkeypatch):
     assert payload["analysis"]["run"]["id"] == run_id
     assert payload["analysis"]["run"]["trade_date"] == "2026-05-05"
     assert payload["analysis"]["reports"][0]["role"] == "market"
+    assert payload["analysis"]["reports"][0]["quality_checks"]["status"] == "review"
+    assert payload["analysis"]["reports"][0]["quality_checks"]["total_count"] == 5
     assert payload["analysis"]["decision"]["rating"] == "Hold"
     assert payload["analysis"]["outcomes"][0]["horizon_days"] == 5
     assert payload["analysis"]["outcomes"][0]["alpha_return"] == 0.03

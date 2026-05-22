@@ -1776,16 +1776,61 @@ def _analysis_detail_report_cards(reports: list[dict[str, Any]]) -> str:
         role = str(report.get("role") or "agent")
         title = str(report.get("title") or role)
         content = _excerpt(str(report.get("content") or ""), limit=1600)
+        quality_html = _analysis_quality_html(_report_quality(report))
         cards.append(
             f"""
             <article class="analysis-detail-report-card">
               <span>{_h(role)}</span>
               <h3>{_h(title)}</h3>
+              {quality_html}
               <p>{_h(content or "리포트 본문이 비어 있습니다.")}</p>
             </article>
             """
         )
     return "\n".join(cards)
+
+
+def _report_quality(report: dict[str, Any]) -> dict[str, Any] | None:
+    metadata = report.get("metadata_json") or report.get("metadata") or {}
+    quality = report.get("quality_checks") or (metadata.get("quality_checks") if isinstance(metadata, dict) else None)
+    return quality if isinstance(quality, dict) else None
+
+
+def _analysis_quality_html(quality: dict[str, Any] | None) -> str:
+    if not quality:
+        return ""
+    compact = _analysis_quality_compact_html(quality)
+    checks = quality.get("checks") or []
+    flagged = [check for check in checks if check.get("status") != "pass"][:4]
+    if not flagged:
+        flagged = [{"label": "Grounding", "status": "pass", "detail": "핵심 기준을 통과했습니다."}]
+    items = "\n".join(
+        f"<li><strong>{_h(str(check.get('label') or check.get('id') or 'check'))}</strong>"
+        f"<small>{_h(str(check.get('status') or '-'))} · {_h(str(check.get('detail') or ''))}</small></li>"
+        for check in flagged
+    )
+    return f"""
+      {compact}
+      <ul class="analysis-quality-list" aria-label="리포트 근거 점검 상세">
+        {items}
+      </ul>
+    """
+
+
+def _analysis_quality_compact_html(quality: dict[str, Any] | None) -> str:
+    if not quality:
+        return ""
+    risk = str(quality.get("risk_level") or "medium")
+    risk_label = {"low": "낮음", "medium": "검토", "high": "높음"}.get(risk, "검토")
+    passed = quality.get("passed_count", 0)
+    total = quality.get("total_count", 0)
+    warnings = int(quality.get("warning_count") or 0) + int(quality.get("failed_count") or 0)
+    return f"""
+      <div class="analysis-quality-strip risk-{_h(risk)}">
+        <strong>근거 점검: {_h(risk_label)}</strong>
+        <small>{_h(str(passed))}/{_h(str(total))} checks passed · review {warnings}</small>
+      </div>
+    """
 
 
 def _analysis_detail_decision_card(decision: dict[str, Any]) -> str:
@@ -1896,11 +1941,13 @@ def _report_cards(reports: list[dict[str, Any]]) -> str:
         title = report.get("title") or report.get("role") or "report"
         role = report.get("role") or "agent"
         content = _excerpt(report.get("content") or "", limit=420)
+        quality_html = _analysis_quality_compact_html(_report_quality(report))
         cards.append(
             f"""
             <article class="report-card">
               <span>{_h(str(role))}</span>
               <h3>{_h(str(title))}</h3>
+              {quality_html}
               <p>{_h(content)}</p>
             </article>
             """
@@ -6007,6 +6054,64 @@ button:disabled {
   margin-top: 16px;
   font-size: clamp(22px, 3vw, 36px);
   line-height: 1.04;
+}
+
+.analysis-quality-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: baseline;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(246, 243, 232, 0.12);
+}
+
+.analysis-quality-strip strong {
+  color: var(--home-ink);
+  font-size: 13px;
+}
+
+.analysis-quality-strip small {
+  color: rgba(246, 243, 232, 0.58);
+  font-size: 12px;
+}
+
+.analysis-quality-strip.risk-low strong {
+  color: var(--home-celadon);
+}
+
+.analysis-quality-strip.risk-medium strong {
+  color: var(--home-brass);
+}
+
+.analysis-quality-strip.risk-high strong {
+  color: var(--home-vermilion);
+}
+
+.analysis-quality-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.analysis-quality-list li {
+  display: grid;
+  gap: 3px;
+  border-left: 2px solid rgba(246, 243, 232, 0.16);
+  padding-left: 10px;
+}
+
+.analysis-quality-list strong {
+  color: var(--home-ink);
+  font-size: 12px;
+}
+
+.analysis-quality-list small {
+  color: rgba(246, 243, 232, 0.62);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .analysis-detail-report-card p {

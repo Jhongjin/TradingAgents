@@ -28,6 +28,7 @@ from tradingagents.dataflows.config import set_config
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker, to_yfinance_symbol
 from tradingagents.dataflows.kr_returns import fetch_korean_returns
 from tradingagents.execution.signals import signal_from_decision
+from tradingagents.report_quality import evaluate_report_quality
 from tradingagents.storage import (
     AgentReportInput,
     AnalysisRunInput,
@@ -457,18 +458,26 @@ class TradingAgentsGraph:
                 )
             )
 
+            run_context = {
+                "ticker_code": ticker_code,
+                "ticker_name": ticker_name,
+                "market": market,
+                "trade_date": self._storage_trade_date(trade_date),
+            }
             for role, title, content in self._storage_report_items(final_state):
                 if content is None:
                     continue
                 rendered = self._stringify_report_content(content)
                 if not rendered.strip():
                     continue
+                report_context = {"role": role, "title": title, "content": rendered}
                 repo.add_agent_report(
                     AgentReportInput(
                         analysis_run_id=run_id,
                         role=role,
                         title=title,
                         content=rendered,
+                        metadata={"quality_checks": evaluate_report_quality(report_context, run_context)},
                     )
                 )
 

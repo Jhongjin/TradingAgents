@@ -29,7 +29,7 @@ This queue is intentionally high level. Workstream folders hold deeper notes.
   fallbacks.
 - Shipped: Add queue transparency for member analysis requests.
 - Shipped: Add vendor latency/quota measurement for KRX, DART, and Naver.
-- Add systematic hallucination checks for generated analysis reports.
+- Shipped: Add systematic hallucination checks for generated analysis reports.
 - Add public track-record cards once enough outcomes exist.
 
 ## User-Action Blockers

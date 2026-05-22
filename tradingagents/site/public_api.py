@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from tradingagents.dataflows.chart_data import get_krx_chart_max_days, get_ohlcv_chart_series
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
+from tradingagents.report_quality import enrich_reports_with_quality
 from tradingagents.storage import StorageRepository
 from .strategy_lenses import build_korean_strategy_lenses
 
@@ -90,10 +91,11 @@ def _analysis_payload(repo: StorageRepository | None, ticker_code: str) -> dict[
     if bundle is None:
         return {"status": "missing"}
 
+    run = bundle["run"]
     return {
         "status": "available",
-        "run": bundle["run"],
-        "reports": bundle["reports"],
+        "run": run,
+        "reports": enrich_reports_with_quality(bundle["reports"], run),
         "decision": bundle["decision"],
         "outcomes": bundle.get("outcomes", []),
     }

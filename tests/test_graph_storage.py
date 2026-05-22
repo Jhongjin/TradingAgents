@@ -74,6 +74,7 @@ def test_trading_graph_persists_completed_analysis_run():
 
     report_roles = {report["role"] for report in bundle["reports"]}
     assert {"market", "news", "fundamentals", "trader", "risk"} <= report_roles
+    assert all("quality_checks" in (report.get("metadata_json") or {}) for report in bundle["reports"])
     assert bundle["decision"]["rating"] == "Buy"
     assert bundle["decision"]["action"] == "increase"
     assert bundle["decision"]["target_weight"] == 0.25
