@@ -17,6 +17,7 @@ from tradingagents.site.web_pages import (
     render_admin_console_page,
     render_feature_detail_page,
     render_member_dashboard_page,
+    render_public_analysis_detail_page,
     render_public_analysis_feed_page,
     render_public_home_page,
     render_public_stock_page,
@@ -404,9 +405,72 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "판단 Hold" in html
     assert "<dt>알파</dt><dd>+3.00%</dd>" in html
     assert "<dt>리포트</dt><dd>1개</dd>" in html
+    assert f'href="/analyses/{run_id}">리포트</a>' in html
     assert f'href="/api/analyses/{run_id}">JSON</a>' in html
     assert "/stocks/005930" in html
     assert '<link rel="canonical" href="https://example.com/analyses">' in html
+
+
+def test_render_public_analysis_detail_page_shows_report_context():
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+            model_provider="openai",
+            deep_model="deep",
+            quick_model="quick",
+        )
+    )
+    repo.add_agent_report(
+        AgentReportInput(
+            analysis_run_id=run_id,
+            role="market",
+            title="Market report",
+            content="market report body",
+        )
+    )
+    repo.record_trade_decision(
+        TradeDecisionInput(
+            analysis_run_id=run_id,
+            rating="Hold",
+            action="hold",
+            rationale="현금흐름과 수급을 추가 확인합니다.",
+            raw_decision="Rating: Hold",
+        )
+    )
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 12),
+            horizon_days=5,
+            status="completed",
+            raw_return=0.04,
+            benchmark_return=0.01,
+            alpha_return=0.03,
+        )
+    )
+    repo.complete_analysis_run(run_id)
+
+    html = render_public_analysis_detail_page(run_id, repo=repo, site_base_url="https://example.com")
+
+    assert 'class="public-home market-page analysis-page analysis-detail-page"' in html
+    assert "삼성전자 공개 분석 리포트" in html
+    assert "데이터 기준일" in html
+    assert "KRX/DART/Naver/Agents" in html
+    assert "Decision checkpoint" in html
+    assert "Market report" in html
+    assert "Outcome Track Record" in html
+    assert f'href="/api/analyses/{run_id}">JSON</a>' in html
+    assert f'<link rel="canonical" href="https://example.com/analyses/{run_id}">' in html
+    assert 'id="analysis-detail-payload"' in html
+    assert "/api/portfolios" not in html
+    assert "/api/watchlists" not in html
 
 
 def test_api_app_serves_public_analysis_feed_page(monkeypatch):
@@ -468,6 +532,7 @@ def test_seo_helpers_build_canonical_robots_and_sitemap():
     sitemap = build_sitemap_xml(
         site_base_url="https://example.com",
         tickers=["005930", "005930", "AAPL", "000660"],
+        analysis_paths=["/analyses/run-1", "/not-public/run-2"],
         generated_date="2026-05-05",
     )
 
@@ -478,6 +543,8 @@ def test_seo_helpers_build_canonical_robots_and_sitemap():
     assert "Disallow: /admin" in robots
     assert "Sitemap: https://example.com/sitemap.xml" in robots
     assert "https://example.com/analyses" in sitemap
+    assert "https://example.com/analyses/run-1" in sitemap
+    assert "/not-public/run-2" not in sitemap
     assert "https://example.com/features/research" in sitemap
     assert "https://example.com/features/member-workspace" in sitemap
     assert "https://example.com/stocks/005930" in sitemap
@@ -549,3 +616,4 @@ def test_api_app_sitemap_includes_stored_public_analysis_tickers(monkeypatch):
     assert response.status_code == 200
     assert "http://testserver/stocks/005930" in response.text
     assert "http://testserver/stocks/373220" in response.text
+    assert f"http://testserver/analyses/{run_id}" in response.text

@@ -39,6 +39,7 @@ from .web_pages import (
     render_admin_console_page,
     render_feature_detail_page,
     render_member_dashboard_page,
+    render_public_analysis_detail_page,
     render_public_analysis_feed_page,
     render_public_home_page,
     render_public_stock_page,
@@ -144,6 +145,7 @@ def create_app(
         elif (
             request.url.path == "/"
             or request.url.path == "/analyses"
+            or request.url.path.startswith("/analyses/")
             or request.url.path == "/stocks"
             or request.url.path.startswith("/stocks/")
             or request.url.path.startswith("/features/")
@@ -261,6 +263,7 @@ def create_app(
             content = build_sitemap_xml(
                 site_base_url=_request_site_base_url(request),
                 tickers=_sitemap_tickers(request.app.state.repository),
+                analysis_paths=_sitemap_analysis_paths(request.app.state.repository),
             )
         except ValueError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -292,6 +295,19 @@ def create_app(
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return HTMLResponse(html)
+
+    @app.get("/analyses/{analysis_run_id}", response_class=HTMLResponse, include_in_schema=False)
+    def analysis_detail_page(analysis_run_id: str, request: Request) -> HTMLResponse:
+        repo = request.app.state.repository
+        try:
+            html = render_public_analysis_detail_page(
+                analysis_run_id,
+                repo=repo,
+                site_base_url=_request_site_base_url(request),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
         return HTMLResponse(html)
 
     @app.get("/member", response_class=HTMLResponse, include_in_schema=False)
@@ -916,6 +932,16 @@ def _sitemap_tickers(repo: StorageRepository | None) -> tuple[str, ...]:
         seen.add(ticker)
         cleaned.append(ticker)
     return tuple(cleaned)
+
+
+def _sitemap_analysis_paths(repo: StorageRepository | None) -> tuple[str, ...]:
+    if repo is None:
+        return ()
+    try:
+        rows = repo.list_public_analysis_runs(limit=_sitemap_max_analysis_tickers())
+    except Exception:
+        return ()
+    return tuple(f"/analyses/{row['id']}" for row in rows if row.get("id"))
 
 
 def _sitemap_max_analysis_tickers() -> int:

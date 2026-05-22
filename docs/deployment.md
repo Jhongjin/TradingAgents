@@ -98,6 +98,7 @@ The API remains read-only:
 
 - `GET /`: public Samsung Electronics analysis page
 - `GET /analyses`: public completed-analysis feed page
+- `GET /analyses/{analysis_run_id}`: public rendered analysis report page backed by the same bundle as JSON
 - `GET /member`: noindex member dashboard shell for Supabase Auth and manual records
 - `GET /stocks/{ticker}`: public Korean stock analysis page with KRW chart
 - `GET /ads.txt`: advertising seller declaration generated from AdSense/custom env
@@ -107,6 +108,7 @@ The API remains read-only:
 - `GET /api/tickers/search?q=삼성`: Korean ticker code/name search
 - `GET /api/stocks/{ticker}`: public Korean stock payload
 - `GET /api/analyses?ticker=005930`: public completed-analysis feed
+- `GET /api/analyses/{analysis_run_id}`: public completed-analysis bundle JSON for verification/debugging
 - `GET /api/analysis-outcomes?ticker=005930`: public realised-return and benchmark-alpha outcome feed
 - `GET /api/prices/latest?tickers=005930,000660`: latest close-price snapshots
 - `POST /api/analysis-requests`: queue an authenticated member analysis refresh request

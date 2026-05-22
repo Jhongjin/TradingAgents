@@ -305,6 +305,7 @@ def _enrich_public_analysis_item(repo: StorageRepository, row: dict[str, Any]) -
     run_id = item.get("id")
     if not run_id:
         return item
+    item["report_path"] = f"/analyses/{run_id}"
     item["api_path"] = f"/api/analyses/{run_id}"
     try:
         bundle = repo.get_analysis_bundle(str(run_id))

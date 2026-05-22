@@ -101,6 +101,7 @@ def build_sitemap_xml(
     *,
     site_base_url: str | None = None,
     tickers: Iterable[str] | None = None,
+    analysis_paths: Iterable[str] | None = None,
     generated_date: str | None = None,
 ) -> str:
     base = normalize_site_base_url(site_base_url)
@@ -112,6 +113,10 @@ def build_sitemap_xml(
         (canonical_url("/", site_base_url=base), "daily", "1.0"),
         (canonical_url("/analyses", site_base_url=base), "hourly", "0.8"),
     ]
+    urls.extend(
+        (canonical_url(path, site_base_url=base), "daily", "0.7")
+        for path in _sitemap_analysis_paths(analysis_paths)
+    )
     urls.extend((canonical_url(path, site_base_url=base), "weekly", "0.7") for path in FEATURE_DETAIL_PATHS)
     urls.extend(
         (stock_canonical_url(ticker, site_base_url=base), "daily", "0.7")
@@ -150,4 +155,16 @@ def _sitemap_tickers(tickers: Iterable[str] | None) -> tuple[str, ...]:
         if ticker.isdigit() and len(ticker) == 6:
             cleaned.append(ticker)
             seen.add(ticker)
+    return tuple(cleaned)
+
+
+def _sitemap_analysis_paths(paths: Iterable[str] | None) -> tuple[str, ...]:
+    cleaned = []
+    seen = set()
+    for raw in paths or ():
+        path = str(raw).strip()
+        if not path.startswith("/analyses/") or path in seen:
+            continue
+        cleaned.append(path)
+        seen.add(path)
     return tuple(cleaned)

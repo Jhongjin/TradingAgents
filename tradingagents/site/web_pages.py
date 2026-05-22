@@ -11,7 +11,7 @@ from urllib.parse import urlencode
 
 from tradingagents.storage import StorageRepository
 
-from .analysis_api import build_public_analysis_feed_payload
+from .analysis_api import build_public_analysis_bundle_payload, build_public_analysis_feed_payload
 from .public_api import build_public_stock_payload
 from .seo import canonical_url, stock_canonical_url
 
@@ -276,6 +276,111 @@ def render_public_analysis_feed_page(
   </main>
 
   <script id="analysis-feed-payload" type="application/json">{payload_json}</script>
+</body>
+</html>"""
+
+
+def render_public_analysis_detail_page(
+    analysis_run_id: str,
+    *,
+    repo: StorageRepository | None = None,
+    site_base_url: str | None = None,
+) -> str:
+    """Render one addressable public analysis report page."""
+
+    payload = build_public_analysis_bundle_payload(repo, analysis_run_id=analysis_run_id) if repo is not None else None
+    if payload is None:
+        raise ValueError("Public analysis not found")
+    model = _analysis_detail_view_model(payload, analysis_run_id=analysis_run_id, site_base_url=site_base_url)
+    reports_html = _analysis_detail_report_cards(model["reports"])
+    decision_html = _analysis_detail_decision_card(model["decision"])
+    outcomes_html = _outcome_cards(model["outcomes"])
+    provenance_html = _analysis_detail_provenance(model)
+    payload_json = _script_json(payload)
+    structured_data_json = _script_json(_analysis_detail_structured_data(model, payload))
+
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{_h(model["title"])}</title>
+  <meta name="description" content="{_h(model["description"])}">
+  <link rel="canonical" href="{_h(model["canonical_url"])}">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="TradingAgents Korea">
+  <meta property="og:title" content="{_h(model["title"])}">
+  <meta property="og:description" content="{_h(model["description"])}">
+  <meta property="og:url" content="{_h(model["canonical_url"])}">
+  <style>{PAGE_CSS}</style>
+  <script type="application/ld+json">{structured_data_json}</script>
+</head>
+<body class="public-home market-page analysis-page analysis-detail-page">
+  <a class="skip-link" href="#main-content">본문 바로가기</a>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="TradingAgents Korea home">
+      <span class="brand-mark">TA</span>
+      <span>TradingAgents Korea</span>
+    </a>
+    <nav class="top-links" aria-label="공개 페이지">
+      <a href="/features/research">기능</a>
+      <a href="/analyses">분석 목록</a>
+      <a href="/stocks/{_h(model["ticker_code"])}">종목</a>
+      <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
+      <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
+      <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+    </nav>
+  </header>
+
+  <main id="main-content" class="shell market-shell">
+    <section class="analysis-detail-hero" aria-labelledby="analysis-detail-title">
+      <div>
+        <p class="eyebrow">Public Analysis Report</p>
+        <h1 id="analysis-detail-title">{_h(model["heading"])}</h1>
+        <p class="asof">{_h(model["subtitle"])}</p>
+        <div class="analysis-detail-actions">
+          <a href="/stocks/{_h(model["ticker_code"])}">종목 페이지</a>
+          <a href="/analyses">목록</a>
+          <a href="/api/analyses/{_h(model["run_id"])}">JSON</a>
+        </div>
+      </div>
+      <aside class="decision-box analysis-detail-decision">
+        <span class="decision-label">투자 판단 아님</span>
+        <strong>{_h(model["decision_label"])}</strong>
+        <span>{_h(model["data_basis"])}</span>
+      </aside>
+    </section>
+
+    <section class="analysis-provenance-grid" aria-label="리포트 출처와 한계">
+      {provenance_html}
+    </section>
+
+    {decision_html}
+
+    <section class="report-section analysis-detail-reports" aria-labelledby="analysis-reports-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Agent Reports</p>
+          <h2 id="analysis-reports-title">에이전트 리포트</h2>
+        </div>
+        <span class="status-pill">{_h(model["report_count_label"])}</span>
+      </div>
+      <div class="analysis-report-stack">
+        {reports_html}
+      </div>
+    </section>
+
+    {outcomes_html}
+
+    <section class="notice-strip" aria-label="투자 유의사항">
+      <ul>
+        <li>이 공개 리포트는 정보 제공용이며 투자 조언이나 매수/매도 지시가 아닙니다.</li>
+        <li>TradingAgents Korea는 실거래 주문과 브로커 주문 placement를 의도적으로 지원하지 않습니다.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script id="analysis-detail-payload" type="application/json">{payload_json}</script>
 </body>
 </html>"""
 
@@ -1225,6 +1330,62 @@ def _analysis_feed_view_model(payload: dict[str, Any], *, site_base_url: str | N
     }
 
 
+def _analysis_detail_view_model(
+    payload: dict[str, Any],
+    *,
+    analysis_run_id: str,
+    site_base_url: str | None = None,
+) -> dict[str, Any]:
+    run = payload.get("run") or {}
+    decision = payload.get("decision") or {}
+    reports = payload.get("reports") or []
+    outcomes = payload.get("outcomes") or []
+    summary = payload.get("summary") or {}
+    run_id = str(run.get("id") or analysis_run_id)
+    ticker_code = str(run.get("ticker_code") or "")
+    ticker_name = str(run.get("ticker_name") or ticker_code or "공개 분석")
+    market = str(run.get("market") or "KR")
+    trade_date = str(run.get("trade_date") or "-")
+    provider = str(run.get("model_provider") or "AI")
+    deep_model = str(run.get("deep_model") or "")
+    quick_model = str(run.get("quick_model") or "")
+    rating = str(summary.get("decision_rating") or decision.get("rating") or "-")
+    action = str(summary.get("decision_action") or decision.get("action") or "-")
+    model_bits = [provider]
+    if deep_model:
+        model_bits.append(f"deep {deep_model}")
+    if quick_model:
+        model_bits.append(f"quick {quick_model}")
+    heading = f"{ticker_name} 공개 분석 리포트"
+    description = (
+        f"{trade_date} 기준 {ticker_name}({ticker_code}) 공개 AI 분석입니다. "
+        f"판단 {rating}, 리포트 {len(reports)}개, 사후 성과 검증 {summary.get('completed_outcome_count', 0)}건을 제공합니다."
+    )
+    return {
+        "title": f"{ticker_name} {ticker_code} 공개 분석 리포트 | TradingAgents Korea",
+        "description": description,
+        "canonical_url": canonical_url(f"/analyses/{run_id}", site_base_url=site_base_url),
+        "heading": heading,
+        "subtitle": f"{trade_date} 기준 / {market} / run {run_id[:8]}",
+        "run": run,
+        "run_id": run_id,
+        "ticker_code": ticker_code,
+        "ticker_name": ticker_name,
+        "market": market,
+        "trade_date": trade_date,
+        "decision": decision,
+        "decision_label": f"{rating} / {action}",
+        "data_basis": f"{trade_date} 기준, {provider} 공개 분석",
+        "reports": reports,
+        "outcomes": outcomes,
+        "summary": summary,
+        "model_label": " / ".join(model_bits),
+        "report_count_label": f"{len(reports)}개 리포트",
+        "completed_outcome_label": f"{summary.get('completed_outcome_count', 0)}개 완료",
+        "average_alpha_label": _percent(summary.get("average_alpha_return"), signed=True),
+    }
+
+
 def _home_view_model(payload: dict[str, Any], *, site_base_url: str | None = None) -> dict[str, Any]:
     return {
         "title": "TradingAgents Korea | 한국 주식 AI 분석",
@@ -1314,7 +1475,9 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
         alpha = _percent(item.get("alpha_return"), signed=True)
         report_count = item.get("report_count")
         reports = f"{report_count}개" if report_count is not None else "-"
-        api_path = item.get("api_path") or f"/api/analyses/{item.get('id')}"
+        run_id = item.get("id")
+        report_path = item.get("report_path") or (f"/analyses/{run_id}" if run_id else "/analyses")
+        api_path = item.get("api_path") or (f"/api/analyses/{run_id}" if run_id else "/api/analyses")
         cards.append(
             f"""
             <article class="analysis-feed-card">
@@ -1326,12 +1489,117 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
                 <div><dt>모델</dt><dd>{_h(str(model_provider))}</dd></div>
                 <div><dt>리포트</dt><dd>{_h(reports)}</dd></div>
                 <div><dt>알파</dt><dd>{_h(alpha)}</dd></div>
+                <div><dt>보기</dt><dd><a href="{_h(str(report_path))}">리포트</a></dd></div>
                 <div><dt>원문</dt><dd><a href="{_h(str(api_path))}">JSON</a></dd></div>
               </dl>
             </article>
             """
         )
     return "\n".join(cards)
+
+
+def _analysis_detail_report_cards(reports: list[dict[str, Any]]) -> str:
+    if not reports:
+        return """
+        <article class="analysis-detail-report-card empty">
+          <span>pending</span>
+          <h3>리포트 대기</h3>
+          <p>저장된 에이전트 리포트가 아직 없습니다.</p>
+        </article>
+        """
+
+    cards = []
+    for report in reports:
+        role = str(report.get("role") or "agent")
+        title = str(report.get("title") or role)
+        content = _excerpt(str(report.get("content") or ""), limit=1600)
+        cards.append(
+            f"""
+            <article class="analysis-detail-report-card">
+              <span>{_h(role)}</span>
+              <h3>{_h(title)}</h3>
+              <p>{_h(content or "리포트 본문이 비어 있습니다.")}</p>
+            </article>
+            """
+        )
+    return "\n".join(cards)
+
+
+def _analysis_detail_decision_card(decision: dict[str, Any]) -> str:
+    if not decision:
+        body = """
+        <article class="analysis-rationale-card empty">
+          <span>pending</span>
+          <h2>최종 판단 대기</h2>
+          <p>저장된 최종 판단이 아직 없습니다.</p>
+        </article>
+        """
+    else:
+        rating = str(decision.get("rating") or "-")
+        action = str(decision.get("action") or "-")
+        target_weight = decision.get("target_weight")
+        rationale = decision.get("rationale") or decision.get("raw_decision") or "판단 근거가 저장되지 않았습니다."
+        body = f"""
+        <article class="analysis-rationale-card">
+          <span>Decision checkpoint</span>
+          <h2>최종 판단: {_h(rating)}</h2>
+          <p>{_h(_excerpt(str(rationale), limit=900))}</p>
+          <dl>
+            <div><dt>Action</dt><dd>{_h(action)}</dd></div>
+            <div><dt>Target weight</dt><dd>{_h(_percent(target_weight) if target_weight is not None else "-")}</dd></div>
+          </dl>
+        </article>
+        """
+    return f"""
+    <section class="analysis-rationale-section" aria-label="최종 판단">
+      {body}
+    </section>
+    """
+
+
+def _analysis_detail_provenance(model: dict[str, Any]) -> str:
+    cells = [
+        ("데이터 기준일", model["trade_date"], "리포트 run의 trade_date"),
+        ("파이프라인", "KRX/DART/Naver/Agents", "시장 데이터, 공시, 뉴스, 에이전트 리포트"),
+        ("모델", model["model_label"], "저장된 run metadata 기준"),
+        ("성과 검증", model["completed_outcome_label"], f"평균 알파 {model['average_alpha_label']}"),
+        ("공개 Run ID", model["run_id"], "JSON 원문과 HTML 리포트가 같은 id를 공유"),
+        ("한계", "read-only research", "실거래 주문, 투자 조언, 브로커 placement 없음"),
+    ]
+    return "".join(
+        f"""
+        <article>
+          <span>{_h(label)}</span>
+          <strong>{_h(value)}</strong>
+          <small>{_h(note)}</small>
+        </article>
+        """
+        for label, value, note in cells
+    )
+
+
+def _analysis_detail_structured_data(model: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    run = payload.get("run") or {}
+    return {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": model["heading"],
+        "description": model["description"],
+        "url": model["canonical_url"],
+        "inLanguage": "ko-KR",
+        "datePublished": str(run.get("created_at") or run.get("trade_date") or ""),
+        "dateModified": str(run.get("updated_at") or run.get("created_at") or run.get("trade_date") or ""),
+        "publisher": {
+            "@type": "Organization",
+            "name": "TradingAgents Korea",
+        },
+        "about": {
+            "@type": "Thing",
+            "name": model["ticker_name"],
+            "identifier": model["ticker_code"],
+            "additionalType": "KoreanStock",
+        },
+    }
 
 
 def _top_count_label(counts: dict[str, Any]) -> str | None:
@@ -4789,6 +5057,9 @@ button:disabled {
 .market-page .report-card,
 .market-page .analysis-summary-grid article,
 .market-page .analysis-feed-card,
+.market-page .analysis-provenance-grid article,
+.market-page .analysis-rationale-card,
+.market-page .analysis-detail-report-card,
 .market-page .lens-card,
 .market-page .outcome-card,
 .analysis-filter-panel {
@@ -4823,6 +5094,8 @@ button:disabled {
 .market-page .metric-grid strong,
 .market-page .analysis-summary-grid strong,
 .market-page .analysis-feed-card dd,
+.market-page .analysis-provenance-grid strong,
+.market-page .analysis-rationale-card dd,
 .market-page .lens-card h3,
 .market-page .outcome-card h3,
 .market-page .outcome-card dd {
@@ -4898,6 +5171,7 @@ button:disabled {
 
 .market-page .analysis-feed-card:hover,
 .market-page .report-card:hover,
+.market-page .analysis-detail-report-card:hover,
 .market-page .lens-card:hover,
 .market-page .outcome-card:hover {
   transform: translateY(-2px);
@@ -4976,6 +5250,171 @@ button:disabled {
 .analysis-filter-form a {
   border: 1px solid rgba(246, 243, 232, 0.18);
   color: var(--home-ink);
+}
+
+.analysis-detail-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.32fr);
+  gap: clamp(18px, 3vw, 34px);
+  align-items: stretch;
+  padding: clamp(30px, 5vw, 72px) 0 clamp(22px, 4vw, 42px);
+  border-bottom: 1px solid var(--home-line);
+}
+
+.analysis-detail-hero h1 {
+  max-width: 920px;
+  color: var(--home-ink);
+  font-size: clamp(42px, 6vw, 88px);
+  font-weight: 900;
+  line-height: 0.96;
+  text-wrap: balance;
+}
+
+.analysis-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.analysis-detail-actions a {
+  display: inline-grid;
+  min-height: 42px;
+  place-items: center;
+  border: 1px solid rgba(246, 243, 232, 0.18);
+  border-radius: 6px;
+  color: var(--home-ink);
+  padding: 0 14px;
+  font-weight: 900;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.analysis-detail-actions a:first-child {
+  border-color: var(--home-acid);
+  background: var(--home-acid);
+  color: #10130f;
+}
+
+.analysis-detail-actions a:hover {
+  transform: translateY(-1px);
+  border-color: rgba(215, 255, 63, 0.42);
+}
+
+.analysis-detail-decision {
+  align-self: stretch;
+}
+
+.analysis-provenance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.analysis-provenance-grid article {
+  min-height: 132px;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  padding: 16px;
+  overflow-wrap: anywhere;
+}
+
+.analysis-provenance-grid span,
+.analysis-rationale-card span,
+.analysis-detail-report-card span {
+  display: block;
+  color: var(--home-celadon);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.analysis-provenance-grid strong {
+  display: block;
+  margin-top: 26px;
+  font-size: clamp(18px, 2.2vw, 28px);
+  line-height: 1.05;
+}
+
+.analysis-provenance-grid small {
+  display: block;
+  margin-top: 8px;
+  color: rgba(246, 243, 232, 0.58);
+  line-height: 1.45;
+}
+
+.analysis-rationale-section {
+  margin-top: 18px;
+}
+
+.analysis-rationale-card {
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-left: 4px solid var(--home-acid);
+  border-radius: 8px;
+  padding: clamp(18px, 3vw, 28px);
+}
+
+.analysis-rationale-card h2 {
+  margin-top: 20px;
+  font-size: clamp(26px, 4vw, 46px);
+  line-height: 1;
+}
+
+.analysis-rationale-card p {
+  max-width: 82ch;
+  color: rgba(246, 243, 232, 0.68);
+  line-height: 1.72;
+}
+
+.analysis-rationale-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 22px 0 0;
+}
+
+.analysis-rationale-card dl div {
+  border-top: 1px solid rgba(246, 243, 232, 0.12);
+  padding-top: 10px;
+}
+
+.analysis-rationale-card dt {
+  color: rgba(246, 243, 232, 0.58);
+  font-size: 12px;
+}
+
+.analysis-rationale-card dd {
+  margin: 4px 0 0;
+  font-weight: 900;
+}
+
+.analysis-detail-reports {
+  margin-top: 18px;
+}
+
+.analysis-report-stack {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.analysis-detail-report-card {
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  padding: clamp(18px, 3vw, 28px);
+}
+
+.analysis-detail-report-card h3 {
+  margin-top: 16px;
+  font-size: clamp(22px, 3vw, 36px);
+  line-height: 1.04;
+}
+
+.analysis-detail-report-card p {
+  max-width: 96ch;
+  color: rgba(246, 243, 232, 0.68);
+  line-height: 1.74;
 }
 
 .market-page .notice-strip {
@@ -5071,6 +5510,8 @@ button:disabled {
 
 @media (max-width: 980px) {
   .market-page .summary-band,
+  .analysis-detail-hero,
+  .analysis-provenance-grid,
   .analysis-filter-panel,
   .admin-health-strip {
     grid-template-columns: minmax(0, 1fr);
@@ -5093,6 +5534,14 @@ button:disabled {
 
   .market-page .summary-band h1 {
     font-size: clamp(36px, 12vw, 52px);
+  }
+
+  .analysis-detail-hero h1 {
+    font-size: clamp(36px, 12vw, 54px);
+  }
+
+  .analysis-rationale-card dl {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .analysis-filter-form,
