@@ -3467,8 +3467,14 @@ h3 {
 }
 
 .member-action-item strong,
+.member-action-item a,
 .member-action-item small {
   min-width: 0;
+}
+
+.member-action-item a {
+  color: var(--accent-strong);
+  font-weight: 900;
 }
 
 .member-action-item small {
@@ -3642,6 +3648,7 @@ h3 {
   }
 
   .member-action-item strong,
+  .member-action-item a,
   .member-action-item small,
   .member-action-item input {
     grid-column: 1 / -1;
@@ -3846,6 +3853,7 @@ h3 {
   }
 
   .member-action-item strong,
+  .member-action-item a,
   .member-action-item small,
   .member-action-item input {
     grid-column: auto;
@@ -6106,7 +6114,8 @@ MEMBER_PAGE_JS = """
     return (detail?.items || []).slice(0, 5).map((item) => {
       const price = item.current_price === null || item.current_price === undefined ? "가격 대기" : money(item.current_price);
       const memo = item.memo ? ` / ${item.memo}` : "";
-      return `${item.ticker_name || item.ticker_code} ${item.ticker_code} / ${price}${memo}`;
+      const page = item.public_stock_path ? ` / 상세 ${item.public_stock_path}` : "";
+      return `${item.ticker_name || item.ticker_code} ${item.ticker_code} / ${price}${memo}${page}`;
     });
   }
 
@@ -6121,7 +6130,8 @@ MEMBER_PAGE_JS = """
     items.forEach((item) => {
       const row = document.createElement("div");
       row.className = "member-action-item";
-      const title = document.createElement("strong");
+      const title = document.createElement(item.public_stock_path ? "a" : "strong");
+      if (item.public_stock_path) title.href = item.public_stock_path;
       title.textContent = `${item.ticker_name || item.ticker_code} ${item.ticker_code}`;
       const meta = document.createElement("small");
       const price = item.current_price === null || item.current_price === undefined ? "가격 대기" : money(item.current_price);
@@ -6191,9 +6201,11 @@ MEMBER_PAGE_JS = """
 
   function analysisRequestCard(row) {
     const title = `${row.ticker_name || row.ticker_code} ${row.ticker_code}`;
-    const meta = `${statusLabel(row.status)} / ${row.requested_trade_date}`;
+    const meta = `${row.status_label || statusLabel(row.status)} / ${row.requested_trade_date}`;
     const details = [];
     if (row.reason) details.push(`메모 ${row.reason}`);
+    if (row.public_stock_path) details.push(`종목 페이지 ${row.public_stock_path}`);
+    if (row.is_active) details.push("worker 처리 대기 중");
     if (row.analysis_run_id) details.push(`리포트 ${row.analysis_run_id.slice(0, 8)}`);
     details.push(`업데이트 ${String(row.updated_at || row.created_at || "").slice(0, 10) || "-"}`);
     return itemCard(title, meta, [miniList(details, "상세 상태 대기", "큐 상태")]);
@@ -6248,8 +6260,9 @@ MEMBER_PAGE_JS = """
     watchlistList.replaceChildren(
       ...(rows.length ? rows.map((row) => {
         const detail = details[row.id];
+        const summary = detail?.summary || {};
         const meta = detail
-          ? `${detail.item_count}종목 / 가격 ${detail.priced_item_count}개 / ${detail.market_price_source?.vendor || "수동"}`
+          ? `${detail.item_count}종목 / 가격 ${detail.priced_item_count}개 / 메모 ${summary.memo_item_count || 0}개 / ${detail.pricing_status || "확인"}`
           : row.id;
         return itemCard(row.name, meta, [
           miniList(watchlistLines(detail), "아직 관심 종목이 없습니다", "요약"),

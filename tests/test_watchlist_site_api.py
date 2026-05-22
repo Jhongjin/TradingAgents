@@ -30,10 +30,15 @@ def test_watchlist_payload_includes_items_and_current_prices():
     assert payload["watchlist"]["name"] == "관심종목"
     assert payload["item_count"] == 2
     assert payload["priced_item_count"] == 1
+    assert payload["pricing_status"] == "partial"
+    assert payload["summary"] == {"memo_item_count": 1, "unpriced_item_count": 1}
     items = {item["ticker_code"]: item for item in payload["items"]}
     assert items["005930"]["ticker_name"] == "삼성전자"
     assert items["005930"]["current_price"] == 83000.0
+    assert items["005930"]["has_memo"] is True
+    assert items["005930"]["public_stock_path"] == "/stocks/005930"
     assert items["000660"]["current_price"] is None
+    assert items["000660"]["has_memo"] is False
 
 
 def test_watchlist_payload_rejects_missing_watchlist():

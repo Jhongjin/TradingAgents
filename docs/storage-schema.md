@@ -79,12 +79,16 @@ target/stop distance rates when current prices are available.
 
 Watchlist helpers store member-owned ticker lists separately from portfolio
 holdings. `tradingagents.site.build_watchlist_payload(...)` returns a JSON-ready
-watchlist with optional current prices supplied by the app.
+watchlist with optional current prices supplied by the app, pricing coverage,
+memo counts, and public stock-page paths for each watched ticker.
 
 Analysis refresh requests are intentionally queued in
 `analysis_refresh_requests` instead of running LLM analysis inline during a web
 request. A separate worker should read queued rows, run TradingAgents, persist
 the completed analysis, link `analysis_run_id`, and update the request status.
+Request payloads expose duplicate suppression, active status labels, and public
+stock-page paths so the member UI can explain queue state without polling
+private worker details.
 `tradingagents.site.analysis_worker.process_queued_analysis_requests(...)`
 provides the first runner-injection skeleton for that background process.
 `tradingagents.site.analysis_runner.run_tradingagents_graph_for_request(...)`

@@ -846,6 +846,9 @@ def test_api_app_queues_analysis_refresh_request_with_bearer(monkeypatch):
     assert response.status_code == 200
     assert response.headers["cache-control"] == "private, no-store"
     assert response.json()["status"] == "queued"
+    assert response.json()["duplicate"] is False
+    assert response.json()["public_stock_path"] == "/stocks/005930"
+    assert response.json()["status_label"] == "대기"
     assert queued[0]["ticker_code"] == "005930"
 
 
@@ -885,6 +888,9 @@ def test_api_app_lists_member_analysis_requests():
     assert list_response.headers["cache-control"] == "private, no-store"
     assert list_response.json()["item_count"] == 1
     assert list_response.json()["items"][0]["id"] == request_id
+    assert list_response.json()["items"][0]["public_stock_path"] == "/stocks/005930"
+    assert list_response.json()["items"][0]["status_label"] == "대기"
+    assert list_response.json()["items"][0]["is_active"] is True
     assert list_response.json()["summary"]["active_count"] == 1
     assert list_response.json()["summary"]["status_counts"] == {"queued": 1}
     assert item_response.status_code == 200

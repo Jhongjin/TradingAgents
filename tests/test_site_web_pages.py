@@ -231,8 +231,12 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "target_memo" in html
     assert "watchlistActionList" in html
     assert "member-action-item" in html
+    assert "public_stock_path" in html
+    assert "pricing_status" in html
     assert 'method: "DELETE"' in html
     assert "analysisRequestSummary" in html
+    assert "status_label" in html
+    assert "worker 처리 대기 중" in html
     assert "analysis-status-running" in html
     assert "status_counts" in html
     assert "include_latest_prices=true" in html

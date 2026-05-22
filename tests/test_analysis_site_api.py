@@ -32,7 +32,10 @@ def test_queue_analysis_refresh_request_persists_queued_request():
     queued = repo.list_analysis_requests(user_id=USER_ID)
 
     assert payload["status"] == "queued"
+    assert payload["duplicate"] is False
     assert payload["ticker"]["code"] == "005930"
+    assert payload["public_stock_path"] == "/stocks/005930"
+    assert payload["status_label"] == "대기"
     assert payload["requested_trade_date"] == "2026-05-05"
     assert queued[0]["id"] == payload["request_id"]
     assert queued[0]["requested_trade_date"] == date(2026, 5, 5)
@@ -59,6 +62,9 @@ def test_queue_analysis_refresh_request_reuses_existing_active_request():
 
     assert first["status"] == "queued"
     assert second["status"] == "already_queued"
+    assert second["duplicate"] is True
+    assert second["public_stock_path"] == "/stocks/005930"
+    assert second["status_label"] == "대기"
     assert second["request_id"] == first["request_id"]
     assert len(queued) == 1
 

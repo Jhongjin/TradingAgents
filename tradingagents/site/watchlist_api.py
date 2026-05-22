@@ -29,25 +29,34 @@ def build_watchlist_payload(
     prices = _normalize_price_map(current_prices or {})
     items = []
     for item in repo.watchlist_items(watchlist_id):
-        current_price = prices.get(str(item["ticker_code"]).upper())
+        ticker_code = str(item["ticker_code"]).upper()
+        current_price = prices.get(ticker_code)
         items.append(
             {
-                "ticker_code": item["ticker_code"],
+                "ticker_code": ticker_code,
                 "ticker_name": item["ticker_name"],
                 "market": item["market"],
                 "memo": item["memo"],
+                "has_memo": bool(item["memo"]),
                 "current_price": current_price,
+                "public_stock_path": f"/stocks/{ticker_code}",
                 "created_at": item["created_at"],
                 "updated_at": item["updated_at"],
             }
         )
 
+    priced_count = sum(1 for item in items if item["current_price"] is not None)
     return _json_ready(
         {
             "watchlist": watchlist,
             "items": items,
             "item_count": len(items),
-            "priced_item_count": sum(1 for item in items if item["current_price"] is not None),
+            "priced_item_count": priced_count,
+            "pricing_status": _pricing_status(len(items), priced_count),
+            "summary": {
+                "memo_item_count": sum(1 for item in items if item["has_memo"]),
+                "unpriced_item_count": len(items) - priced_count,
+            },
             "notices": [WATCHLIST_NOTICE],
         }
     )
@@ -78,3 +87,13 @@ def build_watchlist_list_payload(
             "notices": [WATCHLIST_NOTICE],
         }
     )
+
+
+def _pricing_status(item_count: int, priced_count: int) -> str:
+    if item_count == 0:
+        return "empty"
+    if priced_count == 0:
+        return "missing"
+    if priced_count == item_count:
+        return "complete"
+    return "partial"

@@ -36,6 +36,7 @@ def queue_analysis_refresh_request(
             {
                 "status": "already_queued",
                 "request_id": existing["id"],
+                "duplicate": True,
                 "ticker": {
                     "code": resolved.code,
                     "name": resolved.name,
@@ -43,6 +44,8 @@ def queue_analysis_refresh_request(
                 },
                 "requested_trade_date": trade_date,
                 "reason": existing.get("reason") or reason,
+                "public_stock_path": f"/stocks/{resolved.code}",
+                "status_label": _analysis_request_status_label(existing.get("status")),
             }
         )
 
@@ -61,6 +64,7 @@ def queue_analysis_refresh_request(
         {
             "status": "queued",
             "request_id": request_id,
+            "duplicate": False,
             "ticker": {
                 "code": resolved.code,
                 "name": resolved.name,
@@ -68,6 +72,8 @@ def queue_analysis_refresh_request(
             },
             "requested_trade_date": trade_date,
             "reason": reason,
+            "public_stock_path": f"/stocks/{resolved.code}",
+            "status_label": _analysis_request_status_label("queued"),
         }
     )
 
@@ -88,7 +94,7 @@ def build_member_analysis_requests_payload(
         raise ValueError("limit must be positive")
     if limit > max_limit:
         raise ValueError(f"limit cannot exceed {max_limit}")
-    rows = repo.list_analysis_requests(status=status, user_id=user_id, limit=limit)
+    rows = [_analysis_request_item(row) for row in repo.list_analysis_requests(status=status, user_id=user_id, limit=limit)]
     return _json_ready(
         {
             "status": "available",
@@ -114,7 +120,7 @@ def build_member_analysis_request_payload(
         return None
     if str(row.get("user_id")) != user_id:
         raise PermissionError("analysis request does not belong to the authenticated user")
-    return _json_ready({"status": "available", "item": row})
+    return _json_ready({"status": "available", "item": _analysis_request_item(row)})
 
 
 def build_public_analysis_bundle_payload(repo: StorageRepository, *, analysis_run_id: str) -> dict[str, Any] | None:
@@ -273,6 +279,25 @@ def _analysis_feed_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "completed_outcome_count": sum(int(row.get("completed_outcome_count") or 0) for row in rows),
         "average_alpha_return": (sum(alpha_values) / len(alpha_values)) if alpha_values else None,
     }
+
+
+def _analysis_request_item(row: dict[str, Any]) -> dict[str, Any]:
+    item = dict(row)
+    ticker_code = str(item.get("ticker_code") or "")
+    item["public_stock_path"] = f"/stocks/{ticker_code}" if ticker_code else None
+    item["status_label"] = _analysis_request_status_label(item.get("status"))
+    item["is_active"] = str(item.get("status") or "") in {"queued", "running"}
+    return item
+
+
+def _analysis_request_status_label(status: Any) -> str:
+    return {
+        "queued": "대기",
+        "running": "처리 중",
+        "completed": "완료",
+        "failed": "실패",
+        "skipped": "건너뜀",
+    }.get(str(status), "미확인")
 
 
 def _enrich_public_analysis_item(repo: StorageRepository, row: dict[str, Any]) -> dict[str, Any]:
