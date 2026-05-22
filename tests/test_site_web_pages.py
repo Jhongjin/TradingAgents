@@ -289,6 +289,14 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "analysisRequestSummary" in html
     assert "status_label" in html
     assert "worker 처리 대기 중" in html
+    assert "worker 큐 상태, 제한 사용량, 완료 리포트 연결" in html
+    assert "analysis-queue-overview" in html
+    assert "analysis-queue-meters" in html
+    assert "quota_policy" in html
+    assert "member_queue_position" in html
+    assert "next_action_label" in html
+    assert "status_hint" in html
+    assert "member-inline-link" in html
     assert "analysis-status-running" in html
     assert "status_counts" in html
     assert "include_latest_prices=true" in html

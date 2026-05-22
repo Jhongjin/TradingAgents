@@ -155,7 +155,11 @@ def build_member_analysis_requests_payload(
         raise ValueError("limit must be positive")
     if limit > max_limit:
         raise ValueError(f"limit cannot exceed {max_limit}")
-    rows = [_analysis_request_item(row) for row in repo.list_analysis_requests(status=status, user_id=user_id, limit=limit)]
+    rows = _annotate_analysis_request_positions(
+        [_analysis_request_item(row) for row in repo.list_analysis_requests(status=status, user_id=user_id, limit=limit)]
+    )
+    summary = _analysis_request_summary(rows)
+    summary["quota_policy"] = _analysis_request_quota_policy(repo, user_id=user_id)
     return _json_ready(
         {
             "status": "available",
@@ -163,7 +167,7 @@ def build_member_analysis_requests_payload(
             "limit": limit,
             "items": rows,
             "item_count": len(rows),
-            "summary": _analysis_request_summary(rows),
+            "summary": summary,
         }
     )
 
@@ -345,9 +349,15 @@ def _analysis_feed_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
 def _analysis_request_item(row: dict[str, Any]) -> dict[str, Any]:
     item = dict(row)
     ticker_code = str(item.get("ticker_code") or "")
+    status = item.get("status")
+    analysis_run_id = str(item.get("analysis_run_id") or "")
     item["public_stock_path"] = f"/stocks/{ticker_code}" if ticker_code else None
-    item["status_label"] = _analysis_request_status_label(item.get("status"))
-    item["is_active"] = str(item.get("status") or "") in {"queued", "running"}
+    item["report_path"] = f"/analyses/{analysis_run_id}" if analysis_run_id else None
+    item["status_label"] = _analysis_request_status_label(status)
+    item["status_hint"] = _analysis_request_status_hint(status)
+    item["next_action_label"] = _analysis_request_next_action_label(status, has_report=bool(analysis_run_id))
+    item["next_action_path"] = item["report_path"] or item["public_stock_path"]
+    item["is_active"] = str(status or "") in ACTIVE_ANALYSIS_REQUEST_STATUSES
     return item
 
 
@@ -359,6 +369,43 @@ def _analysis_request_status_label(status: Any) -> str:
         "failed": "실패",
         "skipped": "건너뜀",
     }.get(str(status), "미확인")
+
+
+def _analysis_request_status_hint(status: Any) -> str:
+    return {
+        "queued": "요청이 큐에 들어갔습니다. 운영 worker가 순서대로 처리합니다.",
+        "running": "worker가 공개 리포트 생성과 저장을 진행 중입니다.",
+        "completed": "공개 리포트가 저장되었습니다. 리포트와 종목 페이지에서 근거를 확인할 수 있습니다.",
+        "failed": "처리 중 오류가 기록되었습니다. 실패 사유를 확인한 뒤 다시 요청할 수 있습니다.",
+        "skipped": "중복 요청 또는 운영 정책으로 건너뛰었습니다.",
+    }.get(str(status), "상태를 확인할 수 없습니다. 잠시 후 다시 조회해 주세요.")
+
+
+def _analysis_request_next_action_label(status: Any, *, has_report: bool) -> str:
+    if str(status) == "queued":
+        return "상태 새로고침"
+    if str(status) == "running":
+        return "잠시 후 다시 확인"
+    if str(status) == "completed":
+        return "리포트 보기" if has_report else "종목 페이지 확인"
+    if str(status) == "failed":
+        return "메모 확인 후 재요청"
+    if str(status) == "skipped":
+        return "기존 큐 확인"
+    return "상태 확인"
+
+
+def _annotate_analysis_request_positions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    active_position = 0
+    for row in rows:
+        if str(row.get("status") or "") in ACTIVE_ANALYSIS_REQUEST_STATUSES:
+            active_position += 1
+            row["member_queue_position"] = active_position
+            row["queue_scope_label"] = "내 활성 요청 기준"
+        else:
+            row["member_queue_position"] = None
+            row["queue_scope_label"] = None
+    return rows
 
 
 def _enrich_public_analysis_item(repo: StorageRepository, row: dict[str, Any]) -> dict[str, Any]:
@@ -428,6 +475,8 @@ def _analysis_request_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "status_counts": status_counts,
         "active_count": status_counts.get("queued", 0) + status_counts.get("running", 0),
+        "queued_count": status_counts.get("queued", 0),
+        "running_count": status_counts.get("running", 0),
         "failed_count": status_counts.get("failed", 0),
         "completed_count": status_counts.get("completed", 0),
         "unique_ticker_count": len(ticker_codes),
@@ -471,6 +520,20 @@ def _analysis_request_limits(*, active_limit: int | None, daily_limit: int | Non
     if daily <= 0:
         raise ValueError("daily_limit must be positive")
     return {"active_limit": active, "daily_limit": daily}
+
+
+def _analysis_request_quota_policy(repo: StorageRepository, *, user_id: str) -> dict[str, int]:
+    limits = _analysis_request_limits(active_limit=None, daily_limit=None)
+    return {
+        "active_limit": limits["active_limit"],
+        "active_used": repo.count_analysis_requests(user_id=user_id, statuses=ACTIVE_ANALYSIS_REQUEST_STATUSES),
+        "daily_limit": limits["daily_limit"],
+        "daily_used": repo.count_analysis_requests(
+            user_id=user_id,
+            created_at_from=_analysis_request_window_start(),
+        ),
+        "window_hours": ANALYSIS_REQUEST_WINDOW_HOURS,
+    }
 
 
 def _positive_int_env(name: str, default: int) -> int:

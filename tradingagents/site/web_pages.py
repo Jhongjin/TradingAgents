@@ -1122,6 +1122,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <div>
               <p class="eyebrow">AI Analysis</p>
               <h2>분석 요청</h2>
+              <p class="panel-copy">worker 큐 상태, 제한 사용량, 완료 리포트 연결을 한 곳에서 확인합니다.</p>
             </div>
             <span class="status-pill">Queued</span>
           </div>
@@ -3960,6 +3961,14 @@ h3 {
   font-size: 20px;
 }
 
+.panel-copy {
+  max-width: 58ch;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .member-form {
   display: grid;
   gap: 10px;
@@ -4109,6 +4118,109 @@ h3 {
 
 .member-item strong {
   font-size: 15px;
+}
+
+.analysis-queue-overview {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(20, 107, 99, 0.18);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  background: #f7faf7;
+}
+
+.analysis-queue-meters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.analysis-queue-meters div {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.analysis-queue-meters small,
+.analysis-queue-meters span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.analysis-queue-meters strong {
+  display: block;
+  margin: 3px 0;
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.analysis-queue-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.analysis-request-item {
+  gap: 10px;
+  background: #fbfcfa;
+}
+
+.analysis-request-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.analysis-request-header > div {
+  min-width: 0;
+}
+
+.analysis-request-header strong,
+.analysis-request-header small {
+  display: block;
+}
+
+.analysis-request-header small {
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.analysis-request-header .status-pill {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.analysis-request-hint {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.analysis-request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.member-inline-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  height: auto;
+  padding: 8px 12px;
+  text-decoration: none;
 }
 
 .member-item small,
@@ -4335,6 +4447,10 @@ h3 {
     grid-template-columns: 1fr 1fr;
   }
 
+  .analysis-queue-meters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .member-action-item strong,
   .member-action-item a,
   .member-action-item small,
@@ -4543,6 +4659,14 @@ h3 {
 
   .member-action-item {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .analysis-request-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .analysis-request-header .status-pill {
+    justify-self: start;
   }
 
   .member-action-item strong,
@@ -7080,6 +7204,29 @@ MEMBER_PAGE_JS = """
     return text || null;
   }
 
+  function shortDate(value) {
+    const raw = String(value || "");
+    return raw ? raw.slice(0, 10) : "-";
+  }
+
+  function shortDateTime(value) {
+    const raw = String(value || "");
+    return raw ? raw.replace("T", " ").slice(0, 16) : "-";
+  }
+
+  function compactId(value) {
+    const raw = String(value || "");
+    return raw ? raw.slice(0, 8) : "-";
+  }
+
+  function inlineLink(label, path) {
+    const link = document.createElement("a");
+    link.className = "ghost-button member-inline-link";
+    link.href = path;
+    link.textContent = label;
+    return link;
+  }
+
   function miniList(lines, emptyMessage, label = "") {
     const list = document.createElement("ul");
     list.className = "member-sublist";
@@ -7208,6 +7355,32 @@ MEMBER_PAGE_JS = """
 
   function analysisRequestSummary(summary = {}) {
     const counts = summary.status_counts || {};
+    const policy = summary.quota_policy || {};
+    const activeLimit = policy.active_limit || "-";
+    const dailyLimit = policy.daily_limit || "-";
+    const windowHours = policy.window_hours || 24;
+    const node = document.createElement("div");
+    node.className = "analysis-queue-overview";
+
+    const meters = document.createElement("div");
+    meters.className = "analysis-queue-meters";
+    [
+      ["활성 큐", `${policy.active_used ?? summary.active_count ?? 0}/${activeLimit}`, "대기+처리 중"],
+      [`${windowHours}시간`, `${policy.daily_used ?? "-"}/${dailyLimit}`, "요청 제한"],
+      ["완료", summary.completed_count || 0, "저장된 리포트"],
+      ["실패", summary.failed_count || 0, "확인 필요"]
+    ].forEach(([label, value, hint]) => {
+      const meter = document.createElement("div");
+      const small = document.createElement("small");
+      const strong = document.createElement("strong");
+      const span = document.createElement("span");
+      small.textContent = label;
+      strong.textContent = value;
+      span.textContent = hint;
+      meter.append(small, strong, span);
+      meters.append(meter);
+    });
+
     const strip = document.createElement("div");
     strip.className = "member-status-strip";
     [
@@ -7221,19 +7394,66 @@ MEMBER_PAGE_JS = """
       pill.textContent = `${label} ${counts[key] || 0}`;
       strip.append(pill);
     });
-    return strip;
+
+    const note = document.createElement("p");
+    note.className = "analysis-queue-note";
+    note.textContent = "같은 종목과 기준일의 활성 요청은 기존 큐에 합쳐지며 quota를 다시 사용하지 않습니다.";
+    node.append(meters, strip, note);
+    return node;
   }
 
   function analysisRequestCard(row) {
-    const title = `${row.ticker_name || row.ticker_code} ${row.ticker_code}`;
-    const meta = `${row.status_label || statusLabel(row.status)} / ${row.requested_trade_date}`;
+    const title = `${row.ticker_name || row.ticker_code || "한국 종목"} ${row.ticker_code || ""}`.trim();
+    const status = row.status || "unknown";
+    const node = document.createElement("article");
+    node.className = "member-item analysis-request-item";
+
+    const header = document.createElement("div");
+    header.className = "analysis-request-header";
+    const heading = document.createElement("div");
+    const strong = document.createElement("strong");
+    const small = document.createElement("small");
+    const pill = document.createElement("span");
+    strong.textContent = title;
+    small.textContent = [
+      `${row.market || "KR"} / 기준일 ${shortDate(row.requested_trade_date)}`,
+      row.member_queue_position ? `${row.queue_scope_label || "내 큐"} ${row.member_queue_position}번째` : null,
+      `요청 ${shortDateTime(row.created_at)}`,
+      `업데이트 ${shortDateTime(row.updated_at || row.created_at)}`
+    ].filter(Boolean).join(" / ");
+    pill.className = `status-pill analysis-status-${status}`;
+    pill.textContent = row.status_label || statusLabel(status);
+    heading.append(strong, small);
+    header.append(heading, pill);
+
+    const hint = document.createElement("p");
+    hint.className = "analysis-request-hint";
+    hint.textContent = row.status_hint || "큐 상태를 확인하고 있습니다.";
+
     const details = [];
-    if (row.reason) details.push(`메모 ${row.reason}`);
-    if (row.public_stock_path) details.push(`종목 페이지 ${row.public_stock_path}`);
+    if (row.reason) details.push(`요청 메모 ${row.reason}`);
     if (row.is_active) details.push("worker 처리 대기 중");
-    if (row.analysis_run_id) details.push(`리포트 ${row.analysis_run_id.slice(0, 8)}`);
-    details.push(`업데이트 ${String(row.updated_at || row.created_at || "").slice(0, 10) || "-"}`);
-    return itemCard(title, meta, [miniList(details, "상세 상태 대기", "큐 상태")]);
+    if (row.member_queue_position) details.push(`${row.queue_scope_label || "내 활성 요청 기준"} ${row.member_queue_position}번째`);
+    if (row.analysis_run_id) details.push(`리포트 ID ${compactId(row.analysis_run_id)}`);
+    if (row.public_stock_path) details.push(`종목 페이지 ${row.public_stock_path}`);
+    details.push(`다음 행동 ${row.next_action_label || "상태 확인"}`);
+
+    const actions = document.createElement("div");
+    actions.className = "analysis-request-actions";
+    if (row.is_active) {
+      const refresh = smallButton(row.next_action_label || "상태 새로고침");
+      refresh.addEventListener("click", () => loadMemberData());
+      actions.append(refresh);
+    }
+    if (row.public_stock_path) actions.append(inlineLink("종목", row.public_stock_path));
+    if (row.report_path) actions.append(inlineLink(row.next_action_label || "리포트", row.report_path));
+    if (!row.report_path && row.next_action_path && !row.public_stock_path) {
+      actions.append(inlineLink(row.next_action_label || "확인", row.next_action_path));
+    }
+
+    node.append(header, hint, miniList(details, "상세 상태 대기", "큐 상세"));
+    if (actions.childElementCount) node.append(actions);
+    return node;
   }
 
   function fillSelect(select, rows, labelKey) {

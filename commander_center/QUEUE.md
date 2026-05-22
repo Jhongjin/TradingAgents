@@ -27,7 +27,7 @@ This queue is intentionally high level. Workstream folders hold deeper notes.
   outcome verification.
 - Shipped: Add analysis confidence and missing-data warnings instead of silent
   fallbacks.
-- Add queue transparency for member analysis requests.
+- Shipped: Add queue transparency for member analysis requests.
 - Add vendor latency/quota measurement for KRX, DART, and Naver.
 - Add systematic hallucination checks for generated analysis reports.
 - Add public track-record cards once enough outcomes exist.

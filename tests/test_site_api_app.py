@@ -962,8 +962,12 @@ def test_api_app_lists_member_analysis_requests():
     assert list_response.json()["items"][0]["id"] == request_id
     assert list_response.json()["items"][0]["public_stock_path"] == "/stocks/005930"
     assert list_response.json()["items"][0]["status_label"] == "대기"
+    assert list_response.json()["items"][0]["status_hint"].startswith("요청이 큐에 들어갔습니다")
+    assert list_response.json()["items"][0]["next_action_label"] == "상태 새로고침"
+    assert list_response.json()["items"][0]["member_queue_position"] == 1
     assert list_response.json()["items"][0]["is_active"] is True
     assert list_response.json()["summary"]["active_count"] == 1
+    assert list_response.json()["summary"]["quota_policy"]["active_used"] == 1
     assert list_response.json()["summary"]["status_counts"] == {"queued": 1}
     assert item_response.status_code == 200
     assert item_response.json()["item"]["reason"] == "refresh"

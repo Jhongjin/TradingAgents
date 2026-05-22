@@ -7,8 +7,14 @@ from tradingagents.site import (
     build_public_analysis_outcomes_payload,
     queue_analysis_refresh_request,
 )
-from tradingagents.site.analysis_api import AnalysisRequestQuotaExceeded
-from tradingagents.storage import AnalysisOutcomeInput, AnalysisRunInput, StorageRepository, create_storage_engine
+from tradingagents.site.analysis_api import AnalysisRequestQuotaExceeded, build_member_analysis_requests_payload
+from tradingagents.storage import (
+    AnalysisOutcomeInput,
+    AnalysisRequestInput,
+    AnalysisRunInput,
+    StorageRepository,
+    create_storage_engine,
+)
 
 
 USER_ID = "00000000-0000-0000-0000-000000000001"
@@ -162,6 +168,52 @@ def test_queue_analysis_refresh_request_rejects_non_korean_ticker():
 
     with pytest.raises(ValueError, match="Korean 6-digit"):
         queue_analysis_refresh_request(repo, ticker="AAPL", user_id=USER_ID)
+
+
+def test_build_member_analysis_requests_payload_surfaces_queue_transparency(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_ANALYSIS_REQUEST_ACTIVE_LIMIT", "2")
+    monkeypatch.setenv("TRADINGAGENTS_ANALYSIS_REQUEST_DAILY_LIMIT", "10")
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+        )
+    )
+    completed_request_id = repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            requested_trade_date=date(2026, 5, 5),
+            reason="done",
+        )
+    )
+    repo.update_analysis_request_status(completed_request_id, status="completed", analysis_run_id=run_id)
+    queued_request_id = repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="000660",
+            ticker_name="SK하이닉스",
+            requested_trade_date=date(2026, 5, 6),
+            reason="refresh",
+        )
+    )
+
+    payload = build_member_analysis_requests_payload(repo, user_id=USER_ID)
+    rows = {row["id"]: row for row in payload["items"]}
+
+    assert payload["summary"]["quota_policy"]["active_limit"] == 2
+    assert payload["summary"]["quota_policy"]["active_used"] == 1
+    assert payload["summary"]["quota_policy"]["daily_used"] == 2
+    assert payload["summary"]["queued_count"] == 1
+    assert rows[completed_request_id]["report_path"] == f"/analyses/{run_id}"
+    assert rows[completed_request_id]["next_action_label"] == "리포트 보기"
+    assert rows[queued_request_id]["member_queue_position"] == 1
+    assert rows[queued_request_id]["queue_scope_label"] == "내 활성 요청 기준"
+    assert "운영 worker" in rows[queued_request_id]["status_hint"]
 
 
 def test_public_analysis_feed_lists_completed_public_runs_only():
