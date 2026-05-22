@@ -14,7 +14,7 @@ This queue is intentionally high level. Workstream folders hold deeper notes.
 | P2 | Watchlist UX and public analysis request flow | Product Planning | Engineering Platform, Design Experience | shipped |
 | P2 | Public analysis report storage and feed quality | AI Evaluation Research | Data Quality Reliability, Growth Content SEO | shipped |
 | P2 | 5D/20D outcome worker operational runbook | Operations SRE | AI Evaluation Research, Data Quality Reliability | shipped |
-| P2 | Public methodology and trust page | Growth Content SEO | Korean Market Domain, AI Evaluation Research, Security Trust | ready |
+| P2 | Public methodology and trust page | Growth Content SEO | Korean Market Domain, AI Evaluation Research, Security Trust | shipped |
 | P2 | Vendor/readiness dashboard design | Operations SRE | Data Quality Reliability, Design Experience | intake |
 | P2 | Per-user analysis request quotas and duplicate suppression | Operations SRE | Security Trust, Engineering Platform | intake |
 | P2 | Rendered report provenance metadata audit | Data Quality Reliability | AI Evaluation Research, Growth Content SEO | intake |

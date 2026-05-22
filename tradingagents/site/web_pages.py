@@ -76,6 +76,7 @@ def render_public_stock_page(
     </a>
     <nav class="top-links" aria-label="서비스 페이지">
       <a href="/features/research">기능</a>
+      <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
@@ -221,6 +222,7 @@ def render_public_analysis_feed_page(
     </a>
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/features/research">기능</a>
+      <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
@@ -324,6 +326,7 @@ def render_public_analysis_detail_page(
     </a>
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/features/research">기능</a>
+      <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a href="/stocks/{_h(model["ticker_code"])}">종목</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
@@ -421,6 +424,7 @@ def render_public_home_page(
     </a>
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/features/research">기능</a>
+      <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
@@ -578,6 +582,7 @@ def render_public_home_page(
       <ul>
         <li>실거래 주문 기능은 의도적으로 지원하지 않습니다.</li>
         <li>AI analysis is informational and is not investment advice.</li>
+        <li><a href="/features/methodology">데이터 출처와 한계</a>를 공개 방법론으로 분리해 설명합니다.</li>
       </ul>
     </section>
 
@@ -666,6 +671,26 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "cta_label": "공개 분석 보기",
         "cta_href": "/analyses",
     },
+    "methodology": {
+        "path": "/features/methodology",
+        "title": "방법론과 신뢰 기준 | TradingAgents Korea",
+        "description": "TradingAgents Korea의 데이터 출처, AI 분석 한계, outcome 검증, read-only 운영 원칙입니다.",
+        "eyebrow": "Trust / Methodology",
+        "heading": "데이터 출처와 한계를 함께 공개합니다",
+        "lead": "공개 리포트는 종목 판단의 근거를 보여주는 자료입니다. KRX, DART, Naver 뉴스, 에이전트 리포트, 5D/20D outcome을 한 흐름으로 묶되, 투자 실행 권한은 서비스가 갖지 않습니다.",
+        "proof": (("출처", "KRX / DART / Naver"), ("검증", "5D / 20D outcome"), ("권한", "주문 차단")),
+        "cards": (
+            ("데이터 기준", "공개 화면은 기준일, vendor, fallback 여부를 최대한 노출하고 원문 JSON으로 검증할 수 있게 둡니다."),
+            ("AI 한계", "리포트는 정보 제공용이며 누락 데이터, 시장 휴장, vendor 장애, 모델 오류 가능성을 전제로 읽어야 합니다."),
+            ("사후 검증", "완료된 public run은 outcome worker가 5일/20일 뒤 raw return과 benchmark alpha를 추적합니다."),
+            ("회원 경계", "회원 포트폴리오와 관심종목은 개인 기록이며 공개 리포트 feed와 분리해 호출합니다."),
+            ("운영 보안", "worker token은 브라우저 세션 입력값으로만 사용하고 HTML, 문서, 커밋에 포함하지 않습니다."),
+            ("실행 차단", "KIS 같은 브로커 연동은 read-only 계좌조회 검토까지만 가능하며 주문 placement는 구현하지 않습니다."),
+        ),
+        "steps": ("Source labels", "Run metadata", "Agent report", "Outcome check", "No order path"),
+        "cta_label": "공개 분석 보기",
+        "cta_href": "/analyses",
+    },
 }
 
 
@@ -719,6 +744,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
     </a>
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/features/research">기능</a>
+      <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
@@ -801,6 +827,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
     </a>
     <nav class="top-links" aria-label="관리 페이지">
       <a href="/features/research">기능</a>
+      <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
@@ -930,6 +957,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
     </a>
     <nav class="top-links" aria-label="서비스 페이지">
       <a href="/features/research">기능</a>
+      <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
@@ -2514,6 +2542,13 @@ a {
 .home-ops-strip li {
   padding-top: 10px;
   border-top: 1px solid rgba(23, 32, 31, 0.13);
+}
+
+.home-ops-strip a {
+  color: inherit;
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 .home-member-band {
@@ -4622,6 +4657,10 @@ h3 {
 .public-home .home-flow-list p,
 .public-home .home-ops-strip li {
   color: rgba(246, 243, 232, 0.66);
+}
+
+.public-home .home-ops-strip a {
+  color: var(--home-acid);
 }
 
 .home-lens-grid {

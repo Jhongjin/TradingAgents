@@ -23,6 +23,7 @@ FEATURE_DETAIL_PATHS = (
     "/features/research",
     "/features/member-workspace",
     "/features/outcomes",
+    "/features/methodology",
 )
 GOOGLE_ADSENSE_SELLER_DOMAIN = "google.com"
 GOOGLE_ADSENSE_CERTIFICATION_AUTHORITY_ID = "f08c47fec0942fa0"

@@ -136,6 +136,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert 'href="/member"' in html
     assert 'href="/member?mode=signup"' in html
     assert 'href="/features/research"' in html
+    assert 'href="/features/methodology"' in html
     assert 'href="/mypage"' in html
     assert "top-join-link" in html
     assert "005930 또는 삼성전자" in html
@@ -272,6 +273,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
 
 def test_render_feature_detail_pages_use_public_theme():
     html = render_feature_detail_page("research", site_base_url="https://example.com")
+    methodology_html = render_feature_detail_page("methodology", site_base_url="https://example.com")
 
     assert "KRX부터 공개 리포트까지 한 화면에 연결" in html
     assert "feature-diagram" in html
@@ -280,6 +282,11 @@ def test_render_feature_detail_pages_use_public_theme():
     assert '<link rel="canonical" href="https://example.com/features/research">' in html
     assert 'href="/mypage"' in html
     assert "/api/member/dashboard" not in html
+    assert "데이터 출처와 한계를 함께 공개합니다" in methodology_html
+    assert "KRX / DART / Naver" in methodology_html
+    assert "주문 placement는 구현하지 않습니다" in methodology_html
+    assert '<link rel="canonical" href="https://example.com/features/methodology">' in methodology_html
+    assert "/api/member/dashboard" not in methodology_html
 
 
 def test_render_admin_console_page_keeps_worker_secret_client_supplied():
@@ -547,6 +554,7 @@ def test_seo_helpers_build_canonical_robots_and_sitemap():
     assert "/not-public/run-2" not in sitemap
     assert "https://example.com/features/research" in sitemap
     assert "https://example.com/features/member-workspace" in sitemap
+    assert "https://example.com/features/methodology" in sitemap
     assert "https://example.com/stocks/005930" in sitemap
     assert "https://example.com/stocks/000660" in sitemap
     assert "<changefreq>hourly</changefreq>" in sitemap
@@ -589,6 +597,7 @@ def test_api_app_serves_robots_sitemap_and_ads_txt(monkeypatch):
     assert sitemap_response.headers["content-type"].startswith("application/xml")
     assert "http://testserver/analyses" in sitemap_response.text
     assert "http://testserver/features/research" in sitemap_response.text
+    assert "http://testserver/features/methodology" in sitemap_response.text
     assert "http://testserver/stocks/005930" in sitemap_response.text
     assert ads_response.status_code == 200
     assert ads_response.headers["content-type"].startswith("text/plain")

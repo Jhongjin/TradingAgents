@@ -99,6 +99,7 @@ The API remains read-only:
 - `GET /`: public Samsung Electronics analysis page
 - `GET /analyses`: public completed-analysis feed page
 - `GET /analyses/{analysis_run_id}`: public rendered analysis report page backed by the same bundle as JSON
+- `GET /features/{feature_slug}`: public feature/trust pages including research, outcomes, member workspace, and methodology
 - `GET /member`: noindex member dashboard shell for Supabase Auth and manual records
 - `GET /stocks/{ticker}`: public Korean stock analysis page with KRW chart
 - `GET /ads.txt`: advertising seller declaration generated from AdSense/custom env
