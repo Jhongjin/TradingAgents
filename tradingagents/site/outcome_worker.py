@@ -77,6 +77,31 @@ def evaluate_public_analysis_outcomes(
     return results
 
 
+def summarize_analysis_outcome_results(results: Iterable[AnalysisOutcomeResult]) -> dict[str, object]:
+    """Return operator-facing counts for an outcome worker run."""
+
+    rows = list(results)
+    status_counts: dict[str, int] = {}
+    horizon_counts: dict[str, int] = {}
+    alpha_values = []
+    for result in rows:
+        status_counts[result.status] = status_counts.get(result.status, 0) + 1
+        horizon_key = str(result.horizon_days)
+        horizon_counts[horizon_key] = horizon_counts.get(horizon_key, 0) + 1
+        if result.status == "completed" and result.alpha_return is not None:
+            alpha_values.append(float(result.alpha_return))
+    return {
+        "result_count": len(rows),
+        "status_counts": status_counts,
+        "horizon_counts": horizon_counts,
+        "completed_count": status_counts.get("completed", 0),
+        "pending_count": status_counts.get("pending", 0),
+        "unavailable_count": status_counts.get("unavailable", 0),
+        "skipped_count": status_counts.get("skipped", 0),
+        "average_alpha_return": (sum(alpha_values) / len(alpha_values)) if alpha_values else None,
+    }
+
+
 def _existing_outcome_for_horizon(outcomes: list[dict], horizon_days: int) -> dict | None:
     for outcome in outcomes:
         if int(outcome.get("horizon_days") or 0) == horizon_days:

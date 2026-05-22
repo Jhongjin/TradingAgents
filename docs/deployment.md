@@ -202,7 +202,9 @@ market-data work, not a new LLM analysis, so it uses separate limits:
 `TRADINGAGENTS_OUTCOME_WORKER_MAX_RUNS` for manual/API calls and
 `TRADINGAGENTS_OUTCOME_WORKER_CRON_LIMIT` for cron calls. The default horizons
 are 5 and 20 trading days. `vercel.json` schedules the outcome pass for 19:10
-KST on weekdays (`10 10 * * 1-5` in UTC).
+KST on weekdays (`10 10 * * 1-5` in UTC). See
+[`docs/outcome-worker-runbook.md`](outcome-worker-runbook.md) for the operator
+checklist, response interpretation, retry rules, and escalation path.
 
 For an operator-run outcome worker:
 

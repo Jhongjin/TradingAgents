@@ -1056,8 +1056,40 @@ def test_api_app_admin_outcome_worker_processes_public_runs(monkeypatch):
     assert response.status_code == 200
     assert response.headers["cache-control"] == "private, no-store"
     assert response.json()["status"] == "processed"
+    assert response.json()["horizons"] == [5]
+    assert response.json()["summary"]["completed_count"] == 1
+    assert response.json()["summary"]["status_counts"] == {"completed": 1}
+    assert response.json()["inspect_path"] == "/api/analysis-outcomes"
     assert response.json()["results"][0]["status"] == "completed"
     assert repo.list_analysis_outcomes(analysis_run_id=run_id)[0]["alpha_return"] == 0.01
+
+
+def test_api_app_admin_outcome_worker_dry_run_summarizes_candidate_work(monkeypatch):
+    repo = _repo()
+    repo.complete_analysis_run(
+        repo.create_analysis_run(
+            AnalysisRunInput(
+                ticker_code="005930",
+                trade_date=date(2026, 5, 1),
+                visibility="public",
+            )
+        )
+    )
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_TOKEN", "secret")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.post(
+        "/api/admin/analysis-outcomes/process",
+        headers={"Authorization": "Bearer secret"},
+        json={"limit": 1, "horizons": [5, 20], "dry_run": True},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "dry_run"
+    assert response.json()["run_count"] == 1
+    assert response.json()["horizons"] == [5, 20]
+    assert response.json()["estimated_outcome_count"] == 2
+    assert response.json()["inspect_path"] == "/api/analysis-outcomes"
 
 
 def test_api_app_outcome_worker_uses_separate_limit_from_analysis_worker(monkeypatch):

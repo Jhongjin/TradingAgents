@@ -1,6 +1,9 @@
 from datetime import date
 
-from tradingagents.site.outcome_worker import evaluate_public_analysis_outcomes
+from tradingagents.site.outcome_worker import (
+    evaluate_public_analysis_outcomes,
+    summarize_analysis_outcome_results,
+)
 from tradingagents.storage import (
     AnalysisOutcomeInput,
     AnalysisRunInput,
@@ -50,6 +53,11 @@ def test_evaluate_public_analysis_outcomes_upserts_completed_returns(monkeypatch
     assert outcomes[0]["benchmark_return"] == 0.030000000000000002
     assert outcomes[0]["alpha_return"] == 0.02
     assert outcomes[0]["decision_rating"] == "Buy"
+    summary = summarize_analysis_outcome_results(results)
+    assert summary["result_count"] == 2
+    assert summary["status_counts"] == {"completed": 2}
+    assert summary["horizon_counts"] == {"5": 1, "20": 1}
+    assert summary["average_alpha_return"] == 0.02
 
 
 def test_evaluate_public_analysis_outcomes_marks_incomplete_horizon_pending(monkeypatch):

@@ -1284,7 +1284,10 @@ def process_analysis_outcomes(
 
     import os
 
-    from tradingagents.site.outcome_worker import evaluate_public_analysis_outcomes
+    from tradingagents.site.outcome_worker import (
+        evaluate_public_analysis_outcomes,
+        summarize_analysis_outcome_results,
+    )
     from tradingagents.storage import StorageRepository, create_storage_engine
 
     if not os.getenv("DATABASE_URL"):
@@ -1309,6 +1312,10 @@ def process_analysis_outcomes(
                 str(run["trade_date"]),
                 ",".join(str(value) for value in horizon_values),
             )
+        console.print(
+            f"[cyan]Dry run[/cyan] {len(runs)} public runs x {len(horizon_values)} horizons = "
+            f"{len(runs) * len(horizon_values)} outcome checks."
+        )
         console.print(table)
         return
 
@@ -1316,6 +1323,15 @@ def process_analysis_outcomes(
     if not results:
         console.print("[yellow]No completed public analysis runs.[/yellow]")
         return
+    summary = summarize_analysis_outcome_results(results)
+    console.print(
+        "[bold]Outcome summary[/bold] "
+        f"results={summary['result_count']} completed={summary['completed_count']} "
+        f"pending={summary['pending_count']} unavailable={summary['unavailable_count']} "
+        f"skipped={summary['skipped_count']}"
+    )
+    if summary["average_alpha_return"] is not None:
+        console.print(f"[bold]Average alpha[/bold] {float(summary['average_alpha_return']):.4f}")
     for result in results:
         if result.status == "completed":
             console.print(

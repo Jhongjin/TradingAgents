@@ -738,7 +738,14 @@ def create_app(
         _validate_outcome_horizons(body.horizons)
         if body.dry_run:
             runs = repo.list_public_analysis_runs(limit=body.limit)
-            return {"status": "dry_run", "run_count": len(runs), "horizons": body.horizons, "items": runs}
+            return {
+                "status": "dry_run",
+                "run_count": len(runs),
+                "horizons": body.horizons,
+                "estimated_outcome_count": len(runs) * len(body.horizons),
+                "inspect_path": "/api/analysis-outcomes",
+                "items": runs,
+            }
         return _process_analysis_outcomes(repo, limit=body.limit, horizons=body.horizons)
 
     @app.get("/api/cron/process-analysis-outcomes", include_in_schema=False)
@@ -971,12 +978,15 @@ def _process_analysis_request_queue(repo: StorageRepository, *, limit: int) -> d
 
 
 def _process_analysis_outcomes(repo: StorageRepository, *, limit: int, horizons: list[int]) -> dict:
-    from .outcome_worker import evaluate_public_analysis_outcomes
+    from .outcome_worker import evaluate_public_analysis_outcomes, summarize_analysis_outcome_results
 
     results = evaluate_public_analysis_outcomes(repo, limit=limit, horizons=horizons)
     return {
         "status": "processed",
         "item_count": len(results),
+        "horizons": horizons,
+        "summary": summarize_analysis_outcome_results(results),
+        "inspect_path": "/api/analysis-outcomes",
         "results": [result.__dict__ for result in results],
     }
 
