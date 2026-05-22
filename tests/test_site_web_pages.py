@@ -294,6 +294,9 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
 
     assert "관리자 콘솔" in html
     assert "admin-health-strip" in html
+    assert "adminReadinessPanel" in html
+    assert "readiness-cell" in html
+    assert "renderReadinessPanel" in html
     assert "dry run 우선" in html
     assert '<meta name="robots" content="noindex,nofollow">' in html
     assert "adminWorkerToken" in html

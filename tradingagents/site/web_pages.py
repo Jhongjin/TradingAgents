@@ -884,6 +884,13 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
           <label class="admin-inline-check"><input id="adminProbeKrx" type="checkbox"> KRX probe</label>
         </div>
         <button type="button" data-admin-readiness>상태 확인</button>
+        <div class="admin-readiness-panel" id="adminReadinessPanel" aria-live="polite">
+          <div class="readiness-cell is-waiting">
+            <span>Status</span>
+            <strong>대기</strong>
+            <small>readiness를 실행하면 배포와 vendor 상태를 요약합니다.</small>
+          </div>
+        </div>
         <pre id="adminReadinessOutput">대기 중</pre>
       </article>
 
@@ -3333,6 +3340,10 @@ h3 {
   background: rgba(246, 243, 232, 0.14);
 }
 
+.admin-grid {
+  align-items: start;
+}
+
 .feature-card-grid article,
 .admin-card {
   display: grid;
@@ -3426,6 +3437,63 @@ h3 {
   font-size: 12px;
   line-height: 1.55;
   white-space: pre-wrap;
+}
+
+.admin-readiness-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 6px;
+  background: rgba(246, 243, 232, 0.12);
+}
+
+.readiness-cell {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-height: 112px;
+  padding: 13px;
+  background: rgba(9, 13, 11, 0.74);
+}
+
+.readiness-cell:only-child {
+  grid-column: 1 / -1;
+}
+
+.readiness-cell span {
+  color: rgba(198, 221, 192, 0.86);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.readiness-cell strong {
+  color: var(--home-ink);
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.readiness-cell small {
+  color: rgba(246, 243, 232, 0.62);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.readiness-cell.is-ok strong {
+  color: var(--home-acid);
+}
+
+.readiness-cell.is-warn strong,
+.readiness-cell.is-error strong {
+  color: #ffb86b;
+}
+
+.readiness-cell.is-waiting strong {
+  color: var(--home-celadon);
 }
 
 .admin-inline-check {
@@ -5552,6 +5620,7 @@ button:disabled {
   .analysis-detail-hero,
   .analysis-provenance-grid,
   .analysis-filter-panel,
+  .admin-readiness-panel,
   .admin-health-strip {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -6111,6 +6180,7 @@ ADMIN_PAGE_JS = """
   const tokenInput = document.getElementById("adminWorkerToken");
   const tokenState = document.getElementById("adminTokenState");
   const readinessOutput = document.getElementById("adminReadinessOutput");
+  const readinessPanel = document.getElementById("adminReadinessPanel");
   const requestsOutput = document.getElementById("adminRequestsOutput");
   const outcomesOutput = document.getElementById("adminOutcomesOutput");
   const requestLimit = document.getElementById("adminRequestLimit");
@@ -6134,6 +6204,99 @@ ADMIN_PAGE_JS = """
     if (!button) return;
     button.disabled = isBusy;
     button.setAttribute("aria-busy", isBusy ? "true" : "false");
+  }
+
+  function readinessText(value) {
+    return value ? "OK" : "확인 필요";
+  }
+
+  function appendReadinessCell(fragment, label, value, note, state = "is-waiting") {
+    const cell = document.createElement("div");
+    cell.className = `readiness-cell ${state}`;
+
+    const labelNode = document.createElement("span");
+    labelNode.textContent = label;
+    cell.appendChild(labelNode);
+
+    const valueNode = document.createElement("strong");
+    valueNode.textContent = value;
+    cell.appendChild(valueNode);
+
+    const noteNode = document.createElement("small");
+    noteNode.textContent = note;
+    cell.appendChild(noteNode);
+
+    fragment.appendChild(cell);
+  }
+
+  function renderReadinessPending(message) {
+    if (!readinessPanel) return;
+    readinessPanel.textContent = "";
+    const fragment = document.createDocumentFragment();
+    appendReadinessCell(fragment, "Status", "확인 중", message, "is-waiting");
+    readinessPanel.appendChild(fragment);
+  }
+
+  function renderReadinessError(message) {
+    if (!readinessPanel) return;
+    readinessPanel.textContent = "";
+    const fragment = document.createDocumentFragment();
+    appendReadinessCell(fragment, "Status", "오류", message, "is-error");
+    readinessPanel.appendChild(fragment);
+  }
+
+  function renderReadinessPanel(payload) {
+    if (!readinessPanel) return;
+    const checks = payload?.checks || {};
+    const deployment = payload?.deployment || {};
+    const errors = payload?.configuration_errors || {};
+    const diagnostics = payload?.diagnostics || {};
+    const krxProbe = diagnostics.krx_probe || null;
+    const fragment = document.createDocumentFragment();
+    readinessPanel.textContent = "";
+
+    const isOk = payload?.status === "ok";
+    const sha = deployment.git_sha ? `SHA ${deployment.git_sha}` : "deployment SHA 없음";
+    appendReadinessCell(fragment, "Status", isOk ? "OK" : "DEGRADED", sha, isOk ? "is-ok" : "is-warn");
+
+    const storageOk = Boolean(checks.storage_online && checks.storage_schema_ready);
+    const storageValue = storageOk ? "Online" : checks.storage_configured ? "점검 필요" : "미설정";
+    const storageNote = errors.storage_online || errors.storage_schema_ready
+      || `storage ${readinessText(checks.storage_online)} · schema ${readinessText(checks.storage_schema_ready)}`;
+    appendReadinessCell(fragment, "Storage", storageValue, storageNote, storageOk ? "is-ok" : "is-warn");
+
+    const hasKrxProbe = Object.prototype.hasOwnProperty.call(checks, "krx_online");
+    let krxValue = checks.krx_configured ? "Configured" : "미설정";
+    let krxNote = checks.krx_configured ? "KRX probe checkbox로 온라인 응답을 확인할 수 있습니다." : "KRX_API_KEY 또는 KRX_OPENAPI_KEY가 필요합니다.";
+    let krxState = checks.krx_configured ? "is-ok" : "is-warn";
+    if (hasKrxProbe) {
+      krxValue = checks.krx_online ? "Online" : "Probe failed";
+      krxState = checks.krx_online ? "is-ok" : "is-warn";
+      if (krxProbe) {
+        krxNote = krxProbe.status === "ok"
+          ? `${krxProbe.ticker || "ticker"} · ${krxProbe.date || "date"} · rows ${krxProbe.row_count || 0} · ${krxProbe.elapsed_ms || 0}ms`
+          : `${krxProbe.error_type || "KRX"} · ${krxProbe.message || krxProbe.error || "probe failed"}`;
+      }
+    }
+    appendReadinessCell(fragment, "KRX", krxValue, krxNote, krxState);
+
+    const vendorCount = [checks.dart_configured, checks.naver_configured, checks.openai_configured].filter(Boolean).length;
+    const vendorNote = `DART ${readinessText(checks.dart_configured)} · Naver ${readinessText(checks.naver_configured)} · OpenAI ${readinessText(checks.openai_configured)}`;
+    appendReadinessCell(fragment, "Vendors", `${vendorCount}/3 configured`, vendorNote, vendorCount === 3 ? "is-ok" : "is-warn");
+
+    appendReadinessCell(
+      fragment,
+      "Boundary",
+      checks.live_trading_disabled ? "Read only" : "확인 필요",
+      checks.live_trading_disabled ? "실거래 주문 경로는 비활성 상태입니다." : "TRADINGAGENTS_LIVE_TRADING 설정을 확인하세요.",
+      checks.live_trading_disabled ? "is-ok" : "is-warn"
+    );
+
+    const authWorkerOk = Boolean(checks.supabase_auth_configured && checks.worker_token_configured);
+    const authWorkerNote = `Auth ${readinessText(checks.supabase_auth_configured)} · Worker token ${readinessText(checks.worker_token_configured)}`;
+    appendReadinessCell(fragment, "Access", authWorkerOk ? "Ready" : "점검 필요", authWorkerNote, authWorkerOk ? "is-ok" : "is-warn");
+
+    readinessPanel.appendChild(fragment);
   }
 
   async function fetchJson(path, options = {}, requireToken = false) {
@@ -6175,10 +6338,15 @@ ADMIN_PAGE_JS = """
     try {
       setBusy(button, true);
       setOutput(readinessOutput, "확인 중");
+      renderReadinessPending("배포, storage, vendor, read-only boundary를 조회하고 있습니다.");
       const suffix = probeKrx?.checked ? "?probe_krx=true" : "";
-      setOutput(readinessOutput, await fetchJson(`/api/readiness${suffix}`));
+      const payload = await fetchJson(`/api/readiness${suffix}`);
+      renderReadinessPanel(payload);
+      setOutput(readinessOutput, payload);
     } catch (error) {
-      setOutput(readinessOutput, error.message || "Readiness failed");
+      const message = error.message || "Readiness failed";
+      renderReadinessError(message);
+      setOutput(readinessOutput, message);
     } finally {
       setBusy(button, false);
     }
