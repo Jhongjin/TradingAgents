@@ -23,9 +23,10 @@ This queue is intentionally high level. Workstream folders hold deeper notes.
 ## Trust-Building Backlog
 
 - Shipped: Add source and freshness labels to key public stock data blocks.
-- Add public methodology page explaining data sources, AI limits, and outcome
-  verification.
-- Add analysis confidence and missing-data warnings instead of silent fallbacks.
+- Shipped: Add public methodology page explaining data sources, AI limits, and
+  outcome verification.
+- Shipped: Add analysis confidence and missing-data warnings instead of silent
+  fallbacks.
 - Add queue transparency for member analysis requests.
 - Add vendor latency/quota measurement for KRX, DART, and Naver.
 - Add systematic hallucination checks for generated analysis reports.

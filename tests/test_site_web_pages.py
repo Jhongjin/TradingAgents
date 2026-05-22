@@ -139,6 +139,9 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "공개 분석 출처" in html
     assert "public run 00000000" in html
     assert "최신 (fresh / 0일 경과)" in html
+    assert "분석 신뢰도" in html
+    assert "근거 충분" in html
+    assert "즉시 드러난 누락 경고는 없습니다" in html
     assert "<dt>기준일</dt>" in html
     assert "<dt>평가일</dt>" in html
     assert "movingAverage" in html
@@ -164,6 +167,33 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert 'property="og:title"' in html
     assert '"code":"005930"' in html
     assert "71,800원" in html
+
+
+def test_render_public_stock_page_surfaces_missing_data_warnings(monkeypatch):
+    payload = _payload()
+    payload["analysis"] = {"status": "missing", "reports": [], "decision": None, "outcomes": []}
+    payload["analysis_refresh"] = {"recommended": True, "reason": "no_completed_public_analysis"}
+    payload["chart"] = {
+        "status": "unavailable",
+        "start_date": "2026-05-01",
+        "end_date": "2026-05-05",
+        "vendor": "krx",
+        "requested_vendor": "krx",
+        "resolved_vendor": None,
+        "point_count": 0,
+        "data_source_label": "KRX Open API",
+        "fallback_used": False,
+        "error": "chart vendor offline",
+        "points": [],
+    }
+    monkeypatch.setattr("tradingagents.site.web_pages.build_public_stock_payload", lambda *args, **kwargs: payload)
+
+    html = render_public_stock_page("005930", site_base_url="https://example.com")
+
+    assert "데이터 부족" in html
+    assert "공개 분석이 아직 저장되지 않았습니다." in html
+    assert "분석 업데이트 권장: no_completed_public_analysis" in html
+    assert "차트 데이터를 불러오지 못했습니다: chart vendor offline" in html
 
 
 def test_api_app_serves_public_home_page(monkeypatch):

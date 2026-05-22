@@ -52,6 +52,7 @@ def render_public_stock_page(
     notices_html = "".join(f"<li>{_h(notice)}</li>" for notice in payload.get("notices", []))
     chart_source_html = _data_source_strip(model["chart_source_rows"], label="차트 데이터 출처")
     analysis_source_html = _data_source_strip(model["analysis_source_rows"], label="공개 분석 출처")
+    confidence_html = _analysis_confidence_panel(model["analysis_confidence"])
 
     return f"""<!doctype html>
 <html lang="ko">
@@ -154,6 +155,7 @@ def render_public_stock_page(
           <h2>{_h(model["analysis_title"])}</h2>
           <p>{_h(model["rationale"])}</p>
           {analysis_source_html}
+          {confidence_html}
         </section>
       </aside>
     </section>
@@ -1194,6 +1196,7 @@ def _view_model(payload: dict[str, Any], *, site_base_url: str | None = None) ->
         "chart_caption": _chart_caption(chart, points),
         "chart_fallback": _chart_fallback_message(chart),
         "analysis_source_rows": _analysis_source_rows(analysis, refresh),
+        "analysis_confidence": _analysis_confidence_model(analysis=analysis, refresh=refresh, chart=chart, points=points),
     }
 
 
@@ -1304,6 +1307,118 @@ def _analysis_refresh_label(refresh: dict[str, Any]) -> str:
     else:
         prefix = "업데이트 권장" if refresh.get("recommended") else "최신"
     return f"{prefix} ({reason}{age_label})"
+
+
+def _analysis_confidence_model(
+    *,
+    analysis: dict[str, Any],
+    refresh: dict[str, Any],
+    chart: dict[str, Any],
+    points: list[dict[str, Any]],
+) -> dict[str, Any]:
+    status = str(analysis.get("status") or "unknown")
+    reports = analysis.get("reports") or []
+    outcomes = analysis.get("outcomes") or []
+    decision = analysis.get("decision")
+    warnings = _analysis_missing_data_warnings(
+        status=status,
+        refresh=refresh,
+        report_count=len(reports),
+        has_decision=bool(decision),
+        outcome_count=len(outcomes),
+        chart=chart,
+        point_count=len(points),
+    )
+    score = 0
+    if status == "available":
+        score += 2
+    if not refresh.get("recommended") and status == "available":
+        score += 1
+    if reports:
+        score += 1
+    if decision:
+        score += 1
+    if outcomes:
+        score += 1
+    if chart.get("status") == "available" and points:
+        score += 1
+
+    if status != "available" or score <= 2:
+        level = "low"
+        label = "데이터 부족"
+    elif score <= 4:
+        level = "medium"
+        label = "근거 보통"
+    else:
+        level = "high"
+        label = "근거 충분"
+
+    return {
+        "level": level,
+        "label": label,
+        "score": score,
+        "summary": _analysis_confidence_summary(status=status, score=score, warnings=warnings),
+        "warnings": warnings,
+    }
+
+
+def _analysis_missing_data_warnings(
+    *,
+    status: str,
+    refresh: dict[str, Any],
+    report_count: int,
+    has_decision: bool,
+    outcome_count: int,
+    chart: dict[str, Any],
+    point_count: int,
+) -> list[str]:
+    warnings: list[str] = []
+    if status == "missing":
+        warnings.append("공개 분석이 아직 저장되지 않았습니다.")
+    elif status == "not_configured":
+        warnings.append("분석 저장소가 연결되지 않아 저장된 리포트를 확인할 수 없습니다.")
+    elif status == "unavailable":
+        warnings.append("분석 저장소 응답을 확인하지 못했습니다.")
+    elif status != "available":
+        warnings.append("공개 분석 상태를 확인해야 합니다.")
+
+    if refresh.get("recommended"):
+        reason = refresh.get("reason") or "refresh_recommended"
+        warnings.append(f"분석 업데이트 권장: {reason}")
+    if status == "available" and report_count == 0:
+        warnings.append("에이전트 리포트가 저장되지 않았습니다.")
+    if status == "available" and not has_decision:
+        warnings.append("최종 판단 레코드가 저장되지 않았습니다.")
+    if status == "available" and outcome_count == 0:
+        warnings.append("5일/20일 사후 성과 검증이 아직 없습니다.")
+    if chart.get("status") != "available":
+        warnings.append(_chart_fallback_message(chart))
+    elif point_count == 0:
+        warnings.append("차트 거래일 데이터가 비어 있습니다.")
+    return warnings
+
+
+def _analysis_confidence_summary(*, status: str, score: int, warnings: list[str]) -> str:
+    if status != "available":
+        return "저장된 공개 분석이 없거나 불완전해 리포트 근거를 제한적으로만 볼 수 있습니다."
+    if warnings:
+        return "분석은 표시되지만 일부 근거가 비어 있어 JSON과 기준일을 함께 확인해야 합니다."
+    return f"분석, 판단, 차트 근거가 함께 있어 현재 공개 화면 기준 신뢰 점수 {score}/7입니다."
+
+
+def _analysis_confidence_panel(confidence: dict[str, Any]) -> str:
+    warnings = confidence.get("warnings") or []
+    warning_items = "".join(f"<li>{_h(warning)}</li>" for warning in warnings)
+    warning_html = f"<ul>{warning_items}</ul>" if warning_items else "<p>현재 표시된 공개 데이터 블록에서 즉시 드러난 누락 경고는 없습니다.</p>"
+    level = str(confidence.get("level") or "low")
+    return f"""
+    <div class="analysis-confidence-panel confidence-{_h(level)}" aria-label="분석 신뢰도와 누락 데이터 경고">
+      <span>분석 신뢰도</span>
+      <strong>{_h(confidence.get("label") or "확인 필요")}</strong>
+      <p>{_h(confidence.get("summary") or "")}</p>
+      {warning_html}
+    </div>
+    """
 
 
 def _period_is_active(active_days: Any, option_days: int) -> bool:
@@ -3253,6 +3368,51 @@ h3 {
 .analysis-panel .data-source-strip {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 14px;
+}
+
+.analysis-confidence-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--warn);
+  border-radius: 8px;
+  background: rgba(138, 90, 10, 0.08);
+}
+
+.analysis-confidence-panel span {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.analysis-confidence-panel strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.analysis-confidence-panel p,
+.analysis-confidence-panel ul {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.analysis-confidence-panel ul {
+  padding-left: 18px;
+}
+
+.analysis-confidence-panel.confidence-high {
+  border-left-color: var(--accent);
+  background: rgba(20, 107, 99, 0.08);
+}
+
+.analysis-confidence-panel.confidence-low {
+  border-left-color: var(--warn);
 }
 
 .analysis-panel p {
@@ -5412,6 +5572,24 @@ button:disabled {
 
 .market-page .data-source-strip dd {
   color: var(--home-ink);
+}
+
+.market-page .analysis-confidence-panel {
+  border-color: rgba(246, 243, 232, 0.14);
+  background: rgba(246, 243, 232, 0.06);
+}
+
+.market-page .analysis-confidence-panel span {
+  color: rgba(198, 221, 192, 0.74);
+}
+
+.market-page .analysis-confidence-panel strong {
+  color: var(--home-ink);
+}
+
+.market-page .analysis-confidence-panel p,
+.market-page .analysis-confidence-panel ul {
+  color: rgba(246, 243, 232, 0.64);
 }
 
 .market-page .chart-tab:hover,
