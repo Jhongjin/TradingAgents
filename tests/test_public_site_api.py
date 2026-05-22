@@ -113,6 +113,11 @@ def test_public_stock_payload_combines_analysis_and_chart(monkeypatch):
     assert payload["analysis_refresh"]["recommended"] is False
     assert payload["analysis_refresh"]["reason"] == "fresh"
     assert payload["chart"]["status"] == "available"
+    assert payload["chart"]["requested_vendor"] == "pykrx"
+    assert payload["chart"]["resolved_vendor"] == "pykrx"
+    assert payload["chart"]["point_count"] == 1
+    assert payload["chart"]["data_source_label"] == "pykrx"
+    assert payload["chart"]["fallback_used"] is False
     assert payload["chart"]["points"][0]["close"] == 70500.0
     assert len(payload["strategy_lenses"]) == 6
     assert payload["strategy_lenses"][0]["id"] == "trend"
@@ -136,6 +141,9 @@ def test_public_stock_payload_handles_missing_optional_sources(monkeypatch):
 
     assert payload["analysis"]["status"] == "not_configured"
     assert payload["chart"]["status"] == "unavailable"
+    assert payload["chart"]["requested_vendor"] == "pykrx"
+    assert payload["chart"]["resolved_vendor"] is None
+    assert payload["chart"]["point_count"] == 0
     assert payload["chart"]["error"] == "chart vendor is offline"
 
 
@@ -173,7 +181,41 @@ def test_public_stock_payload_uses_configured_chart_vendor(monkeypatch):
 
     assert payload["chart"]["status"] == "available"
     assert payload["chart"]["vendor"] == "krx"
+    assert payload["chart"]["requested_vendor"] == "krx"
+    assert payload["chart"]["resolved_vendor"] == "krx"
+    assert payload["chart"]["data_source_label"] == "KRX Open API"
     assert payload["chart"]["points"][0]["close"] == 70500.0
+
+
+def test_public_stock_payload_exposes_auto_vendor_resolution(monkeypatch):
+    def fake_chart_series(symbol, start_date, end_date, *, vendor):
+        assert vendor == "auto"
+        return ChartSeries(
+            ticker_code=symbol,
+            ticker_name="삼성전자",
+            market="KOSPI",
+            currency="KRW",
+            vendor="pykrx",
+            points=[],
+        )
+
+    monkeypatch.setattr("tradingagents.site.public_api.get_ohlcv_chart_series", fake_chart_series)
+
+    payload = build_public_stock_payload(
+        "005930",
+        chart_start="2026-05-04",
+        chart_end="2026-05-05",
+        chart_vendor="auto",
+        include_analysis=False,
+    )
+
+    assert payload["chart"]["status"] == "available"
+    assert payload["chart"]["vendor"] == "pykrx"
+    assert payload["chart"]["requested_vendor"] == "auto"
+    assert payload["chart"]["resolved_vendor"] == "pykrx"
+    assert payload["chart"]["point_count"] == 0
+    assert payload["chart"]["data_source_label"] == "pykrx"
+    assert payload["chart"]["fallback_used"] is True
 
 
 def test_public_stock_payload_limits_default_krx_diagnostic_window(monkeypatch):

@@ -140,7 +140,11 @@ to `krx`, or pass `chart_vendor=krx` on `/stocks/{ticker}` and
 `/api/stocks/{ticker}`, only for explicit KRX-only diagnostics. KRX-only
 requests without `chart_start` use that same short max-days window to avoid
 serverless function timeouts. Keep `pykrx` or `auto` for high-traffic public
-pages until KRX API quota, latency, and caching are measured.
+pages until KRX API quota, latency, and caching are measured. Public stock
+payloads include non-secret chart source metadata (`requested_vendor`,
+`resolved_vendor`, `point_count`, `data_source_label`, and `fallback_used`) so
+operators and rendered pages can tell when `auto` selected or fell back to
+pykrx.
 If readiness shows `krx_configured=true` but `chart_vendor=krx` returns a 401,
 run the local doctor with `TRADINGAGENTS_DOCTOR_CHECK_KRX_ONLINE=true`; the key
 may exist but still lack KRX service-level approval.

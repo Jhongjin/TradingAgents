@@ -139,6 +139,7 @@ def _analysis_refresh_payload(
 
 
 def _chart_payload(ticker_code: str, start: date, end: date, vendor: str) -> dict[str, Any]:
+    requested_vendor = _normalize_chart_vendor(vendor)
     try:
         series = get_ohlcv_chart_series(
             ticker_code,
@@ -152,15 +153,47 @@ def _chart_payload(ticker_code: str, start: date, end: date, vendor: str) -> dic
             "start_date": start.isoformat(),
             "end_date": end.isoformat(),
             "vendor": vendor,
+            **_chart_source_metadata(requested_vendor=requested_vendor, resolved_vendor=None, point_count=0),
             "error": _public_error(exc),
         }
 
+    point_count = len(series.points)
     return {
         "status": "available",
         "start_date": start.isoformat(),
         "end_date": end.isoformat(),
+        **_chart_source_metadata(
+            requested_vendor=requested_vendor,
+            resolved_vendor=series.vendor,
+            point_count=point_count,
+        ),
         **series.as_dict(),
     }
+
+
+def _chart_source_metadata(
+    *,
+    requested_vendor: str,
+    resolved_vendor: str | None,
+    point_count: int,
+) -> dict[str, Any]:
+    fallback_used = requested_vendor == "auto" and resolved_vendor is not None and resolved_vendor != "krx"
+    return {
+        "requested_vendor": requested_vendor,
+        "resolved_vendor": resolved_vendor,
+        "point_count": point_count,
+        "data_source_label": _chart_data_source_label(resolved_vendor or requested_vendor),
+        "fallback_used": fallback_used,
+    }
+
+
+def _chart_data_source_label(vendor: str | None) -> str:
+    selected = _normalize_chart_vendor(vendor)
+    return {
+        "krx": "KRX Open API",
+        "pykrx": "pykrx",
+        "auto": "auto vendor selection",
+    }.get(selected, "unknown chart vendor")
 
 
 def _parse_or_default_end(value: str | None) -> date:

@@ -1165,7 +1165,8 @@ def _chart_caption(chart: dict[str, Any], points: list[dict[str, Any]]) -> str:
     end = chart.get("end_date") or "-"
     vendor = _chart_vendor_label(chart.get("vendor"))
     point_label = f"{len(points):,}개 거래일" if points else "거래일 데이터 없음"
-    return f"{start} - {end} / {vendor} / {point_label}"
+    fallback_note = " / auto fallback" if chart.get("fallback_used") else ""
+    return f"{start} - {end} / {vendor} / {point_label}{fallback_note}"
 
 
 def _chart_fallback_message(chart: dict[str, Any]) -> str:

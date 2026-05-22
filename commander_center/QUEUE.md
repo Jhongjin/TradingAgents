@@ -7,8 +7,8 @@ This queue is intentionally high level. Workstream folders hold deeper notes.
 | Priority | Item | Lead | Supporting Workstreams | Status |
 | --- | --- | --- | --- | --- |
 | P1 | Verify production alias and readiness after every deploy | Operations SRE | QA Verification | active |
-| P1 | Member signup/login/email redirect browser test | QA Verification | Security Trust, Product Planning | ready |
-| P1 | KRX approved API probe and chart-vendor `auto` stability | Data Quality Reliability | Korean Market Domain, Engineering Platform | ready |
+| P1 | Member signup/login/email redirect browser test | QA Verification | Security Trust, Product Planning | browser-safe path verified; live email redirect blocked on Supabase/test mailbox |
+| P1 | KRX approved API probe and chart-vendor `auto` stability | Data Quality Reliability | Korean Market Domain, Engineering Platform | shipped |
 | P2 | Public homepage trust and design polish | Design Experience | Growth Content SEO, QA Verification | shipped |
 | P2 | Manual portfolio UX: trades, average cost, PnL, target/stop | Product Planning | Engineering Platform, QA Verification | ready |
 | P2 | Watchlist UX and public analysis request flow | Product Planning | Engineering Platform, Design Experience | ready |
@@ -34,6 +34,7 @@ This queue is intentionally high level. Workstream folders hold deeper notes.
 ## User-Action Blockers
 
 - AdSense publisher ID and `ads.txt` after approval.
-- Supabase email redirect dashboard settings for final domain.
+- Supabase email redirect dashboard settings for final domain and a test mailbox
+  to verify the real confirmation link end to end.
 - KRX API quota/latency confirmation after real-world use.
 - Any legal/compliance review before broker read-only integration.
