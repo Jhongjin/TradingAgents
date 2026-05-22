@@ -109,6 +109,8 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     html = render_public_stock_page("005930", site_base_url="https://example.com")
 
     assert "<!doctype html>" in html
+    assert 'class="public-home market-page stock-page"' in html
+    assert 'class="skip-link"' in html
     assert "TradingAgents Korea" in html
     assert "삼성전자" in html
     assert "priceChart" in html
@@ -202,6 +204,9 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "리서치 노트를 안전하게 보관하세요" in html
     assert "회원 작업공간은 로그인 후에만 열립니다" in html
     assert "내 투자 노트" in html
+    assert "member-tab-strip" in html
+    assert 'href="#portfolio-section"' in html
+    assert 'id="watchlist-section"' in html
     assert 'id="memberAuthLanding"' in html
     assert 'id="memberWorkspace" hidden' in html
     assert 'class="member-page is-member-signed-out"' in html
@@ -274,6 +279,8 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     html = render_admin_console_page(site_base_url="https://example.com")
 
     assert "관리자 콘솔" in html
+    assert "admin-health-strip" in html
+    assert "dry run 우선" in html
     assert '<meta name="robots" content="noindex,nofollow">' in html
     assert "adminWorkerToken" in html
     assert "X-TradingAgents-Worker-Token" in html
@@ -378,6 +385,9 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     html = render_public_analysis_feed_page(repo=repo, site_base_url="https://example.com")
 
     assert "<!doctype html>" in html
+    assert 'class="public-home market-page analysis-page"' in html
+    assert "analysis-filter-panel" in html
+    assert 'id="analysisTicker"' in html
     assert "공개 분석 목록" in html
     assert "삼성전자" in html
     assert "공개 분석 커버리지 요약" in html

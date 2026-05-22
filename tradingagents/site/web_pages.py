@@ -67,7 +67,8 @@ def render_public_stock_page(
   <script type="application/ld+json">{structured_data_json}</script>
   <style>{PAGE_CSS}</style>
 </head>
-<body>
+<body class="public-home market-page stock-page">
+  <a class="skip-link" href="#main-content">본문 바로가기</a>
   <header class="topbar">
     <a class="brand" href="/" aria-label="TradingAgents Korea home">
       <span class="brand-mark">TA</span>
@@ -88,7 +89,7 @@ def render_public_stock_page(
     </form>
   </header>
 
-  <main class="shell">
+  <main id="main-content" class="shell market-shell">
     <section class="summary-band" aria-labelledby="stock-title">
       <div>
         <p class="eyebrow">{_h(model["market_line"])}</p>
@@ -211,7 +212,8 @@ def render_public_analysis_feed_page(
   <meta property="og:url" content="{_h(model["canonical_url"])}">
   <style>{PAGE_CSS}</style>
 </head>
-<body>
+<body class="public-home market-page analysis-page">
+  <a class="skip-link" href="#main-content">본문 바로가기</a>
   <header class="topbar">
     <a class="brand" href="/" aria-label="TradingAgents Korea home">
       <span class="brand-mark">TA</span>
@@ -226,7 +228,7 @@ def render_public_analysis_feed_page(
     </nav>
   </header>
 
-  <main class="shell">
+  <main id="main-content" class="shell market-shell">
     <section class="summary-band" aria-labelledby="feed-title">
       <div>
         <p class="eyebrow">Public Analysis Feed</p>
@@ -238,6 +240,16 @@ def render_public_analysis_feed_page(
         <strong>{_h(model["item_count"])}</strong>
         <span>{_h(model["status"])}</span>
       </div>
+    </section>
+
+    <section class="analysis-filter-panel" aria-label="공개 분석 필터">
+      <form class="analysis-filter-form" action="/analyses" method="get">
+        <label for="analysisTicker">종목 필터</label>
+        <input id="analysisTicker" name="ticker" maxlength="12" value="{_h(str(model["ticker_code"] or ""))}" placeholder="005930">
+        <button type="submit">필터 적용</button>
+        <a href="/analyses">전체 보기</a>
+      </form>
+      <p>저장된 public run만 노출하며, 회원 포트폴리오나 개인 watchlist API는 호출하지 않습니다.</p>
     </section>
 
     {summary_html}
@@ -296,6 +308,7 @@ def render_public_home_page(
   <style>{PAGE_CSS}</style>
 </head>
 <body class="public-home">
+  <a class="skip-link" href="#main-content">본문 바로가기</a>
   <header class="topbar">
     <a class="brand" href="/" aria-label="TradingAgents Korea home">
       <span class="brand-mark">TA</span>
@@ -310,7 +323,7 @@ def render_public_home_page(
     </nav>
   </header>
 
-  <main class="home-shell home-shell-art">
+  <main id="main-content" class="home-shell home-shell-art">
     <section class="home-hero home-hero-artboard" aria-labelledby="home-title">
       <div class="home-hero-copy home-hero-content">
         <p class="home-kicker">KR Market Signal Desk / Read-only AI Research</p>
@@ -593,6 +606,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
   <style>{PAGE_CSS}</style>
 </head>
 <body class="public-home feature-page">
+  <a class="skip-link" href="#main-content">본문 바로가기</a>
   <header class="topbar">
     <a class="brand" href="/" aria-label="TradingAgents Korea home">
       <span class="brand-mark">TA</span>
@@ -607,7 +621,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
     </nav>
   </header>
 
-  <main class="home-shell feature-shell">
+  <main id="main-content" class="home-shell feature-shell">
     <section class="feature-hero" aria-labelledby="feature-title">
       <div class="feature-copy">
         <p class="home-kicker">{_h(page["eyebrow"])}</p>
@@ -674,6 +688,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
   <style>{PAGE_CSS}</style>
 </head>
 <body class="public-home admin-page">
+  <a class="skip-link" href="#main-content">본문 바로가기</a>
   <header class="topbar">
     <a class="brand" href="/" aria-label="TradingAgents Korea home">
       <span class="brand-mark">TA</span>
@@ -687,7 +702,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
     </nav>
   </header>
 
-  <main class="home-shell admin-shell">
+  <main id="main-content" class="home-shell admin-shell">
     <section class="admin-hero" aria-labelledby="admin-title">
       <div>
         <p class="home-kicker">Operator Console / No Secret Embedded</p>
@@ -702,6 +717,29 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
         <button type="submit">세션에 저장</button>
         <small id="adminTokenState">토큰은 서버 렌더 HTML에 저장되지 않습니다.</small>
       </form>
+    </section>
+
+    <section class="admin-health-strip" aria-label="운영 기준 요약">
+      <article>
+        <span>readiness</span>
+        <strong>수동 확인</strong>
+        <small>배포 SHA, storage, KRX probe를 같은 패널에서 확인합니다.</small>
+      </article>
+      <article>
+        <span>worker</span>
+        <strong>토큰 입력형</strong>
+        <small>HTML에는 secret을 싣지 않고 세션 스토리지에만 둡니다.</small>
+      </article>
+      <article>
+        <span>queue</span>
+        <strong>dry run 우선</strong>
+        <small>분석 요청과 outcome 처리는 실행 전 결과를 미리 봅니다.</small>
+      </article>
+      <article>
+        <span>boundary</span>
+        <strong>read-only</strong>
+        <small>운영 콘솔에도 실거래 주문 경로는 없습니다.</small>
+      </article>
     </section>
 
     <section class="admin-grid" aria-label="운영 작업">
@@ -779,6 +817,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
   <style>{PAGE_CSS}</style>
 </head>
 <body class="member-page is-member-signed-out">
+  <a class="skip-link" href="#main-content">본문 바로가기</a>
   <header class="topbar">
     <a class="brand" href="/" aria-label="TradingAgents Korea home">
       <span class="brand-mark">TA</span>
@@ -793,7 +832,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
     </nav>
   </header>
 
-  <main class="shell member-shell">
+  <main id="main-content" class="shell member-shell">
     <section class="member-auth-landing" id="memberAuthLanding" aria-labelledby="member-auth-title">
       <div class="member-auth-copy">
         <p class="eyebrow">Member Access</p>
@@ -867,8 +906,14 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         </div>
       </section>
 
+      <nav class="member-tab-strip" aria-label="마이페이지 섹션">
+        <a href="#portfolio-section">포트폴리오</a>
+        <a href="#watchlist-section">관심종목</a>
+        <a href="#analysis-request-section">분석 요청</a>
+      </nav>
+
       <section class="member-grid" aria-label="회원 기능">
-        <section class="member-panel">
+        <section class="member-panel" id="portfolio-section">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Manual Portfolio</p>
@@ -905,7 +950,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <div class="member-list" id="portfolioList"></div>
         </section>
 
-        <section class="member-panel">
+        <section class="member-panel" id="watchlist-section">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Watchlist</p>
@@ -926,7 +971,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <div class="member-list" id="watchlistList"></div>
         </section>
 
-        <section class="member-panel">
+        <section class="member-panel" id="analysis-request-section">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">AI Analysis</p>
@@ -1171,6 +1216,7 @@ def _analysis_feed_view_model(payload: dict[str, Any], *, site_base_url: str | N
         "canonical_url": canonical_url("/analyses", site_base_url=site_base_url),
         "subtitle": "한국 주식 AI 분석이 완료되면 이곳에 공개됩니다.",
         "status": _analysis_feed_status_label(payload.get("status")),
+        "ticker_code": ticker_code,
         "filter_label": f"{ticker_code} 필터" if ticker_code else "전체 종목",
         "item_count": str(len(items)),
         "summary": summary,
@@ -4595,6 +4641,454 @@ h3 {
   .home-lens-grid article {
     min-height: 0;
     border-right: 0;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.skip-link {
+  position: fixed;
+  left: 16px;
+  top: 12px;
+  z-index: 100;
+  transform: translateY(-140%);
+  border: 1px solid var(--home-acid, var(--accent));
+  border-radius: 6px;
+  background: var(--home-acid, var(--ink));
+  color: #10130f;
+  padding: 10px 12px;
+  font-weight: 900;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--home-acid, var(--accent));
+  outline-offset: 3px;
+}
+
+button,
+.top-links a,
+.chart-tab,
+.analysis-filter-form a,
+.analysis-feed-card,
+.member-item,
+.admin-card {
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, color 180ms ease, opacity 180ms ease;
+}
+
+button:hover,
+.analysis-filter-form a:hover {
+  transform: translateY(-1px);
+}
+
+button:active,
+.analysis-filter-form a:active {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.64;
+}
+
+.market-shell {
+  width: min(1440px, calc(100% - clamp(24px, 5vw, 72px)));
+  padding: clamp(32px, 5vw, 64px) 0 78px;
+}
+
+.market-page .topbar .ticker-search {
+  border: 1px solid rgba(246, 243, 232, 0.12);
+  border-radius: 6px;
+  background: rgba(246, 243, 232, 0.05);
+  padding: 4px;
+}
+
+.market-page .ticker-search input {
+  border-color: rgba(246, 243, 232, 0.14);
+  background: rgba(251, 250, 244, 0.06);
+  color: var(--home-ink);
+}
+
+.market-page .ticker-search input::placeholder {
+  color: rgba(246, 243, 232, 0.48);
+}
+
+.market-page .ticker-search button {
+  background: var(--home-acid);
+  color: #10130f;
+}
+
+.market-page .summary-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.28fr);
+  align-items: stretch;
+  gap: clamp(18px, 3vw, 34px);
+  padding: clamp(28px, 5vw, 66px) 0 clamp(22px, 4vw, 42px);
+  border-bottom: 1px solid var(--home-line);
+}
+
+.market-page .summary-band h1 {
+  max-width: 880px;
+  color: var(--home-ink);
+  font-size: clamp(42px, 6vw, 86px);
+  font-weight: 900;
+  line-height: 0.96;
+  text-wrap: balance;
+}
+
+.market-page .summary-band h1 span {
+  color: rgba(246, 243, 232, 0.42);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: clamp(20px, 2.2vw, 34px);
+}
+
+.market-page .eyebrow {
+  color: var(--home-celadon);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.market-page .asof,
+.market-page .chart-caption,
+.market-page .analysis-panel p:last-child,
+.market-page .report-card p,
+.market-page .analysis-feed-card p,
+.market-page .analysis-feed-card small,
+.market-page .analysis-feed-card dt,
+.market-page .analysis-summary-grid span,
+.market-page .analysis-summary-grid small,
+.market-page .lens-card p,
+.market-page .outcome-card p,
+.market-page .outcome-card dt {
+  color: rgba(246, 243, 232, 0.64);
+}
+
+.market-page .decision-box,
+.market-page .chart-panel,
+.market-page .analysis-panel,
+.market-page .report-section,
+.market-page .metric-grid article,
+.market-page .report-card,
+.market-page .analysis-summary-grid article,
+.market-page .analysis-feed-card,
+.market-page .lens-card,
+.market-page .outcome-card,
+.analysis-filter-panel {
+  border-color: rgba(246, 243, 232, 0.14);
+  background:
+    linear-gradient(135deg, rgba(246, 243, 232, 0.072), rgba(246, 243, 232, 0.032)),
+    rgba(15, 22, 18, 0.78);
+  color: var(--home-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.market-page .decision-box {
+  min-width: 0;
+  border-top: 4px solid var(--home-acid);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.26);
+}
+
+.market-page .decision-label,
+.market-page .status-pill {
+  color: rgba(246, 243, 232, 0.66);
+}
+
+.market-page .decision-box span:last-child,
+.market-page .report-card span,
+.market-page .analysis-feed-card span {
+  color: var(--home-celadon);
+}
+
+.market-page .decision-box strong,
+.market-page h2,
+.market-page h3,
+.market-page .metric-grid strong,
+.market-page .analysis-summary-grid strong,
+.market-page .analysis-feed-card dd,
+.market-page .lens-card h3,
+.market-page .outcome-card h3,
+.market-page .outcome-card dd {
+  color: var(--home-ink);
+}
+
+.market-page .workspace {
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.market-page .chart-panel,
+.market-page .report-section {
+  padding: clamp(16px, 2vw, 24px);
+}
+
+.market-page .chart-wrap {
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.16);
+  border-radius: 6px;
+  background: #fbfaf4;
+}
+
+.market-page .status-pill,
+.market-page .data-pill,
+.market-page .chart-tab,
+.market-page .chart-legend span {
+  border-color: rgba(246, 243, 232, 0.16);
+  background: rgba(246, 243, 232, 0.07);
+  color: rgba(246, 243, 232, 0.72);
+}
+
+.market-page .chart-tab:hover,
+.market-page .chart-tab.is-active {
+  border-color: rgba(215, 255, 63, 0.58);
+  background: rgba(215, 255, 63, 0.12);
+  color: var(--home-acid);
+}
+
+.market-page .chart-tab.is-active {
+  box-shadow: inset 0 0 0 1px rgba(215, 255, 63, 0.18);
+}
+
+.market-page .metric-grid article {
+  border-left: 3px solid rgba(215, 255, 63, 0.56);
+}
+
+.market-page .metric-grid span {
+  color: rgba(246, 243, 232, 0.54);
+}
+
+.market-page .lens-card {
+  border-left-color: rgba(246, 243, 232, 0.22);
+}
+
+.market-page .lens-positive {
+  border-left-color: #ff6b4d;
+}
+
+.market-page .lens-caution {
+  border-left-color: #6da4ff;
+}
+
+.market-page .lens-card span,
+.market-page .outcome-card span {
+  background: rgba(246, 243, 232, 0.08);
+  color: rgba(246, 243, 232, 0.66);
+}
+
+.market-page .outcome-card dl div {
+  background: rgba(246, 243, 232, 0.07);
+}
+
+.market-page .analysis-feed-card:hover,
+.market-page .report-card:hover,
+.market-page .lens-card:hover,
+.market-page .outcome-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(215, 255, 63, 0.28);
+}
+
+.market-page .analysis-feed-card a {
+  color: inherit;
+}
+
+.market-page .analysis-feed-card dl div {
+  border-top-color: rgba(246, 243, 232, 0.13);
+}
+
+.analysis-filter-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.58fr) minmax(260px, 0.42fr);
+  gap: 18px;
+  align-items: center;
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.analysis-filter-panel p {
+  margin: 0;
+  color: rgba(246, 243, 232, 0.62);
+  line-height: 1.55;
+}
+
+.analysis-filter-form {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.analysis-filter-form label {
+  color: var(--home-celadon);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.analysis-filter-form input {
+  min-width: 0;
+  height: 42px;
+  border: 1px solid rgba(246, 243, 232, 0.16);
+  border-radius: 6px;
+  background: rgba(251, 250, 244, 0.06);
+  color: var(--home-ink);
+  padding: 0 12px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.analysis-filter-form button,
+.analysis-filter-form a {
+  display: inline-grid;
+  min-height: 42px;
+  place-items: center;
+  border-radius: 6px;
+  padding: 0 14px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.analysis-filter-form button {
+  border: 1px solid var(--home-acid);
+  background: var(--home-acid);
+  color: #10130f;
+}
+
+.analysis-filter-form a {
+  border: 1px solid rgba(246, 243, 232, 0.18);
+  color: var(--home-ink);
+}
+
+.market-page .notice-strip {
+  border-color: rgba(199, 154, 58, 0.28);
+  background: rgba(199, 154, 58, 0.08);
+}
+
+.market-page .notice-strip ul {
+  color: rgba(246, 243, 232, 0.72);
+}
+
+.market-page .positive {
+  color: #ff6b4d;
+}
+
+.market-page .negative {
+  color: #6da4ff;
+}
+
+.market-page .neutral {
+  color: var(--home-ink);
+}
+
+.admin-health-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: clamp(34px, 5vw, 62px);
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.14);
+}
+
+.admin-health-strip article {
+  display: grid;
+  gap: 8px;
+  min-height: 148px;
+  padding: 18px;
+  background: rgba(15, 22, 18, 0.78);
+}
+
+.admin-health-strip span {
+  color: var(--home-celadon);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-health-strip strong {
+  color: var(--home-ink);
+  font-size: 21px;
+}
+
+.admin-health-strip small {
+  color: rgba(246, 243, 232, 0.62);
+  line-height: 1.5;
+}
+
+.member-tab-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.member-tab-strip a {
+  display: grid;
+  min-height: 42px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.member-tab-strip a:hover {
+  border-color: rgba(20, 107, 99, 0.2);
+  background: var(--surface-strong);
+  color: var(--ink);
+}
+
+.member-panel:target {
+  border-color: rgba(20, 107, 99, 0.34);
+  box-shadow: 0 0 0 3px rgba(20, 107, 99, 0.12);
+}
+
+@media (max-width: 980px) {
+  .market-page .summary-band,
+  .analysis-filter-panel,
+  .admin-health-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-health-strip {
+    gap: 1px;
+  }
+}
+
+@media (max-width: 640px) {
+  .market-shell {
+    width: min(100% - 24px, 1440px);
+    padding-top: 22px;
+  }
+
+  .market-page .topbar .ticker-search {
+    width: 100%;
+  }
+
+  .market-page .summary-band h1 {
+    font-size: clamp(36px, 12vw, 52px);
+  }
+
+  .analysis-filter-form,
+  .member-tab-strip {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 """
