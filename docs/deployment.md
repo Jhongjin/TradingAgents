@@ -269,3 +269,11 @@ but Supabase still has to allow the destination URL.
 `TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=true`, which should be used only
 behind a trusted auth proxy that sets the header from a verified Supabase user
 UUID. Do not expose that trust mode directly to browsers without an auth proxy.
+
+Production security readiness expects API docs to remain disabled and member
+user header trust to remain off. The app adds `X-Content-Type-Options`,
+`X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`,
+`Content-Security-Policy`, and HTTPS-only HSTS headers. `/api/readiness` reports
+`api_docs_disabled`, `trusted_member_user_header_disabled`, and `https_request`
+so deploy checks can catch relaxed settings before public traffic relies on
+them.

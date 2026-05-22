@@ -139,7 +139,8 @@ def create_app(
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-        if request.url.scheme == "https":
+        response.headers.setdefault("Content-Security-Policy", _content_security_policy())
+        if _request_is_https(request):
             response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
         if request.url.path in {"/member", "/mypage", "/admin"}:
             response.headers.setdefault("Cache-Control", "private, no-store")
@@ -220,10 +221,21 @@ def create_app(
             "naver_configured": bool(os.getenv("NAVER_CLIENT_ID") and os.getenv("NAVER_CLIENT_SECRET")),
             "krx_configured": bool(os.getenv("KRX_API_KEY") or os.getenv("KRX_OPENAPI_KEY")),
             "live_trading_disabled": _live_trading_disabled(),
+            "api_docs_disabled": not _api_docs_enabled(),
+            "trusted_member_user_header_disabled": not request.app.state.trust_member_user_header,
+            "https_request": _request_is_https(request) if _production_env() else True,
         }
         if probe_krx:
             checks["krx_online"] = krx_probe is not None and krx_probe.get("status") == "ok"
-        required = ["storage_configured", "storage_online", "storage_schema_ready", "live_trading_disabled"]
+        required = [
+            "storage_configured",
+            "storage_online",
+            "storage_schema_ready",
+            "live_trading_disabled",
+            "api_docs_disabled",
+            "trusted_member_user_header_disabled",
+            "https_request",
+        ]
         if probe_krx:
             required.append("krx_online")
         status = "ok" if all(checks[name] for name in required) else "degraded"
@@ -1053,7 +1065,31 @@ def _max_analysis_feed_limit() -> int:
 
 
 def _api_docs_enabled() -> bool:
-    return os.getenv("TRADINGAGENTS_API_DOCS_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
+    return os.getenv("TRADINGAGENTS_API_DOCS_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _content_security_policy() -> str:
+    return (
+        "default-src 'self'; "
+        "base-uri 'self'; "
+        "object-src 'none'; "
+        "frame-ancestors 'none'; "
+        "form-action 'self'; "
+        "img-src 'self' data:; "
+        "font-src 'self' data:; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "connect-src 'self' https://*.supabase.co https://*.supabase.com"
+    )
+
+
+def _request_is_https(request: Request) -> bool:
+    forwarded_proto = request.headers.get("x-forwarded-proto", "")
+    return request.url.scheme == "https" or "https" in {part.strip().lower() for part in forwarded_proto.split(",")}
+
+
+def _production_env() -> bool:
+    return os.getenv("VERCEL_ENV", "").strip().lower() == "production"
 
 
 def _supabase_auth_configured() -> bool:
@@ -1202,6 +1238,14 @@ def _readiness_configuration_errors(
         errors["krx_online"] = krx_online_error
     if not _live_trading_disabled():
         errors["live_trading_disabled"] = "Set TRADINGAGENTS_ENABLE_LIVE_TRADING=false before public deployment"
+    if _api_docs_enabled():
+        errors["api_docs_disabled"] = "Set TRADINGAGENTS_API_DOCS_ENABLED=false before public deployment"
+    if request.app.state.trust_member_user_header:
+        errors["trusted_member_user_header_disabled"] = (
+            "Set TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=false outside trusted internal gateways"
+        )
+    if _production_env() and not _request_is_https(request):
+        errors["https_request"] = "Production readiness must be checked over HTTPS"
     return errors
 
 

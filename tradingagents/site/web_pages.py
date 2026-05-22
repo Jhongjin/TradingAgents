@@ -6343,6 +6343,10 @@ ADMIN_PAGE_JS = """
     const authWorkerNote = `Auth ${readinessText(checks.supabase_auth_configured)} · Worker token ${readinessText(checks.worker_token_configured)}`;
     appendReadinessCell(fragment, "Access", authWorkerOk ? "Ready" : "점검 필요", authWorkerNote, authWorkerOk ? "is-ok" : "is-warn");
 
+    const securityOk = Boolean(checks.api_docs_disabled && checks.trusted_member_user_header_disabled && checks.https_request);
+    const securityNote = `Docs ${readinessText(checks.api_docs_disabled)} · Trust header ${readinessText(checks.trusted_member_user_header_disabled)} · HTTPS ${readinessText(checks.https_request)}`;
+    appendReadinessCell(fragment, "Security", securityOk ? "Locked" : "점검 필요", securityNote, securityOk ? "is-ok" : "is-warn");
+
     readinessPanel.appendChild(fragment);
   }
 

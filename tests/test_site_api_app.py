@@ -149,6 +149,9 @@ def test_api_app_serves_non_secret_readiness(monkeypatch):
     assert body["checks"]["site_base_url_configured"] is True
     assert body["checks"]["ads_configured"] is True
     assert body["checks"]["live_trading_disabled"] is True
+    assert body["checks"]["api_docs_disabled"] is True
+    assert body["checks"]["trusted_member_user_header_disabled"] is True
+    assert body["checks"]["https_request"] is True
     assert body["missing_environment"]["storage_configured"] == ["DATABASE_URL"]
     assert "supabase_auth_configured" not in body["missing_environment"]
     assert body["configuration_errors"] == {}
@@ -172,6 +175,44 @@ def test_api_app_readiness_degrades_when_live_trading_enabled(monkeypatch):
     assert body["status"] == "degraded"
     assert body["checks"]["live_trading_disabled"] is False
     assert "TRADINGAGENTS_ENABLE_LIVE_TRADING=false" in body["configuration_errors"]["live_trading_disabled"]
+
+
+def test_api_app_readiness_degrades_when_security_guards_are_relaxed(monkeypatch):
+    repo = _repo()
+    monkeypatch.setenv("TRADINGAGENTS_API_DOCS_ENABLED", "true")
+    client = TestClient(
+        create_app(
+            repo=repo,
+            load_repo_from_env=False,
+            trust_member_user_header=True,
+        )
+    )
+
+    response = client.get("/api/readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["checks"]["api_docs_disabled"] is False
+    assert body["checks"]["trusted_member_user_header_disabled"] is False
+    assert "TRADINGAGENTS_API_DOCS_ENABLED=false" in body["configuration_errors"]["api_docs_disabled"]
+    assert "TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=false" in body["configuration_errors"]["trusted_member_user_header_disabled"]
+
+
+def test_api_app_readiness_degrades_for_non_https_production_probe(monkeypatch):
+    repo = _repo()
+    monkeypatch.setenv("VERCEL_ENV", "production")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    insecure_response = client.get("/api/readiness")
+    secure_response = client.get("/api/readiness", headers={"X-Forwarded-Proto": "https"})
+
+    assert insecure_response.status_code == 200
+    assert insecure_response.json()["status"] == "degraded"
+    assert insecure_response.json()["checks"]["https_request"] is False
+    assert "Production readiness must be checked over HTTPS" in insecure_response.json()["configuration_errors"]["https_request"]
+    assert secure_response.json()["checks"]["https_request"] is True
+    assert "https_request" not in secure_response.json()["configuration_errors"]
 
 
 def test_api_app_readiness_checks_storage_connection():
@@ -297,8 +338,8 @@ def test_api_app_readiness_reports_invalid_database_url(monkeypatch):
     assert "not-a-valid-database-url" not in response.text
 
 
-def test_api_app_can_disable_docs(monkeypatch):
-    monkeypatch.setenv("TRADINGAGENTS_API_DOCS_ENABLED", "false")
+def test_api_app_disables_docs_by_default(monkeypatch):
+    monkeypatch.delenv("TRADINGAGENTS_API_DOCS_ENABLED", raising=False)
     client = TestClient(create_app(repo=None, load_repo_from_env=False))
 
     assert client.get("/docs").status_code == 404
@@ -1471,6 +1512,7 @@ def test_api_app_sets_public_and_private_cache_headers():
         f"/api/portfolio/{portfolio_id}",
         headers={"X-TradingAgents-User-Id": USER_ID},
     )
+    secure_response = client.get("/api/readiness", headers={"X-Forwarded-Proto": "https"})
 
     assert stock_response.status_code == 200
     assert stock_response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
@@ -1478,8 +1520,11 @@ def test_api_app_sets_public_and_private_cache_headers():
     assert stock_response.headers["x-frame-options"] == "DENY"
     assert stock_response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
     assert "camera=()" in stock_response.headers["permissions-policy"]
+    assert "frame-ancestors 'none'" in stock_response.headers["content-security-policy"]
+    assert "connect-src 'self' https://*.supabase.co" in stock_response.headers["content-security-policy"]
     assert portfolio_response.status_code == 200
     assert portfolio_response.headers["cache-control"] == "private, no-store"
+    assert secure_response.headers["strict-transport-security"] == "max-age=31536000; includeSubDomains"
 
 
 def test_api_app_supports_configured_cors_origins():
