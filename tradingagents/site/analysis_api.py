@@ -335,6 +335,8 @@ def _analysis_feed_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         trade_date = row.get("trade_date")
         if trade_date is not None and (latest_trade_date is None or str(trade_date) > str(latest_trade_date)):
             latest_trade_date = trade_date
+    positive_alpha_count = sum(1 for value in alpha_values if value > 0)
+    outcome_covered_count = len(alpha_values)
     return {
         "completed_count": len(rows),
         "unique_ticker_count": len(ticker_codes),
@@ -343,6 +345,10 @@ def _analysis_feed_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "model_provider_counts": provider_counts,
         "decision_rating_counts": rating_counts,
         "completed_outcome_count": sum(int(row.get("completed_outcome_count") or 0) for row in rows),
+        "outcome_covered_count": outcome_covered_count,
+        "outcome_coverage_rate": (outcome_covered_count / len(rows)) if rows else None,
+        "positive_alpha_count": positive_alpha_count,
+        "positive_alpha_rate": (positive_alpha_count / len(alpha_values)) if alpha_values else None,
         "average_alpha_return": (sum(alpha_values) / len(alpha_values)) if alpha_values else None,
     }
 

@@ -1382,6 +1382,8 @@ def test_api_app_serves_public_analysis_feed():
     assert body["items"][0]["alpha_return"] == 0.03
     assert body["summary"]["decision_rating_counts"] == {"Hold": 1}
     assert body["summary"]["average_alpha_return"] == 0.03
+    assert body["summary"]["outcome_covered_count"] == 1
+    assert body["summary"]["positive_alpha_rate"] == 1.0
 
 
 def test_api_app_serves_public_analysis_bundle_by_run_id():

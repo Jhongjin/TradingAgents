@@ -201,6 +201,7 @@ def render_public_analysis_feed_page(
     payload = _analysis_feed_payload(repo, ticker=ticker, limit=limit, max_limit=max_limit)
     model = _analysis_feed_view_model(payload, site_base_url=site_base_url)
     summary_html = _analysis_summary_cards(model["summary"])
+    track_record_html = _analysis_track_record_cards(model["summary"])
     cards_html = _analysis_feed_cards(model["items"])
     payload_json = _script_json(payload)
 
@@ -261,6 +262,8 @@ def render_public_analysis_feed_page(
     </section>
 
     {summary_html}
+
+    {track_record_html}
 
     <section class="report-section" aria-labelledby="feed-list-title">
       <div class="panel-heading">
@@ -1713,6 +1716,53 @@ def _analysis_summary_cards(summary: dict[str, Any]) -> str:
     return f"""
     <section class="analysis-summary-grid" aria-label="공개 분석 커버리지 요약">
       {"".join(html_cards)}
+    </section>
+    """
+
+
+def _analysis_track_record_cards(summary: dict[str, Any]) -> str:
+    completed_outcomes = int(summary.get("completed_outcome_count") or 0)
+    outcome_covered = int(summary.get("outcome_covered_count") or 0)
+    coverage = _percent(summary.get("outcome_coverage_rate"))
+    positive_rate = _percent(summary.get("positive_alpha_rate"))
+    average_alpha = _percent(summary.get("average_alpha_return"), signed=True)
+    positive_count = int(summary.get("positive_alpha_count") or 0)
+    cards = [
+        ("검증 완료", f"{completed_outcomes}건", f"성과 연결 run {outcome_covered}개"),
+        ("평균 알파", average_alpha, "벤치마크 대비"),
+        ("알파 우위", positive_rate, f"양수 알파 {positive_count}건"),
+        ("커버리지", coverage, "현재 공개 목록 기준"),
+    ]
+    if completed_outcomes == 0:
+        cards = [
+            ("검증 대기", "0건", "outcome worker가 완료하면 채워집니다."),
+            ("평균 알파", "-", "성과 데이터 대기"),
+            ("알파 우위", "-", "성과 데이터 대기"),
+            ("커버리지", "-", "현재 공개 목록 기준"),
+        ]
+    html_cards = []
+    for label, value, note in cards:
+        html_cards.append(
+            f"""
+            <article>
+              <span>{_h(label)}</span>
+              <strong>{_h(value)}</strong>
+              <small>{_h(note)}</small>
+            </article>
+            """
+        )
+    return f"""
+    <section class="analysis-track-record" aria-labelledby="track-record-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Public Track Record</p>
+          <h2 id="track-record-title">성과 검증 스냅샷</h2>
+        </div>
+        <span class="status-pill">5D / 20D</span>
+      </div>
+      <div class="analysis-track-grid">
+        {"".join(html_cards)}
+      </div>
     </section>
     """
 
@@ -3350,6 +3400,43 @@ h3 {
   line-height: 1.12;
 }
 
+.analysis-track-record {
+  margin-top: 18px;
+}
+
+.analysis-track-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.analysis-track-grid article {
+  min-height: 118px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.analysis-track-grid span,
+.analysis-track-grid small {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.analysis-track-grid strong {
+  display: block;
+  margin: 10px 0 8px;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.12;
+}
+
 .outcome-section {
   margin-top: 18px;
 }
@@ -4485,6 +4572,7 @@ h3 {
 
   .analysis-feed-grid,
   .analysis-summary-grid,
+  .analysis-track-grid,
   .feature-card-grid,
   .admin-grid,
   .member-grid {
@@ -4699,6 +4787,7 @@ h3 {
   .home-analysis-grid,
   .analysis-feed-grid,
   .analysis-summary-grid,
+  .analysis-track-grid,
   .feature-card-grid,
   .feature-step-track,
   .admin-grid,
@@ -5653,6 +5742,8 @@ button:disabled {
 .market-page .analysis-feed-card dt,
 .market-page .analysis-summary-grid span,
 .market-page .analysis-summary-grid small,
+.market-page .analysis-track-grid span,
+.market-page .analysis-track-grid small,
 .market-page .lens-card p,
 .market-page .outcome-card p,
 .market-page .outcome-card dt {
@@ -5666,6 +5757,7 @@ button:disabled {
 .market-page .metric-grid article,
 .market-page .report-card,
 .market-page .analysis-summary-grid article,
+.market-page .analysis-track-grid article,
 .market-page .analysis-feed-card,
 .market-page .analysis-provenance-grid article,
 .market-page .analysis-rationale-card,
@@ -5703,6 +5795,7 @@ button:disabled {
 .market-page h3,
 .market-page .metric-grid strong,
 .market-page .analysis-summary-grid strong,
+.market-page .analysis-track-grid strong,
 .market-page .analysis-feed-card dd,
 .market-page .analysis-provenance-grid strong,
 .market-page .analysis-rationale-card dd,
