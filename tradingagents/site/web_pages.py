@@ -887,7 +887,10 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
             <p class="eyebrow">Readiness</p>
             <h2>서비스 상태</h2>
           </div>
-          <label class="admin-inline-check"><input id="adminProbeKrx" type="checkbox"> KRX probe</label>
+          <div class="admin-check-row">
+            <label class="admin-inline-check"><input id="adminProbeKrx" type="checkbox"> KRX probe</label>
+            <label class="admin-inline-check"><input id="adminProbeVendors" type="checkbox"> Vendor probes</label>
+          </div>
         </div>
         <button type="button" data-admin-readiness>상태 확인</button>
         <div class="admin-readiness-panel" id="adminReadinessPanel" aria-live="polite">
@@ -3816,6 +3819,13 @@ h3 {
   gap: 8px;
 }
 
+.admin-check-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  justify-content: flex-end;
+}
+
 .member-shell {
   padding-bottom: 64px;
 }
@@ -6667,6 +6677,7 @@ ADMIN_PAGE_JS = """
   const requestLimit = document.getElementById("adminRequestLimit");
   const outcomeLimit = document.getElementById("adminOutcomeLimit");
   const probeKrx = document.getElementById("adminProbeKrx");
+  const probeVendors = document.getElementById("adminProbeVendors");
 
   function savedToken() {
     return sessionStorage.getItem(tokenKey) || "";
@@ -6689,6 +6700,26 @@ ADMIN_PAGE_JS = """
 
   function readinessText(value) {
     return value ? "OK" : "확인 필요";
+  }
+
+  function quotaSignalText(probe) {
+    if (!probe) return "quota 확인 대기";
+    if (probe.quota_signal === "headers_present") return "quota headers 감지";
+    if (probe.quota_signal === "wrapper_no_headers") return "quota headers 없음";
+    return "quota headers 미제공";
+  }
+
+  function probeSummary(probe, fallback = "probe 대기") {
+    if (!probe) return fallback;
+    const status = probe.status || "unknown";
+    const elapsed = `${probe.elapsed_ms || 0}ms`;
+    const requests = probe.request_count ? `req ${probe.request_count}` : "req 1";
+    const count = probe.row_count !== undefined
+      ? `rows ${probe.row_count || 0}`
+      : probe.item_count !== undefined
+        ? `items ${probe.item_count || 0}`
+        : "";
+    return [status, elapsed, requests, count, quotaSignalText(probe)].filter(Boolean).join(" · ");
   }
 
   function appendReadinessCell(fragment, label, value, note, state = "is-waiting") {
@@ -6732,7 +6763,8 @@ ADMIN_PAGE_JS = """
     const deployment = payload?.deployment || {};
     const errors = payload?.configuration_errors || {};
     const diagnostics = payload?.diagnostics || {};
-    const krxProbe = diagnostics.krx_probe || null;
+    const vendorProbes = diagnostics.vendor_probes || {};
+    const krxProbe = diagnostics.krx_probe || vendorProbes.krx || null;
     const fragment = document.createDocumentFragment();
     readinessPanel.textContent = "";
 
@@ -6755,15 +6787,27 @@ ADMIN_PAGE_JS = """
       krxState = checks.krx_online ? "is-ok" : "is-warn";
       if (krxProbe) {
         krxNote = krxProbe.status === "ok"
-          ? `${krxProbe.ticker || "ticker"} · ${krxProbe.date || "date"} · rows ${krxProbe.row_count || 0} · ${krxProbe.elapsed_ms || 0}ms`
+          ? `${krxProbe.ticker || "ticker"} · ${krxProbe.date || "date"} · ${probeSummary(krxProbe)}`
           : `${krxProbe.error_type || "KRX"} · ${krxProbe.message || krxProbe.error || "probe failed"}`;
       }
     }
     appendReadinessCell(fragment, "KRX", krxValue, krxNote, krxState);
 
     const vendorCount = [checks.dart_configured, checks.naver_configured, checks.openai_configured].filter(Boolean).length;
-    const vendorNote = `DART ${readinessText(checks.dart_configured)} · Naver ${readinessText(checks.naver_configured)} · OpenAI ${readinessText(checks.openai_configured)}`;
-    appendReadinessCell(fragment, "Vendors", `${vendorCount}/3 configured`, vendorNote, vendorCount === 3 ? "is-ok" : "is-warn");
+    let vendorValue = `${vendorCount}/3 configured`;
+    let vendorNote = `DART ${readinessText(checks.dart_configured)} · Naver ${readinessText(checks.naver_configured)} · OpenAI ${readinessText(checks.openai_configured)}`;
+    let vendorState = vendorCount === 3 ? "is-ok" : "is-warn";
+    if (vendorProbes.dart || vendorProbes.naver) {
+      const vendorProbeRows = [
+        `DART ${probeSummary(vendorProbes.dart)}`,
+        `Naver ${probeSummary(vendorProbes.naver)}`
+      ];
+      const onlineCount = [vendorProbes.dart, vendorProbes.naver].filter((probe) => probe?.status === "ok").length;
+      vendorValue = `${onlineCount}/2 online`;
+      vendorNote = vendorProbeRows.join(" · ");
+      vendorState = onlineCount === 2 ? "is-ok" : "is-warn";
+    }
+    appendReadinessCell(fragment, "Vendors", vendorValue, vendorNote, vendorState);
 
     appendReadinessCell(
       fragment,
@@ -6824,7 +6868,10 @@ ADMIN_PAGE_JS = """
       setBusy(button, true);
       setOutput(readinessOutput, "확인 중");
       renderReadinessPending("배포, storage, vendor, read-only boundary를 조회하고 있습니다.");
-      const suffix = probeKrx?.checked ? "?probe_krx=true" : "";
+      const params = new URLSearchParams();
+      if (probeKrx?.checked) params.set("probe_krx", "true");
+      if (probeVendors?.checked) params.set("probe_vendors", "true");
+      const suffix = params.toString() ? `?${params.toString()}` : "";
       const payload = await fetchJson(`/api/readiness${suffix}`);
       renderReadinessPanel(payload);
       setOutput(readinessOutput, payload);

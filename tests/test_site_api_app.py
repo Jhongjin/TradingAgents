@@ -264,6 +264,109 @@ def test_api_app_readiness_can_probe_krx_online(monkeypatch):
     assert "krx_online" not in body["configuration_errors"]
 
 
+def test_api_app_readiness_can_probe_vendor_latency_and_quota(monkeypatch):
+    repo = _repo()
+    monkeypatch.setenv("KRX_API_KEY", "krx-key")
+    monkeypatch.setenv("DART_API_KEY", "dart-key")
+    monkeypatch.setenv("NAVER_CLIENT_ID", "naver-id")
+    monkeypatch.setenv("NAVER_CLIENT_SECRET", "naver-secret")
+    monkeypatch.setenv("TRADINGAGENTS_READINESS_KRX_PROBE_DATE", "2026-05-14")
+
+    monkeypatch.setattr(
+        "tradingagents.site.api_app.krx_openapi.get_ohlcv_frame",
+        lambda *args, **kwargs: pd.DataFrame({"Close": [270500]}),
+    )
+
+    class FakeResponse:
+        def __init__(self, payload, *, headers=None, status_code=200):
+            self._payload = payload
+            self.headers = headers or {}
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise RuntimeError(f"HTTP {self.status_code}")
+
+    def fake_get(url, **kwargs):
+        if "opendart" in url:
+            return FakeResponse(
+                {"status": "000", "corp_name": "삼성전자"},
+                headers={"X-RateLimit-Remaining": "19999"},
+            )
+        if "naver.com" in url:
+            return FakeResponse(
+                {"items": [{"title": "삼성전자"}]},
+                headers={"X-RateLimit-Remaining": "24"},
+            )
+        raise AssertionError(f"unexpected URL {url}")
+
+    monkeypatch.setattr("tradingagents.site.api_app.requests.get", fake_get)
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.get("/api/readiness", params={"probe_vendors": "true"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["checks"]["krx_online"] is True
+    assert body["checks"]["dart_online"] is True
+    assert body["checks"]["naver_online"] is True
+    assert body["checks"]["vendor_probes_ok"] is True
+    probes = body["diagnostics"]["vendor_probes"]
+    assert probes["krx"]["request_count"] == 1
+    assert probes["dart"]["status"] == "ok"
+    assert probes["dart"]["quota_signal"] == "headers_present"
+    assert probes["dart"]["quota_headers"]["X-RateLimit-Remaining"] == "19999"
+    assert probes["naver"]["item_count"] == 1
+    assert probes["naver"]["quota_headers"]["X-RateLimit-Remaining"] == "24"
+    assert "dart-key" not in response.text
+    assert "naver-secret" not in response.text
+
+
+def test_api_app_readiness_reports_vendor_probe_failure(monkeypatch):
+    repo = _repo()
+    monkeypatch.setenv("KRX_API_KEY", "krx-key")
+    monkeypatch.setenv("DART_API_KEY", "dart-key")
+    monkeypatch.setenv("NAVER_CLIENT_ID", "naver-id")
+    monkeypatch.setenv("NAVER_CLIENT_SECRET", "naver-secret")
+    monkeypatch.setattr(
+        "tradingagents.site.api_app.krx_openapi.get_ohlcv_frame",
+        lambda *args, **kwargs: pd.DataFrame({"Close": [270500]}),
+    )
+
+    class FakeResponse:
+        status_code = 200
+        headers = {}
+
+        def json(self):
+            return {"status": "000", "corp_name": "삼성전자"}
+
+        def raise_for_status(self):
+            return None
+
+    def fake_get(url, **kwargs):
+        if "opendart" in url:
+            return FakeResponse()
+        raise RuntimeError("rate limit")
+
+    monkeypatch.setattr("tradingagents.site.api_app.requests.get", fake_get)
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.get("/api/readiness", params={"probe_vendors": "true"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["checks"]["vendor_probes_ok"] is False
+    assert body["checks"]["naver_online"] is False
+    assert body["diagnostics"]["vendor_probes"]["naver"]["status"] == "failed"
+    assert "Naver news probe failed" in body["configuration_errors"]["naver_online"]
+    assert "naver-secret" not in response.text
+
+
 def test_api_app_readiness_reports_krx_probe_failure(monkeypatch):
     repo = _repo()
     monkeypatch.setenv("KRX_API_KEY", "krx-key")

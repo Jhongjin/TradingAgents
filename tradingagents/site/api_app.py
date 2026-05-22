@@ -11,12 +11,13 @@ from typing import Annotated
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
+import requests
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from starlette.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.middleware.cors import CORSMiddleware
 
-from tradingagents.dataflows import krx_openapi
+from tradingagents.dataflows import dart, krx_openapi, naver_news
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.storage import ManualTradeInput, StorageRepository, create_storage_engine
 
@@ -196,14 +197,17 @@ def create_app(
 
     @app.get("/api/readiness")
     def readiness(request: Request) -> dict[str, object]:
-        probe_krx = _query_bool(request, "probe_krx", default=False)
+        probe_vendors = _query_bool(request, "probe_vendors", default=False)
+        probe_krx = _query_bool(request, "probe_krx", default=False) or probe_vendors
         storage_connectivity_error = _storage_connectivity_error(request.app.state.repository)
         storage_schema_error = _storage_schema_error(
             request.app.state.repository,
             storage_connectivity_error=storage_connectivity_error,
         )
         krx_probe = _krx_online_readiness_probe() if probe_krx else None
+        vendor_probes = _vendor_readiness_probes(krx_probe=krx_probe) if probe_vendors else None
         krx_online_error = _krx_readiness_probe_error(krx_probe)
+        vendor_probe_errors = _vendor_readiness_probe_errors(vendor_probes)
         checks = {
             "storage_configured": request.app.state.repository is not None,
             "storage_online": request.app.state.repository is not None and storage_connectivity_error is None,
@@ -227,6 +231,10 @@ def create_app(
         }
         if probe_krx:
             checks["krx_online"] = krx_probe is not None and krx_probe.get("status") == "ok"
+        if probe_vendors:
+            checks["dart_online"] = vendor_probes is not None and vendor_probes["dart"].get("status") == "ok"
+            checks["naver_online"] = vendor_probes is not None and vendor_probes["naver"].get("status") == "ok"
+            checks["vendor_probes_ok"] = _vendor_readiness_probes_ok(vendor_probes)
         required = [
             "storage_configured",
             "storage_online",
@@ -238,6 +246,8 @@ def create_app(
         ]
         if probe_krx:
             required.append("krx_online")
+        if probe_vendors:
+            required.append("vendor_probes_ok")
         status = "ok" if all(checks[name] for name in required) else "degraded"
         payload: dict[str, object] = {
             "status": status,
@@ -249,10 +259,16 @@ def create_app(
                 storage_connectivity_error=storage_connectivity_error,
                 storage_schema_error=storage_schema_error,
                 krx_online_error=krx_online_error,
+                vendor_probe_errors=vendor_probe_errors,
             ),
         }
+        diagnostics: dict[str, object] = {}
         if krx_probe is not None:
-            payload["diagnostics"] = {"krx_probe": krx_probe}
+            diagnostics["krx_probe"] = krx_probe
+        if vendor_probes is not None:
+            diagnostics["vendor_probes"] = vendor_probes
+        if diagnostics:
+            payload["diagnostics"] = diagnostics
         return payload
 
     @app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
@@ -1155,10 +1171,13 @@ def _krx_online_readiness_probe() -> dict[str, object]:
     probe_date = os.getenv("TRADINGAGENTS_READINESS_KRX_PROBE_DATE") or _last_korea_business_date()
     result: dict[str, object] = {
         "vendor": "krx",
+        "probe": "daily_ohlcv",
         "ticker": probe_symbol,
         "date": probe_date,
         "row_count": 0,
+        "request_count": 1,
         "elapsed_ms": 0,
+        "quota_signal": "wrapper_no_headers",
     }
     if not krx_openapi.is_configured():
         result.update(
@@ -1200,6 +1219,175 @@ def _krx_online_readiness_probe() -> dict[str, object]:
     return result
 
 
+def _vendor_readiness_probes(*, krx_probe: dict[str, object] | None) -> dict[str, dict[str, object]]:
+    return {
+        "krx": krx_probe or _krx_online_readiness_probe(),
+        "dart": _dart_online_readiness_probe(),
+        "naver": _naver_online_readiness_probe(),
+    }
+
+
+def _dart_online_readiness_probe() -> dict[str, object]:
+    ticker = os.getenv("TRADINGAGENTS_DART_PROBE_TICKER", "005930").strip() or "005930"
+    result: dict[str, object] = {
+        "vendor": "dart",
+        "probe": "company_profile",
+        "ticker": ticker,
+        "endpoint": "company.json",
+        "request_count": 1,
+        "elapsed_ms": 0,
+        "quota_signal": "headers_unavailable",
+        "quota_headers": {},
+    }
+    api_key = os.getenv("DART_API_KEY") or os.getenv("OPEN_DART_API_KEY")
+    if not api_key:
+        result.update({"status": "not_configured", "error": "DART_API_KEY is not configured"})
+        return result
+
+    started = time.perf_counter()
+    try:
+        corp_code = dart.get_corp_code(ticker)
+        response = requests.get(
+            "https://opendart.fss.or.kr/api/company.json",
+            params={"crtfc_key": api_key, "corp_code": corp_code},
+            timeout=_vendor_probe_timeout(),
+        )
+        quota_headers = _quota_headers(response.headers)
+        result.update(
+            {
+                "elapsed_ms": _elapsed_ms(started),
+                "status_code": response.status_code,
+                "corp_code": corp_code,
+                "quota_headers": quota_headers,
+                "quota_signal": "headers_present" if quota_headers else "headers_unavailable",
+            }
+        )
+        response.raise_for_status()
+        payload = response.json()
+        dart_status = str(payload.get("status") or "")
+        if dart_status and dart_status != "000":
+            result.update(
+                {
+                    "status": "failed",
+                    "dart_status": dart_status,
+                    "error": f"OpenDART company.json returned {dart_status}: {payload.get('message', 'Unknown status')}",
+                }
+            )
+            return result
+        result.update(
+            {
+                "status": "ok",
+                "corp_name": payload.get("corp_name"),
+            }
+        )
+        return result
+    except Exception as exc:
+        result.update(
+            {
+                "status": "failed",
+                "elapsed_ms": _elapsed_ms(started),
+                "error_type": exc.__class__.__name__,
+                "error": f"DART probe failed ({_safe_error_name(exc)}); check key, quota, and endpoint availability",
+            }
+        )
+        return result
+
+
+def _naver_online_readiness_probe() -> dict[str, object]:
+    query = os.getenv("TRADINGAGENTS_NAVER_PROBE_QUERY", "삼성전자 주가").strip() or "삼성전자 주가"
+    result: dict[str, object] = {
+        "vendor": "naver",
+        "probe": "news_search",
+        "query": query,
+        "endpoint": "news.json",
+        "request_count": 1,
+        "elapsed_ms": 0,
+        "quota_signal": "headers_unavailable",
+        "quota_headers": {},
+    }
+    client_id = os.getenv("NAVER_CLIENT_ID")
+    client_secret = os.getenv("NAVER_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        result.update({"status": "not_configured", "error": "NAVER_CLIENT_ID and NAVER_CLIENT_SECRET are not configured"})
+        return result
+
+    started = time.perf_counter()
+    try:
+        response = requests.get(
+            naver_news._API_URL,
+            headers={
+                "X-Naver-Client-Id": client_id,
+                "X-Naver-Client-Secret": client_secret,
+            },
+            params={"query": query, "display": 1, "sort": "date"},
+            verify=naver_news._requests_verify_setting(),
+            timeout=_vendor_probe_timeout(),
+        )
+        quota_headers = _quota_headers(response.headers)
+        result.update(
+            {
+                "elapsed_ms": _elapsed_ms(started),
+                "status_code": response.status_code,
+                "quota_headers": quota_headers,
+                "quota_signal": "headers_present" if quota_headers else "headers_unavailable",
+            }
+        )
+        response.raise_for_status()
+        items = response.json().get("items", [])
+        result.update({"status": "ok", "item_count": len(items)})
+        return result
+    except Exception as exc:
+        result.update(
+            {
+                "status": "failed",
+                "elapsed_ms": _elapsed_ms(started),
+                "error_type": exc.__class__.__name__,
+                "error": f"Naver news probe failed ({_safe_error_name(exc)}); check credentials, quota, and endpoint availability",
+            }
+        )
+        return result
+
+
+def _vendor_readiness_probes_ok(probes: dict[str, dict[str, object]] | None) -> bool:
+    return bool(probes) and all(probe.get("status") == "ok" for probe in probes.values())
+
+
+def _vendor_readiness_probe_errors(probes: dict[str, dict[str, object]] | None) -> dict[str, str]:
+    if not probes:
+        return {}
+    errors: dict[str, str] = {}
+    for vendor, probe in probes.items():
+        if vendor == "krx" or probe.get("status") == "ok":
+            continue
+        errors[f"{vendor}_online"] = str(probe.get("error") or f"{vendor} probe is unavailable")
+    return errors
+
+
+def _quota_headers(headers) -> dict[str, str]:
+    observed: dict[str, str] = {}
+    for key, value in dict(headers or {}).items():
+        normalized = str(key).lower()
+        if (
+            normalized == "retry-after"
+            or "ratelimit" in normalized
+            or "rate-limit" in normalized
+            or "quota" in normalized
+            or normalized.endswith("remaining")
+            or normalized.endswith("limit")
+        ):
+            observed[str(key)] = str(value)[:120]
+    return observed
+
+
+def _vendor_probe_timeout() -> int:
+    raw = os.getenv("TRADINGAGENTS_VENDOR_PROBE_TIMEOUT_SECONDS", "8")
+    try:
+        timeout = int(raw)
+    except ValueError:
+        return 8
+    return min(max(timeout, 1), 30)
+
+
 def _krx_readiness_probe_error(probe: dict[str, object] | None) -> str | None:
     if probe is None or probe.get("status") == "ok":
         return None
@@ -1216,6 +1404,7 @@ def _readiness_configuration_errors(
     storage_connectivity_error: str | None,
     storage_schema_error: str | None,
     krx_online_error: str | None = None,
+    vendor_probe_errors: dict[str, str] | None = None,
 ) -> dict[str, str]:
     errors: dict[str, str] = {}
     storage_error = getattr(request.app.state, "storage_configuration_error", None)
@@ -1236,6 +1425,8 @@ def _readiness_configuration_errors(
         )
     if krx_online_error:
         errors["krx_online"] = krx_online_error
+    if vendor_probe_errors:
+        errors.update(vendor_probe_errors)
     if not _live_trading_disabled():
         errors["live_trading_disabled"] = "Set TRADINGAGENTS_ENABLE_LIVE_TRADING=false before public deployment"
     if _api_docs_enabled():

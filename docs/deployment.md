@@ -161,6 +161,12 @@ market-data vendors. Probe responses include non-secret `diagnostics.krx_probe`
 metadata such as ticker, date, row count, elapsed milliseconds, and sanitized
 failure type/message so operators can measure vendor health without exposing
 keys.
+Use `/api/readiness?probe_vendors=true` for a broader operator check across
+KRX, DART, and Naver. It performs one lightweight request per configured vendor
+and reports elapsed milliseconds, request count, row/item count, and any
+quota/rate-limit response headers the vendor provides. Absence of quota headers
+is reported as `headers_unavailable`; check each vendor dashboard for the
+authoritative quota ceiling.
 
 No live trading or broker order placement is exposed.
 
