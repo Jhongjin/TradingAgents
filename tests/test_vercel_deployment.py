@@ -33,6 +33,10 @@ def test_vercel_json_routes_api_and_health_to_fastapi_entrypoint():
         "destination": "/api/index.py",
     } in config["rewrites"]
     assert {
+        "source": "/analyses/:path*",
+        "destination": "/api/index.py",
+    } in config["rewrites"]
+    assert {
         "source": "/mypage",
         "destination": "/api/index.py",
     } in config["rewrites"]
@@ -72,6 +76,14 @@ def test_vercel_json_routes_api_and_health_to_fastapi_entrypoint():
         "source": "/health",
         "destination": "/api/index.py",
     } in config["rewrites"]
+
+
+def test_vercelignore_excludes_local_agent_and_test_artifacts():
+    ignored = set((ROOT / ".vercelignore").read_text(encoding="utf-8").splitlines())
+
+    assert ".codex-test-venv" in ignored
+    assert ".vercel" in ignored
+    assert "tests" in ignored
 
 
 def test_vercel_python_entrypoint_exposes_fastapi_app(monkeypatch):
