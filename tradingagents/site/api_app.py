@@ -21,6 +21,7 @@ from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.storage import ManualTradeInput, StorageRepository, create_storage_engine
 
 from .analysis_api import (
+    AnalysisRequestQuotaExceeded,
     build_member_analysis_request_payload,
     build_member_analysis_requests_payload,
     build_public_analysis_bundle_payload,
@@ -647,6 +648,8 @@ def create_app(
                 requested_trade_date=body.requested_trade_date,
                 reason=body.reason,
             )
+        except AnalysisRequestQuotaExceeded as exc:
+            raise HTTPException(status_code=429, detail=exc.to_payload()) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 

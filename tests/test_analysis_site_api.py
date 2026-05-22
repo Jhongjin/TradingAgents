@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -7,6 +7,7 @@ from tradingagents.site import (
     build_public_analysis_outcomes_payload,
     queue_analysis_refresh_request,
 )
+from tradingagents.site.analysis_api import AnalysisRequestQuotaExceeded
 from tradingagents.storage import AnalysisOutcomeInput, AnalysisRunInput, StorageRepository, create_storage_engine
 
 
@@ -67,6 +68,93 @@ def test_queue_analysis_refresh_request_reuses_existing_active_request():
     assert second["status_label"] == "대기"
     assert second["request_id"] == first["request_id"]
     assert len(queued) == 1
+
+
+def test_queue_analysis_refresh_request_allows_duplicate_retry_over_quota():
+    repo = _repo()
+
+    first = queue_analysis_refresh_request(
+        repo,
+        ticker="005930",
+        user_id=USER_ID,
+        requested_trade_date="2026-05-05",
+        active_limit=1,
+        daily_limit=1,
+    )
+    second = queue_analysis_refresh_request(
+        repo,
+        ticker="005930",
+        user_id=USER_ID,
+        requested_trade_date="2026-05-05",
+        active_limit=1,
+        daily_limit=1,
+    )
+
+    assert first["status"] == "queued"
+    assert first["quota"]["active_used"] == 1
+    assert first["quota"]["daily_used"] == 1
+    assert second["status"] == "already_queued"
+    assert second["request_id"] == first["request_id"]
+
+
+def test_queue_analysis_refresh_request_enforces_active_quota():
+    repo = _repo()
+
+    queue_analysis_refresh_request(
+        repo,
+        ticker="005930",
+        user_id=USER_ID,
+        requested_trade_date="2026-05-05",
+        active_limit=1,
+        daily_limit=20,
+    )
+
+    with pytest.raises(AnalysisRequestQuotaExceeded) as exc_info:
+        queue_analysis_refresh_request(
+            repo,
+            ticker="000660",
+            user_id=USER_ID,
+            requested_trade_date="2026-05-05",
+            active_limit=1,
+            daily_limit=20,
+        )
+
+    payload = exc_info.value.to_payload()
+    assert payload["status"] == "quota_exceeded"
+    assert payload["kind"] == "active"
+    assert payload["limit"] == 1
+    assert repo.count_analysis_requests(user_id=USER_ID) == 1
+
+
+def test_queue_analysis_refresh_request_enforces_daily_quota():
+    repo = _repo()
+    now = datetime.now(timezone.utc)
+
+    queue_analysis_refresh_request(
+        repo,
+        ticker="005930",
+        user_id=USER_ID,
+        requested_trade_date="2026-05-05",
+        active_limit=20,
+        daily_limit=1,
+        now=now,
+    )
+
+    with pytest.raises(AnalysisRequestQuotaExceeded) as exc_info:
+        queue_analysis_refresh_request(
+            repo,
+            ticker="000660",
+            user_id=USER_ID,
+            requested_trade_date="2026-05-05",
+            active_limit=20,
+            daily_limit=1,
+            now=now,
+        )
+
+    payload = exc_info.value.to_payload()
+    assert payload["kind"] == "daily"
+    assert payload["window_hours"] == 24
+    assert payload["used"] == 1
 
 
 def test_queue_analysis_refresh_request_rejects_non_korean_ticker():

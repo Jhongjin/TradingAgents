@@ -88,7 +88,10 @@ request. A separate worker should read queued rows, run TradingAgents, persist
 the completed analysis, link `analysis_run_id`, and update the request status.
 Request payloads expose duplicate suppression, active status labels, and public
 stock-page paths so the member UI can explain queue state without polling
-private worker details.
+private worker details. Before inserting a new row, the site API reuses active
+requests for the same member, ticker, and trade date; it also enforces per-user
+active and rolling 24-hour request limits using existing request status and
+`created_at` fields.
 `tradingagents.site.analysis_worker.process_queued_analysis_requests(...)`
 provides the first runner-injection skeleton for that background process.
 `tradingagents.site.analysis_runner.run_tradingagents_graph_for_request(...)`

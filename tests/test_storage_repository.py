@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -269,6 +269,36 @@ def test_storage_repository_finds_active_analysis_request_for_deduping():
     assert existing is not None
     assert existing["id"] == request_id
     assert completed is None
+
+
+def test_storage_repository_counts_analysis_requests_for_quotas():
+    repo = _repo()
+    request_id = repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="005930",
+            requested_trade_date=date(2026, 5, 5),
+        )
+    )
+    repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id="00000000-0000-0000-0000-000000000002",
+            ticker_code="000660",
+            requested_trade_date=date(2026, 5, 5),
+        )
+    )
+
+    assert repo.count_analysis_requests(user_id=USER_ID) == 1
+    assert repo.count_analysis_requests(user_id=USER_ID, statuses=("queued", "running")) == 1
+    assert repo.count_analysis_requests(
+        user_id=USER_ID,
+        created_at_from=datetime.now(timezone.utc) + timedelta(seconds=1),
+    ) == 0
+
+    repo.update_analysis_request_status(request_id, status="completed")
+
+    assert repo.count_analysis_requests(user_id=USER_ID) == 1
+    assert repo.count_analysis_requests(user_id=USER_ID, statuses=("queued", "running")) == 0
 
 
 def test_storage_repository_calculates_manual_portfolio_positions():

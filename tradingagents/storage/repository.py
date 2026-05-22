@@ -9,7 +9,7 @@ from typing import Any
 from uuid import UUID
 from uuid import uuid4
 
-from sqlalchemy import Engine, and_, create_engine, delete, desc, insert, select, text, update
+from sqlalchemy import Engine, and_, create_engine, delete, desc, func, insert, select, text, update
 from sqlalchemy.pool import StaticPool
 
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
@@ -420,6 +420,34 @@ class StorageRepository:
         with self.engine.begin() as conn:
             row = conn.execute(stmt).mappings().first()
         return dict(row) if row else None
+
+    def count_analysis_requests(
+        self,
+        *,
+        user_id: str | None = None,
+        statuses: tuple[str, ...] | None = None,
+        created_at_from: datetime | None = None,
+    ) -> int:
+        """Count analysis refresh requests for quota and abuse controls."""
+
+        _validate_optional_uuid(user_id, "analysis request user_id")
+        if statuses is not None:
+            if not statuses:
+                return 0
+            for status in statuses:
+                _validate_analysis_request_status(status)
+
+        stmt = select(func.count()).select_from(analysis_refresh_requests)
+        if user_id is not None:
+            stmt = stmt.where(analysis_refresh_requests.c.user_id == user_id)
+        if statuses is not None:
+            stmt = stmt.where(analysis_refresh_requests.c.status.in_(statuses))
+        if created_at_from is not None:
+            stmt = stmt.where(analysis_refresh_requests.c.created_at >= created_at_from)
+
+        with self.engine.begin() as conn:
+            count = conn.execute(stmt).scalar_one()
+        return int(count)
 
     def create_manual_portfolio(self, *, user_id: str, name: str, base_currency: str = "KRW") -> str:
         _validate_uuid(user_id, "portfolio user_id")

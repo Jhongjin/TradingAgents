@@ -852,6 +852,37 @@ def test_api_app_queues_analysis_refresh_request_with_bearer(monkeypatch):
     assert queued[0]["ticker_code"] == "005930"
 
 
+def test_api_app_limits_member_analysis_refresh_requests(monkeypatch):
+    repo = _repo()
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_ANON_KEY", "anon-key")
+    monkeypatch.setenv("TRADINGAGENTS_ANALYSIS_REQUEST_ACTIVE_LIMIT", "1")
+    monkeypatch.setenv("TRADINGAGENTS_ANALYSIS_REQUEST_DAILY_LIMIT", "20")
+    auth_response = MagicMock()
+    auth_response.status_code = 200
+    auth_response.json.return_value = {"id": USER_ID}
+    monkeypatch.setattr("tradingagents.site.auth.requests.get", lambda *args, **kwargs: auth_response)
+
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+    first = client.post(
+        "/api/analysis-requests",
+        headers={"Authorization": "Bearer user-token"},
+        json={"ticker": "005930", "requested_trade_date": "2026-05-05"},
+    )
+    second = client.post(
+        "/api/analysis-requests",
+        headers={"Authorization": "Bearer user-token"},
+        json={"ticker": "000660", "requested_trade_date": "2026-05-05"},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.headers["cache-control"] == "private, no-store"
+    assert second.json()["detail"]["status"] == "quota_exceeded"
+    assert second.json()["detail"]["kind"] == "active"
+    assert second.json()["detail"]["limit"] == 1
+
+
 def test_api_app_lists_member_analysis_requests():
     repo = _repo()
     request_id = repo.create_analysis_request(

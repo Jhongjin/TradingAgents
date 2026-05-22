@@ -56,6 +56,8 @@ TRADINGAGENTS_ADS_TXT=
 TRADINGAGENTS_WORKER_TOKEN=
 TRADINGAGENTS_WORKER_MAX_REQUESTS=1
 TRADINGAGENTS_WORKER_CRON_LIMIT=1
+TRADINGAGENTS_ANALYSIS_REQUEST_ACTIVE_LIMIT=5
+TRADINGAGENTS_ANALYSIS_REQUEST_DAILY_LIMIT=20
 TRADINGAGENTS_OUTCOME_WORKER_MAX_RUNS=20
 TRADINGAGENTS_OUTCOME_WORKER_CRON_LIMIT=5
 # Optional Vercel Cron secret. If set, Vercel sends it as Authorization: Bearer <CRON_SECRET>.
@@ -189,6 +191,13 @@ accepts either `Authorization: Bearer <token>` or
 `X-TradingAgents-Worker-Token: <token>`. Keep `TRADINGAGENTS_WORKER_MAX_REQUESTS`
 small on Vercel because a full TradingAgents run can be expensive and may hit
 serverless duration limits.
+
+Member-created analysis refresh requests are rate limited before they enter the
+worker queue. `TRADINGAGENTS_ANALYSIS_REQUEST_ACTIVE_LIMIT` caps each member's
+simultaneous queued/running requests, and
+`TRADINGAGENTS_ANALYSIS_REQUEST_DAILY_LIMIT` caps requests in a rolling 24-hour
+window. Duplicate active requests for the same member, ticker, and trade date
+return the existing queue item instead of consuming another quota slot.
 
 Vercel Cron invokes endpoints with GET requests. The repo therefore includes
 `GET /api/cron/process-analysis-requests`, which accepts the same worker token

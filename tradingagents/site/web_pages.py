@@ -6624,6 +6624,14 @@ MEMBER_PAGE_JS = """
     }).catch(() => {});
   }
 
+  function apiErrorMessage(payload) {
+    const detail = payload?.detail;
+    if (!detail) return payload?.error || "Request failed";
+    if (typeof detail === "string") return detail;
+    if (typeof detail === "object") return detail.message || detail.error || JSON.stringify(detail);
+    return String(detail);
+  }
+
   async function memberApi(path, options = {}, retry = true) {
     const token = await ensureAccessToken();
     if (!token) throw new Error("로그인이 필요합니다");
@@ -6648,7 +6656,7 @@ MEMBER_PAGE_JS = """
       clearSession();
       throw new Error("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.");
     }
-    if (!response.ok) throw new Error(payload.detail || "Request failed");
+    if (!response.ok) throw new Error(apiErrorMessage(payload));
     return payload;
   }
 
@@ -7115,9 +7123,16 @@ MEMBER_PAGE_JS = """
   async function submitJson(form, path, buildBody) {
     try {
       const body = buildBody(new FormData(form));
-      await memberApi(path, { method: "POST", body: JSON.stringify(body) });
+      const payload = await memberApi(path, { method: "POST", body: JSON.stringify(body) });
       form.reset();
       await loadMemberData();
+      if (payload?.status === "already_queued") {
+        setStatus("이미 대기 중인 분석 요청이 있어 기존 큐 항목을 유지했습니다.");
+      } else if (payload?.status === "queued") {
+        const quota = payload?.quota;
+        const suffix = quota ? ` (${quota.daily_used}/${quota.daily_limit}, 최근 ${quota.window_hours}시간)` : "";
+        setStatus(`분석 요청을 큐에 등록했습니다${suffix}.`);
+      }
     } catch (error) {
       setStatus(error.message, true);
     }

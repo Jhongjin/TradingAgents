@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+import os
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -12,6 +13,41 @@ from tradingagents.storage import AnalysisRequestInput, StorageRepository
 from .public_api import _json_ready
 
 
+ANALYSIS_REQUEST_ACTIVE_LIMIT_ENV = "TRADINGAGENTS_ANALYSIS_REQUEST_ACTIVE_LIMIT"
+ANALYSIS_REQUEST_DAILY_LIMIT_ENV = "TRADINGAGENTS_ANALYSIS_REQUEST_DAILY_LIMIT"
+DEFAULT_ANALYSIS_REQUEST_ACTIVE_LIMIT = 5
+DEFAULT_ANALYSIS_REQUEST_DAILY_LIMIT = 20
+ANALYSIS_REQUEST_WINDOW_HOURS = 24
+ACTIVE_ANALYSIS_REQUEST_STATUSES = ("queued", "running")
+
+
+class AnalysisRequestQuotaExceeded(ValueError):
+    """Raised when a member analysis request would exceed queue limits."""
+
+    def __init__(self, *, kind: str, limit: int, used: int, window_hours: int | None = None) -> None:
+        self.kind = kind
+        self.limit = limit
+        self.used = used
+        self.window_hours = window_hours
+        if kind == "active":
+            message = f"동시에 대기/처리 중인 분석 요청은 사용자당 {limit}개까지 가능합니다."
+        else:
+            message = f"분석 요청은 사용자당 최근 {window_hours or ANALYSIS_REQUEST_WINDOW_HOURS}시간에 {limit}개까지 가능합니다."
+        super().__init__(message)
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "status": "quota_exceeded",
+            "kind": self.kind,
+            "limit": self.limit,
+            "used": self.used,
+            "message": str(self),
+        }
+        if self.window_hours is not None:
+            payload["window_hours"] = self.window_hours
+        return payload
+
+
 def queue_analysis_refresh_request(
     repo: StorageRepository,
     *,
@@ -19,6 +55,9 @@ def queue_analysis_refresh_request(
     user_id: str,
     requested_trade_date: str | None = None,
     reason: str | None = None,
+    active_limit: int | None = None,
+    daily_limit: int | None = None,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     """Queue a member-requested analysis refresh without running LLM work inline."""
 
@@ -49,6 +88,21 @@ def queue_analysis_refresh_request(
             }
         )
 
+    limits = _analysis_request_limits(active_limit=active_limit, daily_limit=daily_limit)
+    active_count = repo.count_analysis_requests(user_id=user_id, statuses=ACTIVE_ANALYSIS_REQUEST_STATUSES)
+    if active_count >= limits["active_limit"]:
+        raise AnalysisRequestQuotaExceeded(kind="active", limit=limits["active_limit"], used=active_count)
+
+    window_start = _analysis_request_window_start(now)
+    daily_count = repo.count_analysis_requests(user_id=user_id, created_at_from=window_start)
+    if daily_count >= limits["daily_limit"]:
+        raise AnalysisRequestQuotaExceeded(
+            kind="daily",
+            limit=limits["daily_limit"],
+            used=daily_count,
+            window_hours=ANALYSIS_REQUEST_WINDOW_HOURS,
+        )
+
     request_id = repo.create_analysis_request(
         AnalysisRequestInput(
             user_id=user_id,
@@ -74,6 +128,13 @@ def queue_analysis_refresh_request(
             "reason": reason,
             "public_stock_path": f"/stocks/{resolved.code}",
             "status_label": _analysis_request_status_label("queued"),
+            "quota": {
+                "active_limit": limits["active_limit"],
+                "active_used": active_count + 1,
+                "daily_limit": limits["daily_limit"],
+                "daily_used": daily_count + 1,
+                "window_hours": ANALYSIS_REQUEST_WINDOW_HOURS,
+            },
         }
     )
 
@@ -394,3 +455,39 @@ def _trade_date(value: str | None) -> date:
     if value:
         return datetime.strptime(value, "%Y-%m-%d").date()
     return datetime.now(ZoneInfo("Asia/Seoul")).date()
+
+
+def _analysis_request_limits(*, active_limit: int | None, daily_limit: int | None) -> dict[str, int]:
+    active = active_limit if active_limit is not None else _positive_int_env(
+        ANALYSIS_REQUEST_ACTIVE_LIMIT_ENV,
+        DEFAULT_ANALYSIS_REQUEST_ACTIVE_LIMIT,
+    )
+    daily = daily_limit if daily_limit is not None else _positive_int_env(
+        ANALYSIS_REQUEST_DAILY_LIMIT_ENV,
+        DEFAULT_ANALYSIS_REQUEST_DAILY_LIMIT,
+    )
+    if active <= 0:
+        raise ValueError("active_limit must be positive")
+    if daily <= 0:
+        raise ValueError("daily_limit must be positive")
+    return {"active_limit": active, "daily_limit": daily}
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a positive integer") from exc
+    if value <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+    return value
+
+
+def _analysis_request_window_start(now: datetime | None = None) -> datetime:
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    return current.astimezone(timezone.utc) - timedelta(hours=ANALYSIS_REQUEST_WINDOW_HOURS)
