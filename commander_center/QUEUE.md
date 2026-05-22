@@ -10,7 +10,7 @@ This queue is intentionally high level. Workstream folders hold deeper notes.
 | P1 | Member signup/login/email redirect browser test | QA Verification | Security Trust, Product Planning | browser-safe path verified; live email redirect blocked on Supabase/test mailbox |
 | P1 | KRX approved API probe and chart-vendor `auto` stability | Data Quality Reliability | Korean Market Domain, Engineering Platform | shipped |
 | P2 | Public homepage trust and design polish | Design Experience | Growth Content SEO, QA Verification | shipped |
-| P2 | Manual portfolio UX: trades, average cost, PnL, target/stop | Product Planning | Engineering Platform, QA Verification | ready |
+| P2 | Manual portfolio UX: trades, average cost, PnL, target/stop | Product Planning | Engineering Platform, QA Verification | shipped |
 | P2 | Watchlist UX and public analysis request flow | Product Planning | Engineering Platform, Design Experience | ready |
 | P2 | Public analysis report storage and feed quality | AI Evaluation Research | Data Quality Reliability, Growth Content SEO | ready |
 | P2 | 5D/20D outcome worker operational runbook | Operations SRE | AI Evaluation Research, Data Quality Reliability | ready |

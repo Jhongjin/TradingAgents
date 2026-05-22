@@ -73,7 +73,9 @@ functions.
 For member pages, `tradingagents.site.build_manual_portfolio_payload(...)`
 combines stored manual trades, optional current prices supplied by the app, and
 manual target/stop rows into a JSON-ready portfolio summary. The result is an
-estimate from user-entered data, not broker-verified account state.
+estimate from user-entered data, not broker-verified account state. Portfolio
+payloads include average cost, realised/unrealised PnL, total PnL rate, and
+target/stop distance rates when current prices are available.
 
 Watchlist helpers store member-owned ticker lists separately from portfolio
 holdings. `tradingagents.site.build_watchlist_payload(...)` returns a JSON-ready

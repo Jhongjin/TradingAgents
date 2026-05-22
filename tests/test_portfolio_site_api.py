@@ -82,13 +82,17 @@ def test_manual_portfolio_payload_calculates_summary_and_alerts():
     assert payload["totals"]["unrealized_pnl"] == 135520.0
     assert payload["totals"]["realized_pnl"] == 8646.0
     assert payload["totals"]["total_pnl"] == 144166.0
+    assert payload["totals"]["total_pnl_rate"] == pytest.approx(0.18543, abs=0.00001)
     assert position["ticker_name"] == "삼성전자"
     assert position["weight"] == 1.0
+    assert position["unrealized_pnl_rate"] == pytest.approx(0.17431, abs=0.00001)
     assert position["target_price"] == 82000.0
     assert position["stop_price"] == 65000.0
     assert position["target_memo"] is None
     assert position["target_hit"] is True
     assert position["stop_hit"] is False
+    assert position["target_gap_rate"] == pytest.approx(-0.01205, abs=0.00001)
+    assert position["stop_gap_rate"] == pytest.approx(0.21687, abs=0.00001)
     assert payload["alerts"] == [
         {
             "ticker_code": "005930",
@@ -123,8 +127,10 @@ def test_manual_portfolio_payload_marks_partial_pricing():
     assert payload["totals"]["priced_position_count"] == 1
     assert payload["totals"]["market_value"] is None
     assert payload["totals"]["unrealized_pnl"] is None
+    assert payload["totals"]["total_pnl_rate"] is None
     assert payload["positions"][0]["ticker_code"] == "000660"
     assert payload["positions"][0]["current_price"] is None
+    assert payload["positions"][0]["unrealized_pnl_rate"] is None
 
 
 def test_manual_portfolio_payload_rejects_non_positive_current_price():

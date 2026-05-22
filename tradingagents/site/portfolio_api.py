@@ -76,6 +76,7 @@ def build_manual_portfolio_payload(
             "realized_pnl": total_realized,
             "unrealized_pnl": total_unrealized if all_priced else None,
             "total_pnl": (total_realized + total_unrealized) if all_priced else None,
+            "total_pnl_rate": _safe_rate(total_realized + total_unrealized, total_invested) if all_priced else None,
         },
         "alerts": _alerts(position_payloads),
         "notices": [MANUAL_PORTFOLIO_NOTICE],
@@ -133,6 +134,7 @@ def _position_payload(
         "current_price": current_price,
         "market_value": market_value,
         "unrealized_pnl": unrealized,
+        "unrealized_pnl_rate": _safe_rate(unrealized, position.invested_cost),
         "realized_pnl": position.realized_pnl,
         "total_fees": position.total_fees,
         "total_taxes": position.total_taxes,
@@ -141,6 +143,12 @@ def _position_payload(
         "target_memo": target.get("memo") if target else None,
         "target_hit": bool(current_price is not None and target_price is not None and current_price >= target_price),
         "stop_hit": bool(current_price is not None and stop_price is not None and current_price <= stop_price),
+        "target_gap_rate": _safe_rate(target_price - current_price, current_price)
+        if current_price is not None and target_price is not None
+        else None,
+        "stop_gap_rate": _safe_rate(current_price - stop_price, current_price)
+        if current_price is not None and stop_price is not None
+        else None,
         "weight": None,
     }
 
@@ -221,3 +229,9 @@ def _decimal_or_none(value: Any) -> Decimal | None:
     if value is None:
         return None
     return value if isinstance(value, Decimal) else Decimal(str(value))
+
+
+def _safe_rate(numerator: Decimal | None, denominator: Decimal | None) -> Decimal | None:
+    if numerator is None or denominator is None or denominator == 0:
+        return None
+    return numerator / denominator

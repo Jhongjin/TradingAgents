@@ -226,6 +226,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'name="fee"' in html
     assert 'name="tax"' in html
     assert "tradeLines" in html
+    assert "signedPercent" in html
+    assert "target_gap_rate" in html
     assert "target_memo" in html
     assert "watchlistActionList" in html
     assert "member-action-item" in html

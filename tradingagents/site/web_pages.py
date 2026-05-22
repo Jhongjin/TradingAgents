@@ -6035,6 +6035,13 @@ MEMBER_PAGE_JS = """
     return `${sign}${money(number)}`;
   }
 
+  function signedPercent(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+    const number = Number(value) * 100;
+    const sign = number > 0 ? "+" : "";
+    return `${sign}${number.toFixed(2)}%`;
+  }
+
   function optionalDecimal(value) {
     const text = String(value || "").trim();
     return text || null;
@@ -6061,10 +6068,16 @@ MEMBER_PAGE_JS = """
   function riskText(position) {
     const parts = [];
     if (position.target_price !== null && position.target_price !== undefined) {
-      parts.push(`목표 ${money(position.target_price)}${position.target_hit ? " 도달" : ""}`);
+      const gap = position.target_gap_rate === null || position.target_gap_rate === undefined
+        ? ""
+        : ` / 목표까지 ${signedPercent(position.target_gap_rate)}`;
+      parts.push(`목표 ${money(position.target_price)}${position.target_hit ? " 도달" : gap}`);
     }
     if (position.stop_price !== null && position.stop_price !== undefined) {
-      parts.push(`손절 ${money(position.stop_price)}${position.stop_hit ? " 도달" : ""}`);
+      const gap = position.stop_gap_rate === null || position.stop_gap_rate === undefined
+        ? ""
+        : ` / 손절 여유 ${signedPercent(position.stop_gap_rate)}`;
+      parts.push(`손절 ${money(position.stop_price)}${position.stop_hit ? " 도달" : gap}`);
     }
     if (position.target_memo) parts.push(position.target_memo);
     return parts.length ? parts.join(" / ") : "목표·손절 미설정";
@@ -6074,7 +6087,8 @@ MEMBER_PAGE_JS = """
     return (detail?.positions || []).slice(0, 4).map((position) => {
       const quantity = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 4 }).format(Number(position.quantity || 0));
       const pnl = signedMoney(position.total_pnl ?? position.unrealized_pnl ?? position.realized_pnl);
-      return `${position.ticker_name || position.ticker_code} ${quantity}주 / 평단 ${money(position.average_cost)} / 손익 ${pnl} / ${riskText(position)}`;
+      const pnlRate = signedPercent(position.unrealized_pnl_rate);
+      return `${position.ticker_name || position.ticker_code} ${quantity}주 / 평단 ${money(position.average_cost)} / 손익 ${pnl} (${pnlRate}) / ${riskText(position)}`;
     });
   }
 
@@ -6213,7 +6227,7 @@ MEMBER_PAGE_JS = """
         const detail = details[row.id];
         const totals = detail?.totals || {};
         const meta = detail
-          ? `${row.base_currency || "KRW"} / 평가 ${money(totals.market_value)} / 손익 ${signedMoney(totals.total_pnl)} / 거래 ${detail.trade_count || 0}건`
+          ? `${row.base_currency || "KRW"} / 평가 ${money(totals.market_value)} / 손익 ${signedMoney(totals.total_pnl)} (${signedPercent(totals.total_pnl_rate)}) / 거래 ${detail.trade_count || 0}건`
           : `${row.base_currency || "KRW"} / ${row.id}`;
         return itemCard(row.name, meta, [
           miniList(portfolioLines(detail), "아직 보유 종목이 없습니다", "보유"),
