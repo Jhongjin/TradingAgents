@@ -4812,7 +4812,7 @@ h3 {
 .feature-diagram-top {
   display: flex;
   justify-content: space-between;
-  color: rgba(246, 243, 232, 0.58);
+  color: rgba(246, 243, 232, 0.72);
   font-family: var(--app-font-stack);
   font-size: 11px;
   font-weight: 800;
@@ -4865,7 +4865,7 @@ h3 {
 }
 
 .feature-signal-card small {
-  color: rgba(246, 243, 232, 0.58);
+  color: var(--home-readable, rgba(246, 243, 232, 0.84));
   line-height: 1.6;
 }
 
@@ -4976,7 +4976,7 @@ h3 {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  color: rgba(246, 243, 232, 0.62);
+  color: rgba(246, 243, 232, 0.74);
   font-family: var(--app-font-stack);
   font-size: 11px;
   font-weight: 900;
@@ -8324,7 +8324,7 @@ button:disabled {
 }
 
 .admin-health-strip small {
-  color: rgba(246, 243, 232, 0.62);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
   line-height: 1.5;
 }
 
@@ -8360,7 +8360,7 @@ button:disabled {
 }
 
 .admin-workflow-strip small {
-  color: rgba(246, 243, 232, 0.62);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
   line-height: 1.5;
 }
 

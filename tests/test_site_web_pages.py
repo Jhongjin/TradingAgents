@@ -390,6 +390,7 @@ def test_render_feature_detail_pages_use_public_theme():
     assert "feature-diagram" in html
     assert "Loading Boundary" in html
     assert "페이지 목적에 맞는 데이터만 요청합니다" in html
+    assert "color: var(--home-readable, rgba(246, 243, 232, 0.84));" in html
     assert 'href="/features/member-workspace">회원 기능 보기</a>' in html
     assert '<link rel="canonical" href="https://example.com/features/research">' in html
     assert 'href="/mypage"' in html
@@ -413,6 +414,8 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     assert 'aria-current="page">운영 콘솔</a>' in html
     assert "admin-health-strip" in html
     assert "admin-workflow-strip" in html
+    assert ".admin-health-strip small" in html
+    assert "color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));" in html
     assert "admin-ops-panel" in html
     assert "adminOpsSummary" in html
     assert "adminRecentPanel" in html
