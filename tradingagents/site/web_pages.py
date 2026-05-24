@@ -917,6 +917,29 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       </article>
     </section>
 
+    <section class="admin-workflow-strip" aria-label="권장 운영 순서">
+      <article>
+        <span>01</span>
+        <strong>Readiness</strong>
+        <small>페이지 진입 시 자동 조회하고, 필요할 때 KRX/vendor probe를 추가합니다.</small>
+      </article>
+      <article>
+        <span>02</span>
+        <strong>Dry run</strong>
+        <small>worker token 입력 후 실행 전 처리 대상과 제한값을 확인합니다.</small>
+      </article>
+      <article>
+        <span>03</span>
+        <strong>Process</strong>
+        <small>분석 요청 또는 outcome worker를 제한된 건수만큼 실행합니다.</small>
+      </article>
+      <article>
+        <span>04</span>
+        <strong>Audit</strong>
+        <small>결과 JSON과 readiness panel을 함께 보고 다음 운영 큐를 결정합니다.</small>
+      </article>
+    </section>
+
     <section class="admin-grid" aria-label="운영 작업">
       <article class="admin-card">
         <div class="panel-heading">
@@ -7067,6 +7090,42 @@ button:disabled {
   line-height: 1.5;
 }
 
+.admin-workflow-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.14);
+}
+
+.admin-workflow-strip article {
+  display: grid;
+  gap: 9px;
+  min-height: 132px;
+  padding: 18px;
+  background: rgba(15, 22, 18, 0.76);
+}
+
+.admin-workflow-strip span {
+  color: var(--home-acid);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-workflow-strip strong {
+  color: var(--home-ink);
+  font-size: 18px;
+}
+
+.admin-workflow-strip small {
+  color: rgba(246, 243, 232, 0.62);
+  line-height: 1.5;
+}
+
 .member-tab-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -7136,7 +7195,8 @@ button:disabled {
   .analysis-filter-panel,
   .stock-flow-strip,
   .admin-readiness-panel,
-  .admin-health-strip {
+  .admin-health-strip,
+  .admin-workflow-strip {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -7924,7 +7984,9 @@ ADMIN_PAGE_JS = """
     if (tokenState) tokenState.textContent = "worker token을 이 브라우저 세션에 저장했습니다.";
   });
 
-  document.querySelector("[data-admin-readiness]")?.addEventListener("click", async (event) => {
+  const readinessButton = document.querySelector("[data-admin-readiness]");
+
+  readinessButton?.addEventListener("click", async (event) => {
     const button = event.currentTarget;
     try {
       setBusy(button, true);
@@ -7945,6 +8007,10 @@ ADMIN_PAGE_JS = """
       setBusy(button, false);
     }
   });
+
+  window.setTimeout(() => {
+    if (readinessButton && !readinessButton.disabled) readinessButton.click();
+  }, 120);
 
   async function runAdminAction(action, button) {
     const isDryRun = action.endsWith("dry-run");

@@ -379,6 +379,9 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
 
     assert "관리자 콘솔" in html
     assert "admin-health-strip" in html
+    assert "admin-workflow-strip" in html
+    assert "권장 운영 순서" in html
+    assert "readinessButton" in html
     assert "adminReadinessPanel" in html
     assert "readiness-cell" in html
     assert "renderReadinessPanel" in html
