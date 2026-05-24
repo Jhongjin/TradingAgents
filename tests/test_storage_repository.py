@@ -216,6 +216,79 @@ def test_storage_repository_lists_latest_public_analysis_bundle():
     assert bundle["reports"][0]["content"] == "latest public report"
 
 
+def test_storage_repository_lists_public_analysis_feed_items_without_full_bundles():
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+            model_provider="openai",
+        )
+    )
+    repo.add_agent_report(
+        AgentReportInput(
+            analysis_run_id=run_id,
+            role="market",
+            content="market report",
+        )
+    )
+    repo.record_trade_decision(
+        TradeDecisionInput(
+            analysis_run_id=run_id,
+            rating="Hold",
+            action="hold",
+            raw_decision="Rating: Hold",
+        )
+    )
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 12),
+            horizon_days=20,
+            raw_return=0.02,
+            benchmark_return=0.01,
+            alpha_return=0.01,
+            status="completed",
+        )
+    )
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 12),
+            horizon_days=5,
+            raw_return=0.04,
+            benchmark_return=0.01,
+            alpha_return=0.03,
+            status="completed",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+
+    items = repo.list_public_analysis_feed_items(ticker_code="005930")
+
+    assert len(items) == 1
+    assert items[0]["id"] == run_id
+    assert items[0]["report_count"] == 1
+    assert items[0]["decision_rating"] == "Hold"
+    assert items[0]["decision_action"] == "hold"
+    assert items[0]["completed_outcome_count"] == 2
+    assert items[0]["outcome_horizon_days"] == 5
+    assert items[0]["alpha_return"] == 0.03
+    assert items[0]["report_path"] == f"/analyses/{run_id}"
+    assert items[0]["api_path"] == f"/api/analyses/{run_id}"
+
+
 def test_storage_repository_queues_analysis_refresh_requests():
     repo = _repo()
     request_id = repo.create_analysis_request(

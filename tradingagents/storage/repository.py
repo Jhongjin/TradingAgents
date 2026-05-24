@@ -300,6 +300,80 @@ class StorageRepository:
             rows = conn.execute(stmt).mappings().all()
         return [dict(row) for row in rows]
 
+    def list_public_analysis_feed_items(
+        self,
+        *,
+        ticker_code: str | None = None,
+        status: str | None = "completed",
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """List public feed rows with compact report, decision, and outcome summaries.
+
+        This keeps the public feed from loading the full report bundle for every
+        card while preserving the fields the API and HTML feed need.
+        """
+
+        runs = self.list_public_analysis_runs(ticker_code=ticker_code, status=status, limit=limit)
+        if not runs:
+            return []
+
+        run_ids = [str(run["id"]) for run in runs]
+        with self.engine.begin() as conn:
+            report_count_rows = conn.execute(
+                select(
+                    agent_reports.c.analysis_run_id,
+                    func.count(agent_reports.c.id).label("report_count"),
+                )
+                .where(agent_reports.c.analysis_run_id.in_(run_ids))
+                .group_by(agent_reports.c.analysis_run_id)
+            ).mappings().all()
+            decision_rows = conn.execute(
+                select(trade_decisions).where(trade_decisions.c.analysis_run_id.in_(run_ids))
+            ).mappings().all()
+            outcome_rows = conn.execute(
+                select(analysis_outcomes)
+                .where(
+                    and_(
+                        analysis_outcomes.c.analysis_run_id.in_(run_ids),
+                        analysis_outcomes.c.status == "completed",
+                    )
+                )
+                .order_by(analysis_outcomes.c.analysis_run_id, analysis_outcomes.c.horizon_days)
+            ).mappings().all()
+
+        report_counts = {
+            str(row["analysis_run_id"]): int(row["report_count"] or 0)
+            for row in report_count_rows
+        }
+        decisions = {str(row["analysis_run_id"]): dict(row) for row in decision_rows}
+        completed_outcome_counts: dict[str, int] = {}
+        preferred_outcomes: dict[str, dict[str, Any]] = {}
+        for outcome in outcome_rows:
+            run_id = str(outcome["analysis_run_id"])
+            completed_outcome_counts[run_id] = completed_outcome_counts.get(run_id, 0) + 1
+            preferred_outcomes.setdefault(run_id, dict(outcome))
+
+        items: list[dict[str, Any]] = []
+        for run in runs:
+            item = dict(run)
+            run_id = str(item["id"])
+            decision = decisions.get(run_id)
+            preferred_outcome = preferred_outcomes.get(run_id)
+            item["report_path"] = f"/analyses/{run_id}"
+            item["api_path"] = f"/api/analyses/{run_id}"
+            item["report_count"] = report_counts.get(run_id, 0)
+            item["completed_outcome_count"] = completed_outcome_counts.get(run_id, 0)
+            if decision:
+                item["decision_rating"] = decision.get("rating")
+                item["decision_action"] = decision.get("action")
+            if preferred_outcome:
+                item["outcome_horizon_days"] = preferred_outcome.get("horizon_days")
+                item["raw_return"] = preferred_outcome.get("raw_return")
+                item["benchmark_return"] = preferred_outcome.get("benchmark_return")
+                item["alpha_return"] = preferred_outcome.get("alpha_return")
+            items.append(item)
+        return items
+
     def latest_public_analysis_bundle(self, ticker_code: str) -> dict[str, Any] | None:
         """Return the newest public analysis bundle for a ticker."""
 

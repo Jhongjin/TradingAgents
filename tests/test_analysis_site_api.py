@@ -9,15 +9,22 @@ from tradingagents.site import (
 )
 from tradingagents.site.analysis_api import AnalysisRequestQuotaExceeded, build_member_analysis_requests_payload
 from tradingagents.storage import (
+    AgentReportInput,
     AnalysisOutcomeInput,
     AnalysisRequestInput,
     AnalysisRunInput,
     StorageRepository,
+    TradeDecisionInput,
     create_storage_engine,
 )
 
 
 USER_ID = "00000000-0000-0000-0000-000000000001"
+
+
+class NoBundleFeedRepository(StorageRepository):
+    def get_analysis_bundle(self, analysis_run_id: str):
+        raise AssertionError("public feed should not load full analysis bundles")
 
 
 def _repo() -> StorageRepository:
@@ -245,6 +252,36 @@ def test_public_analysis_feed_lists_completed_public_runs_only():
             visibility="public",
         )
     )
+    repo.add_agent_report(
+        AgentReportInput(
+            analysis_run_id=public_run_id,
+            role="market",
+            content="market report",
+        )
+    )
+    repo.record_trade_decision(
+        TradeDecisionInput(
+            analysis_run_id=public_run_id,
+            rating="Hold",
+            action="hold",
+            raw_decision="Rating: Hold",
+        )
+    )
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=public_run_id,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 12),
+            horizon_days=5,
+            raw_return=0.04,
+            benchmark_return=0.01,
+            alpha_return=0.03,
+            status="completed",
+        )
+    )
     repo.complete_analysis_run(public_run_id)
     repo.complete_analysis_run(private_run_id)
 
@@ -256,8 +293,13 @@ def test_public_analysis_feed_lists_completed_public_runs_only():
     assert payload["summary"]["unique_ticker_count"] == 1
     assert payload["summary"]["market_counts"] == {"KOSPI": 1}
     assert payload["summary"]["latest_trade_date"] == "2026-05-05"
-    assert payload["summary"]["outcome_covered_count"] == 0
-    assert payload["summary"]["outcome_coverage_rate"] == 0.0
+    assert payload["items"][0]["report_count"] == 1
+    assert payload["items"][0]["decision_rating"] == "Hold"
+    assert payload["items"][0]["completed_outcome_count"] == 1
+    assert payload["items"][0]["alpha_return"] == 0.03
+    assert payload["summary"]["outcome_covered_count"] == 1
+    assert payload["summary"]["outcome_coverage_rate"] == 1.0
+    assert payload["summary"]["average_alpha_return"] == 0.03
     assert private_run_id not in [item["id"] for item in payload["items"]]
     assert pending_run_id not in [item["id"] for item in payload["items"]]
 
@@ -267,6 +309,26 @@ def test_public_analysis_feed_validates_limit():
 
     with pytest.raises(ValueError, match="cannot exceed 1"):
         build_public_analysis_feed_payload(repo, limit=2, max_limit=1)
+
+
+def test_public_analysis_feed_uses_compact_feed_query_not_bundle_lookup():
+    repo = NoBundleFeedRepository(create_storage_engine())
+    repo.create_schema()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+
+    payload = build_public_analysis_feed_payload(repo)
+
+    assert payload["status"] == "available"
+    assert [item["id"] for item in payload["items"]] == [run_id]
 
 
 def test_public_analysis_outcomes_payload_summarizes_completed_alpha():

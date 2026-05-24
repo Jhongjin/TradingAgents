@@ -235,8 +235,11 @@ def build_public_analysis_feed_payload(
         ticker_code = resolve_kr_ticker(ticker, lookup_pykrx=False).code
 
     try:
-        rows = repo.list_public_analysis_runs(ticker_code=ticker_code, limit=limit)
-        items = [_enrich_public_analysis_item(repo, row) for row in rows]
+        if hasattr(repo, "list_public_analysis_feed_items"):
+            items = repo.list_public_analysis_feed_items(ticker_code=ticker_code, limit=limit)
+        else:
+            rows = repo.list_public_analysis_runs(ticker_code=ticker_code, limit=limit)
+            items = [_enrich_public_analysis_item(repo, row) for row in rows]
     except Exception as exc:
         return _json_ready(
             {
