@@ -1427,7 +1427,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
   <link rel="canonical" href="{_h(model["canonical_url"])}">
   <style>{PAGE_CSS}</style>
 </head>
-<body class="member-page is-member-signed-out">
+<body class="member-page is-member-checking">
   <a class="skip-link" href="#main-content">본문 바로가기</a>
   <header class="topbar">
     <a class="brand" href="/" aria-label="TradingAgents Korea home">
@@ -1445,6 +1445,13 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
   </header>
 
   <main id="main-content" class="shell member-shell">
+    <section class="member-session-gate" id="memberSessionGate" aria-live="polite" aria-label="회원 세션 확인">
+      <p class="eyebrow">Session Check</p>
+      <h1>세션을 확인하고 있습니다</h1>
+      <p>저장된 로그인 토큰이 있으면 바로 투자 노트로 이동하고, 없으면 로그인/가입 화면을 엽니다.</p>
+      <div class="member-session-meter" aria-hidden="true"><span></span></div>
+    </section>
+
     <section class="member-auth-landing" id="memberAuthLanding" aria-labelledby="member-auth-title">
       <div class="member-auth-copy">
         <p class="eyebrow">Member Access</p>
@@ -5270,6 +5277,80 @@ h3 {
   border: 1px solid var(--home-acid);
   background: var(--home-acid);
   color: #10130f;
+}
+
+.member-session-gate {
+  display: grid;
+  align-content: center;
+  min-height: min(620px, calc(100svh - 132px));
+  padding: clamp(52px, 8vw, 96px) 0;
+}
+
+.member-session-gate h1 {
+  max-width: 780px;
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(44px, 6.2vw, 82px);
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+.member-session-gate p:not(.eyebrow) {
+  max-width: 620px;
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: clamp(16px, 2vw, 20px);
+  line-height: 1.62;
+}
+
+.member-session-meter {
+  position: relative;
+  width: min(520px, 100%);
+  height: 8px;
+  margin-top: 34px;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.16);
+  border-radius: 999px;
+  background: rgba(246, 243, 232, 0.08);
+}
+
+.member-session-meter span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 42%;
+  border-radius: inherit;
+  background: var(--home-acid);
+  animation: memberSessionSweep 1.4s ease-in-out infinite;
+}
+
+.member-page:not(.is-member-checking) .member-session-gate {
+  display: none;
+}
+
+.member-page.is-member-checking .member-auth-landing,
+.member-page.is-member-checking .member-workspace {
+  display: none;
+}
+
+@keyframes memberSessionSweep {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  50% {
+    transform: translateX(80%);
+  }
+
+  100% {
+    transform: translateX(240%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .member-session-meter span {
+    animation: none;
+    width: 100%;
+  }
 }
 
 .member-auth-landing {
@@ -9494,6 +9575,7 @@ MEMBER_PAGE_JS = """
   };
   const requestedAuthMode = new URLSearchParams(window.location.search).get("mode");
   const memberBody = document.body;
+  const sessionGate = document.getElementById("memberSessionGate");
   const authLanding = document.getElementById("memberAuthLanding");
   const memberWorkspace = document.getElementById("memberWorkspace");
   const signedOutNavItems = Array.from(document.querySelectorAll('[data-auth-visible="signed-out"]'));
@@ -9605,8 +9687,10 @@ MEMBER_PAGE_JS = """
 
   function setAuthUiState(isSignedIn) {
     const signedIn = Boolean(isSignedIn);
+    memberBody?.classList.remove("is-member-checking");
     memberBody?.classList.toggle("is-member-signed-in", signedIn);
     memberBody?.classList.toggle("is-member-signed-out", !signedIn);
+    if (sessionGate) sessionGate.hidden = true;
     if (authLanding) authLanding.hidden = signedIn;
     if (memberWorkspace) memberWorkspace.hidden = !signedIn;
     signedOutNavItems.forEach((node) => {
@@ -10613,7 +10697,11 @@ MEMBER_PAGE_JS = """
 
   migrateSessionStorage();
   setupMemberTabs();
-  setAuthUiState(Boolean(accessToken() || refreshToken()));
+  if (accessToken() || refreshToken()) {
+    setSignedInState(true, { label: "세션 확인 중", meta: "대시보드를 불러오고 있습니다." });
+  } else {
+    setAuthUiState(false);
+  }
   applyRequestedAuthMode();
   const redirectSession = consumeRedirectSession();
   if (redirectSession.shouldLoad) {

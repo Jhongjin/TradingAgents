@@ -267,6 +267,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "리서치 노트를 안전하게 보관하세요" in html
     assert "회원 작업공간은 로그인 후에만 열립니다" in html
     assert "내 투자 노트" in html
+    assert "memberSessionGate" in html
+    assert "세션을 확인하고 있습니다" in html
     assert "member-tab-strip" in html
     assert 'role="tablist"' in html
     assert 'data-member-tab="home"' in html
@@ -287,7 +289,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'id="watchlist-section"' in html
     assert 'id="memberAuthLanding"' in html
     assert 'id="memberWorkspace" hidden' in html
-    assert 'class="member-page is-member-signed-out"' in html
+    assert 'class="member-page is-member-checking"' in html
     assert 'data-auth-visible="signed-out"' in html
     assert 'data-auth-visible="signed-in" hidden' in html
     assert 'href="/features/research"' in html
@@ -334,6 +336,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "대시보드 준비 완료" in html
     assert "setSignedInState" in html
     assert "setAuthUiState" in html
+    assert "is-member-checking" in html
     assert "로그인 세션이 만료되었습니다" in html
     assert 'aria-live="polite"' in html
     assert 'id="passwordToggle"' in html
