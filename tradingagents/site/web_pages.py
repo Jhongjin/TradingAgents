@@ -2871,6 +2871,7 @@ PAGE_CSS = """
   --loss: #1d4ed8;
   --warn: #8a5a0a;
   --shadow: 0 18px 50px rgba(20, 31, 28, 0.08);
+  --app-font-stack: Geist, "Geist Fallback", "Noto Sans KR", "Noto Sans KR Fallback", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 }
 
 * {
@@ -2886,7 +2887,14 @@ body {
   min-width: 320px;
   background: var(--bg);
   color: var(--ink);
-  font-family: Pretendard, Geist, Satoshi, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--app-font-stack);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: var(--app-font-stack);
 }
 
 a {
@@ -3251,7 +3259,7 @@ a {
 .home-pipeline span {
   padding: 12px;
   color: rgba(243, 245, 239, 0.58);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -3270,7 +3278,7 @@ a {
 .home-console-focus small {
   display: block;
   color: rgba(243, 245, 239, 0.62);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 12px;
 }
 
@@ -3322,7 +3330,7 @@ a {
 }
 
 .home-console-grid strong {
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 13px;
 }
 
@@ -3490,7 +3498,7 @@ a {
 
 .home-flow-list span {
   color: var(--accent-strong);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 13px;
   font-weight: 800;
 }
@@ -3734,7 +3742,7 @@ h3 {
 
 .data-source-strip dt {
   color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -4003,7 +4011,7 @@ h3 {
 
 .analysis-pipeline-strip span {
   color: var(--accent);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 12px;
   font-weight: 900;
 }
@@ -4049,7 +4057,7 @@ h3 {
   display: block;
   margin: 10px 0 8px;
   overflow-wrap: anywhere;
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 24px;
   font-variant-numeric: tabular-nums;
   line-height: 1.12;
@@ -4139,7 +4147,7 @@ h3 {
 
 .analysis-confidence-panel span {
   color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -4259,7 +4267,7 @@ h3 {
 }
 
 .analysis-feed-card-top small {
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -4411,13 +4419,25 @@ h3 {
 .admin-hero > div > p {
   max-width: 680px;
   margin: 0;
-  color: rgba(246, 243, 232, 0.72);
+  color: var(--home-readable, rgba(246, 243, 232, 0.8));
   font-size: clamp(17px, 2vw, 21px);
   line-height: 1.72;
 }
 
 .feature-proof-row {
   max-width: 760px;
+}
+
+.public-home .feature-proof-row {
+  border-top-color: rgba(246, 243, 232, 0.2);
+}
+
+.public-home .feature-proof-row dt {
+  color: rgba(143, 216, 189, 0.94);
+}
+
+.public-home .feature-proof-row dd {
+  color: rgba(246, 243, 232, 0.9);
 }
 
 .feature-diagram {
@@ -4440,7 +4460,7 @@ h3 {
   display: flex;
   justify-content: space-between;
   color: rgba(246, 243, 232, 0.58);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -4480,7 +4500,7 @@ h3 {
 
 .feature-signal-card span {
   color: var(--home-mint);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 12px;
   font-weight: 800;
 }
@@ -4523,7 +4543,7 @@ h3 {
 
 .feature-card-grid span {
   color: var(--home-acid);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 12px;
   font-weight: 900;
 }
@@ -4632,7 +4652,7 @@ h3 {
 
 .readiness-cell span {
   color: rgba(198, 221, 192, 0.86);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -4809,7 +4829,7 @@ h3 {
 
 .member-auth-points span {
   color: var(--home-acid);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 12px;
   font-weight: 800;
 }
@@ -4892,7 +4912,7 @@ h3 {
 .member-overview-strip span,
 .member-form-block > strong {
   color: var(--home-celadon);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -4901,7 +4921,7 @@ h3 {
 
 .member-overview-strip strong {
   color: var(--ink);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 24px;
   font-variant-numeric: tabular-nums;
 }
@@ -4935,7 +4955,7 @@ h3 {
 
 .member-home-card span {
   color: var(--home-acid);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 12px;
   font-weight: 900;
 }
@@ -5238,7 +5258,7 @@ h3 {
   display: block;
   margin: 4px 0 0;
   color: var(--ink);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 15px;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
@@ -5280,7 +5300,7 @@ h3 {
   display: block;
   margin: 3px 0;
   color: var(--ink);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 18px;
   font-variant-numeric: tabular-nums;
 }
@@ -5837,6 +5857,8 @@ h3 {
   --home-panel-2: #22251f;
   --home-line: rgba(246, 243, 232, 0.16);
   --home-muted: #a6ada2;
+  --home-readable: rgba(246, 243, 232, 0.8);
+  --home-muted-readable: rgba(246, 243, 232, 0.74);
   --home-celadon: #8fd8bd;
   --home-acid: #d7ff3f;
   --home-vermilion: #ff5a3d;
@@ -5925,7 +5947,7 @@ h3 {
   left: 0;
   bottom: 16px;
   color: rgba(246, 243, 232, 0.28);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -5938,7 +5960,7 @@ h3 {
 .home-kicker {
   margin: 0 0 18px;
   color: var(--home-celadon);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.14em;
@@ -6026,7 +6048,7 @@ h3 {
 .home-trust-panel span {
   display: block;
   color: var(--home-celadon);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -6061,7 +6083,7 @@ h3 {
 
 .home-signal-strip dt {
   color: var(--home-celadon);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
 }
 
 .home-signal-strip dd {
@@ -6197,7 +6219,7 @@ h3 {
   padding: 12px 10px;
   border-right: 1px solid rgba(246, 243, 232, 0.14);
   color: rgba(246, 243, 232, 0.66);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -6231,7 +6253,7 @@ h3 {
   padding: 10px 18px;
   border-right: 1px solid rgba(246, 243, 232, 0.1);
   color: rgba(246, 243, 232, 0.72);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -6322,7 +6344,7 @@ h3 {
 .public-home .home-section-copy p,
 .public-home .home-flow-list p,
 .public-home .home-ops-strip li {
-  color: rgba(246, 243, 232, 0.66);
+  color: var(--home-muted-readable);
 }
 
 .public-home .home-ops-strip a {
@@ -6350,7 +6372,7 @@ h3 {
 .home-lens-grid span,
 .home-flow-list span {
   color: var(--home-acid);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
 }
 
 .home-lens-grid strong {
@@ -6384,7 +6406,7 @@ h3 {
 .public-home .analysis-feed-card p,
 .public-home .analysis-feed-card small,
 .public-home .analysis-feed-card dt {
-  color: rgba(246, 243, 232, 0.6);
+  color: var(--home-muted-readable);
 }
 
 .public-home .analysis-feed-card dl div {
@@ -6741,7 +6763,7 @@ button:disabled {
 
 .market-page .summary-band h1 span:not(.outcome-title-line) {
   color: rgba(246, 243, 232, 0.42);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: clamp(20px, 2.2vw, 34px);
 }
 
@@ -6800,7 +6822,7 @@ button:disabled {
 .stock-signal-card span,
 .stock-signal-card dt {
   color: var(--home-celadon);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -6865,7 +6887,7 @@ button:disabled {
 
 .stock-flow-strip span {
   color: var(--home-acid);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 12px;
   font-weight: 900;
 }
@@ -6877,13 +6899,13 @@ button:disabled {
 }
 
 .stock-flow-strip small {
-  color: rgba(246, 243, 232, 0.62);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.74));
   line-height: 1.5;
 }
 
 .market-page .eyebrow {
   color: var(--home-celadon);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 11px;
   letter-spacing: 0.12em;
 }
@@ -6902,7 +6924,7 @@ button:disabled {
 .market-page .lens-card p,
 .market-page .outcome-card p,
 .market-page .outcome-card dt {
-  color: rgba(246, 243, 232, 0.64);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.74));
 }
 
 .market-page .decision-box,
@@ -6937,7 +6959,7 @@ button:disabled {
 
 .market-page .decision-label,
 .market-page .status-pill {
-  color: rgba(246, 243, 232, 0.66);
+  color: rgba(246, 243, 232, 0.74);
 }
 
 .market-page .decision-box span:last-child,
@@ -6960,7 +6982,7 @@ button:disabled {
 }
 
 .market-page .analysis-pipeline-strip small {
-  color: rgba(246, 243, 232, 0.62);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.74));
 }
 
 .market-page .analysis-feed-card.is-positive-alpha {
@@ -7048,7 +7070,7 @@ button:disabled {
 
 .market-page .analysis-confidence-panel p,
 .market-page .analysis-confidence-panel ul {
-  color: rgba(246, 243, 232, 0.64);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.74));
 }
 
 .market-page .chart-tab:hover,
@@ -7115,7 +7137,8 @@ button:disabled {
 
 .market-page .analysis-feed-actions a {
   border-color: rgba(246, 243, 232, 0.16);
-  color: var(--home-ink);
+  background: rgba(246, 243, 232, 0.055);
+  color: rgba(246, 243, 232, 0.9);
 }
 
 .market-page .analysis-feed-actions a:first-child {
@@ -7136,7 +7159,7 @@ button:disabled {
 
 .analysis-filter-panel p {
   margin: 0;
-  color: rgba(246, 243, 232, 0.62);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.74));
   line-height: 1.55;
 }
 
@@ -7149,7 +7172,7 @@ button:disabled {
 
 .analysis-filter-form label {
   color: var(--home-celadon);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -7336,7 +7359,7 @@ button:disabled {
 
 .analysis-detail-map-grid span {
   color: var(--home-acid);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 11px;
   font-weight: 900;
 }
@@ -7375,7 +7398,7 @@ button:disabled {
 .analysis-detail-report-card span {
   display: block;
   color: var(--home-celadon);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -7568,7 +7591,7 @@ button:disabled {
 
 .admin-health-strip span {
   color: var(--home-celadon);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -7606,7 +7629,7 @@ button:disabled {
 
 .admin-workflow-strip span {
   color: var(--home-acid);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--app-font-stack);
   font-size: 12px;
   font-weight: 900;
 }
@@ -7654,7 +7677,7 @@ button:disabled {
   border-radius: 999px;
   background: rgba(246, 243, 232, 0.06);
   color: rgba(246, 243, 232, 0.72);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--app-font-stack);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -7977,7 +8000,7 @@ PAGE_JS = """
         homeCtx.strokeStyle = node.tone;
         homeCtx.stroke();
         homeCtx.globalAlpha = 0.72;
-        homeCtx.font = "700 11px JetBrains Mono, Consolas, monospace";
+        homeCtx.font = '700 11px Geist, "Geist Fallback", "Noto Sans KR", "Noto Sans KR Fallback", -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
         homeCtx.fillText(node.label, x + 10, y - 10);
       });
 
