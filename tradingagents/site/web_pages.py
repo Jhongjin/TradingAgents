@@ -316,6 +316,7 @@ def render_public_analysis_feed_page(
   </main>
 
   <script id="analysis-feed-payload" type="application/json">{payload_json}</script>
+  <script>{PAGE_JS}</script>
 </body>
 </html>"""
 
@@ -336,6 +337,7 @@ def render_public_analysis_detail_page(
     decision_html = _analysis_detail_decision_card(model["decision"])
     outcomes_html = _outcome_cards(model["outcomes"])
     provenance_html = _analysis_detail_provenance(model)
+    detail_map_html = _analysis_detail_map(model)
     payload_json = _script_json(payload)
     structured_data_json = _script_json(_analysis_detail_structured_data(model, payload))
 
@@ -392,13 +394,15 @@ def render_public_analysis_detail_page(
       </aside>
     </section>
 
-    <section class="analysis-provenance-grid" aria-label="리포트 출처와 한계">
+    {detail_map_html}
+
+    <section id="analysis-provenance" class="analysis-provenance-grid" aria-label="리포트 출처와 한계">
       {provenance_html}
     </section>
 
     {decision_html}
 
-    <section class="report-section analysis-detail-reports" aria-labelledby="analysis-reports-title">
+    <section id="analysis-reports" class="report-section analysis-detail-reports" aria-labelledby="analysis-reports-title">
       <div class="panel-heading">
         <div>
           <p class="eyebrow">Agent Reports</p>
@@ -422,6 +426,7 @@ def render_public_analysis_detail_page(
   </main>
 
   <script id="analysis-detail-payload" type="application/json">{payload_json}</script>
+  <script>{PAGE_JS}</script>
 </body>
 </html>"""
 
@@ -1950,6 +1955,54 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
     return "\n".join(cards)
 
 
+def _analysis_detail_map(model: dict[str, Any]) -> str:
+    reports = model.get("reports") or []
+    outcomes = model.get("outcomes") or []
+    run_id = str(model.get("run_id") or "")
+    summary = model.get("summary") or {}
+    cards = [
+        ("01", "Stored run", f"run {run_id[:8] or '-'}", model.get("timestamp_label") or "저장 시각 없음"),
+        ("02", "Decision", model.get("decision_label") or "-", model.get("data_basis") or "기준 데이터 확인"),
+        ("03", "Agent reports", f"{len(reports)}개", model.get("analyst_label") or "agent 목록 확인"),
+        (
+            "04",
+            "Outcome",
+            f"{summary.get('completed_outcome_count', len(outcomes) or 0)}개 완료",
+            f"평균 알파 {model.get('average_alpha_label') or '-'}",
+        ),
+    ]
+    card_html = "".join(
+        f"""
+        <article>
+          <span>{_h(number)}</span>
+          <strong>{_h(title)}</strong>
+          <small>{_h(value)}</small>
+          <em>{_h(note)}</em>
+        </article>
+        """
+        for number, title, value, note in cards
+    )
+    return f"""
+    <section class="analysis-detail-map" aria-label="리포트 읽기 순서">
+      <div class="analysis-detail-map-heading">
+        <div>
+          <p class="eyebrow">Report Map</p>
+          <h2>리포트 읽기 순서</h2>
+        </div>
+        <nav aria-label="리포트 섹션 바로가기">
+          <a href="#analysis-provenance">출처</a>
+          <a href="#analysis-decision">판단</a>
+          <a href="#analysis-reports">리포트</a>
+          <a href="#analysis-outcomes">성과</a>
+        </nav>
+      </div>
+      <div class="analysis-detail-map-grid">
+        {card_html}
+      </div>
+    </section>
+    """
+
+
 def _analysis_detail_report_cards(reports: list[dict[str, Any]]) -> str:
     if not reports:
         return """
@@ -2048,7 +2101,7 @@ def _analysis_detail_decision_card(decision: dict[str, Any]) -> str:
         </article>
         """
     return f"""
-    <section class="analysis-rationale-section" aria-label="최종 판단">
+    <section id="analysis-decision" class="analysis-rationale-section" aria-label="최종 판단">
       {body}
     </section>
     """
@@ -2197,7 +2250,7 @@ def _outcome_cards(outcomes: list[dict[str, Any]]) -> str:
     else:
         cards = "\n".join(_outcome_card(outcome) for outcome in outcomes[:6])
     return f"""
-    <section class="outcome-section" aria-labelledby="outcome-title">
+    <section id="analysis-outcomes" class="outcome-section" aria-labelledby="outcome-title">
       <div class="panel-heading">
         <div>
           <p class="eyebrow">Outcome Track Record</p>
@@ -6694,6 +6747,96 @@ button:disabled {
   align-self: stretch;
 }
 
+.analysis-detail-map {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(215, 255, 63, 0.08), rgba(143, 216, 189, 0.05)),
+    rgba(15, 22, 18, 0.72);
+}
+
+.analysis-detail-map-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.analysis-detail-map-heading h2 {
+  color: var(--home-ink);
+  font-size: clamp(24px, 3vw, 38px);
+  line-height: 1;
+}
+
+.analysis-detail-map-heading nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.analysis-detail-map-heading a {
+  display: inline-grid;
+  min-height: 34px;
+  place-items: center;
+  border: 1px solid rgba(246, 243, 232, 0.16);
+  border-radius: 6px;
+  color: var(--home-ink);
+  padding: 0 11px;
+  font-size: 13px;
+  font-weight: 900;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.analysis-detail-map-heading a:hover {
+  transform: translateY(-1px);
+  border-color: rgba(215, 255, 63, 0.42);
+  background: rgba(215, 255, 63, 0.1);
+}
+
+.analysis-detail-map-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.12);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.12);
+}
+
+.analysis-detail-map-grid article {
+  display: grid;
+  gap: 9px;
+  min-height: 132px;
+  padding: 16px;
+  background: rgba(9, 13, 11, 0.44);
+}
+
+.analysis-detail-map-grid span {
+  color: var(--home-acid);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.analysis-detail-map-grid strong {
+  color: var(--home-ink);
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.analysis-detail-map-grid small,
+.analysis-detail-map-grid em {
+  color: rgba(246, 243, 232, 0.62);
+  font-style: normal;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .analysis-provenance-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -6989,6 +7132,7 @@ button:disabled {
   .market-page .summary-band,
   .analysis-detail-hero,
   .analysis-provenance-grid,
+  .analysis-detail-map-grid,
   .analysis-filter-panel,
   .stock-flow-strip,
   .admin-readiness-panel,
@@ -7030,6 +7174,19 @@ button:disabled {
 
   .stock-signal-card dl {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .analysis-detail-map-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .analysis-detail-map-heading nav {
+    justify-content: stretch;
+  }
+
+  .analysis-detail-map-heading a {
+    flex: 1 1 128px;
   }
 
   .analysis-rationale-card dl {

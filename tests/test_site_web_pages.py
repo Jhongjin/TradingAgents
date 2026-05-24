@@ -575,6 +575,11 @@ def test_render_public_analysis_detail_page_shows_report_context():
 
     assert 'class="public-home market-page analysis-page analysis-detail-page"' in html
     assert "삼성전자 공개 분석 리포트" in html
+    assert "analysis-detail-map" in html
+    assert "리포트 읽기 순서" in html
+    assert 'href="#analysis-reports"' in html
+    assert 'id="analysis-decision"' in html
+    assert 'id="analysis-outcomes"' in html
     assert "데이터 기준일" in html
     assert "데이터/vendor" in html
     assert "KRX/DART/Naver" in html
@@ -590,6 +595,7 @@ def test_render_public_analysis_detail_page_shows_report_context():
     assert f'href="/api/analyses/{run_id}">JSON</a>' in html
     assert f'<link rel="canonical" href="https://example.com/analyses/{run_id}">' in html
     assert 'id="analysis-detail-payload"' in html
+    assert "syncTopAuthLinks" in html
     assert "/api/portfolios" not in html
     assert "/api/watchlists" not in html
 
