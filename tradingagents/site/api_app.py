@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Annotated
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from zoneinfo import ZoneInfo
 
 import requests
@@ -971,10 +971,23 @@ def _resolve_stock_lookup(value: str) -> str:
 
 
 def _request_site_base_url(request: Request) -> str:
+    request_base = str(request.base_url).rstrip("/")
     configured = os.getenv("TRADINGAGENTS_SITE_BASE_URL")
     if configured:
+        configured_host = urlparse(configured).netloc.lower()
+        request_host = urlparse(request_base).netloc.lower()
+        if _should_prefer_request_site_base(configured_host, request_host):
+            return request_base
         return configured
-    return str(request.base_url).rstrip("/")
+    return request_base
+
+
+def _should_prefer_request_site_base(configured_host: str, request_host: str) -> bool:
+    if not configured_host or not request_host or configured_host == request_host:
+        return False
+    if request_host == "testserver" or request_host.startswith(("localhost", "127.0.0.1")):
+        return False
+    return configured_host.endswith(".vercel.app") and "-git-" in configured_host
 
 
 def _sitemap_tickers(repo: StorageRepository | None) -> tuple[str, ...]:

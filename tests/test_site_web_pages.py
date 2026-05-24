@@ -813,6 +813,23 @@ def test_api_app_serves_robots_sitemap_and_ads_txt(monkeypatch):
     assert favicon_response.status_code == 204
 
 
+def test_api_app_sitemap_prefers_public_request_host_over_vercel_branch_env(monkeypatch):
+    monkeypatch.setenv(
+        "TRADINGAGENTS_SITE_BASE_URL",
+        "https://trading-agents-git-codex-kr-market-jeonhongjins-projects.vercel.app",
+    )
+    client = TestClient(
+        create_app(repo=None, load_repo_from_env=False),
+        base_url="https://trading-agents-seven.vercel.app",
+    )
+
+    response = client.get("/sitemap.xml")
+
+    assert response.status_code == 200
+    assert "https://trading-agents-seven.vercel.app/outcomes" in response.text
+    assert "trading-agents-git-codex-kr-market" not in response.text
+
+
 def test_api_app_sitemap_includes_stored_public_analysis_tickers(monkeypatch):
     repo = _repo()
     run_id = repo.create_analysis_run(
