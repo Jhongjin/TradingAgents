@@ -53,6 +53,8 @@ def render_public_stock_page(
     chart_source_html = _data_source_strip(model["chart_source_rows"], label="차트 데이터 출처")
     analysis_source_html = _data_source_strip(model["analysis_source_rows"], label="공개 분석 출처")
     confidence_html = _analysis_confidence_panel(model["analysis_confidence"])
+    stock_flow_html = _stock_flow_strip(model)
+    stock_signal_html = _stock_signal_card(model)
 
     return f"""<!doctype html>
 <html lang="ko">
@@ -99,13 +101,22 @@ def render_public_stock_page(
         <p class="eyebrow">{_h(model["market_line"])}</p>
         <h1 id="stock-title">{_h(model["name"])} <span>{_h(model["code"])}</span></h1>
         <p class="asof">{_h(model["generated_at"])} 기준</p>
+        <div class="stock-hero-actions" aria-label="종목 상세 주요 이동">
+          <a href="/analyses?ticker={_h(model["code"])}">공개 분석 이력</a>
+          <a href="/member#analysis-request-section">분석 요청</a>
+        </div>
       </div>
-      <div class="decision-box">
-        <span class="decision-label">AI 판단</span>
-        <strong>{_h(model["rating"])}</strong>
-        <span>{_h(model["action"])}</span>
-      </div>
+      <aside class="stock-hero-stack" aria-label="종목 리서치 요약">
+        <div class="decision-box">
+          <span class="decision-label">AI 판단</span>
+          <strong>{_h(model["rating"])}</strong>
+          <span>{_h(model["action"])}</span>
+        </div>
+        {stock_signal_html}
+      </aside>
     </section>
+
+    {stock_flow_html}
 
     <section class="workspace">
       <section class="chart-panel" aria-labelledby="chart-title">
@@ -1311,6 +1322,52 @@ def _chart_controls(model: dict[str, Any]) -> str:
         + "</nav>"
         "</div>"
     )
+
+
+def _stock_signal_card(model: dict[str, Any]) -> str:
+    confidence = model.get("analysis_confidence") or {}
+    return f"""
+    <div class="stock-signal-card">
+      <span>Read-only signal</span>
+      <strong>{_h(model.get("close") or "-")}</strong>
+      <small>{_h(model.get("change") or "-")} / {_h(model.get("chart_vendor_label") or "데이터 확인")}</small>
+      <dl>
+        <div>
+          <dt>분석 상태</dt>
+          <dd>{_h(model.get("analysis_state") or "-")}</dd>
+        </div>
+        <div>
+          <dt>근거</dt>
+          <dd>{_h(confidence.get("label") or "확인 필요")}</dd>
+        </div>
+      </dl>
+    </div>
+    """
+
+
+def _stock_flow_strip(model: dict[str, Any]) -> str:
+    confidence = model.get("analysis_confidence") or {}
+    items = [
+        ("01", "KRX price", model.get("chart_caption") or "가격 데이터를 확인합니다."),
+        ("02", "Public report", model.get("refresh_state") or "분석 상태 확인"),
+        ("03", "Evidence check", confidence.get("label") or "근거 확인 필요"),
+        ("04", "Read-only", "주문 기능 없이 조회와 기록 흐름만 제공합니다."),
+    ]
+    cards = "".join(
+        f"""
+        <article>
+          <span>{_h(number)}</span>
+          <strong>{_h(title)}</strong>
+          <small>{_h(str(copy))}</small>
+        </article>
+        """
+        for number, title, copy in items
+    )
+    return f"""
+    <section class="stock-flow-strip" aria-label="종목 상세 리서치 흐름">
+      {cards}
+    </section>
+    """
 
 
 def _stock_query_href(code: str, params: dict[str, str]) -> str:
@@ -5207,8 +5264,9 @@ h3 {
   }
 
   .chart-wrap {
-    min-height: 260px;
-    aspect-ratio: 4 / 3;
+    height: min(64vw, 260px);
+    min-height: 220px;
+    aspect-ratio: auto;
   }
 
   .member-action-item {
@@ -6139,6 +6197,142 @@ button:disabled {
   font-size: clamp(20px, 2.2vw, 34px);
 }
 
+.stock-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.stock-hero-actions a {
+  display: inline-grid;
+  min-height: 42px;
+  place-items: center;
+  border: 1px solid rgba(246, 243, 232, 0.18);
+  border-radius: 6px;
+  color: var(--home-ink);
+  padding: 0 14px;
+  font-weight: 900;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.stock-hero-actions a:first-child {
+  border-color: var(--home-acid);
+  background: var(--home-acid);
+  color: #10130f;
+}
+
+.stock-hero-actions a:hover {
+  transform: translateY(-1px);
+  border-color: rgba(215, 255, 63, 0.42);
+}
+
+.stock-hero-stack {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+.stock-signal-card {
+  display: grid;
+  align-content: end;
+  gap: 12px;
+  min-height: 206px;
+  padding: 20px;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-left: 4px solid var(--home-celadon);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(143, 216, 189, 0.12), rgba(246, 243, 232, 0.04)),
+    rgba(15, 22, 18, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.stock-signal-card span,
+.stock-signal-card dt {
+  color: var(--home-celadon);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stock-signal-card strong {
+  color: var(--home-ink);
+  font-size: clamp(28px, 4vw, 46px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-signal-card small {
+  color: rgba(246, 243, 232, 0.62);
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.stock-signal-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 6px 0 0;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.12);
+  border-radius: 6px;
+  background: rgba(246, 243, 232, 0.12);
+}
+
+.stock-signal-card dl div {
+  min-width: 0;
+  padding: 10px;
+  background: rgba(9, 13, 11, 0.42);
+}
+
+.stock-signal-card dd {
+  margin: 5px 0 0;
+  color: var(--home-ink);
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.stock-flow-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 18px 0 0;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.14);
+}
+
+.stock-flow-strip article {
+  display: grid;
+  gap: 9px;
+  min-height: 132px;
+  padding: 18px;
+  background: rgba(15, 22, 18, 0.78);
+}
+
+.stock-flow-strip span {
+  color: var(--home-acid);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.stock-flow-strip strong {
+  color: var(--home-ink);
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.stock-flow-strip small {
+  color: rgba(246, 243, 232, 0.62);
+  line-height: 1.5;
+}
+
 .market-page .eyebrow {
   color: var(--home-celadon);
   font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
@@ -6796,6 +6990,7 @@ button:disabled {
   .analysis-detail-hero,
   .analysis-provenance-grid,
   .analysis-filter-panel,
+  .stock-flow-strip,
   .admin-readiness-panel,
   .admin-health-strip {
     grid-template-columns: minmax(0, 1fr);
@@ -6822,6 +7017,19 @@ button:disabled {
 
   .analysis-detail-hero h1 {
     font-size: clamp(36px, 12vw, 54px);
+  }
+
+  .stock-hero-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .stock-hero-actions a {
+    width: 100%;
+  }
+
+  .stock-signal-card dl {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .analysis-rationale-card dl {

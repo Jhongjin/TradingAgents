@@ -129,6 +129,11 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "chartLegend" in html
     assert "chartTooltip" in html
     assert "chart-tab" in html
+    assert "stock-hero-stack" in html
+    assert "stock-signal-card" in html
+    assert "stock-flow-strip" in html
+    assert "공개 분석 이력" in html
+    assert 'href="/member#analysis-request-section"' in html
     assert "1개월" in html
     assert "KRX 14D" in html
     assert "pykrx / 2개 거래일" in html
