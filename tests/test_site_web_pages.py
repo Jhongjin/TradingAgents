@@ -428,6 +428,8 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     assert "renderReadinessPanel" in html
     assert "Trust header" in html
     assert "Vendor probes" in html
+    assert "Site URL" in html
+    assert "AdSense 승인 후 publisher id 또는 ads.txt 값을 설정하세요." in html
     assert "probe_vendors" in html
     assert "vendor_probes" in html
     assert "quota headers" in html
