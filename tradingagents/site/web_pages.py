@@ -4499,7 +4499,7 @@ h3 {
 }
 
 .feature-signal-card span {
-  color: var(--home-mint);
+  color: var(--home-celadon);
   font-family: var(--app-font-stack);
   font-size: 12px;
   font-weight: 800;
@@ -4559,7 +4559,7 @@ h3 {
 .admin-card label,
 .admin-card pre,
 .admin-token-panel small {
-  color: rgba(246, 243, 232, 0.68);
+  color: rgba(246, 243, 232, 0.78);
 }
 
 .admin-token-panel,
@@ -4622,7 +4622,7 @@ h3 {
   border: 1px solid rgba(246, 243, 232, 0.14);
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.2);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.55;
   white-space: pre-wrap;
 }
@@ -4666,7 +4666,7 @@ h3 {
 }
 
 .readiness-cell small {
-  color: rgba(246, 243, 232, 0.62);
+  color: rgba(246, 243, 232, 0.74);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -5625,6 +5625,30 @@ h3 {
   .topbar {
     align-items: stretch;
     flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .brand {
+    max-width: 100%;
+  }
+
+  .top-links {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 6px;
+  }
+
+  .top-links a {
+    display: grid;
+    min-height: 36px;
+    place-items: center;
+    padding: 7px 6px;
+    min-width: 0;
+    font-size: 12px;
+    text-align: center;
+    white-space: normal;
   }
 
   .ticker-search {
@@ -5652,13 +5676,68 @@ h3 {
   }
 
   .shell {
-    width: min(100% - 24px, 1280px);
+    width: calc(100% - 24px);
+    max-width: 1280px;
     padding-top: 18px;
   }
 
   .home-shell {
-    width: min(100% - 24px, 1440px);
+    width: calc(100% - 24px);
+    max-width: 1440px;
     padding-top: 14px;
+  }
+
+  .feature-shell,
+  .admin-shell {
+    padding-top: 36px;
+  }
+
+  .feature-copy h1,
+  .admin-hero h1 {
+    max-width: 100%;
+    font-size: 36px;
+    line-height: 1.04;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    text-wrap: balance;
+  }
+
+  .member-auth-copy h1 {
+    max-width: 100%;
+    font-size: 38px;
+    line-height: 1.02;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    text-wrap: balance;
+  }
+
+  .feature-copy > p,
+  .admin-hero > div > p,
+  .member-auth-lead {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .feature-diagram {
+    width: 100%;
+    min-width: 0;
+    min-height: auto;
+    padding: 18px;
+    overflow: hidden;
+  }
+
+  .feature-step-track {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .feature-signal-card {
+    padding: 18px;
+  }
+
+  .feature-signal-card strong {
+    font-size: 34px;
+    overflow-wrap: anywhere;
   }
 
   .home-hero {
@@ -6547,7 +6626,8 @@ h3 {
 
 @media (max-width: 640px) {
   .home-shell-art {
-    width: min(100% - 24px, 1440px);
+    width: calc(100% - 24px);
+    max-width: 1440px;
   }
 
   .home-hero-artboard {
@@ -6762,7 +6842,7 @@ button:disabled {
 }
 
 .market-page .summary-band h1 span:not(.outcome-title-line) {
-  color: rgba(246, 243, 232, 0.42);
+  color: rgba(246, 243, 232, 0.58);
   font-family: var(--app-font-stack);
   font-size: clamp(20px, 2.2vw, 34px);
 }
@@ -7026,7 +7106,11 @@ button:disabled {
   overflow: hidden;
   border: 1px solid rgba(246, 243, 232, 0.16);
   border-radius: 6px;
-  background: #fbfaf4;
+  background:
+    linear-gradient(90deg, rgba(246, 243, 232, 0.035) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(246, 243, 232, 0.035) 1px, transparent 1px),
+    #111711;
+  background-size: 40px 40px;
 }
 
 .market-page .status-pill,
@@ -7725,7 +7809,8 @@ button:disabled {
 
 @media (max-width: 640px) {
   .market-shell {
-    width: min(100% - 24px, 1440px);
+    width: calc(100% - 24px);
+    max-width: 1440px;
     padding-top: 22px;
   }
 
@@ -7733,12 +7818,18 @@ button:disabled {
     width: 100%;
   }
 
+  .market-page .ticker-search input {
+    min-width: 0;
+  }
+
   .market-page .summary-band h1 {
-    font-size: clamp(36px, 12vw, 52px);
+    font-size: 42px;
+    line-height: 1.02;
+    overflow-wrap: anywhere;
   }
 
   .outcome-page .summary-band h1 {
-    font-size: clamp(34px, 11vw, 46px);
+    font-size: 40px;
   }
 
   .outcome-title-line {
@@ -7746,7 +7837,9 @@ button:disabled {
   }
 
   .analysis-detail-hero h1 {
-    font-size: clamp(36px, 12vw, 54px);
+    font-size: 40px;
+    line-height: 1.04;
+    overflow-wrap: anywhere;
   }
 
   .stock-hero-actions {
@@ -8206,13 +8299,13 @@ PAGE_JS = """
     const { left, right, top, priceBottom, volumeTop, volumeBottom, candleWidth } = layout;
 
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = "#111711";
     ctx.fillRect(0, 0, width, height);
 
-    ctx.strokeStyle = "#dce3df";
+    ctx.strokeStyle = "rgba(246, 243, 232, 0.13)";
     ctx.lineWidth = 1;
-    ctx.fillStyle = "#66716f";
-    ctx.font = "12px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(246, 243, 232, 0.68)";
+    ctx.font = '12px Geist, "Geist Fallback", "Noto Sans KR", "Noto Sans KR Fallback", -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
     ctx.textBaseline = "middle";
 
     for (let i = 0; i <= 4; i += 1) {
@@ -8225,7 +8318,7 @@ PAGE_JS = """
       ctx.fillText(money.format(value), 0, y);
     }
 
-    ctx.strokeStyle = "#eef2ef";
+    ctx.strokeStyle = "rgba(246, 243, 232, 0.16)";
     ctx.beginPath();
     ctx.moveTo(left, volumeTop);
     ctx.lineTo(width - right, volumeTop);
@@ -8234,9 +8327,9 @@ PAGE_JS = """
     bars.forEach((bar, index) => {
       const x = xAt(index, width, left, right);
       const isUp = bar.close >= bar.open;
-      const color = isUp ? "#c0392b" : "#1f5f9f";
+      const color = isUp ? "#ff6b4d" : "#6da4ff";
       const volumeY = volumeBottom - (bar.volume / maxVolume) * (volumeBottom - volumeTop);
-      ctx.fillStyle = isUp ? "rgba(192, 57, 43, 0.24)" : "rgba(31, 95, 159, 0.22)";
+      ctx.fillStyle = isUp ? "rgba(255, 107, 77, 0.22)" : "rgba(109, 164, 255, 0.2)";
       ctx.fillRect(x - candleWidth / 2, volumeY, candleWidth, Math.max(1, volumeBottom - volumeY));
       ctx.strokeStyle = color;
       ctx.fillStyle = color;
@@ -8254,14 +8347,14 @@ PAGE_JS = """
       ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
     });
 
-    drawLine(closes, width, left, right, top, priceBottom, "rgba(20, 107, 99, 0.72)");
-    drawLine(ma5, width, left, right, top, priceBottom, "#d39c1d");
-    drawLine(ma20, width, left, right, top, priceBottom, "#5a6acf", [4, 4]);
+    drawLine(closes, width, left, right, top, priceBottom, "rgba(143, 216, 189, 0.9)");
+    drawLine(ma5, width, left, right, top, priceBottom, "#d7ff3f");
+    drawLine(ma20, width, left, right, top, priceBottom, "#c79a3a", [4, 4]);
 
     const lastClose = closes[closes.length - 1];
     const lastX = xAt(bars.length - 1, width, left, right);
     const lastY = yAt(lastClose, top, priceBottom);
-    ctx.fillStyle = "#146b63";
+    ctx.fillStyle = "#d7ff3f";
     ctx.beginPath();
     ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
     ctx.fill();
@@ -8271,21 +8364,21 @@ PAGE_JS = """
       const hoverX = xAt(hoverIndex, width, left, right);
       const hoverY = yAt(hovered.close, top, priceBottom);
       ctx.save();
-      ctx.strokeStyle = "rgba(23, 32, 31, 0.28)";
+      ctx.strokeStyle = "rgba(246, 243, 232, 0.32)";
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
       ctx.moveTo(hoverX, top);
       ctx.lineTo(hoverX, volumeBottom);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = "#17201f";
+      ctx.fillStyle = "#f6f3e8";
       ctx.beginPath();
       ctx.arc(hoverX, hoverY, 4, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
 
-    ctx.fillStyle = "#66716f";
+    ctx.fillStyle = "rgba(246, 243, 232, 0.68)";
     ctx.textBaseline = "alphabetic";
     ctx.fillText(dates[0], left, height - 12);
     ctx.textAlign = "right";
