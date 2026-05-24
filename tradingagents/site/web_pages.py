@@ -261,6 +261,24 @@ def render_public_analysis_feed_page(
       <p>저장된 public run만 노출하며, 회원 포트폴리오나 개인 watchlist API는 호출하지 않습니다.</p>
     </section>
 
+    <section class="analysis-pipeline-strip" aria-label="공개 분석 공개 기준">
+      <article>
+        <span>01</span>
+        <strong>Stored Run</strong>
+        <small>완료된 public 분석만 목록에 노출합니다.</small>
+      </article>
+      <article>
+        <span>02</span>
+        <strong>Agent Evidence</strong>
+        <small>에이전트 리포트와 판단 요약을 분리해 제공합니다.</small>
+      </article>
+      <article>
+        <span>03</span>
+        <strong>Outcome Check</strong>
+        <small>5일/20일 성과 검증이 연결되면 알파를 표시합니다.</small>
+      </article>
+    </section>
+
     {summary_html}
 
     {track_record_html}
@@ -1816,6 +1834,10 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
           <span>waiting</span>
           <h3>공개 분석 대기</h3>
           <p>분석 worker가 완료한 public 리포트가 생기면 이 목록에 표시됩니다.</p>
+          <div class="analysis-feed-actions">
+            <a href="/features/research">리서치 흐름</a>
+            <a href="/member">분석 요청</a>
+          </div>
         </article>
         """
 
@@ -1828,6 +1850,18 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
         model_provider = item.get("model_provider") or "AI"
         decision = item.get("decision_rating") or item.get("decision_action") or "-"
         alpha = _percent(item.get("alpha_return"), signed=True)
+        alpha_raw = item.get("alpha_return")
+        try:
+            alpha_number = float(alpha_raw) if alpha_raw is not None else None
+        except (TypeError, ValueError):
+            alpha_number = None
+        alpha_class = (
+            "is-positive-alpha"
+            if alpha_number is not None and alpha_number > 0
+            else "is-negative-alpha"
+            if alpha_number is not None and alpha_number < 0
+            else "is-neutral-alpha"
+        )
         report_count = item.get("report_count")
         reports = f"{report_count}개" if report_count is not None else "-"
         run_id = item.get("id")
@@ -1835,18 +1869,24 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
         api_path = item.get("api_path") or (f"/api/analyses/{run_id}" if run_id else "/api/analyses")
         cards.append(
             f"""
-            <article class="analysis-feed-card">
-              <span>{_h(str(market))}</span>
-              <h3><a href="/stocks/{_h(str(code))}">{_h(str(name))} <small>{_h(str(code))}</small></a></h3>
-              <p>{_h(str(trade_date))} 기준 공개 분석 / 판단 {_h(str(decision))}</p>
+            <article class="analysis-feed-card {alpha_class}">
+              <div class="analysis-feed-card-top">
+                <span>{_h(str(market))}</span>
+                <small>{_h(str(trade_date))}</small>
+              </div>
+              <h3><a href="{_h(str(report_path))}">{_h(str(name))} <small>{_h(str(code))}</small></a></h3>
+              <p>판단 {_h(str(decision))} / {_h(str(model_provider))} 공개 분석</p>
               <dl>
                 <div><dt>상태</dt><dd>{_h(str(item.get("status") or "-"))}</dd></div>
                 <div><dt>모델</dt><dd>{_h(str(model_provider))}</dd></div>
                 <div><dt>리포트</dt><dd>{_h(reports)}</dd></div>
                 <div><dt>알파</dt><dd>{_h(alpha)}</dd></div>
-                <div><dt>보기</dt><dd><a href="{_h(str(report_path))}">리포트</a></dd></div>
-                <div><dt>원문</dt><dd><a href="{_h(str(api_path))}">JSON</a></dd></div>
               </dl>
+              <div class="analysis-feed-actions">
+                <a href="{_h(str(report_path))}">리포트</a>
+                <a href="/stocks/{_h(str(code))}">종목</a>
+                <a href="{_h(str(api_path))}">JSON</a>
+              </div>
             </article>
             """
         )
@@ -3442,6 +3482,42 @@ h3 {
   line-height: 1.12;
 }
 
+.analysis-pipeline-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--line);
+}
+
+.analysis-pipeline-strip article {
+  display: grid;
+  gap: 9px;
+  min-height: 128px;
+  padding: 18px;
+  background: var(--surface);
+}
+
+.analysis-pipeline-strip span {
+  color: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.analysis-pipeline-strip strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.analysis-pipeline-strip small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .analysis-track-record {
   margin-top: 18px;
 }
@@ -3643,11 +3719,43 @@ h3 {
 }
 
 .analysis-feed-card {
+  display: grid;
+  gap: 12px;
   min-height: 178px;
   padding: 16px;
   border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
   border-radius: 8px;
   background: var(--surface);
+}
+
+.analysis-feed-card.is-positive-alpha {
+  border-top-color: var(--accent);
+}
+
+.analysis-feed-card.is-negative-alpha {
+  border-top-color: var(--gain);
+}
+
+.analysis-feed-card.is-neutral-alpha {
+  border-top-color: var(--warn);
+}
+
+.analysis-feed-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.analysis-feed-card-top span {
+  margin: 0;
+}
+
+.analysis-feed-card-top small {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .analysis-feed-card span {
@@ -3670,7 +3778,7 @@ h3 {
 }
 
 .analysis-feed-card p {
-  margin-bottom: 14px;
+  margin: 0 0 2px;
   color: var(--muted);
 }
 
@@ -3700,6 +3808,32 @@ h3 {
 
 .analysis-feed-card.empty {
   grid-column: 1 / -1;
+}
+
+.analysis-feed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.analysis-feed-actions a {
+  display: inline-grid;
+  min-height: 34px;
+  place-items: center;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.analysis-feed-actions a:first-child {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
 }
 
 .feature-shell,
@@ -4834,6 +4968,7 @@ h3 {
   .analysis-feed-grid,
   .analysis-summary-grid,
   .analysis-track-grid,
+  .analysis-pipeline-strip,
   .feature-card-grid,
   .admin-grid {
     grid-template-columns: 1fr 1fr;
@@ -5060,6 +5195,7 @@ h3 {
   .analysis-feed-grid,
   .analysis-summary-grid,
   .analysis-track-grid,
+  .analysis-pipeline-strip,
   .feature-card-grid,
   .feature-step-track,
   .admin-grid,
@@ -6036,6 +6172,7 @@ button:disabled {
 .market-page .analysis-summary-grid article,
 .market-page .analysis-track-grid article,
 .market-page .analysis-feed-card,
+.market-page .analysis-pipeline-strip article,
 .market-page .analysis-provenance-grid article,
 .market-page .analysis-rationale-card,
 .market-page .analysis-detail-report-card,
@@ -6065,6 +6202,35 @@ button:disabled {
 .market-page .report-card span,
 .market-page .analysis-feed-card span {
   color: var(--home-celadon);
+}
+
+.market-page .analysis-pipeline-strip {
+  border-color: rgba(246, 243, 232, 0.14);
+  background: rgba(246, 243, 232, 0.13);
+}
+
+.market-page .analysis-pipeline-strip span {
+  color: var(--home-acid);
+}
+
+.market-page .analysis-pipeline-strip strong {
+  color: var(--home-ink);
+}
+
+.market-page .analysis-pipeline-strip small {
+  color: rgba(246, 243, 232, 0.62);
+}
+
+.market-page .analysis-feed-card.is-positive-alpha {
+  border-top-color: var(--home-celadon);
+}
+
+.market-page .analysis-feed-card.is-negative-alpha {
+  border-top-color: var(--home-vermilion);
+}
+
+.market-page .analysis-feed-card.is-neutral-alpha {
+  border-top-color: var(--home-brass);
 }
 
 .market-page .decision-box strong,
@@ -6199,6 +6365,21 @@ button:disabled {
 
 .market-page .analysis-feed-card dl div {
   border-top-color: rgba(246, 243, 232, 0.13);
+}
+
+.market-page .analysis-feed-actions {
+  border-top-color: rgba(246, 243, 232, 0.13);
+}
+
+.market-page .analysis-feed-actions a {
+  border-color: rgba(246, 243, 232, 0.16);
+  color: var(--home-ink);
+}
+
+.market-page .analysis-feed-actions a:first-child {
+  border-color: var(--home-acid);
+  background: var(--home-acid);
+  color: #10130f;
 }
 
 .analysis-filter-panel {

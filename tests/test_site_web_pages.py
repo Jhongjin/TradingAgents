@@ -489,6 +489,8 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "<!doctype html>" in html
     assert 'class="public-home market-page analysis-page"' in html
     assert "analysis-filter-panel" in html
+    assert "analysis-pipeline-strip" in html
+    assert "Stored Run" in html
     assert 'id="analysisTicker"' in html
     assert "공개 분석 목록" in html
     assert "삼성전자" in html
@@ -501,6 +503,9 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "Hold 1" in html
     assert "평균 알파 +3.00%" in html
     assert "판단 Hold" in html
+    assert "analysis-feed-card-top" in html
+    assert "analysis-feed-actions" in html
+    assert "is-positive-alpha" in html
     assert "<dt>알파</dt><dd>+3.00%</dd>" in html
     assert "<dt>리포트</dt><dd>1개</dd>" in html
     assert f'href="/analyses/{run_id}">리포트</a>' in html
