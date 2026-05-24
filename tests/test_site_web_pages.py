@@ -257,6 +257,16 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "회원 작업공간은 로그인 후에만 열립니다" in html
     assert "내 투자 노트" in html
     assert "member-tab-strip" in html
+    assert 'role="tablist"' in html
+    assert 'data-member-tab="portfolio"' in html
+    assert 'aria-selected="true"' in html
+    assert 'aria-controls="analysis-request-section"' in html
+    assert 'data-member-panel="watchlist"' in html
+    assert "memberOverview" in html
+    assert "memberOverviewActiveRequests" in html
+    assert "새 포트폴리오" in html
+    assert "매수/매도 기록" in html
+    assert "목표/손절 메모" in html
     assert 'href="#portfolio-section"' in html
     assert 'id="watchlist-section"' in html
     assert 'id="memberAuthLanding"' in html
@@ -282,6 +292,9 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "target_gap_rate" in html
     assert "target_memo" in html
     assert "watchlistActionList" in html
+    assert "portfolioCard" in html
+    assert "watchlistCard" in html
+    assert "member-metric-grid" in html
     assert "member-action-item" in html
     assert "public_stock_path" in html
     assert "pricing_status" in html
@@ -323,6 +336,10 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "storageSet" in html
     assert "storageRemove" in html
     assert "migrateSessionStorage" in html
+    assert "tradingagents.member.active_tab" in html
+    assert "setupMemberTabs" in html
+    assert "activateMemberTab" in html
+    assert "updateMemberOverview" in html
     assert "safeMemberApi" in html
     assert "member-sublist" in html
     assert "window.history.replaceState" in html

@@ -1058,14 +1058,37 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         </div>
       </section>
 
-      <nav class="member-tab-strip" aria-label="마이페이지 섹션">
-        <a href="#portfolio-section">포트폴리오</a>
-        <a href="#watchlist-section">관심종목</a>
-        <a href="#analysis-request-section">분석 요청</a>
+      <nav class="member-tab-strip" role="tablist" aria-label="마이페이지 섹션">
+        <a id="portfolio-tab" class="is-active" href="#portfolio-section" role="tab" data-member-tab="portfolio" aria-controls="portfolio-section" aria-selected="true">포트폴리오 <span id="portfolioTabCount">0</span></a>
+        <a id="watchlist-tab" href="#watchlist-section" role="tab" data-member-tab="watchlist" aria-controls="watchlist-section" aria-selected="false">관심종목 <span id="watchlistTabCount">0</span></a>
+        <a id="analysis-tab" href="#analysis-request-section" role="tab" data-member-tab="analysis" aria-controls="analysis-request-section" aria-selected="false">분석 요청 <span id="analysisTabCount">0</span></a>
       </nav>
 
+      <section class="member-overview-strip" id="memberOverview" aria-label="작업공간 요약">
+        <article>
+          <span>Portfolios</span>
+          <strong id="memberOverviewPortfolios">0</strong>
+          <small>저장된 노트</small>
+        </article>
+        <article>
+          <span>Watchlist</span>
+          <strong id="memberOverviewWatchlists">0</strong>
+          <small>관심목록</small>
+        </article>
+        <article>
+          <span>Active Queue</span>
+          <strong id="memberOverviewActiveRequests">0</strong>
+          <small>대기/처리 중</small>
+        </article>
+        <article>
+          <span>Reports</span>
+          <strong id="memberOverviewCompletedReports">0</strong>
+          <small>완료 리포트</small>
+        </article>
+      </section>
+
       <section class="member-grid" aria-label="회원 기능">
-        <section class="member-panel" id="portfolio-section">
+        <section class="member-panel" id="portfolio-section" role="tabpanel" data-member-panel="portfolio" aria-labelledby="portfolio-tab">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Manual Portfolio</p>
@@ -1073,36 +1096,47 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             </div>
             <button class="ghost-button" id="refreshMemberData" type="button">새로고침</button>
           </div>
-          <form class="member-form compact-form" id="portfolioForm">
-            <input name="name" maxlength="80" placeholder="포트폴리오 이름" required>
-            <button type="submit">추가</button>
-          </form>
-          <form class="member-form trade-form" id="tradeForm">
-            <select name="portfolio_id" required></select>
-            <input name="ticker_code" maxlength="12" placeholder="005930" required>
-            <select name="side" required>
-              <option value="buy">매수</option>
-              <option value="sell">매도</option>
-            </select>
-            <input name="trade_date" type="date" required>
-            <input name="price" type="number" min="1" step="1" placeholder="단가" required>
-            <input name="quantity" type="number" min="1" step="1" placeholder="수량" required>
-            <input name="fee" type="number" min="0" step="1" placeholder="수수료">
-            <input name="tax" type="number" min="0" step="1" placeholder="세금">
-            <button type="submit">기록</button>
-          </form>
-          <form class="member-form target-form" id="targetForm">
-            <select name="portfolio_id" required></select>
-            <input name="ticker_code" maxlength="12" placeholder="005930" required>
-            <input name="target_price" type="number" min="1" step="1" placeholder="목표가">
-            <input name="stop_price" type="number" min="1" step="1" placeholder="손절가">
-            <input name="memo" maxlength="500" placeholder="목표 메모">
-            <button type="submit">저장</button>
-          </form>
+          <div class="member-form-stack">
+            <div class="member-form-block">
+              <strong>새 포트폴리오</strong>
+              <form class="member-form compact-form" id="portfolioForm">
+                <input name="name" maxlength="80" placeholder="포트폴리오 이름" required>
+                <button type="submit">추가</button>
+              </form>
+            </div>
+            <div class="member-form-block">
+              <strong>매수/매도 기록</strong>
+              <form class="member-form trade-form" id="tradeForm">
+                <select name="portfolio_id" required></select>
+                <input name="ticker_code" maxlength="12" placeholder="005930" required>
+                <select name="side" required>
+                  <option value="buy">매수</option>
+                  <option value="sell">매도</option>
+                </select>
+                <input name="trade_date" type="date" required>
+                <input name="price" type="number" min="1" step="1" placeholder="단가" required>
+                <input name="quantity" type="number" min="1" step="1" placeholder="수량" required>
+                <input name="fee" type="number" min="0" step="1" placeholder="수수료">
+                <input name="tax" type="number" min="0" step="1" placeholder="세금">
+                <button type="submit">기록</button>
+              </form>
+            </div>
+            <div class="member-form-block">
+              <strong>목표/손절 메모</strong>
+              <form class="member-form target-form" id="targetForm">
+                <select name="portfolio_id" required></select>
+                <input name="ticker_code" maxlength="12" placeholder="005930" required>
+                <input name="target_price" type="number" min="1" step="1" placeholder="목표가">
+                <input name="stop_price" type="number" min="1" step="1" placeholder="손절가">
+                <input name="memo" maxlength="500" placeholder="목표 메모">
+                <button type="submit">저장</button>
+              </form>
+            </div>
+          </div>
           <div class="member-list" id="portfolioList"></div>
         </section>
 
-        <section class="member-panel" id="watchlist-section">
+        <section class="member-panel" id="watchlist-section" role="tabpanel" data-member-panel="watchlist" aria-labelledby="watchlist-tab" hidden>
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Watchlist</p>
@@ -1110,20 +1144,28 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             </div>
             <span class="status-pill">KR</span>
           </div>
-          <form class="member-form compact-form" id="watchlistForm">
-            <input name="name" maxlength="80" placeholder="관심목록 이름" required>
-            <button type="submit">추가</button>
-          </form>
-          <form class="member-form compact-form" id="watchlistItemForm">
-            <select name="watchlist_id" required></select>
-            <input name="ticker_code" maxlength="12" placeholder="005930" required>
-            <input name="memo" maxlength="500" placeholder="메모">
-            <button type="submit">담기</button>
-          </form>
+          <div class="member-form-stack">
+            <div class="member-form-block">
+              <strong>관심목록</strong>
+              <form class="member-form compact-form" id="watchlistForm">
+                <input name="name" maxlength="80" placeholder="관심목록 이름" required>
+                <button type="submit">추가</button>
+              </form>
+            </div>
+            <div class="member-form-block">
+              <strong>종목 담기</strong>
+              <form class="member-form compact-form" id="watchlistItemForm">
+                <select name="watchlist_id" required></select>
+                <input name="ticker_code" maxlength="12" placeholder="005930" required>
+                <input name="memo" maxlength="500" placeholder="메모">
+                <button type="submit">담기</button>
+              </form>
+            </div>
+          </div>
           <div class="member-list" id="watchlistList"></div>
         </section>
 
-        <section class="member-panel" id="analysis-request-section">
+        <section class="member-panel" id="analysis-request-section" role="tabpanel" data-member-panel="analysis" aria-labelledby="analysis-tab" hidden>
           <div class="panel-heading">
             <div>
               <p class="eyebrow">AI Analysis</p>
@@ -4150,8 +4192,47 @@ h3 {
 
 .member-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
+}
+
+.member-overview-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.12);
+}
+
+.member-overview-strip article {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 15px;
+  background: rgba(15, 22, 18, 0.78);
+}
+
+.member-overview-strip span,
+.member-form-block > strong {
+  color: var(--home-celadon);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.member-overview-strip strong {
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+
+.member-overview-strip small {
+  color: var(--muted);
 }
 
 .member-panel {
@@ -4186,6 +4267,24 @@ h3 {
   display: grid;
   gap: 10px;
   margin-top: 14px;
+}
+
+.member-form-stack {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.member-form-block {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(246, 243, 232, 0.12);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.035);
+}
+
+.member-form-block .member-form {
+  margin-top: 10px;
 }
 
 .member-form label {
@@ -4370,6 +4469,60 @@ h3 {
 
 .member-item strong {
   font-size: 15px;
+}
+
+.member-card-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.member-card-header > div {
+  min-width: 0;
+}
+
+.member-card-header strong,
+.member-card-header small {
+  display: block;
+}
+
+.member-card-header small {
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.member-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.member-metric-grid div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(246, 243, 232, 0.12);
+  border-radius: 6px;
+  background: rgba(246, 243, 232, 0.045);
+}
+
+.member-metric-grid small,
+.member-metric-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.member-metric-grid strong {
+  display: block;
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .analysis-queue-overview {
@@ -4682,9 +4835,16 @@ h3 {
   .analysis-summary-grid,
   .analysis-track-grid,
   .feature-card-grid,
-  .admin-grid,
-  .member-grid {
+  .admin-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .member-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .member-overview-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .trade-form,
@@ -4701,6 +4861,10 @@ h3 {
   }
 
   .analysis-queue-meters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .member-metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -4912,6 +5076,11 @@ h3 {
   }
 
   .member-action-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .member-overview-strip,
+  .member-metric-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -6393,18 +6562,47 @@ button:disabled {
 
 .member-tab-strip a {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
   min-height: 42px;
-  place-items: center;
+  align-items: center;
+  justify-items: center;
   border: 1px solid transparent;
   border-radius: 6px;
   color: var(--muted);
   font-weight: 900;
 }
 
+.member-tab-strip a span {
+  display: inline-grid;
+  min-width: 28px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 999px;
+  background: rgba(246, 243, 232, 0.06);
+  color: rgba(246, 243, 232, 0.72);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 .member-tab-strip a:hover {
   border-color: rgba(215, 255, 63, 0.34);
   background: var(--surface-strong);
   color: var(--ink);
+}
+
+.member-tab-strip a[aria-selected="true"] {
+  border-color: rgba(215, 255, 63, 0.46);
+  background: rgba(215, 255, 63, 0.12);
+  color: var(--home-acid);
+}
+
+.member-tab-strip a[aria-selected="true"] span {
+  border-color: rgba(215, 255, 63, 0.34);
+  background: var(--home-acid);
+  color: #10130f;
 }
 
 .member-panel:target {
@@ -7254,6 +7452,15 @@ MEMBER_PAGE_JS = """
   const portfolioList = document.getElementById("portfolioList");
   const watchlistList = document.getElementById("watchlistList");
   const analysisRequestList = document.getElementById("analysisRequestList");
+  const memberTabLinks = Array.from(document.querySelectorAll("[data-member-tab]"));
+  const memberPanels = Array.from(document.querySelectorAll("[data-member-panel]"));
+  const portfolioTabCount = document.getElementById("portfolioTabCount");
+  const watchlistTabCount = document.getElementById("watchlistTabCount");
+  const analysisTabCount = document.getElementById("analysisTabCount");
+  const overviewPortfolios = document.getElementById("memberOverviewPortfolios");
+  const overviewWatchlists = document.getElementById("memberOverviewWatchlists");
+  const overviewActiveRequests = document.getElementById("memberOverviewActiveRequests");
+  const overviewCompletedReports = document.getElementById("memberOverviewCompletedReports");
   const portfolioSelect = tradeForm?.elements?.portfolio_id;
   const targetPortfolioSelect = targetForm?.elements?.portfolio_id;
   const watchlistSelect = watchlistItemForm?.elements?.watchlist_id;
@@ -7262,6 +7469,12 @@ MEMBER_PAGE_JS = """
   const expiresAtKey = "tradingagents.member.expires_at";
   const userEmailKey = "tradingagents.member.user_email";
   const userIdKey = "tradingagents.member.user_id";
+  const activeTabKey = "tradingagents.member.active_tab";
+  const tabHashes = {
+    portfolio: "#portfolio-section",
+    watchlist: "#watchlist-section",
+    analysis: "#analysis-request-section"
+  };
   const requestedAuthMode = new URLSearchParams(window.location.search).get("mode");
   const memberBody = document.body;
   const authLanding = document.getElementById("memberAuthLanding");
@@ -7306,6 +7519,62 @@ MEMBER_PAGE_JS = """
       const persistent = storageAreaGet(window.localStorage, key);
       const volatile = storageAreaGet(window.sessionStorage, key);
       if (!persistent && volatile) storageSet(key, volatile);
+    });
+  }
+
+  function tabFromHash() {
+    const panelId = String(window.location.hash || "").replace("#", "");
+    const panel = memberPanels.find((node) => node.id === panelId);
+    return panel?.dataset?.memberPanel || "";
+  }
+
+  function validTab(tabKey) {
+    return memberPanels.some((panel) => panel.dataset.memberPanel === tabKey) ? tabKey : "";
+  }
+
+  function initialMemberTab() {
+    return validTab(tabFromHash()) || validTab(storageGet(activeTabKey)) || "portfolio";
+  }
+
+  function activateMemberTab(tabKey, updateHash = true) {
+    const next = validTab(tabKey) || "portfolio";
+    memberTabLinks.forEach((link) => {
+      const isActive = link.dataset.memberTab === next;
+      link.classList.toggle("is-active", isActive);
+      link.setAttribute("aria-selected", isActive ? "true" : "false");
+      link.tabIndex = isActive ? 0 : -1;
+    });
+    memberPanels.forEach((panel) => {
+      panel.hidden = panel.dataset.memberPanel !== next;
+    });
+    storageSet(activeTabKey, next);
+    if (updateHash) {
+      const nextHash = tabHashes[next] || "#portfolio-section";
+      const nextUrl = `${window.location.pathname}${window.location.search}${nextHash}`;
+      if (window.location.hash !== nextHash) window.history.replaceState(null, "", nextUrl);
+    }
+  }
+
+  function setupMemberTabs() {
+    activateMemberTab(initialMemberTab(), false);
+    memberTabLinks.forEach((link, index) => {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        activateMemberTab(link.dataset.memberTab || "portfolio");
+      });
+      link.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+        event.preventDefault();
+        const step = event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1;
+        const nextIndex = (index + step + memberTabLinks.length) % memberTabLinks.length;
+        const nextLink = memberTabLinks[nextIndex];
+        activateMemberTab(nextLink.dataset.memberTab || "portfolio");
+        nextLink.focus();
+      });
+    });
+    window.addEventListener("hashchange", () => {
+      const tab = tabFromHash();
+      if (tab) activateMemberTab(tab, false);
     });
   }
 
@@ -7646,6 +7915,45 @@ MEMBER_PAGE_JS = """
     return list;
   }
 
+  function metricGrid(entries) {
+    const grid = document.createElement("div");
+    grid.className = "member-metric-grid";
+    entries.forEach(([label, value, hint = ""]) => {
+      const item = document.createElement("div");
+      const small = document.createElement("small");
+      const strong = document.createElement("strong");
+      small.textContent = label;
+      strong.textContent = value;
+      item.append(small, strong);
+      if (hint) {
+        const span = document.createElement("span");
+        span.textContent = hint;
+        item.append(span);
+      }
+      grid.append(item);
+    });
+    return grid;
+  }
+
+  function cardHeader(title, meta, pillText = "") {
+    const header = document.createElement("div");
+    header.className = "member-card-header";
+    const text = document.createElement("div");
+    const strong = document.createElement("strong");
+    const small = document.createElement("small");
+    strong.textContent = title;
+    small.textContent = meta;
+    text.append(strong, small);
+    header.append(text);
+    if (pillText) {
+      const pill = document.createElement("span");
+      pill.className = "status-pill";
+      pill.textContent = pillText;
+      header.append(pill);
+    }
+    return header;
+  }
+
   function riskText(position) {
     const parts = [];
     if (position.target_price !== null && position.target_price !== undefined) {
@@ -7742,6 +8050,49 @@ MEMBER_PAGE_JS = """
       list.append(row);
     });
     return list;
+  }
+
+  function portfolioCard(row, detail) {
+    const totals = detail?.totals || {};
+    const tradeCount = detail?.trade_count || 0;
+    const positionCount = (detail?.positions || []).length;
+    const node = document.createElement("article");
+    node.className = "member-item portfolio-card";
+    const meta = detail
+      ? `${row.base_currency || "KRW"} / ${positionCount}종목`
+      : `${row.base_currency || "KRW"} / 상세 계산 대기`;
+    node.append(
+      cardHeader(row.name, meta, `거래 ${tradeCount}건`),
+      metricGrid([
+        ["평가", money(totals.market_value), "시장가 기준"],
+        ["손익", signedMoney(totals.total_pnl), signedPercent(totals.total_pnl_rate)],
+        ["보유", `${positionCount}종목`, "목표·손절 포함"],
+        ["최근 거래", `${tradeCount}건`, detail?.pricing_status || "기록 기준"]
+      ]),
+      miniList(portfolioLines(detail), "아직 보유 종목이 없습니다", "보유"),
+      miniList(tradeLines(detail), "아직 거래 내역이 없습니다", "최근 거래")
+    );
+    return node;
+  }
+
+  function watchlistCard(row, detail) {
+    const summary = detail?.summary || {};
+    const itemCount = detail?.item_count || 0;
+    const pricedCount = detail?.priced_item_count || 0;
+    const node = document.createElement("article");
+    node.className = "member-item watchlist-card";
+    node.append(
+      cardHeader(row.name, detail ? `${detail.pricing_status || "가격 확인"} / ${row.id}` : row.id, `${itemCount}종목`),
+      metricGrid([
+        ["종목", `${itemCount}개`, "담긴 항목"],
+        ["가격", `${pricedCount}개`, "현재가 확인"],
+        ["메모", `${summary.memo_item_count || 0}개`, "검토 노트"],
+        ["시장", row.market || "KR", "한국 종목"]
+      ]),
+      miniList(watchlistLines(detail), "아직 관심 종목이 없습니다", "요약"),
+      watchlistActionList(detail)
+    );
+    return node;
   }
 
   function statusLabel(status) {
@@ -7857,8 +8208,17 @@ MEMBER_PAGE_JS = """
     return node;
   }
 
-  function fillSelect(select, rows, labelKey) {
+  function fillSelect(select, rows, labelKey, emptyLabel = "항목을 먼저 추가하세요") {
     if (!select) return;
+    if (!rows.length) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = emptyLabel;
+      option.disabled = true;
+      option.selected = true;
+      select.replaceChildren(option);
+      return;
+    }
     select.replaceChildren(...rows.map((row) => {
       const option = document.createElement("option");
       option.value = row.id;
@@ -7868,8 +8228,8 @@ MEMBER_PAGE_JS = """
   }
 
   function fillPortfolioSelects(rows) {
-    fillSelect(portfolioSelect, rows, "name");
-    fillSelect(targetPortfolioSelect, rows, "name");
+    fillSelect(portfolioSelect, rows, "name", "포트폴리오를 먼저 추가하세요");
+    fillSelect(targetPortfolioSelect, rows, "name", "포트폴리오를 먼저 추가하세요");
   }
 
   function renderPortfolios(payload, details = {}, error = "") {
@@ -7881,17 +8241,7 @@ MEMBER_PAGE_JS = """
     const rows = payload.items || [];
     fillPortfolioSelects(rows);
     portfolioList.replaceChildren(
-      ...(rows.length ? rows.map((row) => {
-        const detail = details[row.id];
-        const totals = detail?.totals || {};
-        const meta = detail
-          ? `${row.base_currency || "KRW"} / 평가 ${money(totals.market_value)} / 손익 ${signedMoney(totals.total_pnl)} (${signedPercent(totals.total_pnl_rate)}) / 거래 ${detail.trade_count || 0}건`
-          : `${row.base_currency || "KRW"} / ${row.id}`;
-        return itemCard(row.name, meta, [
-          miniList(portfolioLines(detail), "아직 보유 종목이 없습니다", "보유"),
-          miniList(tradeLines(detail), "아직 거래 내역이 없습니다", "최근 거래")
-        ]);
-      }) : [emptyNode("저장된 포트폴리오가 없습니다")])
+      ...(rows.length ? rows.map((row) => portfolioCard(row, details[row.id])) : [emptyNode("저장된 포트폴리오가 없습니다")])
     );
   }
 
@@ -7902,19 +8252,9 @@ MEMBER_PAGE_JS = """
       return;
     }
     const rows = payload.items || [];
-    fillSelect(watchlistSelect, rows, "name");
+    fillSelect(watchlistSelect, rows, "name", "관심목록을 먼저 추가하세요");
     watchlistList.replaceChildren(
-      ...(rows.length ? rows.map((row) => {
-        const detail = details[row.id];
-        const summary = detail?.summary || {};
-        const meta = detail
-          ? `${detail.item_count}종목 / 가격 ${detail.priced_item_count}개 / 메모 ${summary.memo_item_count || 0}개 / ${detail.pricing_status || "확인"}`
-          : row.id;
-        return itemCard(row.name, meta, [
-          miniList(watchlistLines(detail), "아직 관심 종목이 없습니다", "요약"),
-          watchlistActionList(detail)
-        ]);
-      }) : [emptyNode("저장된 관심목록이 없습니다")])
+      ...(rows.length ? rows.map((row) => watchlistCard(row, details[row.id])) : [emptyNode("저장된 관심목록이 없습니다")])
     );
   }
 
@@ -7928,6 +8268,26 @@ MEMBER_PAGE_JS = """
       analysisRequestSummary(payload.summary),
       ...(rows.length ? rows.map((row) => analysisRequestCard(row)) : [emptyNode("분석 요청 내역이 없습니다")])
     );
+  }
+
+  function setText(node, value) {
+    if (node) node.textContent = String(value);
+  }
+
+  function updateMemberOverview(portfoliosPayload = {}, watchlistsPayload = {}, requestsPayload = {}) {
+    const portfolioCount = (portfoliosPayload.items || []).length;
+    const watchlistCount = (watchlistsPayload.items || []).length;
+    const requestRows = requestsPayload.items || [];
+    const summary = requestsPayload.summary || {};
+    const activeCount = summary.active_count ?? requestRows.filter((row) => row.is_active).length;
+    const completedCount = summary.completed_count ?? requestRows.filter((row) => row.status === "completed").length;
+    setText(portfolioTabCount, portfolioCount);
+    setText(watchlistTabCount, watchlistCount);
+    setText(analysisTabCount, activeCount);
+    setText(overviewPortfolios, portfolioCount);
+    setText(overviewWatchlists, watchlistCount);
+    setText(overviewActiveRequests, activeCount);
+    setText(overviewCompletedReports, completedCount);
   }
 
   function flattenErrorCount(errors) {
@@ -7965,6 +8325,11 @@ MEMBER_PAGE_JS = """
     const userId = member.user_id || storageGet(userIdKey) || "";
     if (userId) storageSet(userIdKey, String(userId));
     const userLabel = storageGet(userEmailKey) || userId || "회원 세션";
+    updateMemberOverview(
+      payload?.portfolios || { items: [] },
+      payload?.watchlists || { items: [] },
+      payload?.analysis_requests || { items: [] }
+    );
     renderPortfolios(
       payload?.portfolios || { items: [] },
       payload?.portfolio_details || {},
@@ -8041,6 +8406,7 @@ MEMBER_PAGE_JS = """
     renderPortfolios(portfolios, portfolioDetails, portfoliosResult.error);
     renderWatchlists(watchlists, watchlistDetails, watchlistsResult.error);
     renderAnalysisRequests(requests, requestsResult.error);
+    updateMemberOverview(portfolios, watchlists, requests);
     const errors = [portfoliosResult, watchlistsResult, requestsResult].filter((result) => !result.ok).length
       + (dashboardError ? 1 : 0);
     const userLabel = storageGet(userEmailKey) || storageGet(userIdKey) || "회원 세션";
@@ -8146,6 +8512,7 @@ MEMBER_PAGE_JS = """
     portfolioList?.replaceChildren(emptyNode("로그인 후 포트폴리오가 표시됩니다"));
     watchlistList?.replaceChildren(emptyNode("로그인 후 관심목록이 표시됩니다"));
     analysisRequestList?.replaceChildren(emptyNode("로그인 후 분석 요청이 표시됩니다"));
+    updateMemberOverview({ items: [] }, { items: [] }, { items: [] });
     setStatus("로그아웃됨");
   });
 
@@ -8218,6 +8585,7 @@ MEMBER_PAGE_JS = """
   });
 
   migrateSessionStorage();
+  setupMemberTabs();
   setAuthUiState(Boolean(accessToken() || refreshToken()));
   applyRequestedAuthMode();
   const redirectSession = consumeRedirectSession();
