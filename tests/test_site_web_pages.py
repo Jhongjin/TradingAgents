@@ -264,6 +264,11 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "내 투자 노트" in html
     assert "member-tab-strip" in html
     assert 'role="tablist"' in html
+    assert 'data-member-tab="home"' in html
+    assert 'id="member-home-section"' in html
+    assert "마이페이지 홈" in html
+    assert "member-home-grid" in html
+    assert 'data-member-jump="portfolio"' in html
     assert 'data-member-tab="portfolio"' in html
     assert 'aria-selected="true"' in html
     assert 'aria-controls="analysis-request-section"' in html
@@ -345,6 +350,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "tradingagents.member.active_tab" in html
     assert "setupMemberTabs" in html
     assert "activateMemberTab" in html
+    assert "memberHomeStatus" in html
     assert "updateMemberOverview" in html
     assert "safeMemberApi" in html
     assert "member-sublist" in html

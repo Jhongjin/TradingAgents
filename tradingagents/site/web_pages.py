@@ -1238,36 +1238,67 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       </section>
 
       <nav class="member-tab-strip" role="tablist" aria-label="마이페이지 섹션">
-        <a id="portfolio-tab" class="is-active" href="#portfolio-section" role="tab" data-member-tab="portfolio" aria-controls="portfolio-section" aria-selected="true">포트폴리오 <span id="portfolioTabCount">0</span></a>
+        <a id="home-tab" class="is-active" href="#member-home-section" role="tab" data-member-tab="home" aria-controls="member-home-section" aria-selected="true">홈 <span id="memberHomeStatus">Ready</span></a>
+        <a id="portfolio-tab" href="#portfolio-section" role="tab" data-member-tab="portfolio" aria-controls="portfolio-section" aria-selected="false">포트폴리오 <span id="portfolioTabCount">0</span></a>
         <a id="watchlist-tab" href="#watchlist-section" role="tab" data-member-tab="watchlist" aria-controls="watchlist-section" aria-selected="false">관심종목 <span id="watchlistTabCount">0</span></a>
         <a id="analysis-tab" href="#analysis-request-section" role="tab" data-member-tab="analysis" aria-controls="analysis-request-section" aria-selected="false">분석 요청 <span id="analysisTabCount">0</span></a>
       </nav>
 
-      <section class="member-overview-strip" id="memberOverview" aria-label="작업공간 요약">
-        <article>
-          <span>Portfolios</span>
-          <strong id="memberOverviewPortfolios">0</strong>
-          <small>저장된 노트</small>
-        </article>
-        <article>
-          <span>Watchlist</span>
-          <strong id="memberOverviewWatchlists">0</strong>
-          <small>관심목록</small>
-        </article>
-        <article>
-          <span>Active Queue</span>
-          <strong id="memberOverviewActiveRequests">0</strong>
-          <small>대기/처리 중</small>
-        </article>
-        <article>
-          <span>Reports</span>
-          <strong id="memberOverviewCompletedReports">0</strong>
-          <small>완료 리포트</small>
-        </article>
-      </section>
-
       <section class="member-grid" aria-label="회원 기능">
-        <section class="member-panel" id="portfolio-section" role="tabpanel" data-member-panel="portfolio" aria-labelledby="portfolio-tab">
+        <section class="member-panel member-home-panel" id="member-home-section" role="tabpanel" data-member-panel="home" aria-labelledby="home-tab">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">My Page Home</p>
+              <h2>마이페이지 홈</h2>
+              <p class="panel-copy">내 기록과 공개 리포트 요청 상태를 먼저 확인하고, 필요한 작업만 각 탭에서 이어갑니다.</p>
+            </div>
+            <span class="status-pill">Read only</span>
+          </div>
+          <section class="member-overview-strip" id="memberOverview" aria-label="작업공간 요약">
+            <article>
+              <span>Portfolios</span>
+              <strong id="memberOverviewPortfolios">0</strong>
+              <small>저장된 노트</small>
+            </article>
+            <article>
+              <span>Watchlist</span>
+              <strong id="memberOverviewWatchlists">0</strong>
+              <small>관심목록</small>
+            </article>
+            <article>
+              <span>Active Queue</span>
+              <strong id="memberOverviewActiveRequests">0</strong>
+              <small>대기/처리 중</small>
+            </article>
+            <article>
+              <span>Reports</span>
+              <strong id="memberOverviewCompletedReports">0</strong>
+              <small>완료 리포트</small>
+            </article>
+          </section>
+          <div class="member-home-grid" aria-label="다음 작업">
+            <article class="member-home-card">
+              <span>01</span>
+              <strong>거래 기록 정리</strong>
+              <small>매수·매도 내역, 수수료, 세금, 목표가를 수동으로 남깁니다.</small>
+              <button class="ghost-button" type="button" data-member-jump="portfolio">포트폴리오 열기</button>
+            </article>
+            <article class="member-home-card">
+              <span>02</span>
+              <strong>관심종목 점검</strong>
+              <small>추적할 한국 종목을 묶고 메모와 현재가 상태를 같이 봅니다.</small>
+              <button class="ghost-button" type="button" data-member-jump="watchlist">관심종목 열기</button>
+            </article>
+            <article class="member-home-card">
+              <span>03</span>
+              <strong>AI 분석 요청</strong>
+              <small>worker 큐 제한과 완료 리포트 연결 상태를 확인합니다.</small>
+              <button class="ghost-button" type="button" data-member-jump="analysis">분석 요청 열기</button>
+            </article>
+          </div>
+        </section>
+
+        <section class="member-panel" id="portfolio-section" role="tabpanel" data-member-panel="portfolio" aria-labelledby="portfolio-tab" hidden>
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Manual Portfolio</p>
@@ -4879,6 +4910,50 @@ h3 {
   color: var(--muted);
 }
 
+.member-home-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.member-home-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.member-home-card {
+  display: grid;
+  align-content: space-between;
+  gap: 10px;
+  min-height: 178px;
+  padding: 16px;
+  border: 1px solid rgba(246, 243, 232, 0.12);
+  border-left: 3px solid rgba(215, 255, 63, 0.68);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.045);
+}
+
+.member-home-card span {
+  color: var(--home-acid);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.member-home-card strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.member-home-card small {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.member-home-card .ghost-button {
+  justify-self: start;
+}
+
 .member-panel {
   min-width: 0;
   padding: 18px;
@@ -5493,6 +5568,10 @@ h3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .member-home-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .trade-form,
   .target-form {
     grid-template-columns: 1fr 1fr;
@@ -5729,6 +5808,7 @@ h3 {
   }
 
   .member-overview-strip,
+  .member-home-grid,
   .member-metric-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -8489,6 +8569,8 @@ MEMBER_PAGE_JS = """
   const analysisRequestList = document.getElementById("analysisRequestList");
   const memberTabLinks = Array.from(document.querySelectorAll("[data-member-tab]"));
   const memberPanels = Array.from(document.querySelectorAll("[data-member-panel]"));
+  const memberJumpButtons = Array.from(document.querySelectorAll("[data-member-jump]"));
+  const memberHomeStatus = document.getElementById("memberHomeStatus");
   const portfolioTabCount = document.getElementById("portfolioTabCount");
   const watchlistTabCount = document.getElementById("watchlistTabCount");
   const analysisTabCount = document.getElementById("analysisTabCount");
@@ -8506,6 +8588,7 @@ MEMBER_PAGE_JS = """
   const userIdKey = "tradingagents.member.user_id";
   const activeTabKey = "tradingagents.member.active_tab";
   const tabHashes = {
+    home: "#member-home-section",
     portfolio: "#portfolio-section",
     watchlist: "#watchlist-section",
     analysis: "#analysis-request-section"
@@ -8568,11 +8651,11 @@ MEMBER_PAGE_JS = """
   }
 
   function initialMemberTab() {
-    return validTab(tabFromHash()) || validTab(storageGet(activeTabKey)) || "portfolio";
+    return validTab(tabFromHash()) || validTab(storageGet(activeTabKey)) || "home";
   }
 
   function activateMemberTab(tabKey, updateHash = true) {
-    const next = validTab(tabKey) || "portfolio";
+    const next = validTab(tabKey) || "home";
     memberTabLinks.forEach((link) => {
       const isActive = link.dataset.memberTab === next;
       link.classList.toggle("is-active", isActive);
@@ -8584,7 +8667,7 @@ MEMBER_PAGE_JS = """
     });
     storageSet(activeTabKey, next);
     if (updateHash) {
-      const nextHash = tabHashes[next] || "#portfolio-section";
+      const nextHash = tabHashes[next] || "#member-home-section";
       const nextUrl = `${window.location.pathname}${window.location.search}${nextHash}`;
       if (window.location.hash !== nextHash) window.history.replaceState(null, "", nextUrl);
     }
@@ -8603,8 +8686,16 @@ MEMBER_PAGE_JS = """
         const step = event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1;
         const nextIndex = (index + step + memberTabLinks.length) % memberTabLinks.length;
         const nextLink = memberTabLinks[nextIndex];
-        activateMemberTab(nextLink.dataset.memberTab || "portfolio");
+        activateMemberTab(nextLink.dataset.memberTab || "home");
         nextLink.focus();
+      });
+    });
+    memberJumpButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const tab = button.dataset.memberJump || "home";
+        activateMemberTab(tab);
+        const target = memberTabLinks.find((link) => link.dataset.memberTab === tab);
+        target?.focus();
       });
     });
     window.addEventListener("hashchange", () => {
@@ -9316,6 +9407,8 @@ MEMBER_PAGE_JS = """
     const summary = requestsPayload.summary || {};
     const activeCount = summary.active_count ?? requestRows.filter((row) => row.is_active).length;
     const completedCount = summary.completed_count ?? requestRows.filter((row) => row.status === "completed").length;
+    const homeStatus = activeCount ? `큐 ${activeCount}` : completedCount ? `완료 ${completedCount}` : "Ready";
+    setText(memberHomeStatus, homeStatus);
     setText(portfolioTabCount, portfolioCount);
     setText(watchlistTabCount, watchlistCount);
     setText(analysisTabCount, activeCount);
