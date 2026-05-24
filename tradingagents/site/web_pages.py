@@ -6552,6 +6552,8 @@ h3 {
 }
 
 .public-home {
+  color-scheme: dark;
+  accent-color: var(--home-acid);
   --home-bg: #10130f;
   --home-ink: #f6f3e8;
   --home-paper: #fbfaf4;

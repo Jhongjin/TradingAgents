@@ -126,6 +126,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "<!doctype html>" in html
     assert 'class="public-home market-page stock-page"' in html
     assert '--app-font-stack: Geist, "Geist Fallback", "Noto Sans KR"' in html
+    assert ".public-home {\n  color-scheme: dark;" in html
     assert "--home-muted-readable: rgba(246, 243, 232, 0.8);" in html
     assert "grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));" in html
     assert 'class="skip-link"' in html
