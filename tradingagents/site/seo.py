@@ -25,6 +25,11 @@ FEATURE_DETAIL_PATHS = (
     "/features/outcomes",
     "/features/methodology",
 )
+POLICY_PAGE_PATHS = (
+    "/privacy",
+    "/terms",
+    "/disclaimer",
+)
 GOOGLE_ADSENSE_SELLER_DOMAIN = "google.com"
 GOOGLE_ADSENSE_CERTIFICATION_AUTHORITY_ID = "f08c47fec0942fa0"
 
@@ -120,6 +125,7 @@ def build_sitemap_xml(
         for path in _sitemap_analysis_paths(analysis_paths)
     )
     urls.extend((canonical_url(path, site_base_url=base), "weekly", "0.7") for path in FEATURE_DETAIL_PATHS)
+    urls.extend((canonical_url(path, site_base_url=base), "monthly", "0.5") for path in POLICY_PAGE_PATHS)
     urls.extend(
         (stock_canonical_url(ticker, site_base_url=base), "daily", "0.7")
         for ticker in _sitemap_tickers(tickers)

@@ -17,6 +17,7 @@ from tradingagents.site.web_pages import (
     render_admin_console_page,
     render_feature_detail_page,
     render_member_dashboard_page,
+    render_policy_page,
     render_public_analysis_detail_page,
     render_public_analysis_feed_page,
     render_public_home_page,
@@ -250,6 +251,9 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert 'href="/stocks/005930">삼성전자</a>' not in html
     assert "/analyses" in html
     assert '<link rel="canonical" href="https://example.com/">' in html
+    assert 'href="/disclaimer"' in html
+    assert 'href="/terms"' in html
+    assert 'href="/privacy"' in html
 
 
 def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch):
@@ -434,6 +438,10 @@ def test_api_app_serves_feature_and_admin_pages(monkeypatch):
 
     monkeypatch.setattr("tradingagents.site.api_app.render_feature_detail_page", fake_feature)
     monkeypatch.setattr(
+        "tradingagents.site.api_app.render_policy_page",
+        lambda slug, *args, **kwargs: f"<!doctype html><html><body>policy {slug}</body></html>",
+    )
+    monkeypatch.setattr(
         "tradingagents.site.api_app.render_admin_console_page",
         lambda *args, **kwargs: "<!doctype html><html><body>admin console</body></html>",
     )
@@ -442,6 +450,9 @@ def test_api_app_serves_feature_and_admin_pages(monkeypatch):
     feature_response = client.get("/features/research")
     unknown_response = client.get("/features/unknown")
     admin_response = client.get("/admin")
+    privacy_response = client.get("/privacy")
+    terms_response = client.get("/terms")
+    disclaimer_response = client.get("/disclaimer")
 
     assert feature_response.status_code == 200
     assert feature_response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
@@ -450,11 +461,50 @@ def test_api_app_serves_feature_and_admin_pages(monkeypatch):
     assert admin_response.status_code == 200
     assert admin_response.headers["cache-control"] == "private, no-store"
     assert "admin console" in admin_response.text
+    assert privacy_response.status_code == 200
+    assert privacy_response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    assert "policy privacy" in privacy_response.text
+    assert terms_response.status_code == 200
+    assert terms_response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    assert "policy terms" in terms_response.text
+    assert disclaimer_response.status_code == 200
+    assert disclaimer_response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    assert "policy disclaimer" in disclaimer_response.text
 
 
 def test_render_feature_detail_page_rejects_unknown_slug():
     with pytest.raises(ValueError, match="Unknown feature page"):
         render_feature_detail_page("unknown")
+
+
+def test_render_policy_pages_use_public_theme():
+    expected = {
+        "privacy": ("개인정보는 기록과 인증에 필요한 만큼만 다룹니다", "/privacy"),
+        "terms": ("이 서비스는 투자 실행이 아닌 근거 확인을 돕습니다", "/terms"),
+        "disclaimer": ("AI 리포트는 투자 조언이 아니라 검토 자료입니다", "/disclaimer"),
+    }
+
+    for slug, (heading, path) in expected.items():
+        html = render_policy_page(slug, site_base_url="https://example.com")
+
+        assert "<!doctype html>" in html
+        assert 'class="public-home market-page policy-page"' in html
+        assert heading in html
+        assert "policy-card-grid" in html
+        assert "policy-callout-grid" in html
+        assert "READ-ONLY" in html
+        assert "실거래 주문 기능을 제공하지 않는 read-only AI research platform" in html
+        assert f'<link rel="canonical" href="https://example.com{path}">' in html
+        assert 'href="/features/methodology"' in html
+        assert 'href="/mypage"' in html
+        assert "/api/member/dashboard" not in html
+        assert "/api/portfolios" not in html
+        assert "/api/watchlists" not in html
+
+
+def test_render_policy_page_rejects_unknown_slug():
+    with pytest.raises(ValueError, match="Unknown policy page"):
+        render_policy_page("unknown")
 
 
 def test_render_public_analysis_feed_page_lists_completed_runs():
@@ -763,10 +813,15 @@ def test_seo_helpers_build_canonical_robots_and_sitemap():
     assert "https://example.com/features/research" in sitemap
     assert "https://example.com/features/member-workspace" in sitemap
     assert "https://example.com/features/methodology" in sitemap
+    assert "https://example.com/privacy" in sitemap
+    assert "https://example.com/terms" in sitemap
+    assert "https://example.com/disclaimer" in sitemap
     assert "https://example.com/stocks/005930" in sitemap
     assert "https://example.com/stocks/000660" in sitemap
     assert "<changefreq>hourly</changefreq>" in sitemap
     assert "<priority>0.8</priority>" in sitemap
+    assert "<changefreq>monthly</changefreq>" in sitemap
+    assert "<priority>0.5</priority>" in sitemap
     assert "AAPL" not in sitemap
 
 
@@ -806,6 +861,9 @@ def test_api_app_serves_robots_sitemap_and_ads_txt(monkeypatch):
     assert "http://testserver/analyses" in sitemap_response.text
     assert "http://testserver/features/research" in sitemap_response.text
     assert "http://testserver/features/methodology" in sitemap_response.text
+    assert "http://testserver/privacy" in sitemap_response.text
+    assert "http://testserver/terms" in sitemap_response.text
+    assert "http://testserver/disclaimer" in sitemap_response.text
     assert "http://testserver/stocks/005930" in sitemap_response.text
     assert ads_response.status_code == 200
     assert ads_response.headers["content-type"].startswith("text/plain")

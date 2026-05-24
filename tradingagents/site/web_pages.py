@@ -748,6 +748,7 @@ def render_public_home_page(
         <li>실거래 주문 기능은 의도적으로 지원하지 않습니다.</li>
         <li>AI analysis is informational and is not investment advice.</li>
         <li><a href="/features/methodology">데이터 출처와 한계</a>를 공개 방법론으로 분리해 설명합니다.</li>
+        <li><a href="/disclaimer">투자 유의사항</a>, <a href="/terms">이용약관</a>, <a href="/privacy">개인정보처리방침</a>을 공개합니다.</li>
       </ul>
     </section>
 
@@ -867,6 +868,163 @@ def feature_detail_paths() -> tuple[str, ...]:
     return tuple(str(page["path"]) for page in FEATURE_DETAIL_PAGES.values())
 
 
+POLICY_PAGES: dict[str, dict[str, Any]] = {
+    "privacy": {
+        "path": "/privacy",
+        "title": "개인정보처리방침 | TradingAgents Korea",
+        "description": "TradingAgents Korea가 회원 인증, 수동 기록, 분석 요청을 처리할 때 다루는 개인정보와 보관 원칙입니다.",
+        "eyebrow": "Legal / Privacy",
+        "heading": "개인정보는 기록과 인증에 필요한 만큼만 다룹니다",
+        "lead": "TradingAgents Korea는 공개 리서치와 개인 기록을 분리합니다. 회원 기능은 Supabase Auth 세션 확인 뒤에만 열리고, 포트폴리오·관심종목·분석 요청은 사용자가 직접 남긴 기록을 조회하고 관리하기 위한 목적으로만 사용합니다.",
+        "summary": (("범위", "인증·수동 기록"), ("보관", "사용자별 private API"), ("권한", "주문 실행 없음")),
+        "callouts": (
+            ("Auth", "이메일 로그인과 세션 검증에 필요한 공개 Supabase 설정만 브라우저에 노출합니다."),
+            ("Records", "포트폴리오, 관심종목, 분석 요청은 로그인한 사용자 기록으로 분리합니다."),
+            ("Vendors", "서비스 운영에는 Vercel, Supabase, OpenAI 및 공개 데이터 vendor가 사용될 수 있습니다."),
+        ),
+        "sections": (
+            (
+                "수집하는 정보",
+                (
+                    "회원 가입과 로그인에 필요한 이메일 주소, 인증 세션 정보",
+                    "사용자가 직접 입력한 포트폴리오, 매매 기록, 목표가·손절가 메모",
+                    "관심종목, 분석 요청 종목, 요청 메모, 처리 상태와 생성 시각",
+                    "서비스 안정성 확인에 필요한 요청 로그, 오류 정보, readiness 상태",
+                ),
+            ),
+            (
+                "이용 목적",
+                (
+                    "회원 본인의 기록을 불러오고 수정할 수 있게 하기 위해 사용합니다.",
+                    "분석 요청 큐를 처리하고 공개 리포트와 사후 성과 검증을 연결하기 위해 사용합니다.",
+                    "보안, 장애 대응, abuse 방지, 성능 개선을 위해 최소한의 운영 로그를 확인합니다.",
+                ),
+            ),
+            (
+                "보관과 삭제",
+                (
+                    "회원 기록은 서비스 운영과 사용자의 조회 목적이 유지되는 동안 보관될 수 있습니다.",
+                    "불필요해진 데이터는 운영 정책과 법적 의무에 따라 삭제 또는 익명화할 수 있습니다.",
+                    "계정 또는 기록 삭제 요청이 필요한 경우 서비스 운영 채널을 통해 요청할 수 있습니다.",
+                ),
+            ),
+            (
+                "제3자 서비스",
+                (
+                    "인증과 데이터 저장에는 Supabase, 배포와 서버 실행에는 Vercel이 사용될 수 있습니다.",
+                    "AI 리포트 생성에는 OpenAI API가 사용될 수 있으며, 공개 종목 데이터는 KRX, DART, Naver 등 출처를 표시합니다.",
+                    "광고 또는 분석 도구가 도입되는 경우 공개 페이지와 운영 고지에 반영합니다.",
+                ),
+            ),
+        ),
+    },
+    "terms": {
+        "path": "/terms",
+        "title": "이용약관 | TradingAgents Korea",
+        "description": "TradingAgents Korea의 read-only 리서치 서비스 이용 조건과 회원 기능의 경계를 설명합니다.",
+        "eyebrow": "Legal / Terms",
+        "heading": "이 서비스는 투자 실행이 아닌 근거 확인을 돕습니다",
+        "lead": "TradingAgents Korea는 한국 주식 공개 데이터, AI 리포트, 사후 성과 검증, 회원 수동 기록을 제공하는 리서치 플랫폼입니다. 사용자는 제공된 정보를 직접 검토해야 하며, 서비스는 매매 주문 권한을 갖지 않습니다.",
+        "summary": (("서비스", "AI research"), ("회원 기능", "기록·조회·요청"), ("거래", "실거래 차단")),
+        "callouts": (
+            ("Read Only", "주문 placement, 자동매매, 브로커 매매 실행 기능은 제공하지 않습니다."),
+            ("User Control", "회원 기록은 사용자가 직접 입력하고 관리하는 수동 데이터입니다."),
+            ("Public Feed", "완료된 public 분석은 종목 페이지와 공개 분석 목록에 노출될 수 있습니다."),
+        ),
+        "sections": (
+            (
+                "서비스 범위",
+                (
+                    "공개 종목 상세, 공개 분석 목록, 사후 성과 검증, 방법론 설명 페이지를 제공합니다.",
+                    "회원에게는 수동 포트폴리오, 관심종목, 분석 요청 큐를 제공합니다.",
+                    "브로커 주문, 자동매매, 실거래 위임 기능은 제공하지 않습니다.",
+                ),
+            ),
+            (
+                "사용자 책임",
+                (
+                    "투자 판단과 매매 실행 여부는 전적으로 사용자 본인의 책임입니다.",
+                    "사용자는 입력한 기록의 정확성, 계정 보안, 비밀번호 관리에 책임을 집니다.",
+                    "서비스를 비정상적으로 호출하거나 권한 없는 데이터 접근을 시도해서는 안 됩니다.",
+                ),
+            ),
+            (
+                "콘텐츠와 데이터",
+                (
+                    "AI 리포트와 공개 데이터는 정보 제공 목적이며 완전성, 적시성, 수익 가능성을 보장하지 않습니다.",
+                    "KRX, DART, Naver 등 외부 vendor 장애나 데이터 지연이 발생할 수 있습니다.",
+                    "서비스는 데이터 출처, 기준일, fallback 여부를 가능한 범위에서 표시합니다.",
+                ),
+            ),
+            (
+                "서비스 변경",
+                (
+                    "운영자는 기능, 화면, 데이터 vendor, 공개 정책을 개선하거나 변경할 수 있습니다.",
+                    "중요한 보안 또는 운영상 이유가 있으면 일부 기능을 제한할 수 있습니다.",
+                    "약관 또는 정책이 변경되면 공개 페이지 또는 운영 고지를 통해 반영합니다.",
+                ),
+            ),
+        ),
+    },
+    "disclaimer": {
+        "path": "/disclaimer",
+        "title": "투자 유의사항 | TradingAgents Korea",
+        "description": "TradingAgents Korea의 AI 분석, 공개 데이터, 사후 성과 검증을 읽을 때 필요한 투자 유의사항입니다.",
+        "eyebrow": "Safety / Disclaimer",
+        "heading": "AI 리포트는 투자 조언이 아니라 검토 자료입니다",
+        "lead": "TradingAgents Korea의 화면, 리포트, 차트, 성과 검증은 한국 주식 투자 판단을 돕는 정보입니다. 특정 종목의 매수·매도·보유를 권유하지 않으며, 과거 성과 또는 AI 판단은 미래 수익을 보장하지 않습니다.",
+        "summary": (("성격", "정보 제공"), ("한계", "오류·지연 가능"), ("성과", "미래 보장 아님")),
+        "callouts": (
+            ("No Advice", "리포트와 점수는 투자 자문, 일임, 중개, 주문 권유가 아닙니다."),
+            ("Vendor Risk", "가격, 공시, 뉴스, 재무 데이터는 지연·누락·정정될 수 있습니다."),
+            ("Outcome", "5일/20일 outcome은 모델 품질 추적용이며 미래 결과를 약속하지 않습니다."),
+        ),
+        "sections": (
+            (
+                "투자 조언 아님",
+                (
+                    "서비스의 모든 콘텐츠는 정보 제공 목적이며 개인별 투자 목적, 재산 상황, 위험 선호를 반영하지 않습니다.",
+                    "AI 판단, rating, action, strategy lens는 사용자의 독립적인 검토를 돕는 참고 정보입니다.",
+                    "실제 매매 전에는 공식 공시, 원자료, 전문가 의견, 본인의 투자 원칙을 함께 확인해야 합니다.",
+                ),
+            ),
+            (
+                "데이터 한계",
+                (
+                    "시장 휴장, vendor 장애, API 쿼터, 데이터 정정, 종목명 변경, 상장폐지 등으로 표시 정보가 달라질 수 있습니다.",
+                    "차트, 공시, 뉴스, 재무 데이터는 기준일과 출처를 함께 확인해야 합니다.",
+                    "fallback 데이터가 사용된 경우 정확도와 최신성이 원 vendor와 다를 수 있습니다.",
+                ),
+            ),
+            (
+                "AI 모델 한계",
+                (
+                    "AI 리포트는 누락, 환각, 계산 오류, 문맥 오해, 최신 사건 미반영 가능성이 있습니다.",
+                    "리포트의 문장과 결론은 원자료 검토를 대체하지 않습니다.",
+                    "모델, prompt, 데이터 vendor 변경에 따라 분석 품질과 표현이 달라질 수 있습니다.",
+                ),
+            ),
+            (
+                "성과 검증 해석",
+                (
+                    "5일/20일 성과와 benchmark alpha는 사후 측정값이며 거래 비용, 세금, 체결 가능성을 모두 반영하지 않을 수 있습니다.",
+                    "과거 분석의 양호한 outcome은 이후 분석 또는 동일 종목의 미래 성과를 보장하지 않습니다.",
+                    "성과 통계는 공개 리포트 품질을 추적하기 위한 운영 지표로 읽어야 합니다.",
+                ),
+            ),
+        ),
+    },
+}
+
+
+def policy_page_slugs() -> tuple[str, ...]:
+    return tuple(POLICY_PAGES)
+
+
+def policy_page_paths() -> tuple[str, ...]:
+    return tuple(str(page["path"]) for page in POLICY_PAGES.values())
+
+
 def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -> str:
     """Render a public feature detail page using the landing-page visual language."""
 
@@ -959,6 +1117,109 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
       <ul>
         <li>공개 상세 페이지는 정적 설명과 인증 상태 네비게이션만 사용합니다.</li>
         <li>회원 API는 로그인 세션 확인 뒤 마이페이지에서만 호출합니다.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script>{PAGE_JS}</script>
+</body>
+</html>"""
+
+
+def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
+    """Render a public policy page in the same visual system as the research site."""
+
+    page = POLICY_PAGES.get(slug)
+    if page is None:
+        raise ValueError("Unknown policy page")
+
+    summary_html = "".join(
+        f"""<div><dt>{_h(label)}</dt><dd>{_h(value)}</dd></div>"""
+        for label, value in page["summary"]
+    )
+    callout_html = "".join(
+        f"""<article><span>{index:02d}</span><strong>{_h(title)}</strong><small>{_h(copy)}</small></article>"""
+        for index, (title, copy) in enumerate(page["callouts"], start=1)
+    )
+    sections_html = "".join(
+        f"""<article class="policy-card">
+        <span>{index:02d}</span>
+        <h2>{_h(title)}</h2>
+        <ul>{"".join(f"<li>{_h(item)}</li>" for item in items)}</ul>
+      </article>"""
+        for index, (title, items) in enumerate(page["sections"], start=1)
+    )
+    canonical = canonical_url(str(page["path"]), site_base_url=site_base_url)
+
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{_h(page["title"])}</title>
+  <meta name="description" content="{_h(page["description"])}">
+  <link rel="canonical" href="{_h(canonical)}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TradingAgents Korea">
+  <meta property="og:title" content="{_h(page["title"])}">
+  <meta property="og:description" content="{_h(page["description"])}">
+  <meta property="og:url" content="{_h(canonical)}">
+  <style>{PAGE_CSS}</style>
+</head>
+<body class="public-home market-page policy-page">
+  <a class="skip-link" href="#main-content">본문 바로가기</a>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="TradingAgents Korea home">
+      <span class="brand-mark">TA</span>
+      <span>TradingAgents Korea</span>
+    </a>
+    <nav class="top-links" aria-label="서비스 페이지">
+      <a href="/features/research">기능</a>
+      <a href="/features/methodology">신뢰 기준</a>
+      <a href="/analyses">분석 목록</a>
+      <a href="/outcomes">성과</a>
+      <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
+      <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
+      <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+    </nav>
+  </header>
+
+  <main id="main-content" class="home-shell policy-shell">
+    <section class="policy-hero" aria-labelledby="policy-title">
+      <div class="policy-copy">
+        <p class="home-kicker">{_h(page["eyebrow"])}</p>
+        <h1 id="policy-title">{_h(page["heading"])}</h1>
+        <p>{_h(page["lead"])}</p>
+        <dl class="home-proof-row feature-proof-row policy-proof-row" aria-label="정책 요약">
+          {summary_html}
+        </dl>
+      </div>
+      <aside class="policy-stamp" aria-label="정책 핵심 원칙">
+        <div class="policy-stamp-top">
+          <span>PUBLIC POLICY</span>
+          <span>READ-ONLY</span>
+        </div>
+        <strong>{_h(page["title"]).split("|")[0].strip()}</strong>
+        <p>{_h(page["description"])}</p>
+        <div class="policy-callout-grid">
+          {callout_html}
+        </div>
+      </aside>
+    </section>
+
+    <section class="policy-card-grid" aria-label="정책 세부 내용">
+      {sections_html}
+    </section>
+
+    <section class="home-ops-strip policy-boundary" aria-label="서비스 정책 연결">
+      <div>
+        <p class="eyebrow">Trust Boundary</p>
+        <h2>공개 리포트와 회원 기록의 경계를 분리합니다</h2>
+      </div>
+      <ul>
+        <li><a href="/features/methodology">방법론과 신뢰 기준</a>에서 데이터 출처와 AI 분석 한계를 함께 확인할 수 있습니다.</li>
+        <li><a href="/disclaimer">투자 유의사항</a>, <a href="/terms">이용약관</a>, <a href="/privacy">개인정보처리방침</a>은 공개 페이지로 제공합니다.</li>
+        <li>TradingAgents Korea는 실거래 주문 기능을 제공하지 않는 read-only AI research platform입니다.</li>
       </ul>
     </section>
   </main>
@@ -4562,6 +4823,181 @@ h3 {
   color: rgba(246, 243, 232, 0.78);
 }
 
+.policy-shell {
+  padding: clamp(48px, 7vw, 88px) 0 82px;
+}
+
+.policy-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.86fr) minmax(340px, 0.58fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: start;
+  padding-bottom: clamp(34px, 5vw, 64px);
+  border-bottom: 1px solid var(--home-line);
+}
+
+.policy-copy {
+  display: grid;
+  gap: 22px;
+}
+
+.policy-copy h1 {
+  max-width: 820px;
+  margin: 0;
+  color: var(--home-ink);
+  font-size: clamp(46px, 6vw, 86px);
+  line-height: 0.98;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.policy-copy > p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--home-readable);
+  font-size: clamp(17px, 1.9vw, 21px);
+  line-height: 1.72;
+}
+
+.policy-proof-row {
+  max-width: 720px;
+}
+
+.policy-stamp {
+  position: sticky;
+  top: 96px;
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid rgba(246, 243, 232, 0.16);
+  border-left: 4px solid var(--home-acid);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(246, 243, 232, 0.04) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(246, 243, 232, 0.04) 1px, transparent 1px),
+    rgba(15, 22, 18, 0.82);
+  background-size: 42px 42px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.28);
+}
+
+.policy-stamp-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: rgba(246, 243, 232, 0.62);
+  font-family: var(--app-font-stack);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.policy-stamp strong {
+  color: var(--home-ink);
+  font-size: clamp(28px, 3.6vw, 48px);
+  line-height: 1;
+}
+
+.policy-stamp p {
+  margin: 0;
+  color: var(--home-muted-readable);
+  line-height: 1.62;
+}
+
+.policy-callout-grid {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.14);
+}
+
+.policy-callout-grid article {
+  display: grid;
+  gap: 8px;
+  min-height: 118px;
+  padding: 16px;
+  background: rgba(9, 13, 11, 0.46);
+}
+
+.policy-callout-grid span,
+.policy-card span {
+  color: var(--home-celadon);
+  font-family: var(--app-font-stack);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.policy-callout-grid strong {
+  color: var(--home-ink);
+  font-size: 18px;
+}
+
+.policy-callout-grid small {
+  color: var(--home-muted-readable);
+  line-height: 1.5;
+}
+
+.policy-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: clamp(34px, 5vw, 62px);
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.14);
+}
+
+.policy-card {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: 280px;
+  padding: clamp(20px, 2.6vw, 28px);
+  background:
+    linear-gradient(135deg, rgba(246, 243, 232, 0.072), rgba(246, 243, 232, 0.032)),
+    rgba(15, 22, 18, 0.78);
+}
+
+.policy-card h2 {
+  margin: 0;
+  color: var(--home-ink);
+  font-size: clamp(24px, 3vw, 36px);
+  line-height: 1.05;
+}
+
+.policy-card ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.policy-card li {
+  color: var(--home-muted-readable);
+  line-height: 1.62;
+}
+
+.policy-boundary {
+  margin-top: clamp(34px, 5vw, 62px);
+}
+
+.policy-boundary a,
+.public-home .home-ops-strip a {
+  color: var(--home-acid);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.policy-boundary a:hover,
+.public-home .home-ops-strip a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .admin-token-panel,
 .admin-card {
   border: 1px solid rgba(246, 243, 232, 0.14);
@@ -5515,6 +5951,7 @@ h3 {
   .home-analysis-zone,
   .home-ops-strip,
   .feature-hero,
+  .policy-hero,
   .admin-hero,
   .member-auth-landing,
   .member-summary-band {
@@ -5522,7 +5959,8 @@ h3 {
   }
 
   .auth-panel,
-  .feature-diagram {
+  .feature-diagram,
+  .policy-stamp {
     position: static;
   }
 
@@ -5575,6 +6013,7 @@ h3 {
   .analysis-summary-grid,
   .analysis-track-grid,
   .analysis-pipeline-strip,
+  .policy-card-grid,
   .feature-card-grid,
   .admin-grid {
     grid-template-columns: 1fr 1fr;
@@ -5693,6 +6132,7 @@ h3 {
   }
 
   .feature-copy h1,
+  .policy-copy h1,
   .admin-hero h1 {
     max-width: 100%;
     font-size: 36px;
@@ -5712,6 +6152,7 @@ h3 {
   }
 
   .feature-copy > p,
+  .policy-copy > p,
   .admin-hero > div > p,
   .member-auth-lead {
     max-width: 100%;
@@ -5886,6 +6327,8 @@ h3 {
   .analysis-summary-grid,
   .analysis-track-grid,
   .analysis-pipeline-strip,
+  .policy-card-grid,
+  .policy-callout-grid,
   .feature-card-grid,
   .feature-step-track,
   .admin-grid,

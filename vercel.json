@@ -46,6 +46,18 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/privacy",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/terms",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/disclaimer",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/features/:path*",
       "destination": "/api/index.py"
     },

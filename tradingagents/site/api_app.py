@@ -41,6 +41,7 @@ from .web_pages import (
     render_admin_console_page,
     render_feature_detail_page,
     render_member_dashboard_page,
+    render_policy_page,
     render_public_analysis_detail_page,
     render_public_analysis_feed_page,
     render_public_home_page,
@@ -154,6 +155,7 @@ def create_app(
             or request.url.path == "/stocks"
             or request.url.path.startswith("/stocks/")
             or request.url.path.startswith("/features/")
+            or request.url.path in {"/privacy", "/terms", "/disclaimer"}
             or request.url.path in {"/ads.txt", "/robots.txt", "/sitemap.xml"}
         ):
             seconds = request.app.state.public_cache_seconds
@@ -373,6 +375,18 @@ def create_app(
     @app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
     def admin_console(request: Request) -> HTMLResponse:
         return HTMLResponse(render_admin_console_page(site_base_url=_request_site_base_url(request)))
+
+    @app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
+    def privacy_page(request: Request) -> HTMLResponse:
+        return HTMLResponse(render_policy_page("privacy", site_base_url=_request_site_base_url(request)))
+
+    @app.get("/terms", response_class=HTMLResponse, include_in_schema=False)
+    def terms_page(request: Request) -> HTMLResponse:
+        return HTMLResponse(render_policy_page("terms", site_base_url=_request_site_base_url(request)))
+
+    @app.get("/disclaimer", response_class=HTMLResponse, include_in_schema=False)
+    def disclaimer_page(request: Request) -> HTMLResponse:
+        return HTMLResponse(render_policy_page("disclaimer", site_base_url=_request_site_base_url(request)))
 
     @app.get("/features/{feature_slug}", response_class=HTMLResponse, include_in_schema=False)
     def feature_detail(feature_slug: str, request: Request) -> HTMLResponse:
