@@ -3965,10 +3965,78 @@ h3 {
 }
 
 .member-page {
+  color-scheme: dark;
+  --surface: rgba(23, 26, 22, 0.84);
+  --surface-strong: rgba(246, 243, 232, 0.07);
+  --ink: #f6f3e8;
+  --muted: rgba(246, 243, 232, 0.66);
+  --line: rgba(246, 243, 232, 0.16);
+  --accent: #8fd8bd;
+  --accent-strong: #d7ff3f;
+  --gain: #ff5a3d;
+  --loss: #6bb7ff;
+  --warn: #c79a3a;
+  --shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
+  --home-bg: #10130f;
+  --home-ink: #f6f3e8;
+  --home-panel: #171a16;
+  --home-panel-2: #22251f;
+  --home-line: rgba(246, 243, 232, 0.16);
+  --home-celadon: #8fd8bd;
+  --home-acid: #d7ff3f;
+  --home-vermilion: #ff5a3d;
+  --home-brass: #c79a3a;
   background:
-    radial-gradient(circle at 8% 0%, rgba(20, 107, 99, 0.14), transparent 34%),
-    radial-gradient(circle at 92% 10%, rgba(138, 90, 10, 0.09), transparent 30%),
-    linear-gradient(180deg, #f7f8f5 0%, #eef3f0 100%);
+    radial-gradient(circle at 74% 8%, rgba(215, 255, 63, 0.12), transparent 28%),
+    radial-gradient(circle at 11% 35%, rgba(143, 216, 189, 0.15), transparent 32%),
+    linear-gradient(180deg, #10130f 0%, #171a16 48%, #11140f 100%);
+  color: var(--ink);
+  overflow-x: clip;
+}
+
+.member-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgba(246, 243, 232, 0.045) 1px, transparent 1px),
+    linear-gradient(rgba(246, 243, 232, 0.032) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(180deg, #000 0 72%, transparent 100%);
+}
+
+.member-page .topbar {
+  border-bottom-color: rgba(246, 243, 232, 0.12);
+  background: rgba(16, 19, 15, 0.84);
+  color: var(--ink);
+}
+
+.member-page .brand-mark {
+  background: var(--home-acid);
+  color: #10130f;
+}
+
+.member-page .top-links {
+  color: rgba(246, 243, 232, 0.68);
+}
+
+.member-page .top-links a:hover {
+  background: rgba(246, 243, 232, 0.08);
+  color: var(--ink);
+}
+
+.member-page .top-links .top-auth-link,
+.member-page .top-links .top-dashboard-link {
+  border: 1px solid rgba(246, 243, 232, 0.2);
+  color: var(--ink);
+}
+
+.member-page .top-links .top-join-link {
+  border: 1px solid var(--home-acid);
+  background: var(--home-acid);
+  color: #10130f;
 }
 
 .member-auth-landing {
@@ -3988,6 +4056,7 @@ h3 {
 .member-auth-copy h1 {
   max-width: 720px;
   margin: 0;
+  color: var(--ink);
   font-size: clamp(48px, 7vw, 88px);
   line-height: 0.96;
   letter-spacing: 0;
@@ -4010,7 +4079,7 @@ h3 {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--line);
+  background: rgba(246, 243, 232, 0.12);
 }
 
 .member-auth-points article {
@@ -4018,11 +4087,11 @@ h3 {
   gap: 10px;
   min-height: 156px;
   padding: 18px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(15, 22, 18, 0.74);
 }
 
 .member-auth-points span {
-  color: var(--accent);
+  color: var(--home-acid);
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   font-weight: 800;
@@ -4094,9 +4163,9 @@ h3 {
 }
 
 .auth-panel.member-panel {
-  border-color: rgba(20, 107, 99, 0.18);
+  border-color: rgba(143, 216, 189, 0.28);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(240, 245, 244, 0.86)),
+    linear-gradient(145deg, rgba(246, 243, 232, 0.1), rgba(143, 216, 189, 0.055)),
     var(--surface);
 }
 
@@ -4138,6 +4207,18 @@ h3 {
   background: var(--surface);
   color: var(--ink);
   font: inherit;
+}
+
+.member-page .member-form input,
+.member-page .member-form select,
+.member-page .member-action-item input {
+  background: rgba(246, 243, 232, 0.06);
+  color: var(--ink);
+}
+
+.member-page .member-form input::placeholder,
+.member-page .member-action-item input::placeholder {
+  color: rgba(246, 243, 232, 0.42);
 }
 
 .password-row {
@@ -4203,14 +4284,41 @@ h3 {
   cursor: pointer;
 }
 
+.member-page .member-form button {
+  border: 1px solid var(--home-acid);
+  background: var(--home-acid);
+  color: #10130f;
+}
+
+.member-page .member-form button:hover {
+  background: #ecff72;
+}
+
 .member-form button.auth-suggested {
   background: var(--accent);
+}
+
+.member-page .member-form button.auth-suggested {
+  border-color: var(--home-celadon);
+  background: var(--home-celadon);
+  color: #10130f;
 }
 
 .ghost-button {
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink);
+}
+
+.member-page .ghost-button {
+  border-color: rgba(246, 243, 232, 0.18);
+  background: rgba(246, 243, 232, 0.06);
+  color: var(--ink);
+}
+
+.member-page .ghost-button:hover {
+  border-color: rgba(215, 255, 63, 0.42);
+  background: rgba(246, 243, 232, 0.1);
 }
 
 .auth-panel.is-signed-in .member-form {
@@ -4268,10 +4376,10 @@ h3 {
   display: grid;
   gap: 10px;
   padding: 12px;
-  border: 1px solid rgba(20, 107, 99, 0.18);
-  border-left: 4px solid var(--accent);
+  border: 1px solid rgba(143, 216, 189, 0.22);
+  border-left: 4px solid var(--home-celadon);
   border-radius: 8px;
-  background: #f7faf7;
+  background: rgba(143, 216, 189, 0.075);
 }
 
 .analysis-queue-meters {
@@ -4285,7 +4393,7 @@ h3 {
   padding: 9px 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(246, 243, 232, 0.06);
 }
 
 .analysis-queue-meters small,
@@ -4314,7 +4422,7 @@ h3 {
 
 .analysis-request-item {
   gap: 10px;
-  background: #fbfcfa;
+  background: rgba(246, 243, 232, 0.055);
 }
 
 .analysis-request-header {
@@ -4413,7 +4521,7 @@ h3 {
 }
 
 .member-action-item a {
-  color: var(--accent-strong);
+  color: var(--home-acid);
   font-weight: 900;
 }
 
@@ -4441,7 +4549,7 @@ h3 {
 
 .member-action-item .danger-button {
   border: 1px solid var(--gain);
-  background: var(--surface);
+  background: rgba(255, 90, 61, 0.08);
   color: var(--gain);
 }
 
@@ -4459,13 +4567,13 @@ h3 {
 
 .analysis-status-queued,
 .analysis-status-running {
-  border-color: #d6a73b;
+  border-color: rgba(199, 154, 58, 0.72);
   color: var(--warn);
 }
 
 .analysis-status-completed {
-  border-color: #87b391;
-  color: #23633a;
+  border-color: rgba(143, 216, 189, 0.64);
+  color: var(--home-celadon);
 }
 
 .analysis-status-failed {
@@ -6280,7 +6388,7 @@ button:disabled {
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.68);
+  background: rgba(246, 243, 232, 0.06);
 }
 
 .member-tab-strip a {
@@ -6294,14 +6402,14 @@ button:disabled {
 }
 
 .member-tab-strip a:hover {
-  border-color: rgba(20, 107, 99, 0.2);
+  border-color: rgba(215, 255, 63, 0.34);
   background: var(--surface-strong);
   color: var(--ink);
 }
 
 .member-panel:target {
-  border-color: rgba(20, 107, 99, 0.34);
-  box-shadow: 0 0 0 3px rgba(20, 107, 99, 0.12);
+  border-color: rgba(215, 255, 63, 0.42);
+  box-shadow: 0 0 0 3px rgba(215, 255, 63, 0.12);
 }
 
 @media (max-width: 980px) {
@@ -6358,10 +6466,22 @@ PAGE_JS = """
   const suggestions = document.getElementById("tickerSuggestions");
   let lastSearchController = null;
 
+  function memberStorageGet(key) {
+    try {
+      return localStorage.getItem(key) || sessionStorage.getItem(key) || "";
+    } catch (_) {
+      try {
+        return sessionStorage.getItem(key) || "";
+      } catch (__) {
+        return "";
+      }
+    }
+  }
+
   function syncTopAuthLinks() {
     const signedIn = Boolean(
-      sessionStorage.getItem(memberAccessTokenKey)
-      || sessionStorage.getItem(memberRefreshTokenKey)
+      memberStorageGet(memberAccessTokenKey)
+      || memberStorageGet(memberRefreshTokenKey)
     );
     document.querySelectorAll('[data-auth-visible="signed-out"]').forEach((node) => {
       node.hidden = signedIn;
@@ -7148,6 +7268,46 @@ MEMBER_PAGE_JS = """
   const memberWorkspace = document.getElementById("memberWorkspace");
   const signedOutNavItems = Array.from(document.querySelectorAll('[data-auth-visible="signed-out"]'));
   const signedInNavItems = Array.from(document.querySelectorAll('[data-auth-visible="signed-in"]'));
+  const sessionKeys = [accessTokenKey, refreshTokenKey, expiresAtKey, userEmailKey, userIdKey];
+
+  function storageAreaGet(area, key) {
+    try {
+      return area?.getItem(key) || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function storageGet(key) {
+    return storageAreaGet(window.localStorage, key) || storageAreaGet(window.sessionStorage, key);
+  }
+
+  function storageSet(key, value) {
+    const text = String(value || "");
+    try {
+      window.localStorage.setItem(key, text);
+    } catch (_) {}
+    try {
+      window.sessionStorage.setItem(key, text);
+    } catch (_) {}
+  }
+
+  function storageRemove(key) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch (_) {}
+    try {
+      window.sessionStorage.removeItem(key);
+    } catch (_) {}
+  }
+
+  function migrateSessionStorage() {
+    sessionKeys.forEach((key) => {
+      const persistent = storageAreaGet(window.localStorage, key);
+      const volatile = storageAreaGet(window.sessionStorage, key);
+      if (!persistent && volatile) storageSet(key, volatile);
+    });
+  }
 
   function setAuthUiState(isSignedIn) {
     const signedIn = Boolean(isSignedIn);
@@ -7197,7 +7357,7 @@ MEMBER_PAGE_JS = """
     if (signedInPanel) signedInPanel.hidden = !isSignedIn;
     if (!isSignedIn) return;
     const label = options.label || "대시보드 확인 중";
-    const user = options.user || sessionStorage.getItem(userEmailKey) || sessionStorage.getItem(userIdKey) || "회원 세션";
+    const user = options.user || storageGet(userEmailKey) || storageGet(userIdKey) || "회원 세션";
     const meta = options.meta || "세션을 확인하고 있습니다.";
     if (signedInState) {
       signedInState.textContent = label;
@@ -7211,23 +7371,19 @@ MEMBER_PAGE_JS = """
   }
 
   function accessToken() {
-    return sessionStorage.getItem(accessTokenKey) || "";
+    return storageGet(accessTokenKey) || "";
   }
 
   function refreshToken() {
-    return sessionStorage.getItem(refreshTokenKey) || "";
+    return storageGet(refreshTokenKey) || "";
   }
 
   function sessionExpiresAt() {
-    return Number(sessionStorage.getItem(expiresAtKey) || 0);
+    return Number(storageGet(expiresAtKey) || 0);
   }
 
   function clearSession() {
-    sessionStorage.removeItem(accessTokenKey);
-    sessionStorage.removeItem(refreshTokenKey);
-    sessionStorage.removeItem(expiresAtKey);
-    sessionStorage.removeItem(userEmailKey);
-    sessionStorage.removeItem(userIdKey);
+    sessionKeys.forEach((key) => storageRemove(key));
     setSignedInState(false);
   }
 
@@ -7240,11 +7396,11 @@ MEMBER_PAGE_JS = """
       ? Number(session.expires_at) * 1000
       : Date.now() + Math.max(Number(session.expires_in || 3600) - 30, 60) * 1000;
     if (!token) return false;
-    sessionStorage.setItem(accessTokenKey, token);
-    if (refresh) sessionStorage.setItem(refreshTokenKey, refresh);
-    if (Number.isFinite(expiresAt)) sessionStorage.setItem(expiresAtKey, String(expiresAt));
-    if (user.email) sessionStorage.setItem(userEmailKey, String(user.email));
-    if (user.id) sessionStorage.setItem(userIdKey, String(user.id));
+    storageSet(accessTokenKey, token);
+    if (refresh) storageSet(refreshTokenKey, refresh);
+    if (Number.isFinite(expiresAt)) storageSet(expiresAtKey, String(expiresAt));
+    if (user.email) storageSet(userEmailKey, String(user.email));
+    if (user.id) storageSet(userIdKey, String(user.id));
     setSignedInState(true, { label: "세션 확인 중", user: user.email || user.id || "", meta: "대시보드 권한을 확인하고 있습니다." });
     return true;
   }
@@ -7806,9 +7962,9 @@ MEMBER_PAGE_JS = """
   function renderDashboard(payload) {
     const errors = payload?.errors || {};
     const member = payload?.member || {};
-    const userId = member.user_id || sessionStorage.getItem(userIdKey) || "";
-    if (userId) sessionStorage.setItem(userIdKey, String(userId));
-    const userLabel = sessionStorage.getItem(userEmailKey) || userId || "회원 세션";
+    const userId = member.user_id || storageGet(userIdKey) || "";
+    if (userId) storageSet(userIdKey, String(userId));
+    const userLabel = storageGet(userEmailKey) || userId || "회원 세션";
     renderPortfolios(
       payload?.portfolios || { items: [] },
       payload?.portfolio_details || {},
@@ -7887,7 +8043,7 @@ MEMBER_PAGE_JS = """
     renderAnalysisRequests(requests, requestsResult.error);
     const errors = [portfoliosResult, watchlistsResult, requestsResult].filter((result) => !result.ok).length
       + (dashboardError ? 1 : 0);
-    const userLabel = sessionStorage.getItem(userEmailKey) || sessionStorage.getItem(userIdKey) || "회원 세션";
+    const userLabel = storageGet(userEmailKey) || storageGet(userIdKey) || "회원 세션";
     if (errors) {
       const fallbackErrors = [
         dashboardError ? `dashboard: ${dashboardError}` : "",
@@ -8061,6 +8217,7 @@ MEMBER_PAGE_JS = """
     });
   });
 
+  migrateSessionStorage();
   setAuthUiState(Boolean(accessToken() || refreshToken()));
   applyRequestedAuthMode();
   const redirectSession = consumeRedirectSession();

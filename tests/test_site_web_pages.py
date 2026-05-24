@@ -318,6 +318,11 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "consumeRedirectSession" in html
     assert "refresh_token" in html
     assert "grant_type=refresh_token" in html
+    assert "localStorage" in html
+    assert "storageGet" in html
+    assert "storageSet" in html
+    assert "storageRemove" in html
+    assert "migrateSessionStorage" in html
     assert "safeMemberApi" in html
     assert "member-sublist" in html
     assert "window.history.replaceState" in html
