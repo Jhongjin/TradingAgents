@@ -2539,6 +2539,11 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
           <span>waiting</span>
           <h3>공개 분석 대기</h3>
           <p>분석 worker가 완료한 public 리포트가 생기면 이 목록에 표시됩니다.</p>
+          <div class="analysis-feed-signal-row" aria-label="공개 분석 대기 상태">
+            <span>Run 대기</span>
+            <span>리포트 0개</span>
+            <span>검증 대기</span>
+          </div>
           <div class="analysis-feed-actions">
             <a href="/features/research">리서치 흐름</a>
             <a href="/member">분석 요청</a>
@@ -2555,6 +2560,8 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
         model_provider = item.get("model_provider") or "AI"
         decision = item.get("decision_rating") or item.get("decision_action") or "-"
         alpha = _percent(item.get("alpha_return"), signed=True)
+        horizon = item.get("outcome_horizon_days")
+        outcome_label = f"{horizon}D 검증" if horizon else "검증 대기"
         alpha_raw = item.get("alpha_return")
         try:
             alpha_number = float(alpha_raw) if alpha_raw is not None else None
@@ -2569,20 +2576,28 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
         )
         report_count = item.get("report_count")
         reports = f"{report_count}개" if report_count is not None else "-"
-        run_id = item.get("id")
+        run_id = str(item.get("id") or "")
+        run_label = run_id[:8] or "-"
+        status_label = _analysis_feed_status_label(item.get("status"))
         report_path = item.get("report_path") or (f"/analyses/{run_id}" if run_id else "/analyses")
         api_path = item.get("api_path") or (f"/api/analyses/{run_id}" if run_id else "/api/analyses")
+        outcome_path = f"/outcomes?ticker={code}" if code else "/outcomes"
         cards.append(
             f"""
             <article class="analysis-feed-card {alpha_class}">
               <div class="analysis-feed-card-top">
-                <span>{_h(str(market))}</span>
+                <span>{_h(str(market))} / Run {_h(run_label)}</span>
                 <small>{_h(str(trade_date))}</small>
               </div>
               <h3><a href="{_h(str(report_path))}">{_h(str(name))} <small>{_h(str(code))}</small></a></h3>
-              <p>판단 {_h(str(decision))} / {_h(str(model_provider))} 공개 분석</p>
+              <p>{_h(str(trade_date))} 기준 public run입니다. 판단, 리포트 수, outcome 연결 상태를 함께 확인합니다.</p>
+              <div class="analysis-feed-signal-row" aria-label="분석 카드 상태">
+                <span>판단 {_h(str(decision))}</span>
+                <span>{_h(reports)} 리포트</span>
+                <span>{_h(outcome_label)} / {_h(alpha if alpha != "-" else "알파 대기")}</span>
+              </div>
               <dl>
-                <div><dt>상태</dt><dd>{_h(str(item.get("status") or "-"))}</dd></div>
+                <div><dt>상태</dt><dd>{_h(status_label)}</dd></div>
                 <div><dt>모델</dt><dd>{_h(str(model_provider))}</dd></div>
                 <div><dt>리포트</dt><dd>{_h(reports)}</dd></div>
                 <div><dt>알파</dt><dd>{_h(alpha)}</dd></div>
@@ -2590,6 +2605,7 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
               <div class="analysis-feed-actions">
                 <a href="{_h(str(report_path))}">리포트</a>
                 <a href="/stocks/{_h(str(code))}">종목</a>
+                <a href="{_h(str(outcome_path))}">성과</a>
                 <a href="{_h(str(api_path))}">JSON</a>
               </div>
             </article>
@@ -4555,6 +4571,30 @@ h3 {
 .analysis-feed-card p {
   margin: 0 0 2px;
   color: var(--muted);
+}
+
+.analysis-feed-signal-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.analysis-feed-card .analysis-feed-signal-row span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: none;
 }
 
 .analysis-feed-card dl {
@@ -7489,6 +7529,12 @@ button:disabled {
 .market-page .report-card span,
 .market-page .analysis-feed-card span {
   color: var(--home-celadon);
+}
+
+.market-page .analysis-feed-card .analysis-feed-signal-row span {
+  border-color: rgba(215, 255, 63, 0.22);
+  background: rgba(215, 255, 63, 0.08);
+  color: var(--home-ink);
 }
 
 .market-page .analysis-pipeline-strip {
