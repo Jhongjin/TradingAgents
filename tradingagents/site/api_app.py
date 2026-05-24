@@ -7,7 +7,7 @@ import hmac
 import time
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 from urllib.parse import quote, urlparse
 from zoneinfo import ZoneInfo
 
@@ -760,6 +760,17 @@ def create_app(
             raise HTTPException(status_code=404, detail="Analysis request not found")
         return payload
 
+    @app.get("/api/admin/ops-summary", include_in_schema=False)
+    def admin_ops_summary(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _admin_ops_summary(repo)
+
     @app.post("/api/admin/analysis-requests/process", include_in_schema=False)
     def process_analysis_requests_admin(
         body: AnalysisWorkerRequestBody,
@@ -1037,6 +1048,95 @@ def _sitemap_max_analysis_tickers() -> int:
     if raw <= 0:
         raise ValueError("TRADINGAGENTS_SITEMAP_MAX_ANALYSIS_TICKERS must be positive")
     return raw
+
+
+def _admin_ops_summary(repo: StorageRepository) -> dict[str, object]:
+    request_statuses = ("queued", "running", "completed", "failed", "skipped")
+    request_counts = {
+        status: repo.count_analysis_requests(statuses=(status,))
+        for status in request_statuses
+    }
+    recent_requests = {
+        status: [_admin_request_preview(row) for row in repo.list_analysis_requests(status=status, limit=5)]
+        for status in ("queued", "running", "failed", "completed")
+    }
+    outcome_candidates = repo.list_public_analysis_runs(limit=5)
+    recent_outcomes = repo.list_analysis_outcomes(status="completed", limit=5, public_only=True)
+    pending_outcomes = repo.list_analysis_outcomes(status="pending", limit=5, public_only=True)
+    unavailable_outcomes = repo.list_analysis_outcomes(status="unavailable", limit=5, public_only=True)
+    return {
+        "status": "available",
+        "analysis_requests": {
+            "counts": request_counts,
+            "recent": recent_requests,
+            "active_count": request_counts["queued"] + request_counts["running"],
+            "failed_count": request_counts["failed"],
+        },
+        "outcomes": {
+            "candidate_runs": [_admin_run_preview(row) for row in outcome_candidates],
+            "recent_completed": [_admin_outcome_preview(row) for row in recent_outcomes],
+            "pending_sample_count": len(pending_outcomes),
+            "unavailable_sample_count": len(unavailable_outcomes),
+        },
+        "limits": {
+            "analysis_worker_max": _max_worker_limit(),
+            "outcome_worker_max": _max_outcome_worker_limit(),
+            "analysis_cron_limit": _cron_worker_limit(),
+            "outcome_cron_limit": _outcome_cron_worker_limit(),
+        },
+        "inspect_paths": {
+            "analysis_requests": "/api/admin/analysis-requests/process",
+            "outcomes": "/api/admin/analysis-outcomes/process",
+            "public_outcomes": "/api/analysis-outcomes",
+        },
+    }
+
+
+def _admin_request_preview(row: dict[str, Any]) -> dict[str, object]:
+    analysis_run_id = str(row.get("analysis_run_id") or "")
+    return {
+        "id": str(row.get("id") or ""),
+        "ticker_code": row.get("ticker_code"),
+        "ticker_name": row.get("ticker_name"),
+        "market": row.get("market"),
+        "status": row.get("status"),
+        "requested_trade_date": row.get("requested_trade_date"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+        "analysis_run_id": analysis_run_id or None,
+        "report_path": f"/analyses/{analysis_run_id}" if analysis_run_id else None,
+        "reason": row.get("reason"),
+    }
+
+
+def _admin_run_preview(row: dict[str, Any]) -> dict[str, object]:
+    run_id = str(row.get("id") or "")
+    return {
+        "id": run_id,
+        "ticker_code": row.get("ticker_code"),
+        "ticker_name": row.get("ticker_name"),
+        "market": row.get("market"),
+        "trade_date": row.get("trade_date"),
+        "status": row.get("status"),
+        "report_path": f"/analyses/{run_id}" if run_id else None,
+    }
+
+
+def _admin_outcome_preview(row: dict[str, Any]) -> dict[str, object]:
+    run_id = str(row.get("analysis_run_id") or "")
+    return {
+        "id": str(row.get("id") or ""),
+        "analysis_run_id": run_id,
+        "ticker_code": row.get("ticker_code"),
+        "ticker_name": row.get("ticker_name"),
+        "market": row.get("market"),
+        "trade_date": row.get("trade_date"),
+        "evaluated_at": row.get("evaluated_at"),
+        "horizon_days": row.get("horizon_days"),
+        "status": row.get("status"),
+        "alpha_return": row.get("alpha_return"),
+        "report_path": f"/analyses/{run_id}" if run_id else None,
+    }
 
 
 def _process_analysis_request_queue(repo: StorageRepository, *, limit: int) -> dict:

@@ -1323,6 +1323,26 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       </article>
     </section>
 
+    <section class="admin-ops-panel" aria-labelledby="admin-ops-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Operations Snapshot</p>
+          <h2 id="admin-ops-title">큐 현황과 최근 결과</h2>
+          <p class="panel-copy">worker token으로만 조회합니다. 사용자별 private 데이터 대신 운영 큐 상태와 공개 outcome 처리 흐름만 요약합니다.</p>
+        </div>
+        <button type="button" data-admin-ops-summary>운영 요약 조회</button>
+      </div>
+      <div class="admin-ops-grid" id="adminOpsSummary" aria-live="polite">
+        <div class="ops-cell is-waiting">
+          <span>Queue</span>
+          <strong>대기</strong>
+          <small>worker token 저장 후 운영 요약을 조회하세요.</small>
+        </div>
+      </div>
+      <div class="admin-recent-grid" id="adminRecentPanel" aria-label="최근 운영 항목"></div>
+      <pre id="adminOpsOutput">대기 중</pre>
+    </section>
+
     <section class="admin-grid" aria-label="운영 작업">
       <article class="admin-card">
         <div class="panel-heading">
@@ -8217,6 +8237,132 @@ button:disabled {
   line-height: 1.5;
 }
 
+.admin-ops-panel {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+  padding: clamp(18px, 3vw, 26px);
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(246, 243, 232, 0.072), rgba(246, 243, 232, 0.032)),
+    rgba(15, 22, 18, 0.78);
+  color: var(--home-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.admin-ops-panel .panel-copy {
+  max-width: 720px;
+  margin: 6px 0 0;
+  color: var(--home-muted-readable);
+  line-height: 1.55;
+}
+
+.admin-ops-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.14);
+}
+
+.ops-cell {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 128px;
+  padding: 16px;
+  background: rgba(9, 13, 11, 0.48);
+}
+
+.ops-cell span,
+.admin-recent-list span {
+  color: var(--home-celadon);
+  font-family: var(--app-font-stack);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ops-cell strong {
+  color: var(--home-ink);
+  font-size: clamp(22px, 2.6vw, 32px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ops-cell small {
+  color: var(--home-muted-readable);
+  line-height: 1.45;
+}
+
+.ops-cell.is-ok {
+  border-top: 3px solid var(--home-celadon);
+}
+
+.ops-cell.is-warn {
+  border-top: 3px solid var(--home-brass);
+}
+
+.ops-cell.is-error {
+  border-top: 3px solid var(--home-vermilion);
+}
+
+.admin-recent-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-recent-list {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 150px;
+  padding: 16px;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  background: rgba(9, 13, 11, 0.42);
+}
+
+.admin-recent-list strong {
+  color: var(--home-ink);
+  font-size: 18px;
+}
+
+.admin-recent-list ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-recent-list li {
+  display: grid;
+  gap: 2px;
+  border-top: 1px solid rgba(246, 243, 232, 0.12);
+  padding-top: 8px;
+  color: var(--home-muted-readable);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.admin-recent-list a {
+  color: var(--home-acid);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.admin-recent-list a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .member-tab-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -8286,6 +8432,8 @@ button:disabled {
   .analysis-filter-panel,
   .stock-flow-strip,
   .admin-readiness-panel,
+  .admin-ops-grid,
+  .admin-recent-grid,
   .admin-health-strip,
   .admin-workflow-strip {
     grid-template-columns: minmax(0, 1fr);
@@ -8902,6 +9050,9 @@ ADMIN_PAGE_JS = """
   const tokenState = document.getElementById("adminTokenState");
   const readinessOutput = document.getElementById("adminReadinessOutput");
   const readinessPanel = document.getElementById("adminReadinessPanel");
+  const opsOutput = document.getElementById("adminOpsOutput");
+  const opsSummary = document.getElementById("adminOpsSummary");
+  const recentPanel = document.getElementById("adminRecentPanel");
   const requestsOutput = document.getElementById("adminRequestsOutput");
   const outcomesOutput = document.getElementById("adminOutcomesOutput");
   const requestLimit = document.getElementById("adminRequestLimit");
@@ -8969,6 +9120,129 @@ ADMIN_PAGE_JS = """
     cell.appendChild(noteNode);
 
     fragment.appendChild(cell);
+  }
+
+  function appendOpsCell(fragment, label, value, note, state = "is-waiting") {
+    const cell = document.createElement("div");
+    cell.className = `ops-cell ${state}`;
+
+    const labelNode = document.createElement("span");
+    labelNode.textContent = label;
+    cell.appendChild(labelNode);
+
+    const valueNode = document.createElement("strong");
+    valueNode.textContent = value;
+    cell.appendChild(valueNode);
+
+    const noteNode = document.createElement("small");
+    noteNode.textContent = note;
+    cell.appendChild(noteNode);
+
+    fragment.appendChild(cell);
+  }
+
+  function requestLabel(item) {
+    if (!item) return "항목 없음";
+    const ticker = [item.ticker_name, item.ticker_code].filter(Boolean).join(" ");
+    const date = item.requested_trade_date || item.created_at || "-";
+    return `${ticker || item.id || "request"} / ${item.status || "-"} / ${date}`;
+  }
+
+  function outcomeLabel(item) {
+    if (!item) return "항목 없음";
+    const ticker = [item.ticker_name, item.ticker_code].filter(Boolean).join(" ");
+    const horizon = item.horizon_days ? `${item.horizon_days}D` : "run";
+    const alpha = item.alpha_return === null || item.alpha_return === undefined
+      ? "alpha -"
+      : `alpha ${(Number(item.alpha_return) * 100).toFixed(2)}%`;
+    return `${ticker || item.id || "outcome"} / ${horizon} / ${alpha}`;
+  }
+
+  function runLabel(item) {
+    if (!item) return "항목 없음";
+    const ticker = [item.ticker_name, item.ticker_code].filter(Boolean).join(" ");
+    return `${ticker || item.id || "run"} / ${item.trade_date || "-"} / ${item.status || "-"}`;
+  }
+
+  function renderRecentList(title, label, items, formatter) {
+    const section = document.createElement("section");
+    section.className = "admin-recent-list";
+    const eyebrow = document.createElement("span");
+    eyebrow.textContent = label;
+    section.appendChild(eyebrow);
+    const heading = document.createElement("strong");
+    heading.textContent = title;
+    section.appendChild(heading);
+    const list = document.createElement("ul");
+    const rows = Array.isArray(items) ? items.slice(0, 4) : [];
+    if (!rows.length) {
+      const empty = document.createElement("li");
+      empty.textContent = "표시할 항목이 없습니다.";
+      list.appendChild(empty);
+    } else {
+      rows.forEach((item) => {
+        const row = document.createElement("li");
+        const link = item.report_path ? document.createElement("a") : null;
+        if (link) {
+          link.href = item.report_path;
+          link.textContent = formatter(item);
+          row.appendChild(link);
+        } else {
+          row.textContent = formatter(item);
+        }
+        list.appendChild(row);
+      });
+    }
+    section.appendChild(list);
+    return section;
+  }
+
+  function renderOpsSummaryPending(message) {
+    if (!opsSummary) return;
+    opsSummary.textContent = "";
+    recentPanel && (recentPanel.textContent = "");
+    const fragment = document.createDocumentFragment();
+    appendOpsCell(fragment, "Ops", "확인 중", message, "is-waiting");
+    opsSummary.appendChild(fragment);
+  }
+
+  function renderOpsSummaryError(message) {
+    if (!opsSummary) return;
+    opsSummary.textContent = "";
+    recentPanel && (recentPanel.textContent = "");
+    const fragment = document.createDocumentFragment();
+    appendOpsCell(fragment, "Ops", "오류", message, "is-error");
+    opsSummary.appendChild(fragment);
+  }
+
+  function renderOpsSummary(payload) {
+    if (!opsSummary) return;
+    const requests = payload?.analysis_requests || {};
+    const counts = requests.counts || {};
+    const recent = requests.recent || {};
+    const outcomes = payload?.outcomes || {};
+    const limits = payload?.limits || {};
+    const fragment = document.createDocumentFragment();
+    opsSummary.textContent = "";
+
+    const active = Number(requests.active_count || 0);
+    const failed = Number(requests.failed_count || 0);
+    const candidates = Array.isArray(outcomes.candidate_runs) ? outcomes.candidate_runs.length : 0;
+    const completedOutcomes = Array.isArray(outcomes.recent_completed) ? outcomes.recent_completed.length : 0;
+    appendOpsCell(fragment, "Active Queue", String(active), `queued ${counts.queued || 0} · running ${counts.running || 0}`, active ? "is-warn" : "is-ok");
+    appendOpsCell(fragment, "Completed", String(counts.completed || 0), "완료된 분석 요청 누적", "is-ok");
+    appendOpsCell(fragment, "Failures", String(failed), "최근 실패 목록은 아래에서 확인", failed ? "is-error" : "is-ok");
+    appendOpsCell(fragment, "Outcome Candidates", String(candidates), `dry run limit ${limits.outcome_worker_max || "-"}`, candidates ? "is-warn" : "is-ok");
+    appendOpsCell(fragment, "Recent Outcomes", String(completedOutcomes), `pending sample ${outcomes.pending_sample_count || 0} · unavailable sample ${outcomes.unavailable_sample_count || 0}`, "is-ok");
+    opsSummary.appendChild(fragment);
+
+    if (recentPanel) {
+      recentPanel.textContent = "";
+      recentPanel.appendChild(renderRecentList("대기/처리 중", "Queue", [...(recent.queued || []), ...(recent.running || [])], requestLabel));
+      recentPanel.appendChild(renderRecentList("최근 실패", "Failure", recent.failed || [], requestLabel));
+      recentPanel.appendChild(renderRecentList("Outcome 후보", "Outcome", outcomes.candidate_runs || [], runLabel));
+      recentPanel.appendChild(renderRecentList("최근 완료 outcome", "Result", outcomes.recent_completed || [], outcomeLabel));
+    }
   }
 
   function renderReadinessPending(message) {
@@ -9093,6 +9367,7 @@ ADMIN_PAGE_JS = """
   });
 
   const readinessButton = document.querySelector("[data-admin-readiness]");
+  const opsButton = document.querySelector("[data-admin-ops-summary]");
 
   readinessButton?.addEventListener("click", async (event) => {
     const button = event.currentTarget;
@@ -9116,6 +9391,24 @@ ADMIN_PAGE_JS = """
     }
   });
 
+  opsButton?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    try {
+      setBusy(button, true);
+      setOutput(opsOutput, "운영 요약 확인 중");
+      renderOpsSummaryPending("worker token으로 큐 현황과 최근 처리 결과를 조회합니다.");
+      const payload = await fetchJson("/api/admin/ops-summary", { method: "GET" }, true);
+      renderOpsSummary(payload);
+      setOutput(opsOutput, payload);
+    } catch (error) {
+      const message = error.message || "Ops summary failed";
+      renderOpsSummaryError(message);
+      setOutput(opsOutput, message);
+    } finally {
+      setBusy(button, false);
+    }
+  });
+
   window.setTimeout(() => {
     if (readinessButton && !readinessButton.disabled) readinessButton.click();
   }, 120);
@@ -9133,6 +9426,7 @@ ADMIN_PAGE_JS = """
       setBusy(button, true);
       setOutput(output, isDryRun ? "dry run 확인 중" : "처리 요청 중");
       setOutput(output, await fetchJson(path, { method: "POST", body: JSON.stringify(body) }, true));
+      if (opsButton && !opsButton.disabled) opsButton.click();
     } catch (error) {
       setOutput(output, error.message || "Admin action failed");
     } finally {

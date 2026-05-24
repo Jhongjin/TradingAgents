@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from tradingagents.storage import (
     AgentReportInput,
     AnalysisOutcomeInput,
+    AnalysisRequestInput,
     AnalysisRunInput,
     StorageRepository,
     TradeDecisionInput,
@@ -391,6 +392,11 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     assert "관리자 콘솔" in html
     assert "admin-health-strip" in html
     assert "admin-workflow-strip" in html
+    assert "admin-ops-panel" in html
+    assert "adminOpsSummary" in html
+    assert "adminRecentPanel" in html
+    assert "data-admin-ops-summary" in html
+    assert "/api/admin/ops-summary" in html
     assert "권장 운영 순서" in html
     assert "readinessButton" in html
     assert "adminReadinessPanel" in html
@@ -409,6 +415,73 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     assert "/api/admin/analysis-outcomes/process" in html
     assert '<link rel="canonical" href="https://example.com/admin">' in html
     assert "TRADINGAGENTS_WORKER_TOKEN=" not in html
+
+
+def test_api_app_serves_admin_ops_summary(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_TOKEN", "worker-token")
+    repo = _repo()
+    queued_id = repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id="00000000-0000-0000-0000-000000000001",
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            requested_trade_date=date(2026, 5, 5),
+            reason="refresh",
+        )
+    )
+    failed_id = repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id="00000000-0000-0000-0000-000000000002",
+            ticker_code="000660",
+            ticker_name="SK하이닉스",
+            market="KOSPI",
+            requested_trade_date=date(2026, 5, 6),
+            reason="retry",
+        )
+    )
+    repo.update_analysis_request_status(failed_id, status="failed")
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 12),
+            horizon_days=5,
+            status="completed",
+            raw_return=0.04,
+            benchmark_return=0.01,
+            alpha_return=0.03,
+        )
+    )
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.get("/api/admin/ops-summary", headers={"X-TradingAgents-Worker-Token": "worker-token"})
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
+    payload = response.json()
+    assert payload["analysis_requests"]["counts"]["queued"] == 1
+    assert payload["analysis_requests"]["counts"]["failed"] == 1
+    assert payload["analysis_requests"]["active_count"] == 1
+    assert payload["analysis_requests"]["recent"]["queued"][0]["id"] == queued_id
+    assert "user_id" not in payload["analysis_requests"]["recent"]["queued"][0]
+    assert payload["analysis_requests"]["recent"]["failed"][0]["id"] == failed_id
+    assert payload["outcomes"]["candidate_runs"][0]["id"] == run_id
+    assert payload["outcomes"]["recent_completed"][0]["alpha_return"] == 0.03
+    assert payload["inspect_paths"]["public_outcomes"] == "/api/analysis-outcomes"
 
 
 def test_api_app_serves_member_dashboard(monkeypatch):
