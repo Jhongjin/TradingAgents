@@ -91,7 +91,7 @@ def render_public_stock_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
     </nav>
     <form class="ticker-search" action="/stocks" method="get">
       <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
@@ -252,7 +252,7 @@ def render_public_analysis_feed_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -377,7 +377,7 @@ def render_public_outcomes_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -497,7 +497,7 @@ def render_public_analysis_detail_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -598,7 +598,7 @@ def render_public_home_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -1077,7 +1077,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -1187,7 +1187,7 @@ def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -1264,7 +1264,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <a href="/analyses">분석 목록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden aria-current="page">운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden aria-current="page">운영 콘솔</a>
     </nav>
   </header>
 
@@ -1449,7 +1449,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -6551,8 +6551,8 @@ h3 {
   --home-panel-2: #22251f;
   --home-line: rgba(246, 243, 232, 0.16);
   --home-muted: #a6ada2;
-  --home-readable: rgba(246, 243, 232, 0.8);
-  --home-muted-readable: rgba(246, 243, 232, 0.74);
+  --home-readable: rgba(246, 243, 232, 0.84);
+  --home-muted-readable: rgba(246, 243, 232, 0.8);
   --home-celadon: #8fd8bd;
   --home-acid: #d7ff3f;
   --home-vermilion: #ff5a3d;
@@ -7533,7 +7533,7 @@ button:disabled {
 }
 
 .stock-signal-card small {
-  color: rgba(246, 243, 232, 0.62);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
   font-weight: 800;
   line-height: 1.4;
 }
@@ -7745,6 +7745,7 @@ button:disabled {
 }
 
 .market-page .data-source-strip {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   border-color: rgba(246, 243, 232, 0.13);
   background: rgba(246, 243, 232, 0.13);
 }
@@ -7795,7 +7796,7 @@ button:disabled {
 }
 
 .market-page .metric-grid span {
-  color: rgba(246, 243, 232, 0.54);
+  color: rgba(246, 243, 232, 0.68);
 }
 
 .market-page .lens-card {
@@ -7813,7 +7814,7 @@ button:disabled {
 .market-page .lens-card span,
 .market-page .outcome-card span {
   background: rgba(246, 243, 232, 0.08);
-  color: rgba(246, 243, 232, 0.66);
+  color: rgba(246, 243, 232, 0.76);
 }
 
 .market-page .outcome-card dl div {
@@ -7954,10 +7955,12 @@ button:disabled {
 .analysis-detail-hero h1 {
   max-width: 920px;
   color: var(--home-ink);
-  font-size: clamp(42px, 6vw, 88px);
+  font-size: clamp(38px, 5.2vw, 78px);
   font-weight: 900;
-  line-height: 0.96;
+  line-height: 1;
   text-wrap: balance;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .analysis-detail-actions {
@@ -8078,7 +8081,7 @@ button:disabled {
 
 .analysis-detail-map-grid small,
 .analysis-detail-map-grid em {
-  color: rgba(246, 243, 232, 0.62);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
   font-style: normal;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -8120,7 +8123,7 @@ button:disabled {
 .analysis-provenance-grid small {
   display: block;
   margin-top: 8px;
-  color: rgba(246, 243, 232, 0.58);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
   line-height: 1.45;
 }
 
@@ -8143,7 +8146,7 @@ button:disabled {
 
 .analysis-rationale-card p {
   max-width: 82ch;
-  color: rgba(246, 243, 232, 0.68);
+  color: var(--home-readable, rgba(246, 243, 232, 0.84));
   line-height: 1.72;
 }
 
@@ -8244,14 +8247,14 @@ button:disabled {
 }
 
 .analysis-quality-list small {
-  color: rgba(246, 243, 232, 0.62);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
   font-size: 12px;
   line-height: 1.45;
 }
 
 .analysis-detail-report-card p {
   max-width: 96ch;
-  color: rgba(246, 243, 232, 0.68);
+  color: var(--home-readable, rgba(246, 243, 232, 0.84));
   line-height: 1.74;
 }
 
@@ -8478,7 +8481,7 @@ button:disabled {
 
 .member-tab-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin: 0 0 16px;
   padding: 8px;
@@ -8554,6 +8557,10 @@ button:disabled {
 
   .admin-health-strip {
     gap: 1px;
+  }
+
+  .member-tab-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

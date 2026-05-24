@@ -125,6 +125,9 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
 
     assert "<!doctype html>" in html
     assert 'class="public-home market-page stock-page"' in html
+    assert '--app-font-stack: Geist, "Geist Fallback", "Noto Sans KR"' in html
+    assert "--home-muted-readable: rgba(246, 243, 232, 0.8);" in html
+    assert "grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));" in html
     assert 'class="skip-link"' in html
     assert "TradingAgents Korea" in html
     assert "삼성전자" in html
@@ -270,6 +273,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "memberSessionGate" in html
     assert "세션을 확인하고 있습니다" in html
     assert "member-tab-strip" in html
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr));" in html
     assert 'role="tablist"' in html
     assert 'data-member-tab="home"' in html
     assert 'id="member-home-section"' in html
@@ -277,7 +281,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "member-home-grid" in html
     assert "운영 콘솔" in html
     assert "member-admin-card" in html
-    assert 'class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>' in html
+    assert 'class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>' in html
     assert 'href="/admin">운영 콘솔 열기</a>' in html
     assert 'data-member-jump="portfolio"' in html
     assert 'data-member-tab="portfolio"' in html
@@ -397,6 +401,7 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     html = render_admin_console_page(site_base_url="https://example.com")
 
     assert "관리자 콘솔" in html
+    assert 'aria-current="page">운영 콘솔</a>' in html
     assert "admin-health-strip" in html
     assert "admin-workflow-strip" in html
     assert "admin-ops-panel" in html
