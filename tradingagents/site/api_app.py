@@ -44,6 +44,7 @@ from .web_pages import (
     render_public_analysis_detail_page,
     render_public_analysis_feed_page,
     render_public_home_page,
+    render_public_outcomes_page,
     render_public_stock_page,
 )
 
@@ -149,6 +150,7 @@ def create_app(
             request.url.path == "/"
             or request.url.path == "/analyses"
             or request.url.path.startswith("/analyses/")
+            or request.url.path == "/outcomes"
             or request.url.path == "/stocks"
             or request.url.path.startswith("/stocks/")
             or request.url.path.startswith("/features/")
@@ -337,6 +339,27 @@ def create_app(
             )
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return HTMLResponse(html)
+
+    @app.get("/outcomes", response_class=HTMLResponse, include_in_schema=False)
+    def analysis_outcomes_page(
+        request: Request,
+        ticker: str | None = None,
+        status: str | None = None,
+        limit: int = 20,
+    ) -> HTMLResponse:
+        repo = request.app.state.repository
+        try:
+            html = render_public_outcomes_page(
+                repo=repo,
+                ticker=ticker,
+                status=status,
+                limit=limit,
+                max_limit=request.app.state.max_analysis_feed_limit,
+                site_base_url=_request_site_base_url(request),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         return HTMLResponse(html)
 
     @app.get("/member", response_class=HTMLResponse, include_in_schema=False)

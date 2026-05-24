@@ -113,6 +113,7 @@ def build_sitemap_xml(
     urls = [
         (canonical_url("/", site_base_url=base), "daily", "1.0"),
         (canonical_url("/analyses", site_base_url=base), "hourly", "0.8"),
+        (canonical_url("/outcomes", site_base_url=base), "hourly", "0.8"),
     ]
     urls.extend(
         (canonical_url(path, site_base_url=base), "daily", "0.7")

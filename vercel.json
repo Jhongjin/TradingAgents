@@ -30,6 +30,10 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/outcomes",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/member",
       "destination": "/api/index.py"
     },

@@ -11,7 +11,11 @@ from urllib.parse import urlencode
 
 from tradingagents.storage import StorageRepository
 
-from .analysis_api import build_public_analysis_bundle_payload, build_public_analysis_feed_payload
+from .analysis_api import (
+    build_public_analysis_bundle_payload,
+    build_public_analysis_feed_payload,
+    build_public_analysis_outcomes_payload,
+)
 from .public_api import build_public_stock_payload
 from .seo import canonical_url, stock_canonical_url
 
@@ -83,6 +87,7 @@ def render_public_stock_page(
       <a href="/features/research">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
+      <a href="/outcomes">성과</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
@@ -242,6 +247,7 @@ def render_public_analysis_feed_page(
       <a href="/features/research">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
+      <a href="/outcomes">성과</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
@@ -321,6 +327,121 @@ def render_public_analysis_feed_page(
 </html>"""
 
 
+def render_public_outcomes_page(
+    *,
+    repo: StorageRepository | None = None,
+    ticker: str | None = None,
+    status: str | None = None,
+    limit: int = 20,
+    max_limit: int = 50,
+    site_base_url: str | None = None,
+) -> str:
+    """Render a public outcome verification dashboard."""
+
+    payload = _analysis_outcomes_payload(repo, ticker=ticker, status=status, limit=limit, max_limit=max_limit)
+    model = _analysis_outcomes_view_model(payload, site_base_url=site_base_url)
+    summary_html = _analysis_outcome_summary_cards(model["summary"])
+    cadence_html = _analysis_outcome_cadence_strip(model)
+    cards_html = _analysis_outcome_feed_cards(model["items"])
+    payload_json = _script_json(payload)
+
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{_h(model["title"])}</title>
+  <meta name="description" content="{_h(model["description"])}">
+  <link rel="canonical" href="{_h(model["canonical_url"])}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TradingAgents Korea">
+  <meta property="og:title" content="{_h(model["title"])}">
+  <meta property="og:description" content="{_h(model["description"])}">
+  <meta property="og:url" content="{_h(model["canonical_url"])}">
+  <style>{PAGE_CSS}</style>
+</head>
+<body class="public-home market-page outcome-page">
+  <a class="skip-link" href="#main-content">본문 바로가기</a>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="TradingAgents Korea home">
+      <span class="brand-mark">TA</span>
+      <span>TradingAgents Korea</span>
+    </a>
+    <nav class="top-links" aria-label="공개 페이지">
+      <a href="/features/research">기능</a>
+      <a href="/features/methodology">신뢰 기준</a>
+      <a href="/analyses">분석 목록</a>
+      <a href="/outcomes" aria-current="page">성과</a>
+      <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
+      <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
+      <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+    </nav>
+  </header>
+
+  <main id="main-content" class="shell market-shell">
+    <section class="summary-band outcome-hero" aria-labelledby="outcomes-title">
+      <div>
+        <p class="eyebrow">Outcome Verification</p>
+        <h1 id="outcomes-title"><span class="outcome-title-line">성과 검증</span> <span class="outcome-title-line">대시보드</span></h1>
+        <p class="asof">{_h(model["subtitle"])}</p>
+        <div class="analysis-detail-actions">
+          <a href="/analyses">공개 분석 보기</a>
+          <a href="/features/outcomes">검증 방식</a>
+          <a href="/api/analysis-outcomes">JSON</a>
+        </div>
+      </div>
+      <div class="decision-box">
+        <span class="decision-label">Outcome Track Record</span>
+        <strong>{_h(model["item_count"])}</strong>
+        <span>{_h(model["status_label"])}</span>
+      </div>
+    </section>
+
+    <section class="analysis-filter-panel outcome-filter-panel" aria-label="성과 검증 필터">
+      <form class="analysis-filter-form outcome-filter-form" action="/outcomes" method="get">
+        <label for="outcomeTicker">종목</label>
+        <input id="outcomeTicker" name="ticker" maxlength="12" value="{_h(str(model["ticker_code"] or ""))}" placeholder="005930">
+        <label for="outcomeStatus">상태</label>
+        <select id="outcomeStatus" name="status">
+          {_outcome_status_options(model["filter_status"])}
+        </select>
+        <button type="submit">필터 적용</button>
+        <a href="/outcomes">초기화</a>
+      </form>
+      <p>완료된 public run의 5일/20일 사후 성과만 공개합니다. 계좌 주문이나 브로커 실행 권한은 연결하지 않습니다.</p>
+    </section>
+
+    {summary_html}
+
+    {cadence_html}
+
+    <section class="report-section outcome-feed-section" aria-labelledby="outcome-feed-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Evaluated Runs</p>
+          <h2 id="outcome-feed-title">검증된 공개 분석</h2>
+        </div>
+        <span class="status-pill">{_h(model["filter_label"])}</span>
+      </div>
+      <div class="outcome-feed-grid">
+        {cards_html}
+      </div>
+    </section>
+
+    <section class="notice-strip" aria-label="투자 유의사항">
+      <ul>
+        <li>성과 검증은 과거 public 분석의 사후 기록이며 미래 수익을 보장하지 않습니다.</li>
+        <li>TradingAgents Korea는 실거래 주문과 브로커 주문 placement를 의도적으로 지원하지 않습니다.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script id="outcomes-payload" type="application/json">{payload_json}</script>
+  <script>{PAGE_JS}</script>
+</body>
+</html>"""
+
+
 def render_public_analysis_detail_page(
     analysis_run_id: str,
     *,
@@ -368,6 +489,7 @@ def render_public_analysis_detail_page(
       <a href="/features/research">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
+      <a href="/outcomes">성과</a>
       <a href="/stocks/{_h(model["ticker_code"])}">종목</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
@@ -1676,6 +1798,35 @@ def _analysis_feed_payload(
     return build_public_analysis_feed_payload(repo, ticker=ticker, limit=limit, max_limit=max_limit)
 
 
+def _analysis_outcomes_payload(
+    repo: StorageRepository | None,
+    *,
+    ticker: str | None,
+    status: str | None,
+    limit: int,
+    max_limit: int,
+) -> dict[str, Any]:
+    if repo is None:
+        return {
+            "status": "not_configured",
+            "ticker_code": ticker,
+            "filter_status": status,
+            "limit": limit,
+            "items": [],
+            "item_count": 0,
+            "summary": {
+                "completed_count": 0,
+                "pending_count": 0,
+                "unavailable_count": 0,
+                "positive_alpha_count": 0,
+                "positive_alpha_rate": None,
+                "average_alpha_return": None,
+                "average_raw_return": None,
+            },
+        }
+    return build_public_analysis_outcomes_payload(repo, ticker=ticker, status=status, limit=limit, max_limit=max_limit)
+
+
 def _analysis_feed_view_model(payload: dict[str, Any], *, site_base_url: str | None = None) -> dict[str, Any]:
     ticker_code = payload.get("ticker_code")
     items = payload.get("items") or []
@@ -1692,6 +1843,31 @@ def _analysis_feed_view_model(payload: dict[str, Any], *, site_base_url: str | N
         "filter_label": f"{ticker_code} 필터" if ticker_code else "전체 종목",
         "item_count": str(len(items)),
         "summary": summary,
+        "items": items,
+    }
+
+
+def _analysis_outcomes_view_model(payload: dict[str, Any], *, site_base_url: str | None = None) -> dict[str, Any]:
+    ticker_code = payload.get("ticker_code")
+    filter_status = payload.get("filter_status")
+    items = payload.get("items") or []
+    filters = []
+    if ticker_code:
+        filters.append(str(ticker_code))
+    if filter_status:
+        filters.append(_outcome_status_label(str(filter_status)))
+    filter_label = " / ".join(filters) if filters else "전체 성과"
+    return {
+        "title": "성과 검증 대시보드 | TradingAgents Korea",
+        "description": "TradingAgents Korea 공개 분석의 5일/20일 사후 성과와 벤치마크 대비 알파를 확인합니다.",
+        "canonical_url": canonical_url("/outcomes", site_base_url=site_base_url),
+        "subtitle": "공개 분석의 5일/20일 사후 성과를 검증합니다.",
+        "status_label": _analysis_outcomes_status_label(payload.get("status")),
+        "ticker_code": ticker_code,
+        "filter_status": filter_status,
+        "filter_label": filter_label,
+        "item_count": f"{len(items)}건",
+        "summary": payload.get("summary") or {},
         "items": items,
     }
 
@@ -1910,6 +2086,158 @@ def _analysis_track_record_cards(summary: dict[str, Any]) -> str:
       </div>
     </section>
     """
+
+
+def _analysis_outcome_summary_cards(summary: dict[str, Any]) -> str:
+    completed = int(summary.get("completed_count") or 0)
+    pending = int(summary.get("pending_count") or 0)
+    unavailable = int(summary.get("unavailable_count") or 0)
+    positive_alpha = int(summary.get("positive_alpha_count") or 0)
+    average_alpha = _percent(summary.get("average_alpha_return"), signed=True)
+    average_raw = _percent(summary.get("average_raw_return"), signed=True)
+    positive_rate = _percent(summary.get("positive_alpha_rate"))
+    cards = [
+        ("검증 완료", f"{completed}건", "completed outcome"),
+        ("평균 알파", average_alpha, f"종목 수익률 {average_raw}"),
+        ("알파 우위", positive_rate, f"양수 알파 {positive_alpha}건"),
+        ("대기/누락", f"{pending}/{unavailable}", "pending / unavailable"),
+    ]
+    html_cards = []
+    for label, value, note in cards:
+        html_cards.append(
+            f"""
+            <article>
+              <span>{_h(label)}</span>
+              <strong>{_h(value)}</strong>
+              <small>{_h(note)}</small>
+            </article>
+            """
+        )
+    return f"""
+    <section class="analysis-summary-grid outcome-summary-grid" aria-label="성과 검증 요약">
+      {"".join(html_cards)}
+    </section>
+    """
+
+
+def _analysis_outcome_cadence_strip(model: dict[str, Any]) -> str:
+    filter_label = model.get("filter_label") or "전체 성과"
+    return f"""
+    <section class="analysis-pipeline-strip outcome-cadence-strip" aria-label="성과 검증 흐름">
+      <article>
+        <span>01</span>
+        <strong>Public Run</strong>
+        <small>완료된 public 분석 run만 검증 대상으로 삼습니다.</small>
+      </article>
+      <article>
+        <span>02</span>
+        <strong>5D / 20D</strong>
+        <small>기준일 이후 충분한 거래일이 쌓이면 horizon별 결과를 저장합니다.</small>
+      </article>
+      <article>
+        <span>03</span>
+        <strong>Benchmark Alpha</strong>
+        <small>종목 수익률과 한국 시장 benchmark 대비 초과 성과를 나눠 표시합니다.</small>
+      </article>
+      <article>
+        <span>04</span>
+        <strong>{_h(str(filter_label))}</strong>
+        <small>결과는 공개 기록으로 남기되 투자 실행 권한은 연결하지 않습니다.</small>
+      </article>
+    </section>
+    """
+
+
+def _analysis_outcome_feed_cards(items: list[dict[str, Any]]) -> str:
+    if not items:
+        return """
+        <article class="analysis-feed-card outcome-feed-card empty">
+          <span>waiting</span>
+          <h3>성과 검증 대기</h3>
+          <p>outcome worker가 public run을 평가하면 이곳에 5일/20일 성과가 누적됩니다.</p>
+          <div class="analysis-feed-actions">
+            <a href="/analyses">분석 목록</a>
+            <a href="/features/outcomes">검증 방식</a>
+          </div>
+        </article>
+        """
+
+    cards = []
+    for item in items:
+        code = str(item.get("ticker_code") or "")
+        name = str(item.get("ticker_name") or code or "공개 분석")
+        market = str(item.get("market") or "KR")
+        status = str(item.get("status") or "pending")
+        run_id = str(item.get("analysis_run_id") or "")
+        horizon = item.get("horizon_days") or "-"
+        trade_date = item.get("trade_date") or "-"
+        evaluated_at = item.get("evaluated_at") or "-"
+        raw_return = _percent(item.get("raw_return"), signed=True)
+        benchmark_return = _percent(item.get("benchmark_return"), signed=True)
+        alpha_return = _percent(item.get("alpha_return"), signed=True)
+        decision = item.get("decision_rating") or item.get("decision_action") or "-"
+        report_path = f"/analyses/{run_id}" if run_id else "/analyses"
+        stock_path = f"/stocks/{code}" if code else "/analyses"
+        query = {"limit": "20"}
+        if code:
+            query["ticker"] = code
+        if status:
+            query["status"] = status
+        api_path = f"/api/analysis-outcomes?{urlencode(query)}"
+        alpha_class = _analysis_outcome_alpha_class(item.get("alpha_return"))
+        cards.append(
+            f"""
+            <article class="analysis-feed-card outcome-feed-card {alpha_class} outcome-{_h(status)}">
+              <div class="analysis-feed-card-top">
+                <span>{_h(market)} / {_h(str(horizon))}D</span>
+                <small>{_h(str(evaluated_at))}</small>
+              </div>
+              <h3><a href="{_h(report_path)}">{_h(name)} <small>{_h(code)}</small></a></h3>
+              <p>{_h(_outcome_status_label(status))} / 판단 {_h(str(decision))} / 기준일 {_h(str(trade_date))}</p>
+              <dl>
+                <div><dt>Raw</dt><dd>{_h(raw_return)}</dd></div>
+                <div><dt>Benchmark</dt><dd>{_h(benchmark_return)}</dd></div>
+                <div><dt>Alpha</dt><dd>{_h(alpha_return)}</dd></div>
+                <div><dt>Run</dt><dd>{_h(run_id[:8] or "-")}</dd></div>
+              </dl>
+              <div class="analysis-feed-actions">
+                <a href="{_h(report_path)}">리포트</a>
+                <a href="{_h(stock_path)}">종목</a>
+                <a href="{_h(api_path)}">JSON</a>
+              </div>
+            </article>
+            """
+        )
+    return "\n".join(cards)
+
+
+def _analysis_outcome_alpha_class(value: Any) -> str:
+    try:
+        number = float(value) if value is not None else None
+    except (TypeError, ValueError):
+        number = None
+    if number is None:
+        return "is-neutral-alpha"
+    if number > 0:
+        return "is-positive-alpha"
+    if number < 0:
+        return "is-negative-alpha"
+    return "is-neutral-alpha"
+
+
+def _outcome_status_options(selected: Any) -> str:
+    selected_value = str(selected or "")
+    options = [
+        ("", "전체"),
+        ("completed", "완료"),
+        ("pending", "대기"),
+        ("unavailable", "누락"),
+    ]
+    html_options = []
+    for value, label in options:
+        selected_attr = " selected" if value == selected_value else ""
+        html_options.append(f'<option value="{_h(value)}"{selected_attr}>{_h(label)}</option>')
+    return "".join(html_options)
 
 
 def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
@@ -2188,6 +2516,14 @@ def _analysis_feed_status_label(status: Any) -> str:
     return {
         "available": "분석 사용 가능",
         "not_configured": "저장소 미연결",
+    }.get(str(status), "상태 확인")
+
+
+def _analysis_outcomes_status_label(status: Any) -> str:
+    return {
+        "available": "성과 사용 가능",
+        "not_configured": "저장소 미연결",
+        "unavailable": "성과 저장소 확인 필요",
     }.get(str(status), "상태 확인")
 
 
@@ -3851,6 +4187,12 @@ h3 {
   gap: 14px;
 }
 
+.outcome-feed-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
 .analysis-feed-card {
   display: grid;
   gap: 12px;
@@ -3941,6 +4283,41 @@ h3 {
 
 .analysis-feed-card.empty {
   grid-column: 1 / -1;
+}
+
+.outcome-feed-card {
+  min-height: 214px;
+}
+
+.outcome-feed-card.outcome-pending {
+  border-top-color: var(--home-brass);
+}
+
+.outcome-feed-card.outcome-unavailable {
+  border-top-color: var(--home-vermilion);
+}
+
+.outcome-feed-card dl div {
+  min-width: 0;
+}
+
+.outcome-feed-card dd {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.outcome-page .summary-band h1 {
+  word-break: keep-all;
+}
+
+.outcome-page .summary-band .asof,
+.outcome-feed-card h3,
+.outcome-feed-card p {
+  overflow-wrap: anywhere;
+}
+
+.outcome-page .decision-box {
+  width: 100%;
 }
 
 .analysis-feed-actions {
@@ -5099,6 +5476,7 @@ h3 {
   }
 
   .analysis-feed-grid,
+  .outcome-feed-grid,
   .analysis-summary-grid,
   .analysis-track-grid,
   .analysis-pipeline-strip,
@@ -5326,6 +5704,7 @@ h3 {
   .report-grid,
   .home-analysis-grid,
   .analysis-feed-grid,
+  .outcome-feed-grid,
   .analysis-summary-grid,
   .analysis-track-grid,
   .analysis-pipeline-strip,
@@ -6267,7 +6646,20 @@ button:disabled {
   text-wrap: balance;
 }
 
-.market-page .summary-band h1 span {
+.outcome-page .summary-band h1 {
+  max-width: 760px;
+  text-wrap: normal;
+  word-break: keep-all;
+}
+
+.outcome-title-line {
+  display: inline-block;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.market-page .summary-band h1 span:not(.outcome-title-line) {
   color: rgba(246, 243, 232, 0.42);
   font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
   font-size: clamp(20px, 2.2vw, 34px);
@@ -6684,7 +7076,8 @@ button:disabled {
   text-transform: uppercase;
 }
 
-.analysis-filter-form input {
+.analysis-filter-form input,
+.analysis-filter-form select {
   min-width: 0;
   height: 42px;
   border: 1px solid rgba(246, 243, 232, 0.16);
@@ -6694,6 +7087,28 @@ button:disabled {
   padding: 0 12px;
   font: inherit;
   font-variant-numeric: tabular-nums;
+}
+
+.analysis-filter-form select {
+  appearance: none;
+  background:
+    linear-gradient(45deg, transparent 50%, rgba(246, 243, 232, 0.68) 50%) right 14px center / 6px 6px no-repeat,
+    linear-gradient(135deg, rgba(246, 243, 232, 0.68) 50%, transparent 50%) right 10px center / 6px 6px no-repeat,
+    rgba(251, 250, 244, 0.06);
+  padding-right: 32px;
+}
+
+.analysis-filter-form select option {
+  background: #111711;
+  color: var(--home-ink);
+}
+
+.outcome-filter-form {
+  grid-template-columns: auto minmax(100px, 1fr) auto minmax(120px, 0.8fr) auto auto;
+}
+
+.outcome-cadence-strip {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .analysis-filter-form button,
@@ -7217,6 +7632,14 @@ button:disabled {
 
   .market-page .summary-band h1 {
     font-size: clamp(36px, 12vw, 52px);
+  }
+
+  .outcome-page .summary-band h1 {
+    font-size: clamp(34px, 11vw, 46px);
+  }
+
+  .outcome-title-line {
+    display: block;
   }
 
   .analysis-detail-hero h1 {

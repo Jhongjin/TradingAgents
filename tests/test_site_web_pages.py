@@ -20,6 +20,7 @@ from tradingagents.site.web_pages import (
     render_public_analysis_detail_page,
     render_public_analysis_feed_page,
     render_public_home_page,
+    render_public_outcomes_page,
     render_public_stock_page,
 )
 
@@ -522,6 +523,62 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert '<link rel="canonical" href="https://example.com/analyses">' in html
 
 
+def test_render_public_outcomes_page_shows_public_track_record():
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+            model_provider="openai",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 12),
+            horizon_days=5,
+            status="completed",
+            raw_return=0.04,
+            benchmark_return=0.01,
+            alpha_return=0.03,
+            decision_rating="Hold",
+            decision_action="hold",
+        )
+    )
+
+    html = render_public_outcomes_page(repo=repo, site_base_url="https://example.com")
+
+    assert 'class="public-home market-page outcome-page"' in html
+    assert "성과 검증" in html
+    assert "대시보드" in html
+    assert "Outcome Track Record" in html
+    assert "outcome-filter-panel" in html
+    assert "outcome-cadence-strip" in html
+    assert "outcome-feed-card" in html
+    assert "삼성전자" in html
+    assert "평균 알파" in html
+    assert "+3.00%" in html
+    assert "알파 우위" in html
+    assert '<dt>Alpha</dt><dd>+3.00%</dd>' in html
+    assert f'href="/analyses/{run_id}">리포트</a>' in html
+    assert 'href="/stocks/005930">종목</a>' in html
+    assert "/api/analysis-outcomes" in html
+    assert '<link rel="canonical" href="https://example.com/outcomes">' in html
+    assert 'id="outcomes-payload"' in html
+    assert "syncTopAuthLinks" in html
+    assert "/api/member/dashboard" not in html
+    assert "/api/portfolios" not in html
+    assert "/api/watchlists" not in html
+
+
 def test_render_public_analysis_detail_page_shows_report_context():
     repo = _repo()
     run_id = repo.create_analysis_run(
@@ -618,6 +675,27 @@ def test_api_app_serves_public_analysis_feed_page(monkeypatch):
     assert "analysis feed" in response.text
 
 
+def test_api_app_serves_public_outcomes_page(monkeypatch):
+    captured = {}
+
+    def fake_render(**kwargs):
+        captured.update(kwargs)
+        return "<!doctype html><html><body>outcomes page</body></html>"
+
+    monkeypatch.setattr("tradingagents.site.api_app.render_public_outcomes_page", fake_render)
+    client = TestClient(create_app(repo=None, load_repo_from_env=False, public_cache_seconds=60))
+
+    response = client.get("/outcomes", params={"ticker": "005930", "status": "completed", "limit": 5})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    assert "outcomes page" in response.text
+    assert captured["ticker"] == "005930"
+    assert captured["status"] == "completed"
+    assert captured["limit"] == 5
+
+
 def test_api_app_redirects_stock_lookup_to_canonical_page():
     client = TestClient(create_app(repo=None, load_repo_from_env=False))
 
@@ -673,6 +751,7 @@ def test_seo_helpers_build_canonical_robots_and_sitemap():
     assert "Disallow: /admin" in robots
     assert "Sitemap: https://example.com/sitemap.xml" in robots
     assert "https://example.com/analyses" in sitemap
+    assert "https://example.com/outcomes" in sitemap
     assert "https://example.com/analyses/run-1" in sitemap
     assert "/not-public/run-2" not in sitemap
     assert "https://example.com/features/research" in sitemap

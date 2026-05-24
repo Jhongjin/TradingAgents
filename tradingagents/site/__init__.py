@@ -27,6 +27,7 @@ _EXPORTS = {
     "render_feature_detail_page": ("tradingagents.site.web_pages", "render_feature_detail_page"),
     "render_public_stock_page": ("tradingagents.site.web_pages", "render_public_stock_page"),
     "render_public_analysis_feed_page": ("tradingagents.site.web_pages", "render_public_analysis_feed_page"),
+    "render_public_outcomes_page": ("tradingagents.site.web_pages", "render_public_outcomes_page"),
     "render_public_home_page": ("tradingagents.site.web_pages", "render_public_home_page"),
     "run_tradingagents_graph_for_request": ("tradingagents.site.analysis_runner", "run_tradingagents_graph_for_request"),
 }
