@@ -381,18 +381,26 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
 
 def test_render_feature_detail_pages_use_public_theme():
     html = render_feature_detail_page("research", site_base_url="https://example.com")
+    member_html = render_feature_detail_page("member-workspace", site_base_url="https://example.com")
+    outcomes_html = render_feature_detail_page("outcomes", site_base_url="https://example.com")
     methodology_html = render_feature_detail_page("methodology", site_base_url="https://example.com")
 
     assert "KRX부터 공개 리포트까지 한 화면에 연결" in html
     assert "feature-diagram" in html
     assert "Loading Boundary" in html
     assert "페이지 목적에 맞는 데이터만 요청합니다" in html
+    assert 'href="/features/member-workspace">회원 기능 보기</a>' in html
     assert '<link rel="canonical" href="https://example.com/features/research">' in html
     assert 'href="/mypage"' in html
     assert "/api/member/dashboard" not in html
+    assert 'href="/features/research">리서치 구조 보기</a>' in member_html
+    assert "/api/member/dashboard" not in member_html
+    assert 'href="/features/methodology">신뢰 기준 보기</a>' in outcomes_html
+    assert "/api/member/dashboard" not in outcomes_html
     assert "데이터 출처와 한계를 함께 공개합니다" in methodology_html
     assert "KRX / DART / Naver" in methodology_html
     assert "주문 placement는 구현하지 않습니다" in methodology_html
+    assert 'href="/features/outcomes">사후 검증 보기</a>' in methodology_html
     assert '<link rel="canonical" href="https://example.com/features/methodology">' in methodology_html
     assert "/api/member/dashboard" not in methodology_html
 

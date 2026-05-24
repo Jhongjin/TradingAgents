@@ -807,6 +807,8 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "steps": ("Ticker resolver", "KRX OHLCV", "DART disclosure", "Naver news", "Agents report"),
         "cta_label": "샘플 종목 보기",
         "cta_href": "/stocks/005930",
+        "secondary_cta_label": "회원 기능 보기",
+        "secondary_cta_href": "/features/member-workspace",
     },
     "member-workspace": {
         "path": "/features/member-workspace",
@@ -824,6 +826,8 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "steps": ("Sign in", "Member dashboard", "Private records", "Request queue", "Read-only guard"),
         "cta_label": "마이페이지 열기",
         "cta_href": "/mypage",
+        "secondary_cta_label": "리서치 구조 보기",
+        "secondary_cta_href": "/features/research",
     },
     "outcomes": {
         "path": "/features/outcomes",
@@ -841,6 +845,8 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "steps": ("Completed run", "Outcome worker", "Benchmark return", "Alpha return", "Public review"),
         "cta_label": "공개 분석 보기",
         "cta_href": "/analyses",
+        "secondary_cta_label": "신뢰 기준 보기",
+        "secondary_cta_href": "/features/methodology",
     },
     "methodology": {
         "path": "/features/methodology",
@@ -861,6 +867,8 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "steps": ("Source labels", "Run metadata", "Agent report", "Outcome check", "No order path"),
         "cta_label": "공개 분석 보기",
         "cta_href": "/analyses",
+        "secondary_cta_label": "사후 검증 보기",
+        "secondary_cta_href": "/features/outcomes",
     },
 }
 
@@ -1092,7 +1100,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
         </dl>
         <div class="home-cta-row">
           <a class="home-primary-link" href="{_h(page["cta_href"])}">{_h(page["cta_label"])}</a>
-          <a class="home-secondary-link" href="/features/member-workspace">회원 기능 보기</a>
+          <a class="home-secondary-link" href="{_h(page.get("secondary_cta_href", "/features/member-workspace"))}">{_h(page.get("secondary_cta_label", "회원 기능 보기"))}</a>
         </div>
       </div>
       <div class="feature-diagram" aria-label="기능 데이터 흐름">
