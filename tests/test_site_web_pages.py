@@ -678,6 +678,15 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert '<link rel="canonical" href="https://example.com/analyses">' in html
 
 
+def test_render_public_analysis_feed_empty_state_has_next_actions():
+    html = render_public_analysis_feed_page(repo=_repo(), site_base_url="https://example.com")
+
+    assert "공개 분석 대기" in html
+    assert 'href="/stocks/005930">샘플 종목</a>' in html
+    assert 'href="/features/research">리서치 흐름</a>' in html
+    assert 'href="/member#analysis-request-section">분석 요청</a>' in html
+
+
 def test_render_public_outcomes_page_shows_public_track_record():
     repo = _repo()
     run_id = repo.create_analysis_run(

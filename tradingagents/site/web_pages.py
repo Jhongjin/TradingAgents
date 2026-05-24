@@ -2595,8 +2595,9 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
             <span>검증 대기</span>
           </div>
           <div class="analysis-feed-actions">
+            <a href="/stocks/005930">샘플 종목</a>
             <a href="/features/research">리서치 흐름</a>
-            <a href="/member">분석 요청</a>
+            <a href="/member#analysis-request-section">분석 요청</a>
           </div>
         </article>
         """
