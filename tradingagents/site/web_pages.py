@@ -91,6 +91,7 @@ def render_public_stock_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
     </nav>
     <form class="ticker-search" action="/stocks" method="get">
       <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
@@ -251,6 +252,7 @@ def render_public_analysis_feed_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
     </nav>
   </header>
 
@@ -375,6 +377,7 @@ def render_public_outcomes_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
     </nav>
   </header>
 
@@ -494,6 +497,7 @@ def render_public_analysis_detail_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
     </nav>
   </header>
 
@@ -594,6 +598,7 @@ def render_public_home_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
     </nav>
   </header>
 
@@ -1072,6 +1077,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
     </nav>
   </header>
 
@@ -1181,6 +1187,7 @@ def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
     </nav>
   </header>
 
@@ -1257,6 +1264,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <a href="/analyses">분석 목록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden aria-current="page">운영</a>
     </nav>
   </header>
 
@@ -1441,6 +1449,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>
     </nav>
   </header>
 
@@ -1582,6 +1591,12 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <strong>AI 분석 요청</strong>
               <small>worker 큐 제한과 완료 리포트 연결 상태를 확인합니다.</small>
               <button class="ghost-button" type="button" data-member-jump="analysis">분석 요청 열기</button>
+            </article>
+            <article class="member-home-card member-admin-card">
+              <span>04</span>
+              <strong>운영 콘솔</strong>
+              <small>readiness, 큐 현황, worker dry run을 확인합니다. 실행 작업은 worker token 입력 후에만 가능합니다.</small>
+              <a class="ghost-button member-admin-link" href="/admin">운영 콘솔 열기</a>
             </article>
           </div>
         </section>
@@ -3276,7 +3291,8 @@ a {
 }
 
 .top-links .top-auth-link,
-.top-links .top-dashboard-link {
+.top-links .top-dashboard-link,
+.top-links .top-admin-link {
   border: 1px solid var(--line);
   color: var(--ink);
 }
@@ -5268,7 +5284,8 @@ h3 {
 }
 
 .member-page .top-links .top-auth-link,
-.member-page .top-links .top-dashboard-link {
+.member-page .top-links .top-dashboard-link,
+.member-page .top-links .top-admin-link {
   border: 1px solid rgba(246, 243, 232, 0.2);
   color: var(--ink);
 }
@@ -5514,7 +5531,7 @@ h3 {
 
 .member-home-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -5548,7 +5565,21 @@ h3 {
 }
 
 .member-home-card .ghost-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   justify-self: start;
+  text-decoration: none;
+}
+
+.member-admin-card {
+  border-left-color: var(--home-celadon);
+}
+
+.member-admin-link {
+  border: 1px solid var(--home-celadon);
+  background: rgba(143, 216, 189, 0.16);
+  color: var(--ink);
 }
 
 .member-panel {
@@ -6568,7 +6599,8 @@ h3 {
 }
 
 .public-home .top-links .top-auth-link,
-.public-home .top-links .top-dashboard-link {
+.public-home .top-links .top-dashboard-link,
+.public-home .top-links .top-admin-link {
   border-color: rgba(246, 243, 232, 0.2);
   color: var(--home-ink);
 }

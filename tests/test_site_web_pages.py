@@ -275,6 +275,10 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'id="member-home-section"' in html
     assert "마이페이지 홈" in html
     assert "member-home-grid" in html
+    assert "운영 콘솔" in html
+    assert "member-admin-card" in html
+    assert 'class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영</a>' in html
+    assert 'href="/admin">운영 콘솔 열기</a>' in html
     assert 'data-member-jump="portfolio"' in html
     assert 'data-member-tab="portfolio"' in html
     assert 'aria-selected="true"' in html
