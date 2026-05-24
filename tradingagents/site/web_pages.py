@@ -1897,7 +1897,7 @@ def _chart_source_rows(chart: dict[str, Any], points: list[dict[str, Any]]) -> l
         ("신선도", f"{chart.get('end_date') or '-'} 기준"),
         ("범위", f"{point_count}거래일"),
         ("vendor", f"요청 {requested} / 응답 {resolved}"),
-        ("fallback", "사용" if chart.get("fallback_used") else "없음"),
+        ("fallback", f"auto→{resolved} 사용" if chart.get("fallback_used") else "없음"),
     ]
 
 
@@ -2100,7 +2100,8 @@ def _chart_caption(chart: dict[str, Any], points: list[dict[str, Any]]) -> str:
     end = chart.get("end_date") or "-"
     vendor = _chart_vendor_label(chart.get("vendor"))
     point_label = f"{len(points):,}개 거래일" if points else "거래일 데이터 없음"
-    fallback_note = " / auto fallback" if chart.get("fallback_used") else ""
+    resolved = chart.get("resolved_vendor") or chart.get("vendor") or "vendor"
+    fallback_note = f" / auto→{resolved} 사용" if chart.get("fallback_used") else ""
     return f"{start} - {end} / {vendor} / {point_label}{fallback_note}"
 
 

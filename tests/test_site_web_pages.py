@@ -143,11 +143,11 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert 'href="/member#analysis-request-section"' in html
     assert "1개월" in html
     assert "KRX 14D" in html
-    assert "pykrx / 2개 거래일" in html
+    assert "pykrx / 2개 거래일 / auto→pykrx 사용" in html
     assert "차트 데이터 출처" in html
     assert "2026-05-05 기준" in html
     assert "요청 auto / 응답 pykrx" in html
-    assert "<dd>사용</dd>" in html
+    assert "<dd>auto→pykrx 사용</dd>" in html
     assert "공개 분석 출처" in html
     assert "public run 00000000" in html
     assert "최신 (fresh / 0일 경과)" in html
