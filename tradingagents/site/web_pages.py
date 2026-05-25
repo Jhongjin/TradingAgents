@@ -10482,7 +10482,28 @@ MEMBER_PAGE_JS = """
     }
   }
 
+  function sessionSnapshot(area) {
+    const values = Object.fromEntries(sessionKeys.map((key) => [key, storageAreaGet(area, key)]));
+    const expiresAt = Number(values[expiresAtKey] || 0);
+    const hasSession = Boolean(values[accessTokenKey] || values[refreshTokenKey]);
+    const score = (Number.isFinite(expiresAt) ? expiresAt : 0)
+      + (values[accessTokenKey] ? 10 : 0)
+      + (values[refreshTokenKey] ? 5 : 0);
+    return { values, expiresAt, hasSession, score };
+  }
+
+  function preferredSessionSnapshot() {
+    const persistent = sessionSnapshot(window.localStorage);
+    const volatile = sessionSnapshot(window.sessionStorage);
+    if (!persistent.hasSession) return volatile;
+    if (!volatile.hasSession) return persistent;
+    return volatile.score > persistent.score ? volatile : persistent;
+  }
+
   function storageGet(key) {
+    if (sessionKeys.includes(key)) {
+      return preferredSessionSnapshot().values[key] || "";
+    }
     return storageAreaGet(window.localStorage, key) || storageAreaGet(window.sessionStorage, key);
   }
 
@@ -10506,10 +10527,11 @@ MEMBER_PAGE_JS = """
   }
 
   function migrateSessionStorage() {
+    const preferred = preferredSessionSnapshot();
+    if (!preferred.hasSession) return;
     sessionKeys.forEach((key) => {
-      const persistent = storageAreaGet(window.localStorage, key);
-      const volatile = storageAreaGet(window.sessionStorage, key);
-      if (!persistent && volatile) storageSet(key, volatile);
+      const value = preferred.values[key];
+      if (value) storageSet(key, value);
     });
   }
 
@@ -10705,6 +10727,14 @@ MEMBER_PAGE_JS = """
   }
 
   function consumeRedirectSession() {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (!window.location.hash && searchParams.has("code")) {
+      searchParams.delete("code");
+      const cleaned = searchParams.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${cleaned ? `?${cleaned}` : ""}${window.location.hash}`);
+      setStatus("이메일 확인 완료. 로그인해 주세요.");
+      return { shouldLoad: Boolean(accessToken() || refreshToken()) };
+    }
     if (!window.location.hash) return { shouldLoad: true };
     const params = new URLSearchParams(window.location.hash.slice(1));
     const isAuthRedirect = params.has("access_token")
@@ -11595,20 +11625,31 @@ MEMBER_PAGE_JS = """
     });
   });
 
-  migrateSessionStorage();
-  setupMemberTabs();
-  if (accessToken() || refreshToken()) {
-    setSignedInState(true, { label: "세션 확인 중", meta: "대시보드를 불러오고 있습니다." });
-  } else {
-    setAuthUiState(false);
-  }
-  applyRequestedAuthMode();
-  const redirectSession = consumeRedirectSession();
-  if (redirectSession.shouldLoad) {
-    const shouldSkipInitialLoad = requestedAuthMode === "signup" && !accessToken() && !refreshToken();
-    if (!shouldSkipInitialLoad) {
-      loadMemberData().catch((error) => setStatus(error.message, true));
+  async function bootstrapMemberSession() {
+    migrateSessionStorage();
+    setupMemberTabs();
+    const redirectSession = consumeRedirectSession();
+    const hasStoredSession = Boolean(accessToken() || refreshToken());
+    if (hasStoredSession) {
+      setSignedInState(true, { label: "세션 확인 중", meta: "저장된 세션으로 대시보드를 불러오고 있습니다." });
+    } else {
+      setAuthUiState(false);
     }
+    applyRequestedAuthMode();
+    if (!redirectSession.shouldLoad) return;
+    const shouldSkipInitialLoad = requestedAuthMode === "signup" && !accessToken() && !refreshToken();
+    if (shouldSkipInitialLoad) return;
+    if (accessToken() || refreshToken()) {
+      await loadMemberData();
+      return;
+    }
+    setAuthUiState(false);
+    setStatus(config.configured ? "로그인 필요" : "Supabase 공개 인증 설정 대기 중", !config.configured);
   }
+
+  bootstrapMemberSession().catch((error) => {
+    setAuthUiState(false);
+    setStatus(error.message || "세션 확인에 실패했습니다.", true);
+  });
 })();
 """

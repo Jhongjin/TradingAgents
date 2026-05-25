@@ -398,7 +398,12 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "storageGet" in html
     assert "storageSet" in html
     assert "storageRemove" in html
+    assert "sessionSnapshot" in html
+    assert "preferredSessionSnapshot" in html
     assert "migrateSessionStorage" in html
+    assert "bootstrapMemberSession" in html
+    assert "저장된 세션으로 대시보드를 불러오고 있습니다" in html
+    assert 'searchParams.has("code")' in html
     assert "tradingagents.member.active_tab" in html
     assert "setupMemberTabs" in html
     assert "activateMemberTab" in html
