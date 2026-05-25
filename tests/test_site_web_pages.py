@@ -723,16 +723,17 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert 'class="public-home market-page analysis-page"' in html
     assert "analysis-filter-panel" in html
     assert "analysis-pipeline-strip" in html
-    assert "저장된 분석" in html
+    assert "공개 리포트" in html
     assert 'id="analysisTicker"' in html
     assert 'id="analysisTickerSuggestions"' in html
     assert "005930 또는 삼성전자" in html
     assert "data-ticker-lookup" in html
     assert "data-ticker-submit" in html
-    assert "종목명으로 찾아도 자동으로 코드로 바꿔 필터합니다" in html
+    assert "삼성전자처럼 종목명으로 입력해도 6자리 코드로 바꿔 조회합니다" in html
     assert "resolveTickerInput" in html
     assert "renderTickerOptions" in html
-    assert "공개 분석 목록" in html
+    assert "공개 AI 리서치 기록" in html
+    assert "최근 공개된 리서치" in html
     assert "삼성전자" in html
     assert "공개 분석 커버리지 요약" in html
     assert "공개 검증 기록" in html
@@ -753,9 +754,9 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "is-positive-alpha" in html
     assert "<dt>초과수익</dt><dd>+3.00%</dd>" in html
     assert "<dt>리포트</dt><dd>1개</dd>" in html
-    assert f'href="/analyses/{run_id}">리포트</a>' in html
-    assert 'href="/outcomes?ticker=005930">성과</a>' in html
-    assert f'href="/api/analyses/{run_id}">원문 데이터 보기</a>' in html
+    assert f'href="/analyses/{run_id}">리포트 읽기</a>' in html
+    assert 'href="/outcomes?ticker=005930">성과 확인</a>' in html
+    assert f'href="/api/analyses/{run_id}">원문 JSON</a>' in html
     assert "/stocks/005930" in html
     assert '<link rel="canonical" href="https://example.com/analyses">' in html
 
@@ -763,11 +764,11 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
 def test_render_public_analysis_feed_empty_state_has_next_actions():
     html = render_public_analysis_feed_page(repo=_repo(), site_base_url="https://example.com")
 
-    assert "공개 분석 대기" in html
+    assert "공개 리서치 대기" in html
     assert "분석 ID 대기" in html
     assert 'href="/stocks/005930">샘플 종목</a>' in html
     assert 'href="/features/research">리서치 흐름</a>' in html
-    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
+    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">리서치 요청</a>' in html
 
 
 def test_render_public_analysis_feed_filtered_empty_state_guides_recovery():
@@ -776,9 +777,9 @@ def test_render_public_analysis_feed_filtered_empty_state_guides_recovery():
     assert "005930 공개 분석 없음" in html
     assert "필터 결과 없음" in html
     assert "005930 필터 결과" in html
-    assert 'href="/analyses">필터 지우기</a>' in html
+    assert 'href="/analyses">필터 초기화</a>' in html
     assert 'href="/stocks/005930">종목 페이지</a>' in html
-    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
+    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">리서치 요청</a>' in html
 
 
 def test_render_public_outcomes_page_shows_public_track_record():
@@ -925,8 +926,8 @@ def test_render_public_analysis_detail_page_shows_report_context():
     assert "analysis-detail-meta-strip" in html
     assert "투자 조언 아님" in html
     assert "주문 없는 리서치" in html
-    assert "매수/매도 지시가 아니라" in html
-    assert "리포트 읽기 순서" in html
+    assert "매수·매도 지시가 아니라" in html
+    assert "출처부터 성과까지 확인하세요" in html
     assert "출처와 기준일을 먼저 확인" in html
     assert 'href="#analysis-reports"' in html
     assert 'id="analysis-decision"' in html
@@ -945,11 +946,11 @@ def test_render_public_analysis_detail_page_shows_report_context():
     assert "근거 점검" in html
     assert "analysis-detail-report-body" in html
     assert "analysis-next-actions" in html
-    assert "리포트를 읽은 뒤 이어서 볼 곳" in html
+    assert "다음에 확인할 것" in html
     assert 'href="/member?mode=signup&amp;tab=analysis#analysis-request-section"' in html
     assert "종목 기준" in html
     assert "성과 검증 기록" in html
-    assert f'href="/api/analyses/{run_id}">원문 데이터 보기</a>' in html
+    assert f'href="/api/analyses/{run_id}">원문 JSON</a>' in html
     assert f'<link rel="canonical" href="https://example.com/analyses/{run_id}">' in html
     assert 'id="analysis-detail-payload"' in html
     assert "syncTopAuthLinks" in html
@@ -976,9 +977,9 @@ def test_render_public_analysis_detail_missing_sections_have_recovery_actions():
     assert "AI 의견 대기" in html
     assert "리포트 대기" in html
     assert "analysis-empty-actions" in html
-    assert f'href="/api/analyses/{run_id}">원문 데이터 보기</a>' in html
+    assert f'href="/api/analyses/{run_id}">원문 JSON</a>' in html
     assert 'href="/stocks/005930">종목 페이지</a>' in html
-    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">재분석 요청</a>' in html
+    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">새 리서치 요청</a>' in html
 
 
 def test_api_app_serves_public_analysis_feed_page(monkeypatch):

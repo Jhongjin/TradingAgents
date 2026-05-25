@@ -270,8 +270,8 @@ def render_public_analysis_feed_page(
   <main id="main-content" class="shell market-shell">
     <section class="summary-band" aria-labelledby="feed-title">
       <div>
-        <p class="eyebrow">공개 분석 피드</p>
-        <h1 id="feed-title">공개 분석 목록</h1>
+        <p class="eyebrow">공개 리서치 피드</p>
+        <h1 id="feed-title">공개 AI 리서치 기록</h1>
         <p class="asof">{_h(model["subtitle"])}</p>
       </div>
       <div class="decision-box">
@@ -283,25 +283,25 @@ def render_public_analysis_feed_page(
 
     <section class="analysis-filter-panel" aria-label="공개 분석 필터">
       <form class="analysis-filter-form" action="/analyses" method="get">
-        <label for="analysisTicker">종목 필터</label>
+        <label for="analysisTicker">종목명 또는 코드</label>
         <input id="analysisTicker" name="ticker" list="analysisTickerSuggestions" maxlength="80" value="{_h(str(model["ticker_code"] or ""))}" placeholder="005930 또는 삼성전자" autocomplete="off" data-ticker-lookup data-ticker-submit>
         <datalist id="analysisTickerSuggestions"></datalist>
-        <button type="submit">필터 적용</button>
-        <a href="/analyses">전체 보기</a>
+        <button type="submit">목록 조회</button>
+        <a href="/analyses">필터 초기화</a>
       </form>
-      <p>종목명으로 찾아도 자동으로 코드로 바꿔 필터합니다. 공개 분석만 표시하고 개인 기록은 불러오지 않습니다.</p>
+      <p>삼성전자처럼 종목명으로 입력해도 6자리 코드로 바꿔 조회합니다. 공개 리포트만 표시하며 개인 기록은 불러오지 않습니다.</p>
     </section>
 
     <section class="analysis-pipeline-strip" aria-label="공개 분석 공개 기준">
       <article>
         <span>01</span>
-        <strong>저장된 분석</strong>
-        <small>완료된 공개 분석만 목록에 노출합니다.</small>
+        <strong>공개 리포트</strong>
+        <small>완료되어 공개 가능한 리서치만 목록에 노출합니다.</small>
       </article>
       <article>
         <span>02</span>
-        <strong>AI 근거</strong>
-        <small>AI 리포트와 의견 요약을 분리해 제공합니다.</small>
+        <strong>AI 의견과 근거</strong>
+        <small>AI 의견, 리포트 본문, 원문 데이터를 분리해 제공합니다.</small>
       </article>
       <article>
         <span>03</span>
@@ -317,8 +317,8 @@ def render_public_analysis_feed_page(
     <section class="report-section" aria-labelledby="feed-list-title">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">완료 리포트</p>
-          <h2 id="feed-list-title">최근 완료된 분석</h2>
+          <p class="eyebrow">리포트 목록</p>
+          <h2 id="feed-list-title">최근 공개된 리서치</h2>
         </div>
         <span class="status-pill">{_h(model["filter_label"])}</span>
       </div>
@@ -538,7 +538,7 @@ def render_public_analysis_detail_page(
         <p class="eyebrow">공개 분석 리포트</p>
         <h1 id="analysis-detail-title">{_h(model["heading"])}</h1>
         <p class="asof">{_h(model["subtitle"])}</p>
-        <p class="analysis-detail-lede">이 리포트는 매수/매도 지시가 아니라 공개 데이터와 AI 에이전트 판단을 한곳에 모은 기록입니다. 출처와 기준일을 먼저 확인한 뒤 판단, 본문, 성과 검증을 이어서 읽어주세요.</p>
+        <p class="analysis-detail-lede">이 리포트는 매수·매도 지시가 아니라 공개 데이터와 AI 의견을 한곳에 모은 기록입니다. 출처와 기준일을 먼저 확인한 뒤 AI 의견, 본문, 사후 성과를 이어서 읽어주세요.</p>
         <div class="analysis-detail-meta-strip" aria-label="리포트 기준">
           <span>{_h(model["market"])}</span>
           <span>{_h(model["ticker_code"])}</span>
@@ -546,9 +546,9 @@ def render_public_analysis_detail_page(
           <span>주문 없는 리서치</span>
         </div>
         <div class="analysis-detail-actions">
-          <a href="/stocks/{_h(model["ticker_code"])}">종목 페이지</a>
-          <a href="/analyses">분석 목록</a>
-          <a href="/api/analyses/{_h(model["run_id"])}">원문 데이터 보기</a>
+          <a href="/stocks/{_h(model["ticker_code"])}">종목 보기</a>
+          <a href="/analyses">목록으로</a>
+          <a href="/api/analyses/{_h(model["run_id"])}">원문 JSON</a>
         </div>
       </div>
       <aside class="decision-box analysis-detail-decision">
@@ -577,7 +577,7 @@ def render_public_analysis_detail_page(
       <div class="analysis-report-stack">
         {reports_html}
       </div>
-      <p class="analysis-report-note">화면에는 읽기 편하도록 본문 일부를 먼저 보여줍니다. 전체 원문 필드는 상단의 원문 데이터 보기에서 확인할 수 있습니다.</p>
+      <p class="analysis-report-note">화면에는 읽기 편하도록 본문 일부를 먼저 보여줍니다. 전체 원문 필드는 상단의 원문 JSON에서 확인할 수 있습니다.</p>
     </section>
 
     {outcomes_html}
@@ -2335,7 +2335,7 @@ def _analysis_feed_view_model(payload: dict[str, Any], *, site_base_url: str | N
         "title": title,
         "description": description,
         "canonical_url": canonical_url("/analyses", site_base_url=site_base_url),
-        "subtitle": "한국 주식 AI 분석이 완료되면 이곳에 공개됩니다.",
+        "subtitle": "공개된 AI 리서치 기록을 종목별로 찾아보고, 리포트·원문 데이터·사후 성과를 이어서 확인하세요.",
         "status": f"{_analysis_feed_status_label(payload.get('status'))} · {basis_label}",
         "ticker_code": ticker_code,
         "filter_label": f"{ticker_code} 필터" if ticker_code else "전체 종목",
@@ -2792,24 +2792,24 @@ def _analysis_feed_cards(
             <article class="analysis-feed-card empty">
               <span>필터 결과 없음</span>
               <h3>{_h(ticker)} 공개 분석 없음</h3>
-              <p>아직 이 종목의 완료된 공개 분석이 없습니다. 종목 페이지에서 가격·공시·뉴스 흐름을 먼저 확인하거나, 로그인 후 분석 요청을 남길 수 있습니다.</p>
+              <p>아직 이 종목의 완료된 공개 리서치가 없습니다. 종목 페이지에서 가격·공시·뉴스 흐름을 먼저 확인하거나, 로그인 후 리서치 요청을 남길 수 있습니다.</p>
               <div class="analysis-feed-signal-row" aria-label="필터 결과 없음">
                 <span>{_h(str(filter_label))}</span>
                 <span>리포트 0개</span>
                 <span>검증 대기</span>
               </div>
               <div class="analysis-feed-actions">
-                <a href="/analyses">필터 지우기</a>
+                <a href="/analyses">필터 초기화</a>
                 <a href="/stocks/{_h(ticker)}">종목 페이지</a>
-                <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
+                <a href="/member?mode=signup&tab=analysis#analysis-request-section">리서치 요청</a>
               </div>
             </article>
             """
         return """
         <article class="analysis-feed-card empty">
           <span>대기</span>
-          <h3>공개 분석 대기</h3>
-          <p>분석이 완료된 공개 리포트가 생기면 이 목록에 표시됩니다.</p>
+          <h3>공개 리서치 대기</h3>
+          <p>완료되어 공개 가능한 리포트가 생기면 이 목록에 표시됩니다.</p>
           <div class="analysis-feed-signal-row" aria-label="공개 분석 대기 상태">
             <span>분석 ID 대기</span>
             <span>리포트 0개</span>
@@ -2818,7 +2818,7 @@ def _analysis_feed_cards(
           <div class="analysis-feed-actions">
             <a href="/stocks/005930">샘플 종목</a>
             <a href="/features/research">리서치 흐름</a>
-            <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
+            <a href="/member?mode=signup&tab=analysis#analysis-request-section">리서치 요청</a>
           </div>
         </article>
         """
@@ -2851,11 +2851,11 @@ def _analysis_feed_cards(
                 <small>{_h(str(trade_date))}</small>
               </div>
               <h3><a href="{_h(str(report_path))}">{_h(str(name))} <small>{_h(str(code))}</small></a></h3>
-              <p>{_h(str(trade_date))} 기준 공개 분석입니다. AI 의견, 리포트 수, 성과 연결 상태를 함께 확인합니다.</p>
+              <p>{_h(str(trade_date))} 기준 공개 리서치입니다. 먼저 기준일과 AI 의견을 보고, 리포트 본문과 사후 성과를 이어서 확인하세요.</p>
               <div class="analysis-feed-signal-row" aria-label="분석 카드 상태">
                 <span>AI 의견 {_h(str(decision))}</span>
                 <span>{_h(reports)} 리포트</span>
-                <span>{_h(outcome_label)} / {_h(alpha if alpha != "-" else "초과수익 대기")}</span>
+                <span>성과 {_h(outcome_label)} / {_h(alpha if alpha != "-" else "초과수익 대기")}</span>
               </div>
               <dl>
                 <div><dt>상태</dt><dd>{_h(status_label)}</dd></div>
@@ -2864,10 +2864,10 @@ def _analysis_feed_cards(
                 <div><dt>초과수익</dt><dd>{_h(alpha)}</dd></div>
               </dl>
               <div class="analysis-feed-actions">
-                <a href="{_h(str(report_path))}">리포트</a>
-                <a href="/stocks/{_h(str(code))}">종목</a>
-                <a href="{_h(str(outcome_path))}">성과</a>
-                <a href="{_h(str(api_path))}">원문 데이터 보기</a>
+                <a href="{_h(str(report_path))}">리포트 읽기</a>
+                <a href="/stocks/{_h(str(code))}">종목 보기</a>
+                <a href="{_h(str(outcome_path))}">성과 확인</a>
+                <a href="{_h(str(api_path))}">원문 JSON</a>
               </div>
             </article>
             """
@@ -2881,7 +2881,7 @@ def _analysis_detail_map(model: dict[str, Any]) -> str:
     run_id = str(model.get("run_id") or "")
     summary = model.get("summary") or {}
     cards = [
-        ("01", "저장된 분석", f"ID {run_id[:8] or '-'}", model.get("timestamp_label") or "저장 시각 없음"),
+        ("01", "기준 리포트", f"ID {run_id[:8] or '-'}", model.get("timestamp_label") or "저장 시각 없음"),
         ("02", "AI 의견", model.get("decision_label") or "-", model.get("data_basis") or "기준 데이터 확인"),
         ("03", "AI 리포트", f"{len(reports)}개", model.get("analyst_label") or "분석 목록 확인"),
         (
@@ -2906,9 +2906,9 @@ def _analysis_detail_map(model: dict[str, Any]) -> str:
     <section class="analysis-detail-map" aria-label="리포트 읽기 순서">
       <div class="analysis-detail-map-heading">
         <div>
-          <p class="eyebrow">읽기 지도</p>
-          <h2>리포트 읽기 순서</h2>
-          <p class="analysis-map-copy">출처와 기준일을 먼저 확인한 뒤 AI 의견, 리포트 본문, 성과 검증을 이어서 보세요.</p>
+          <p class="eyebrow">읽는 순서</p>
+          <h2>출처부터 성과까지 확인하세요</h2>
+          <p class="analysis-map-copy">출처와 기준일을 먼저 확인한 뒤 AI 의견, 리포트 본문, 사후 성과를 이어서 보세요.</p>
         </div>
         <nav aria-label="리포트 섹션 바로가기">
           <a href="#analysis-provenance">출처</a>
@@ -2934,28 +2934,28 @@ def _analysis_detail_next_actions(model: dict[str, Any]) -> str:
     <section class="analysis-next-actions" aria-labelledby="analysis-next-actions-title">
       <div>
         <p class="eyebrow">다음 확인</p>
-        <h2 id="analysis-next-actions-title">리포트를 읽은 뒤 이어서 볼 곳</h2>
-        <p>이 페이지는 AI 의견의 근거를 정리하는 공개 기록입니다. 종목 화면에서 최신 가격과 공시 흐름을 다시 보고, 필요하면 회원 작업공간에서 같은 종목의 분석을 요청하세요.</p>
+        <h2 id="analysis-next-actions-title">다음에 확인할 것</h2>
+        <p>이 페이지는 AI 의견의 근거를 정리한 공개 기록입니다. 종목 화면에서 최신 가격과 공시 흐름을 다시 보고, 필요하면 회원 작업공간에서 같은 종목의 리서치를 요청하세요.</p>
       </div>
       <div class="analysis-next-action-grid">
         <a href="{_h(stock_href)}">
           <span>01</span>
-          <strong>종목 페이지</strong>
+          <strong>종목 보기</strong>
           <small>가격, 공시, 뉴스, 공개 리포트 연결을 확인합니다.</small>
         </a>
         <a href="{_h(outcomes_href)}">
           <span>02</span>
-          <strong>성과 검증</strong>
+          <strong>성과 확인</strong>
           <small>5일/20일 이후 초과수익이 연결됐는지 확인합니다.</small>
         </a>
         <a href="{_h(request_href)}">
           <span>03</span>
-          <strong>재분석 요청</strong>
+          <strong>새 리서치 요청</strong>
           <small>로그인 후 보고 싶은 종목을 요청 대기열에 넣습니다.</small>
         </a>
         <a href="/api/analyses/{_h(run_id)}">
           <span>04</span>
-          <strong>원문 데이터 보기</strong>
+          <strong>원문 JSON</strong>
           <small>저장된 원문 필드와 리포트 전체 구조를 확인합니다.</small>
         </a>
       </div>
@@ -2974,12 +2974,12 @@ def _analysis_detail_report_cards(
         <article class="analysis-detail-report-card empty">
           <span>대기</span>
           <h3>리포트 대기</h3>
-          <p>저장된 AI 리포트가 아직 없습니다. 원문 데이터에서 저장 상태를 확인하거나, 같은 종목의 새 분석을 요청할 수 있습니다.</p>
+          <p>저장된 AI 리포트가 아직 없습니다. 원문 JSON에서 저장 상태를 확인하거나, 같은 종목의 새 리서치를 요청할 수 있습니다.</p>
           <div class="analysis-empty-actions">
-            <a href="/api/analyses/{_h(str(run_id))}">원문 데이터 보기</a>
+            <a href="/api/analyses/{_h(str(run_id))}">원문 JSON</a>
             <a href="/stocks/{_h(str(ticker_code))}">종목 페이지</a>
             <a href="/analyses">분석 목록</a>
-            <a href="/member?mode=signup&tab=analysis#analysis-request-section">재분석 요청</a>
+            <a href="/member?mode=signup&tab=analysis#analysis-request-section">새 리서치 요청</a>
           </div>
         </article>
         """
@@ -3068,11 +3068,11 @@ def _analysis_detail_decision_card(
         <article class="analysis-rationale-card empty">
           <span>대기</span>
           <h2>AI 의견 대기</h2>
-          <p>저장된 AI 의견이 아직 없습니다. 원문 데이터와 종목 페이지를 확인한 뒤, 필요하면 같은 종목의 새 분석을 요청할 수 있습니다.</p>
+          <p>저장된 AI 의견이 아직 없습니다. 원문 JSON과 종목 페이지를 확인한 뒤, 필요하면 같은 종목의 새 리서치를 요청할 수 있습니다.</p>
           <div class="analysis-empty-actions">
-            <a href="/api/analyses/{_h(str(run_id))}">원문 데이터 보기</a>
+            <a href="/api/analyses/{_h(str(run_id))}">원문 JSON</a>
             <a href="/stocks/{_h(str(ticker_code))}">종목 페이지</a>
-            <a href="/member?mode=signup&tab=analysis#analysis-request-section">재분석 요청</a>
+            <a href="/member?mode=signup&tab=analysis#analysis-request-section">새 리서치 요청</a>
           </div>
         </article>
         """
