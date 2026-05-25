@@ -284,11 +284,12 @@ def render_public_analysis_feed_page(
     <section class="analysis-filter-panel" aria-label="공개 분석 필터">
       <form class="analysis-filter-form" action="/analyses" method="get">
         <label for="analysisTicker">종목 필터</label>
-        <input id="analysisTicker" name="ticker" maxlength="12" value="{_h(str(model["ticker_code"] or ""))}" placeholder="005930">
+        <input id="analysisTicker" name="ticker" list="analysisTickerSuggestions" maxlength="80" value="{_h(str(model["ticker_code"] or ""))}" placeholder="005930 또는 삼성전자" autocomplete="off" data-ticker-lookup data-ticker-submit>
+        <datalist id="analysisTickerSuggestions"></datalist>
         <button type="submit">필터 적용</button>
         <a href="/analyses">전체 보기</a>
       </form>
-      <p>공개 분석만 표시합니다. 개인 기록은 불러오지 않습니다.</p>
+      <p>종목명으로 찾아도 자동으로 코드로 바꿔 필터합니다. 공개 분석만 표시하고 개인 기록은 불러오지 않습니다.</p>
     </section>
 
     <section class="analysis-pipeline-strip" aria-label="공개 분석 공개 기준">
@@ -421,7 +422,8 @@ def render_public_outcomes_page(
     <section class="analysis-filter-panel outcome-filter-panel" aria-label="성과 검증 필터">
       <form class="analysis-filter-form outcome-filter-form" action="/outcomes" method="get">
         <label for="outcomeTicker">종목</label>
-        <input id="outcomeTicker" name="ticker" maxlength="12" value="{_h(str(model["ticker_code"] or ""))}" placeholder="005930">
+        <input id="outcomeTicker" name="ticker" list="outcomeTickerSuggestions" maxlength="80" value="{_h(str(model["ticker_code"] or ""))}" placeholder="005930 또는 삼성전자" autocomplete="off" data-ticker-lookup data-ticker-submit>
+        <datalist id="outcomeTickerSuggestions"></datalist>
         <label for="outcomeStatus">상태</label>
         <select id="outcomeStatus" name="status">
           {_outcome_status_options(model["filter_status"])}
@@ -1725,10 +1727,10 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             </div>
             <div class="member-form-block">
               <strong>매수/매도 기록</strong>
-              <small class="member-form-hint">종목코드, 날짜, 단가, 수량을 입력하면 평균단가와 손익을 계산합니다.</small>
+              <small class="member-form-hint">종목명이나 6자리 코드, 날짜, 단가, 수량을 입력하면 평균단가와 손익을 계산합니다.</small>
               <form class="member-form trade-form" id="tradeForm">
                 <select name="portfolio_id" aria-label="포트폴리오 선택" required></select>
-                <input name="ticker_code" maxlength="12" placeholder="005930" aria-label="종목코드" inputmode="numeric" required>
+                <input name="ticker_code" list="memberTickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" aria-label="종목코드 또는 종목명" autocomplete="off" data-member-ticker-lookup required>
                 <select name="side" aria-label="매수 또는 매도" required>
                   <option value="buy">매수</option>
                   <option value="sell">매도</option>
@@ -1746,7 +1748,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <small class="member-form-hint">목표가와 손절가는 주문으로 연결되지 않는 개인 메모입니다.</small>
               <form class="member-form target-form" id="targetForm">
                 <select name="portfolio_id" aria-label="포트폴리오 선택" required></select>
-                <input name="ticker_code" maxlength="12" placeholder="005930" aria-label="종목코드" inputmode="numeric" required>
+                <input name="ticker_code" list="memberTickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" aria-label="종목코드 또는 종목명" autocomplete="off" data-member-ticker-lookup required>
                 <input name="target_price" type="number" min="1" step="1" placeholder="목표가" aria-label="목표가" inputmode="numeric">
                 <input name="stop_price" type="number" min="1" step="1" placeholder="손절가" aria-label="손절가" inputmode="numeric">
                 <input name="memo" maxlength="500" placeholder="목표 메모" aria-label="목표 메모">
@@ -1776,10 +1778,10 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             </div>
             <div class="member-form-block">
               <strong>종목 담기</strong>
-              <small class="member-form-hint">6자리 종목코드와 메모를 남기면 목록에서 현재가 상태를 함께 확인합니다.</small>
+              <small class="member-form-hint">종목명이나 6자리 코드와 메모를 남기면 목록에서 현재가 상태를 함께 확인합니다.</small>
               <form class="member-form compact-form" id="watchlistItemForm">
                 <select name="watchlist_id" aria-label="관심목록 선택" required></select>
-                <input name="ticker_code" maxlength="12" placeholder="005930" aria-label="종목코드" inputmode="numeric" required>
+                <input name="ticker_code" list="memberTickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" aria-label="종목코드 또는 종목명" autocomplete="off" data-member-ticker-lookup required>
                 <input name="memo" maxlength="500" placeholder="메모" aria-label="관심종목 메모">
                 <button type="submit">담기</button>
               </form>
@@ -1797,9 +1799,9 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             </div>
             <span class="status-pill">요청 대기열</span>
           </div>
-          <p class="member-form-hint member-request-hint">종목코드만 입력하면 가장 최근 기준일로 요청합니다. 특정 날짜 기준으로 보고 싶을 때만 날짜를 선택하세요.</p>
+          <p class="member-form-hint member-request-hint">종목명이나 6자리 코드만 입력하면 가장 최근 기준일로 요청합니다. 특정 날짜 기준으로 보고 싶을 때만 날짜를 선택하세요.</p>
           <form class="member-form compact-form" id="analysisRequestForm">
-            <input name="ticker" maxlength="12" placeholder="005930" aria-label="분석 요청 종목코드" inputmode="numeric" required>
+            <input name="ticker" list="memberTickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" aria-label="분석 요청 종목코드 또는 종목명" autocomplete="off" data-member-ticker-lookup required>
             <input name="requested_trade_date" type="date" aria-label="분석 기준일">
             <input name="reason" maxlength="500" placeholder="요청 메모" aria-label="요청 메모">
             <button type="submit">요청</button>
@@ -1810,6 +1812,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
     </section>
   </main>
 
+  <datalist id="memberTickerSuggestions"></datalist>
   <script id="member-config" type="application/json">{config_json}</script>
   <script>{MEMBER_PAGE_JS}</script>
 </body>
@@ -9476,6 +9479,7 @@ PAGE_JS = """
   const searchForm = document.querySelector(".ticker-search");
   const searchInput = document.getElementById("ticker");
   const suggestions = document.getElementById("tickerSuggestions");
+  const tickerLookupInputs = Array.from(document.querySelectorAll("[data-ticker-lookup]"));
   let lastSearchController = null;
 
   function memberStorageGet(key) {
@@ -9555,6 +9559,80 @@ PAGE_JS = """
     return payload.items || [];
   }
 
+  function renderTickerOptions(target, items) {
+    if (!target) return;
+    target.replaceChildren(...items.map((item) => {
+      const option = document.createElement("option");
+      option.value = item.code;
+      option.label = `${item.name} / ${item.market}`;
+      return option;
+    }));
+  }
+
+  function tickerDatalistFor(input) {
+    const listId = input?.getAttribute("list") || "";
+    return listId ? document.getElementById(listId) : null;
+  }
+
+  function bindTickerLookup(input) {
+    const datalist = tickerDatalistFor(input);
+    if (!datalist) return;
+    input.addEventListener("input", async () => {
+      const query = input.value.trim();
+      input.setCustomValidity("");
+      if (query.length < 2) {
+        datalist.replaceChildren();
+        return;
+      }
+      try {
+        renderTickerOptions(datalist, await searchTickers(query));
+      } catch (error) {
+        if (error.name !== "AbortError") datalist.replaceChildren();
+      }
+    });
+  }
+
+  async function resolveTickerInput(input) {
+    const query = input.value.trim();
+    input.setCustomValidity("");
+    if (!query || /^\\d{6}$/.test(query)) return query;
+    const items = await searchTickers(query);
+    if (!items.length) {
+      input.setCustomValidity("종목명 또는 6자리 종목코드를 확인해 주세요.");
+      input.reportValidity();
+      return "";
+    }
+    input.value = items[0].code;
+    return items[0].code;
+  }
+
+  tickerLookupInputs.forEach(bindTickerLookup);
+
+  document.querySelectorAll("form").forEach((form) => {
+    const tickerInput = form.querySelector("[data-ticker-submit]");
+    if (!tickerInput) return;
+    form.addEventListener("submit", async (event) => {
+      if (form.dataset.tickerResolved === "true") {
+        form.dataset.tickerResolved = "false";
+        return;
+      }
+      const query = tickerInput.value.trim();
+      if (!query || /^\\d{6}$/.test(query)) return;
+      event.preventDefault();
+      try {
+        const code = await resolveTickerInput(tickerInput);
+        if (!code) return;
+        form.dataset.tickerResolved = "true";
+        form.submit();
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          tickerInput.setCustomValidity("종목명 또는 6자리 종목코드를 확인해 주세요.");
+          tickerInput.reportValidity();
+        }
+      }
+    });
+  });
+
   if (searchInput && suggestions) {
     searchInput.addEventListener("input", async () => {
       const query = searchInput.value.trim();
@@ -9563,13 +9641,7 @@ PAGE_JS = """
         return;
       }
       try {
-        const items = await searchTickers(query);
-        suggestions.replaceChildren(...items.map((item) => {
-          const option = document.createElement("option");
-          option.value = item.code;
-          option.label = `${item.name} / ${item.market}`;
-          return option;
-        }));
+        renderTickerOptions(suggestions, await searchTickers(query));
       } catch (error) {
         if (error.name !== "AbortError") suggestions.replaceChildren();
       }
@@ -10514,6 +10586,9 @@ MEMBER_PAGE_JS = """
   const portfolioSelect = tradeForm?.elements?.portfolio_id;
   const targetPortfolioSelect = targetForm?.elements?.portfolio_id;
   const watchlistSelect = watchlistItemForm?.elements?.watchlist_id;
+  const memberTickerInputs = Array.from(document.querySelectorAll("[data-member-ticker-lookup]"));
+  const memberTickerSuggestions = document.getElementById("memberTickerSuggestions");
+  let memberTickerSearchController = null;
   const accessTokenKey = "tradingagents.member.access_token";
   const refreshTokenKey = "tradingagents.member.refresh_token";
   const expiresAtKey = "tradingagents.member.expires_at";
@@ -10714,6 +10789,73 @@ MEMBER_PAGE_JS = """
     if (authStatusNode) {
       authStatusNode.textContent = message;
       authStatusNode.classList.toggle("member-error", isError);
+    }
+  }
+
+  function renderMemberTickerOptions(items) {
+    if (!memberTickerSuggestions) return;
+    memberTickerSuggestions.replaceChildren(...items.map((item) => {
+      const option = document.createElement("option");
+      option.value = item.code;
+      option.label = `${item.name} / ${item.market}`;
+      return option;
+    }));
+  }
+
+  async function memberSearchTickers(query) {
+    const trimmed = String(query || "").trim();
+    if (!trimmed) return [];
+    if (memberTickerSearchController) memberTickerSearchController.abort();
+    memberTickerSearchController = new AbortController();
+    const response = await fetch(`/api/tickers/search?q=${encodeURIComponent(trimmed)}&limit=8`, {
+      signal: memberTickerSearchController.signal,
+      headers: { "Accept": "application/json" }
+    });
+    if (!response.ok) return [];
+    const payload = await response.json();
+    return payload.items || [];
+  }
+
+  function setupMemberTickerLookup() {
+    if (!memberTickerSuggestions) return;
+    memberTickerInputs.forEach((input) => {
+      input.addEventListener("input", async () => {
+        const query = input.value.trim();
+        input.setCustomValidity("");
+        if (query.length < 2) {
+          memberTickerSuggestions.replaceChildren();
+          return;
+        }
+        try {
+          renderMemberTickerOptions(await memberSearchTickers(query));
+        } catch (error) {
+          if (error.name !== "AbortError") memberTickerSuggestions.replaceChildren();
+        }
+      });
+    });
+  }
+
+  async function normalizeMemberTickerValue(value) {
+    const query = String(value || "").trim();
+    if (!query || /^\\d{6}$/.test(query)) return query;
+    const items = await memberSearchTickers(query);
+    if (!items.length) throw new Error("종목명 또는 6자리 종목코드를 확인해 주세요.");
+    return items[0].code;
+  }
+
+  async function tickerFromForm(form, name) {
+    const input = form?.elements?.[name];
+    if (input) input.setCustomValidity("");
+    try {
+      const code = await normalizeMemberTickerValue(input?.value || "");
+      if (input && code) input.value = code;
+      return code;
+    } catch (error) {
+      if (input) {
+        input.setCustomValidity(error.message || "종목명 또는 6자리 종목코드를 확인해 주세요.");
+        input.reportValidity();
+      }
+      throw error;
     }
   }
 
@@ -11597,8 +11739,10 @@ MEMBER_PAGE_JS = """
 
   async function submitJson(form, path, buildBody, options = {}) {
     try {
-      const body = buildBody(new FormData(form));
-      const payload = await memberApi(path, { method: options.method || "POST", body: JSON.stringify(body) });
+      const formValues = new FormData(form);
+      const resolvedPath = typeof path === "function" ? await path(formValues) : path;
+      const body = await buildBody(formValues);
+      const payload = await memberApi(resolvedPath, { method: options.method || "POST", body: JSON.stringify(body) });
       form.reset();
       await loadMemberData();
       if (payload?.status === "already_queued") {
@@ -11661,8 +11805,8 @@ MEMBER_PAGE_JS = """
     event.preventDefault();
     const form = new FormData(tradeForm);
     const portfolioId = String(form.get("portfolio_id") || "");
-    submitJson(tradeForm, `/api/portfolio/${encodeURIComponent(portfolioId)}/trades`, () => ({
-      ticker_code: String(form.get("ticker_code") || ""),
+    submitJson(tradeForm, `/api/portfolio/${encodeURIComponent(portfolioId)}/trades`, async () => ({
+      ticker_code: await tickerFromForm(tradeForm, "ticker_code"),
       side: String(form.get("side") || "buy"),
       trade_date: String(form.get("trade_date") || ""),
       price: String(form.get("price") || ""),
@@ -11676,8 +11820,10 @@ MEMBER_PAGE_JS = """
     event.preventDefault();
     const form = new FormData(targetForm);
     const portfolioId = String(form.get("portfolio_id") || "");
-    const tickerCode = String(form.get("ticker_code") || "");
-    submitJson(targetForm, `/api/portfolio/${encodeURIComponent(portfolioId)}/targets/${encodeURIComponent(tickerCode)}`, (values) => ({
+    submitJson(targetForm, async () => {
+      const tickerCode = await tickerFromForm(targetForm, "ticker_code");
+      return `/api/portfolio/${encodeURIComponent(portfolioId)}/targets/${encodeURIComponent(tickerCode)}`;
+    }, (values) => ({
       target_price: optionalDecimal(values.get("target_price")),
       stop_price: optionalDecimal(values.get("stop_price")),
       memo: String(values.get("memo") || "") || null
@@ -11695,18 +11841,18 @@ MEMBER_PAGE_JS = """
     event.preventDefault();
     const form = new FormData(watchlistItemForm);
     const watchlistId = String(form.get("watchlist_id") || "");
-    submitJson(watchlistItemForm, `/api/watchlists/${encodeURIComponent(watchlistId)}/items`, () => ({
-      ticker_code: String(form.get("ticker_code") || ""),
+    submitJson(watchlistItemForm, `/api/watchlists/${encodeURIComponent(watchlistId)}/items`, async () => ({
+      ticker_code: await tickerFromForm(watchlistItemForm, "ticker_code"),
       memo: String(form.get("memo") || "") || null
     }));
   });
 
   analysisRequestForm?.addEventListener("submit", (event) => {
     event.preventDefault();
-    submitJson(analysisRequestForm, "/api/analysis-requests", (form) => {
+    submitJson(analysisRequestForm, "/api/analysis-requests", async (form) => {
       const requested = String(form.get("requested_trade_date") || "");
       return {
-        ticker: String(form.get("ticker") || ""),
+        ticker: await tickerFromForm(analysisRequestForm, "ticker"),
         requested_trade_date: requested || null,
         reason: String(form.get("reason") || "") || null
       };
@@ -11716,6 +11862,7 @@ MEMBER_PAGE_JS = """
   async function bootstrapMemberSession() {
     migrateSessionStorage();
     setupMemberTabs();
+    setupMemberTickerLookup();
     const redirectSession = consumeRedirectSession();
     const hasStoredSession = Boolean(accessToken() || refreshToken());
     if (hasStoredSession) {

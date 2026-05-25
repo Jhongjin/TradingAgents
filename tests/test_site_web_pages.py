@@ -321,7 +321,13 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "memberOverviewActiveRequests" in html
     assert "새 포트폴리오" in html
     assert "먼저 기록을 묶을 포트폴리오 이름을 만듭니다." in html
-    assert 'aria-label="종목코드"' in html
+    assert 'aria-label="종목코드 또는 종목명"' in html
+    assert 'id="memberTickerSuggestions"' in html
+    assert "data-member-ticker-lookup" in html
+    assert "memberSearchTickers" in html
+    assert "setupMemberTickerLookup" in html
+    assert "normalizeMemberTickerValue" in html
+    assert "tickerFromForm" in html
     assert "매수/매도 기록" in html
     assert "목표/손절 메모" in html
     assert 'href="#portfolio-section"' in html
@@ -363,7 +369,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "status_label" in html
     assert "분석 처리 대기 중" in html
     assert "요청 상태, 하루 요청 가능 횟수, 완료 리포트 연결" in html
-    assert "종목코드만 입력하면 가장 최근 기준일로 요청합니다" in html
+    assert "종목명이나 6자리 코드만 입력하면 가장 최근 기준일로 요청합니다" in html
     assert "analysis-queue-overview" in html
     assert "analysis-queue-meters" in html
     assert "quota_policy" in html
@@ -708,6 +714,13 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "analysis-pipeline-strip" in html
     assert "저장된 분석" in html
     assert 'id="analysisTicker"' in html
+    assert 'id="analysisTickerSuggestions"' in html
+    assert "005930 또는 삼성전자" in html
+    assert "data-ticker-lookup" in html
+    assert "data-ticker-submit" in html
+    assert "종목명으로 찾아도 자동으로 코드로 바꿔 필터합니다" in html
+    assert "resolveTickerInput" in html
+    assert "renderTickerOptions" in html
     assert "공개 분석 목록" in html
     assert "삼성전자" in html
     assert "공개 분석 커버리지 요약" in html
@@ -795,6 +808,9 @@ def test_render_public_outcomes_page_shows_public_track_record():
     assert "대시보드" in html
     assert "검증 기록" in html
     assert "outcome-filter-panel" in html
+    assert 'id="outcomeTickerSuggestions"' in html
+    assert "data-ticker-submit" in html
+    assert "005930 또는 삼성전자" in html
     assert "outcome-cadence-strip" in html
     assert "outcome-feed-card" in html
     assert "삼성전자" in html
