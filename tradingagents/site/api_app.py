@@ -1324,14 +1324,20 @@ def _storage_schema_error(
 
 def _krx_online_readiness_probe() -> dict[str, object]:
     probe_symbol = _krx_readiness_probe_symbol()
-    probe_date = os.getenv("TRADINGAGENTS_READINESS_KRX_PROBE_DATE") or _last_korea_business_date()
+    configured_probe_date = os.getenv("TRADINGAGENTS_READINESS_KRX_PROBE_DATE")
+    probe_dates = (
+        [configured_probe_date.strip()]
+        if configured_probe_date and configured_probe_date.strip()
+        else _recent_korea_business_dates()
+    )
     result: dict[str, object] = {
         "vendor": "krx",
         "probe": "daily_ohlcv",
         "ticker": probe_symbol,
-        "date": probe_date,
+        "date": probe_dates[0],
+        "attempted_dates": probe_dates,
         "row_count": 0,
-        "request_count": 1,
+        "request_count": 0,
         "elapsed_ms": 0,
         "quota_signal": "wrapper_no_headers",
     }
@@ -1345,33 +1351,40 @@ def _krx_online_readiness_probe() -> dict[str, object]:
         return result
 
     started = time.perf_counter()
-    try:
-        frame = krx_openapi.get_ohlcv_frame(probe_symbol, probe_date, probe_date)
-    except Exception as exc:
-        result.update(
-            {
-                "status": "failed",
-                "elapsed_ms": _elapsed_ms(started),
-                "error_type": exc.__class__.__name__,
-                "error": (
-                    f"KRX Open API probe failed for {probe_symbol} on {probe_date} ({_safe_error_name(exc)}); "
-                    "check key value and service-level approval"
-                ),
-            }
-        )
-        return result
+    empty_dates: list[str] = []
+    for probe_date in probe_dates:
+        result["request_count"] = int(result["request_count"]) + 1
+        try:
+            frame = krx_openapi.get_ohlcv_frame(probe_symbol, probe_date, probe_date)
+        except Exception as exc:
+            result.update(
+                {
+                    "date": probe_date,
+                    "status": "failed",
+                    "elapsed_ms": _elapsed_ms(started),
+                    "error_type": exc.__class__.__name__,
+                    "error": (
+                        f"KRX Open API probe failed for {probe_symbol} on {probe_date} ({_safe_error_name(exc)}); "
+                        "check key value and service-level approval"
+                    ),
+                }
+            )
+            return result
 
-    row_count = 0 if frame is None else len(frame.index)
-    result.update({"elapsed_ms": _elapsed_ms(started), "row_count": row_count})
-    if frame is None or frame.empty:
-        result.update(
-            {
-                "status": "empty",
-                "error": f"KRX Open API returned no rows for {probe_symbol} on {probe_date}",
-            }
-        )
-        return result
-    result["status"] = "ok"
+        row_count = 0 if frame is None else len(frame.index)
+        result.update({"date": probe_date, "elapsed_ms": _elapsed_ms(started), "row_count": row_count})
+        if frame is not None and not frame.empty:
+            result["status"] = "ok"
+            return result
+        empty_dates.append(probe_date)
+
+    result.update(
+        {
+            "status": "empty",
+            "empty_dates": empty_dates,
+            "error": f"KRX Open API returned no rows for {probe_symbol} on recent dates: {', '.join(empty_dates)}",
+        }
+    )
     return result
 
 
@@ -1664,6 +1677,16 @@ def _last_korea_business_date() -> str:
     while current.weekday() >= 5:
         current -= timedelta(days=1)
     return current.isoformat()
+
+
+def _recent_korea_business_dates(limit: int = 5) -> list[str]:
+    dates: list[str] = []
+    current = datetime.now(ZoneInfo("Asia/Seoul")).date() - timedelta(days=1)
+    while len(dates) < limit:
+        if current.weekday() < 5:
+            dates.append(current.isoformat())
+        current -= timedelta(days=1)
+    return dates
 
 
 def _krx_readiness_probe_symbol() -> str:

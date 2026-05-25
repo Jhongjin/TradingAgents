@@ -300,6 +300,46 @@ def test_api_app_readiness_can_probe_krx_online(monkeypatch):
     assert "krx_online" not in body["configuration_errors"]
 
 
+def test_api_app_readiness_uses_recent_krx_business_day_when_latest_empty(monkeypatch):
+    repo = _repo()
+    monkeypatch.setenv("KRX_API_KEY", "krx-key")
+    monkeypatch.setenv("TRADINGAGENTS_KRX_PROBE_TICKER", "005930")
+    monkeypatch.delenv("TRADINGAGENTS_READINESS_KRX_PROBE_DATE", raising=False)
+    monkeypatch.setattr(
+        "tradingagents.site.api_app._recent_korea_business_dates",
+        lambda: ["2026-05-25", "2026-05-22"],
+    )
+    calls = []
+
+    def fake_frame(symbol, start_date, end_date):
+        calls.append((symbol, start_date, end_date))
+        if start_date == "2026-05-22":
+            return pd.DataFrame({"Close": [56000]})
+        return pd.DataFrame()
+
+    monkeypatch.setattr(
+        "tradingagents.site.api_app.krx_openapi.get_ohlcv_frame",
+        fake_frame,
+    )
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.get("/api/readiness", params={"probe_krx": "true"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["checks"]["krx_online"] is True
+    assert calls == [
+        ("005930", "2026-05-25", "2026-05-25"),
+        ("005930", "2026-05-22", "2026-05-22"),
+    ]
+    assert body["diagnostics"]["krx_probe"]["status"] == "ok"
+    assert body["diagnostics"]["krx_probe"]["date"] == "2026-05-22"
+    assert body["diagnostics"]["krx_probe"]["attempted_dates"] == ["2026-05-25", "2026-05-22"]
+    assert body["diagnostics"]["krx_probe"]["request_count"] == 2
+    assert body["diagnostics"]["krx_probe"]["row_count"] == 1
+
+
 def test_api_app_readiness_can_probe_vendor_latency_and_quota(monkeypatch):
     repo = _repo()
     monkeypatch.setenv("KRX_API_KEY", "krx-key")
