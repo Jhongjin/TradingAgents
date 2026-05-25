@@ -51,11 +51,12 @@ def render_public_stock_page(
     structured_data_json = _script_json(_structured_data(model, payload))
     chart_controls_html = _chart_controls(model)
     reports_html = _report_cards(model["reports"])
+    stock_report_actions_html = _stock_report_actions(model)
     lenses_html = _strategy_lens_cards(payload.get("strategy_lenses") or [])
     outcomes_html = _outcome_cards((payload.get("analysis") or {}).get("outcomes") or [])
     notices_html = "".join(f"<li>{_h(notice)}</li>" for notice in payload.get("notices", []))
-    chart_source_html = _data_source_strip(model["chart_source_rows"], label="차트 데이터 출처")
-    analysis_source_html = _data_source_strip(model["analysis_source_rows"], label="공개 분석 출처")
+    chart_source_html = _data_source_strip(model["chart_source_rows"], label="차트 데이터 기준")
+    analysis_source_html = _data_source_strip(model["analysis_source_rows"], label="AI 리서치 출처")
     confidence_html = _analysis_confidence_panel(model["analysis_confidence"])
     stock_flow_html = _stock_flow_strip(model)
     stock_reading_html = _stock_reading_guide(model)
@@ -110,14 +111,15 @@ def render_public_stock_page(
         <p class="eyebrow">{_h(model["market_line"])}</p>
         <h1 id="stock-title">{_h(model["name"])} <span>{_h(model["code"])}</span></h1>
         <p class="asof">{_h(model["generated_at"])} 기준</p>
+        <p class="stock-hero-copy">가격 흐름, 데이터 출처, AI 의견, 리포트 본문과 사후 성과를 한 화면에서 이어 보는 읽기 전용 종목 리서치입니다. TradingAgents Korea는 주문 기능을 제공하지 않습니다.</p>
         <div class="stock-hero-actions" aria-label="종목 상세 주요 이동">
-          <a href="/analyses?ticker={_h(model["code"])}">공개 분석 이력</a>
-          <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
+          <a href="/analyses?ticker={_h(model["code"])}">공개 리서치 이력</a>
+          <a href="/member?mode=signup&tab=analysis#analysis-request-section">리서치 요청</a>
         </div>
       </div>
       <aside class="stock-hero-stack" aria-label="종목 리서치 요약">
         <div class="decision-box">
-          <span class="decision-label">AI 의견</span>
+          <span class="decision-label">AI 의견 요약</span>
           <strong>{_h(model["rating"])}</strong>
           <span>{_h(model["action"])}</span>
         </div>
@@ -133,8 +135,8 @@ def render_public_stock_page(
       <section id="stock-chart-section" class="chart-panel" aria-labelledby="chart-title">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">KRW OHLCV</p>
-            <h2 id="chart-title">가격 흐름</h2>
+            <p class="eyebrow">KRW 가격 데이터</p>
+            <h2 id="chart-title">가격 흐름과 출처</h2>
           </div>
           <div class="chart-heading-meta">
             <span class="status-pill">{_h(model["chart_status"])}</span>
@@ -173,7 +175,7 @@ def render_public_stock_page(
         </section>
 
         <section id="stock-analysis-section" class="analysis-panel">
-          <p class="eyebrow">공개 분석</p>
+          <p class="eyebrow">AI 리서치</p>
           <h2>{_h(model["analysis_title"])}</h2>
           <p>{_h(model["rationale"])}</p>
           {analysis_source_html}
@@ -184,20 +186,21 @@ def render_public_stock_page(
 
     {lenses_html}
 
-    {outcomes_html}
-
     <section id="stock-reports-section" class="report-section" aria-labelledby="reports-title">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">AI 리포트</p>
-          <h2 id="reports-title">분석 리포트</h2>
+          <p class="eyebrow">저장된 리포트</p>
+          <h2 id="reports-title">AI 리포트 본문</h2>
         </div>
         <span class="status-pill">{_h(model["refresh_state"])}</span>
       </div>
       <div class="report-grid">
         {reports_html}
       </div>
+      {stock_report_actions_html}
     </section>
+
+    {outcomes_html}
 
     <section class="notice-strip" aria-label="투자 유의사항">
       <ul>{notices_html}</ul>
@@ -1854,7 +1857,7 @@ def _view_model(payload: dict[str, Any], *, site_base_url: str | None = None) ->
 
     return {
         "title": f"{name} ({code}) | TradingAgents Korea",
-        "description": f"{name} {code} 한국 주식 AI 분석, KRW 차트, 공개 리포트.",
+        "description": f"{name} {code} 한국 주식 AI 리서치, KRW 차트, 공개 리포트, 사후 성과 기록.",
         "name": name,
         "code": code,
         "market_line": f"{market} / {benchmark}",
@@ -1869,6 +1872,7 @@ def _view_model(payload: dict[str, Any], *, site_base_url: str | None = None) ->
         "analysis_state": _analysis_status_label(analysis.get("status")),
         "analysis_title": _analysis_title(analysis, decision),
         "rationale": _analysis_rationale(decision),
+        "run_id": str((analysis.get("run") or {}).get("id") or ""),
         "reports": reports[:6],
         "refresh_state": "업데이트 권장" if refresh.get("recommended") else "분석 최신",
         "chart_status": _chart_status_label(chart.get("status")),
@@ -1936,16 +1940,16 @@ def _stock_signal_card(model: dict[str, Any]) -> str:
     confidence = model.get("analysis_confidence") or {}
     return f"""
     <div class="stock-signal-card">
-      <span>주문 없는 신호</span>
+      <span>읽기 전용 리서치 요약</span>
       <strong>{_h(model.get("close") or "-")}</strong>
-      <small>{_h(model.get("change") or "-")} / {_h(model.get("chart_vendor_label") or "데이터 확인")}</small>
+      <small>{_h(model.get("change") or "-")} / {_h(model.get("chart_vendor_label") or "데이터 확인")} 기준 가격</small>
       <dl>
         <div>
-          <dt>분석 상태</dt>
+          <dt>리서치 상태</dt>
           <dd>{_h(model.get("analysis_state") or "-")}</dd>
         </div>
         <div>
-          <dt>근거</dt>
+          <dt>근거 상태</dt>
           <dd>{_h(confidence.get("label") or "확인 필요")}</dd>
         </div>
       </dl>
@@ -1956,10 +1960,10 @@ def _stock_signal_card(model: dict[str, Any]) -> str:
 def _stock_flow_strip(model: dict[str, Any]) -> str:
     confidence = model.get("analysis_confidence") or {}
     items = [
-        ("01", "KRX 가격", model.get("chart_caption") or "가격 데이터를 확인합니다."),
-        ("02", "공개 리포트", model.get("refresh_state") or "분석 상태 확인"),
-        ("03", "근거 확인", confidence.get("label") or "근거 확인 필요"),
-        ("04", "주문 없음", "주문 기능 없이 조회와 기록 흐름만 제공합니다."),
+        ("01", "가격·출처", model.get("chart_caption") or "가격 데이터와 표시 기준을 확인합니다."),
+        ("02", "AI 의견", model.get("analysis_state") or "리서치 상태 확인"),
+        ("03", "리포트 본문", confidence.get("label") or model.get("refresh_state") or "근거 확인 필요"),
+        ("04", "주문 차단", "매수·매도 실행 없이 조회와 기록 흐름만 제공합니다."),
     ]
     cards = "".join(
         f"""
@@ -1982,10 +1986,10 @@ def _stock_reading_guide(model: dict[str, Any]) -> str:
     code = str(model.get("code") or "")
     outcomes_href = f"/outcomes?ticker={code}" if code else "/outcomes"
     links = [
-        ("01", "가격과 출처", "#stock-chart-section", "차트 기간, 제공처, 대체 경로를 먼저 확인합니다."),
-        ("02", "분석과 근거", "#stock-analysis-section", "AI 의견은 신뢰도와 누락 경고를 함께 읽습니다."),
-        ("03", "성과 검증", "#analysis-outcomes", "5일/20일 초과수익이 연결됐는지 확인합니다."),
-        ("04", "리포트 본문", "#stock-reports-section", "에이전트별 요약과 근거 점검을 이어서 봅니다."),
+        ("01", "가격과 출처", "#stock-chart-section", "차트 기간과 실제 표시 데이터 제공처를 먼저 확인합니다."),
+        ("02", "AI 의견과 한계", "#stock-analysis-section", "의견은 신뢰도와 누락 경고를 함께 읽습니다."),
+        ("03", "리포트 본문", "#stock-reports-section", "에이전트별 요약과 근거를 이어서 봅니다."),
+        ("04", "사후 성과", "#analysis-outcomes", "5일/20일 초과수익이 연결됐는지 확인합니다."),
     ]
     link_html = "".join(
         f"""
@@ -2002,17 +2006,33 @@ def _stock_reading_guide(model: dict[str, Any]) -> str:
       <div>
         <p class="eyebrow">읽기 안내</p>
         <h2 id="stock-reading-title">종목 페이지 읽는 순서</h2>
-        <p>TradingAgents Korea는 주문을 실행하지 않습니다. 이 화면은 가격 흐름, 데이터 출처, 공개 리포트, 성과 검증을 이어 붙여 투자자가 스스로 확인할 근거를 정리합니다.</p>
+        <p>이 화면은 주문 버튼 없이 가격 기준과 출처, AI 의견의 근거, 리포트 본문, 이후 성과 기록을 이어 보여줍니다. 먼저 데이터가 언제 어디서 왔는지 확인하고, 의견은 판단 참고자료로만 읽어 주세요.</p>
       </div>
       <nav class="stock-reading-nav" aria-label="종목 페이지 섹션 바로가기">
         {link_html}
         <a href="{_h(outcomes_href)}" class="stock-reading-more">
           <span>전체</span>
-          <strong>성과 목록</strong>
-          <small>같은 종목의 공개 검증 기록을 따로 봅니다.</small>
+          <strong>사후 성과 기록</strong>
+          <small>같은 종목의 공개 검증 기록을 모아서 봅니다.</small>
         </a>
       </nav>
     </section>
+    """
+
+
+def _stock_report_actions(model: dict[str, Any]) -> str:
+    code = str(model.get("code") or "")
+    run_id = str(model.get("run_id") or "")
+    detail_href = f"/analyses/{run_id}" if run_id else (f"/analyses?ticker={code}" if code else "/analyses")
+    api_href = f"/api/analyses/{run_id}" if run_id else (f"/api/stocks/{code}" if code else "/api/analyses")
+    list_href = f"/analyses?ticker={code}" if code else "/analyses"
+    primary_label = "전체 리포트 읽기" if run_id else "공개 리서치 목록"
+    return f"""
+    <div class="analysis-feed-actions stock-report-actions" aria-label="리포트 다음 이동">
+      <a href="{_h(detail_href)}">{_h(primary_label)}</a>
+      <a href="{_h(list_href)}">같은 종목 리서치</a>
+      <a href="{_h(api_href)}">원문 JSON</a>
+    </div>
     """
 
 
@@ -2047,11 +2067,11 @@ def _chart_source_rows(chart: dict[str, Any], points: list[dict[str, Any]]) -> l
     requested = chart.get("requested_vendor") or chart.get("vendor") or "-"
     resolved = chart.get("resolved_vendor") or chart.get("vendor") or "-"
     return [
-        ("출처", str(chart.get("data_source_label") or _chart_vendor_label(chart.get("vendor")))),
-        ("신선도", f"{chart.get('end_date') or '-'} 기준"),
-        ("범위", f"{point_count}거래일"),
-        ("데이터 제공처", f"요청 {requested} / 응답 {resolved}"),
-        ("대체 경로", f"auto 요청에서 {resolved} 사용" if chart.get("fallback_used") else "없음"),
+        ("표시 데이터", str(chart.get("data_source_label") or _chart_vendor_label(chart.get("vendor")))),
+        ("기준일", f"{chart.get('end_date') or '-'} 기준"),
+        ("거래일", f"{point_count}거래일"),
+        ("제공처 선택", f"요청 {requested} / 실제 표시 {resolved}"),
+        ("대체 제공처", f"auto 요청에서 {resolved} 사용" if chart.get("fallback_used") else "사용 안 함"),
     ]
 
 
@@ -2253,10 +2273,10 @@ def _chart_caption(chart: dict[str, Any], points: list[dict[str, Any]]) -> str:
     start = chart.get("start_date") or "-"
     end = chart.get("end_date") or "-"
     vendor = _chart_vendor_label(chart.get("vendor"))
-    point_label = f"{len(points):,}개 거래일" if points else "거래일 데이터 없음"
+    point_label = f"{len(points):,}개 거래일 표시" if points else "거래일 데이터 없음"
     resolved = chart.get("resolved_vendor") or chart.get("vendor") or "데이터 제공처"
     fallback_note = f" / auto 요청에서 {resolved} 사용" if chart.get("fallback_used") else ""
-    return f"{start} - {end} / {vendor} / {point_label}{fallback_note}"
+    return f"{start}~{end} / {vendor} / {point_label}{fallback_note}"
 
 
 def _chart_fallback_message(chart: dict[str, Any]) -> str:
@@ -3234,7 +3254,7 @@ def _report_cards(reports: list[dict[str, Any]]) -> str:
         <article class="report-card empty">
           <span>대기</span>
           <h3>리포트 대기</h3>
-          <p>공개 분석이 완료되면 AI 리포트가 표시됩니다.</p>
+          <p>공개 리서치가 완료되면 AI 리포트 본문이 표시됩니다.</p>
         </article>
         """
 
@@ -3306,8 +3326,8 @@ def _outcome_cards(outcomes: list[dict[str, Any]]) -> str:
           <h3>검증 대기</h3>
           <p>분석 기준일 이후 충분한 거래일이 쌓이면 5일/20일 성과가 표시됩니다.</p>
           <div class="analysis-feed-actions outcome-card-actions">
-            <a href="/analyses">분석 목록</a>
-            <a href="/features/outcomes">검증 방식</a>
+            <a href="/analyses">리서치 목록</a>
+            <a href="/features/outcomes">검증 기준</a>
           </div>
         </article>
         """
@@ -3319,6 +3339,7 @@ def _outcome_cards(outcomes: list[dict[str, Any]]) -> str:
         <div>
           <p class="eyebrow">성과 검증 기록</p>
           <h2 id="outcome-title">사후 성과 검증</h2>
+          <p class="outcome-section-copy">초과수익은 종목 수익률에서 벤치마크 수익률을 뺀 값입니다. 사후 기록은 리포트 품질을 되돌아보기 위한 자료이며 미래 수익을 보장하지 않습니다.</p>
         </div>
         <span class="status-pill">초과수익</span>
       </div>
@@ -8222,6 +8243,15 @@ button:disabled {
   font-size: clamp(20px, 2.2vw, 34px);
 }
 
+.stock-hero-copy {
+  max-width: 64ch;
+  margin: 14px 0 0;
+  color: var(--home-readable, rgba(246, 243, 232, 0.84));
+  font-size: clamp(15px, 1.3vw, 18px);
+  line-height: 1.72;
+  text-wrap: pretty;
+}
+
 .stock-hero-actions {
   display: flex;
   flex-wrap: wrap;
@@ -8432,6 +8462,17 @@ button:disabled {
 
 .stock-reading-more {
   border-left: 2px solid rgba(215, 255, 63, 0.54);
+}
+
+.stock-report-actions {
+  margin-top: 16px;
+}
+
+.outcome-section-copy {
+  max-width: 72ch;
+  margin: 8px 0 0;
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.78));
+  line-height: 1.6;
 }
 
 .market-page .eyebrow {

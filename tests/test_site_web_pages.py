@@ -142,23 +142,26 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "stock-reading-guide" in html
     assert "종목 페이지 읽는 순서" in html
     assert "가격과 출처" in html
+    assert "AI 의견과 한계" in html
+    assert "읽기 전용 종목 리서치입니다" in html
     assert '.stock-page .top-links a[href^="/features/"]' in html
     assert 'href="#stock-chart-section"' in html
     assert 'id="stock-chart-section"' in html
     assert 'id="stock-analysis-section"' in html
     assert 'id="stock-reports-section"' in html
-    assert "공개 분석 이력" in html
+    assert "공개 리서치 이력" in html
+    assert "리서치 요청" in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section"' in html
     assert "1개월" in html
     assert "KRX 14D" in html
-    assert "pykrx / 2개 거래일 / auto 요청에서 pykrx 사용" in html
-    assert "차트 데이터 출처" in html
+    assert "pykrx / 2개 거래일 표시 / auto 요청에서 pykrx 사용" in html
+    assert "차트 데이터 기준" in html
     assert "2026-05-05 기준" in html
-    assert "<dt>데이터 제공처</dt>" in html
-    assert "요청 auto / 응답 pykrx" in html
-    assert "<dt>대체 경로</dt>" in html
+    assert "<dt>제공처 선택</dt>" in html
+    assert "요청 auto / 실제 표시 pykrx" in html
+    assert "<dt>대체 제공처</dt>" in html
     assert "<dd>auto 요청에서 pykrx 사용</dd>" in html
-    assert "공개 분석 출처" in html
+    assert "AI 리서치 출처" in html
     assert "공개 분석 00000000" in html
     assert "최신 (fresh / 0일 경과)" in html
     assert "분석 신뢰도" in html
@@ -172,7 +175,11 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "한국형 투자 렌즈" in html
     assert "안전 가드레일" in html
     assert "사후 성과 검증" in html
+    assert "초과수익은 종목 수익률에서 벤치마크 수익률을 뺀 값입니다" in html
     assert "벤치마크 대비 초과수익 +3.00%" in html
+    assert "AI 리포트 본문" in html
+    assert 'href="/analyses/00000000-0000-0000-0000-000000000010">전체 리포트 읽기</a>' in html
+    assert 'href="/api/analyses/00000000-0000-0000-0000-000000000010">원문 JSON</a>' in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html
     assert 'type="application/ld+json"' in html
