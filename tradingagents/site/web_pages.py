@@ -403,13 +403,14 @@ def render_public_outcomes_page(
   <main id="main-content" class="shell market-shell">
     <section class="summary-band outcome-hero" aria-labelledby="outcomes-title">
       <div>
-        <p class="eyebrow">성과 검증</p>
-        <h1 id="outcomes-title"><span class="outcome-title-line">성과 검증</span> <span class="outcome-title-line">대시보드</span></h1>
+        <p class="eyebrow">사후 성과 검증</p>
+        <h1 id="outcomes-title"><span class="outcome-title-line">사후 성과</span> <span class="outcome-title-line">기록</span></h1>
         <p class="asof">{_h(model["subtitle"])}</p>
+        <p class="outcome-hero-copy">AI 리서치가 나온 뒤 5일/20일 후 수익률을 시장 기준과 비교해 남기는 기록입니다. 매수·매도 추천 성과가 아니라 리포트 품질을 되돌아보는 자료입니다.</p>
         <div class="analysis-detail-actions">
-          <a href="/analyses">공개 분석 보기</a>
-          <a href="/features/outcomes">검증 방식</a>
-          <a href="/api/analysis-outcomes">원문 데이터 보기</a>
+          <a href="/analyses">공개 리서치 보기</a>
+          <a href="/features/outcomes">검증 기준</a>
+          <a href="/api/analysis-outcomes">원문 JSON</a>
         </div>
       </div>
       <div class="decision-box">
@@ -421,17 +422,17 @@ def render_public_outcomes_page(
 
     <section class="analysis-filter-panel outcome-filter-panel" aria-label="성과 검증 필터">
       <form class="analysis-filter-form outcome-filter-form" action="/outcomes" method="get">
-        <label for="outcomeTicker">종목</label>
+        <label for="outcomeTicker">종목명 또는 코드</label>
         <input id="outcomeTicker" name="ticker" list="outcomeTickerSuggestions" maxlength="80" value="{_h(str(model["ticker_code"] or ""))}" placeholder="005930 또는 삼성전자" autocomplete="off" data-ticker-lookup data-ticker-submit>
         <datalist id="outcomeTickerSuggestions"></datalist>
         <label for="outcomeStatus">상태</label>
         <select id="outcomeStatus" name="status">
           {_outcome_status_options(model["filter_status"])}
         </select>
-        <button type="submit">필터 적용</button>
-        <a href="/outcomes">초기화</a>
+        <button type="submit">기록 조회</button>
+        <a href="/outcomes">필터 초기화</a>
       </form>
-      <p>완료된 공개 분석의 5일/20일 사후 성과만 공개합니다. 계좌 주문이나 브로커 실행 권한은 연결하지 않습니다.</p>
+      <p>공개 리서치의 기준일 이후 5일/20일 성과를 종목 수익률과 시장 기준 초과수익으로 나눠 봅니다. 계좌 주문이나 브로커 실행 권한은 연결하지 않습니다.</p>
     </section>
 
     {summary_html}
@@ -441,8 +442,8 @@ def render_public_outcomes_page(
     <section class="report-section outcome-feed-section" aria-labelledby="outcome-feed-title">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">검증 완료 목록</p>
-          <h2 id="outcome-feed-title">검증된 공개 분석</h2>
+          <p class="eyebrow">검증 기록</p>
+          <h2 id="outcome-feed-title">검증된 공개 리서치</h2>
         </div>
         <span class="status-pill">{_h(model["filter_label"])}</span>
       </div>
@@ -2357,10 +2358,10 @@ def _analysis_outcomes_view_model(payload: dict[str, Any], *, site_base_url: str
         filters.append(_outcome_status_label(str(filter_status)))
     filter_label = " / ".join(filters) if filters else "전체 성과"
     return {
-        "title": "성과 검증 대시보드 | TradingAgents Korea",
-        "description": "TradingAgents Korea 공개 분석의 5일/20일 사후 성과와 벤치마크 대비 초과수익을 확인합니다.",
+        "title": "사후 성과 기록 | TradingAgents Korea",
+        "description": "TradingAgents Korea 공개 리서치의 5일/20일 사후 성과와 시장 기준 대비 초과수익을 확인합니다.",
         "canonical_url": canonical_url("/outcomes", site_base_url=site_base_url),
-        "subtitle": "공개 분석의 5일/20일 사후 성과를 검증합니다.",
+        "subtitle": "공개 리서치가 나온 뒤 5일/20일 동안 실제 종목 흐름이 어땠는지 추적합니다.",
         "status_label": _analysis_outcomes_status_label(payload.get("status")),
         "ticker_code": ticker_code,
         "filter_status": filter_status,
@@ -2598,9 +2599,9 @@ def _analysis_outcome_summary_cards(summary: dict[str, Any]) -> str:
     average_raw = _percent(summary.get("average_raw_return"), signed=True)
     positive_rate = _percent(summary.get("positive_alpha_rate"))
     cards = [
-        ("검증 완료", f"{completed}건", "완료된 성과 검증"),
-        ("평균 초과수익", average_alpha, f"종목 수익률 {average_raw}"),
-        ("초과수익 우위", positive_rate, f"양수 초과수익 {positive_alpha}건"),
+        ("검증 완료", f"{completed}건", "사후 기록 완료"),
+        ("평균 초과수익", average_alpha, f"종목 평균 {average_raw}"),
+        ("초과수익 양수 기록", positive_rate, f"양수 초과수익 {positive_alpha}건"),
         ("대기/확인 필요", f"{pending}/{unavailable}", "대기 / 데이터 없음"),
     ]
     html_cards = []
@@ -2627,23 +2628,23 @@ def _analysis_outcome_cadence_strip(model: dict[str, Any]) -> str:
     <section class="analysis-pipeline-strip outcome-cadence-strip" aria-label="성과 검증 흐름">
       <article>
         <span>01</span>
-        <strong>공개 분석</strong>
-        <small>완료된 공개 분석만 검증 대상으로 삼습니다.</small>
+        <strong>기준일 확인</strong>
+        <small>공개 리서치가 어떤 거래일 기준으로 작성됐는지 먼저 봅니다.</small>
       </article>
       <article>
         <span>02</span>
-        <strong>5일 / 20일</strong>
-        <small>기준일 이후 충분한 거래일이 쌓이면 5일/20일 결과를 저장합니다.</small>
+        <strong>검증 기간 확인</strong>
+        <small>기준일 이후 5일 또는 20일 성과인지 구분합니다.</small>
       </article>
       <article>
         <span>03</span>
-        <strong>벤치마크 대비 초과수익</strong>
-        <small>종목 수익률과 한국 시장 기준 대비 초과수익을 나눠 표시합니다.</small>
+        <strong>수익률 비교</strong>
+        <small>초과수익은 종목 수익률에서 벤치마크 수익률을 뺀 값입니다.</small>
       </article>
       <article>
         <span>04</span>
-        <strong>{_h(str(filter_label))}</strong>
-        <small>결과는 공개 기록으로 남기되 투자 실행 권한은 연결하지 않습니다.</small>
+        <strong>원 리포트 확인</strong>
+        <small>{_h(str(filter_label))} 결과에서 리포트와 종목 화면으로 돌아갈 수 있습니다.</small>
       </article>
     </section>
     """
@@ -2668,7 +2669,7 @@ def _analysis_outcome_feed_cards(
             <article class="analysis-feed-card outcome-feed-card empty">
               <span>필터 결과 없음</span>
               <h3>{_h(title)}</h3>
-              <p>선택한 조건에 맞는 성과 검증 기록이 아직 없습니다. 필터를 초기화하거나 공개 분석 목록에서 같은 종목의 리포트 상태를 먼저 확인하세요.</p>
+              <p>선택한 조건에 맞는 사후 성과 기록이 아직 없습니다. 아직 5일/20일이 지나지 않았거나 필요한 가격 데이터가 부족할 수 있습니다. 필터를 초기화하거나 공개 리서치 목록에서 같은 종목의 리포트 상태를 먼저 확인하세요.</p>
               <div class="analysis-feed-signal-row" aria-label="성과 검증 필터 결과 없음">
                 <span>{_h(str(filter_label))}</span>
                 <span>결과 0건</span>
@@ -2676,17 +2677,17 @@ def _analysis_outcome_feed_cards(
               </div>
               <div class="analysis-feed-actions">
                 <a href="/outcomes">필터 초기화</a>
-                <a href="{analyses_href}">분석 목록</a>
+                <a href="{analyses_href}">리서치 목록</a>
                 {stock_action}
-                <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
+                <a href="/member?mode=signup&tab=analysis#analysis-request-section">리서치 요청</a>
               </div>
             </article>
             """
         return """
         <article class="analysis-feed-card outcome-feed-card empty">
           <span>대기</span>
-          <h3>성과 검증 대기</h3>
-          <p>성과 검증 작업이 공개 분석을 평가하면 이곳에 5일/20일 성과가 누적됩니다.</p>
+          <h3>사후 성과 기록 대기</h3>
+          <p>아직 기준일 이후 5일/20일이 지나지 않았거나 필요한 가격 데이터가 부족할 수 있습니다. 먼저 공개 리서치와 샘플 종목을 확인해 보세요.</p>
           <div class="analysis-feed-signal-row" aria-label="성과 검증 대기 상태">
             <span>5일/20일 대기</span>
             <span>초과수익 대기</span>
@@ -2694,9 +2695,9 @@ def _analysis_outcome_feed_cards(
           </div>
           <div class="analysis-feed-actions">
             <a href="/stocks/005930">샘플 종목</a>
-            <a href="/analyses">분석 목록</a>
-            <a href="/features/outcomes">검증 방식</a>
-            <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
+            <a href="/analyses">리서치 목록</a>
+            <a href="/features/outcomes">검증 기준</a>
+            <a href="/member?mode=signup&tab=analysis#analysis-request-section">리서치 요청</a>
           </div>
         </article>
         """
@@ -2732,7 +2733,12 @@ def _analysis_outcome_feed_cards(
                 <small>{_h(str(evaluated_at))}</small>
               </div>
               <h3><a href="{_h(report_path)}">{_h(name)} <small>{_h(code)}</small></a></h3>
-              <p>{_h(_outcome_status_label(status))} / AI 의견 {_h(str(decision))} / 기준일 {_h(str(trade_date))}</p>
+              <p>{_h(str(trade_date))} 기준 리서치 이후 {_h(str(horizon))}일 성과를 공개 분석과 연결한 기록입니다. AI 의견: {_h(str(decision))}.</p>
+              <div class="analysis-feed-signal-row" aria-label="성과 계산 기준">
+                <span>초과수익 = 종목 - 벤치마크</span>
+                <span>{_h(str(horizon))}일</span>
+                <span>{_h(_outcome_status_label(status))}</span>
+              </div>
               <dl>
                 <div><dt>종목</dt><dd>{_h(raw_return)}</dd></div>
                 <div><dt>벤치마크</dt><dd>{_h(benchmark_return)}</dd></div>
@@ -2740,9 +2746,9 @@ def _analysis_outcome_feed_cards(
                 <div><dt>분석 ID</dt><dd>{_h(run_id[:8] or "-")}</dd></div>
               </dl>
               <div class="analysis-feed-actions">
-                <a href="{_h(report_path)}">리포트</a>
-                <a href="{_h(stock_path)}">종목</a>
-                <a href="{_h(api_path)}">원문 데이터 보기</a>
+                <a href="{_h(report_path)}">리포트 읽기</a>
+                <a href="{_h(stock_path)}">종목 보기</a>
+                <a href="{_h(api_path)}">원문 JSON</a>
               </div>
             </article>
             """
@@ -5058,6 +5064,15 @@ h3 {
 .outcome-page .summary-band .asof,
 .outcome-feed-card h3,
 .outcome-feed-card p {
+  overflow-wrap: anywhere;
+}
+
+.outcome-hero-copy {
+  max-width: 720px;
+  margin: 14px 0 0;
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
+  font-size: clamp(15px, 1.4vw, 18px);
+  line-height: 1.64;
   overflow-wrap: anywhere;
 }
 

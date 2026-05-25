@@ -817,7 +817,7 @@ def test_render_public_outcomes_page_shows_public_track_record():
 
     assert 'class="public-home market-page outcome-page"' in html
     assert "성과 검증" in html
-    assert "대시보드" in html
+    assert "사후 성과" in html
     assert "검증 기록" in html
     assert "outcome-filter-panel" in html
     assert 'id="outcomeTickerSuggestions"' in html
@@ -826,12 +826,14 @@ def test_render_public_outcomes_page_shows_public_track_record():
     assert "outcome-cadence-strip" in html
     assert "outcome-feed-card" in html
     assert "삼성전자" in html
+    assert "매수·매도 추천 성과가 아니라 리포트 품질을 되돌아보는 자료입니다." in html
     assert "평균 초과수익" in html
     assert "+3.00%" in html
-    assert "초과수익 우위" in html
+    assert "초과수익 양수 기록" in html
+    assert "초과수익 = 종목 - 벤치마크" in html
     assert '<dt>초과수익</dt><dd>+3.00%</dd>' in html
-    assert f'href="/analyses/{run_id}">리포트</a>' in html
-    assert 'href="/stocks/005930">종목</a>' in html
+    assert f'href="/analyses/{run_id}">리포트 읽기</a>' in html
+    assert 'href="/stocks/005930">종목 보기</a>' in html
     assert "/api/analysis-outcomes" in html
     assert '<link rel="canonical" href="https://example.com/outcomes">' in html
     assert 'id="outcomes-payload"' in html
@@ -844,13 +846,14 @@ def test_render_public_outcomes_page_shows_public_track_record():
 def test_render_public_outcomes_page_empty_state_has_next_actions():
     html = render_public_outcomes_page(repo=_repo(), site_base_url="https://example.com")
 
-    assert "성과 검증 대기" in html
+    assert "사후 성과 기록 대기" in html
     assert "5일/20일 대기" in html
     assert "초과수익 대기" in html
+    assert "필요한 가격 데이터가 부족할 수 있습니다" in html
     assert 'href="/stocks/005930">샘플 종목</a>' in html
-    assert 'href="/analyses">분석 목록</a>' in html
-    assert 'href="/features/outcomes">검증 방식</a>' in html
-    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
+    assert 'href="/analyses">리서치 목록</a>' in html
+    assert 'href="/features/outcomes">검증 기준</a>' in html
+    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">리서치 요청</a>' in html
 
 
 def test_render_public_outcomes_page_filtered_empty_state_guides_recovery():
@@ -858,12 +861,12 @@ def test_render_public_outcomes_page_filtered_empty_state_guides_recovery():
 
     assert "필터 결과 없음" in html
     assert "005930 완료 검증 없음" in html
-    assert "선택한 조건에 맞는 성과 검증 기록이 아직 없습니다." in html
+    assert "선택한 조건에 맞는 사후 성과 기록이 아직 없습니다." in html
     assert "005930 / 완료" in html
     assert 'href="/outcomes">필터 초기화</a>' in html
-    assert 'href="/analyses?ticker=005930">분석 목록</a>' in html
+    assert 'href="/analyses?ticker=005930">리서치 목록</a>' in html
     assert 'href="/stocks/005930">종목 페이지</a>' in html
-    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
+    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">리서치 요청</a>' in html
 
 
 def test_render_public_analysis_detail_page_shows_report_context():
