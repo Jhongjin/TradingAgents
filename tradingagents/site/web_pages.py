@@ -232,6 +232,7 @@ def render_public_analysis_feed_page(
         ticker_code=model["ticker_code"],
         filter_label=model["filter_label"],
     )
+    reader_guide_html = _analysis_feed_reader_guide()
     payload_json = _script_json(payload)
 
     return f"""<!doctype html>
@@ -295,6 +296,8 @@ def render_public_analysis_feed_page(
       <p>삼성전자처럼 종목명으로 입력해도 6자리 코드로 바꿔 조회합니다. 공개 리포트만 표시하며 개인 기록은 불러오지 않습니다.</p>
     </section>
 
+    {reader_guide_html}
+
     <section class="analysis-pipeline-strip" aria-label="공개 분석 공개 기준">
       <article>
         <span>01</span>
@@ -308,8 +311,8 @@ def render_public_analysis_feed_page(
       </article>
       <article>
         <span>03</span>
-        <strong>성과 검증</strong>
-        <small>5일/20일 성과 검증이 연결되면 벤치마크 대비 초과수익을 표시합니다.</small>
+        <strong>사후 기록</strong>
+        <small>5일/20일 검증 기록이 연결되면 시장 기준과 함께 표시합니다.</small>
       </article>
     </section>
 
@@ -413,7 +416,7 @@ def render_public_outcomes_page(
         <div class="analysis-detail-actions">
           <a href="/analyses">공개 리서치 보기</a>
           <a href="/features/outcomes">검증 기준</a>
-          <a href="/api/analysis-outcomes">원문 JSON</a>
+          <a href="/api/analysis-outcomes">원문 데이터</a>
         </div>
       </div>
       <div class="decision-box">
@@ -552,7 +555,7 @@ def render_public_analysis_detail_page(
         <div class="analysis-detail-actions">
           <a href="/stocks/{_h(model["ticker_code"])}">종목 보기</a>
           <a href="/analyses">목록으로</a>
-          <a href="/api/analyses/{_h(model["run_id"])}">원문 JSON</a>
+          <a class="subtle-action" href="/api/analyses/{_h(model["run_id"])}">원문 데이터</a>
         </div>
       </div>
       <aside class="decision-box analysis-detail-decision">
@@ -581,7 +584,7 @@ def render_public_analysis_detail_page(
       <div class="analysis-report-stack">
         {reports_html}
       </div>
-      <p class="analysis-report-note">화면에는 읽기 편하도록 본문 일부를 먼저 보여줍니다. 전체 원문 필드는 상단의 원문 JSON에서 확인할 수 있습니다.</p>
+      <p class="analysis-report-note">화면에는 읽기 편하도록 본문 일부를 먼저 보여줍니다. 저장된 전체 원문은 상단의 원문 데이터에서 확인할 수 있습니다.</p>
     </section>
 
     {outcomes_html}
@@ -1164,7 +1167,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
         "next_actions": (
             ("방법론 확인", "/features/methodology", "데이터 출처, 기준일, 주문 차단 원칙을 함께 확인합니다."),
             ("사후 성과 보기", "/outcomes", "과거 리포트 이후의 5일/20일 결과를 검토합니다."),
-            ("공개 분석 보기", "/analyses", "실제 공개 리포트를 읽고 원문 JSON까지 확인합니다."),
+            ("공개 분석 보기", "/analyses", "실제 공개 리포트를 읽고 원문 데이터까지 확인합니다."),
         ),
     },
 }
@@ -2108,7 +2111,7 @@ def _stock_report_actions(model: dict[str, Any]) -> str:
     <div class="analysis-feed-actions stock-report-actions" aria-label="리포트 다음 이동">
       <a href="{_h(detail_href)}">{_h(primary_label)}</a>
       <a href="{_h(list_href)}">같은 종목 리서치</a>
-      <a href="{_h(api_href)}">원문 JSON</a>
+      <a href="{_h(api_href)}">원문 데이터</a>
     </div>
     """
 
@@ -2444,6 +2447,24 @@ def _analysis_feed_view_model(payload: dict[str, Any], *, site_base_url: str | N
     }
 
 
+def _analysis_feed_reader_guide() -> str:
+    return """
+    <section class="analysis-reader-guide" aria-labelledby="analysis-reader-guide-title">
+      <div>
+        <p class="eyebrow">목록 읽는 방법</p>
+        <h2 id="analysis-reader-guide-title">먼저 리포트를 읽고, 기준일과 사후 기록을 함께 확인하세요</h2>
+        <p>분석 목록은 매매 지시가 아니라 공개 리서치 기록입니다. 카드에서 AI 의견을 훑고 상세 페이지에서 출처, 본문, 사후 기록을 차례로 확인할 수 있습니다.</p>
+      </div>
+      <div class="analysis-reader-guide-grid">
+        <article><span>01</span><strong>리포트 읽기</strong><small>AI 의견과 에이전트별 본문을 먼저 확인합니다.</small></article>
+        <article><span>02</span><strong>기준일 확인</strong><small>리포트가 어떤 거래일 기준인지 확인합니다.</small></article>
+        <article><span>03</span><strong>사후 기록 보기</strong><small>5일/20일 뒤 결과는 품질 점검 자료로 읽습니다.</small></article>
+        <article><span>04</span><strong>필요하면 요청</strong><small>로그인 후 보고 싶은 종목을 리서치 대기열에 넣습니다.</small></article>
+      </div>
+    </section>
+    """
+
+
 def _analysis_outcomes_view_model(payload: dict[str, Any], *, site_base_url: str | None = None) -> dict[str, Any]:
     ticker_code = payload.get("ticker_code")
     filter_status = payload.get("filter_status")
@@ -2619,7 +2640,7 @@ def _analysis_summary_cards(summary: dict[str, Any], *, basis_label: str = "현�
     cards = [
         ("완료 리포트", summary.get("completed_count", 0), basis_label),
         ("커버 종목", summary.get("unique_ticker_count", 0), "중복 제외"),
-        ("최신 기준일", latest, f"평균 초과수익 {_percent(summary.get('average_alpha_return'), signed=True)}"),
+        ("최신 기준일", latest, f"평균 벤치마크 차이 {_percent(summary.get('average_alpha_return'), signed=True)}"),
         ("주요 AI 의견/시장", top_rating, top_market),
     ]
     html_cards = []
@@ -2648,16 +2669,16 @@ def _analysis_track_record_cards(summary: dict[str, Any], *, basis_label: str = 
     average_alpha = _percent(summary.get("average_alpha_return"), signed=True)
     positive_count = int(summary.get("positive_alpha_count") or 0)
     cards = [
-        ("검증 완료", f"{completed_outcomes}건", f"성과 연결 분석 {outcome_covered}개"),
-        ("평균 초과수익", average_alpha, "벤치마크 대비"),
-        ("초과수익 우위", positive_rate, f"양수 초과수익 {positive_count}건"),
+        ("사후 기록 완료", f"{completed_outcomes}건", f"검증 연결 리포트 {outcome_covered}개"),
+        ("평균 벤치마크 차이", average_alpha, "종목 수익률 - 시장 기준"),
+        ("벤치마크 우위 기록", positive_rate, f"양수 기록 {positive_count}건"),
         ("커버리지", coverage, basis_label),
     ]
     if completed_outcomes == 0:
         cards = [
-            ("검증 대기", "0건", "성과 검증 작업이 완료하면 채워집니다."),
-            ("평균 초과수익", "-", "성과 데이터 대기"),
-            ("초과수익 우위", "-", "성과 데이터 대기"),
+            ("사후 기록 대기", "0건", "검증 기록이 완료하면 채워집니다."),
+            ("평균 벤치마크 차이", "-", "사후 데이터 대기"),
+            ("벤치마크 우위 기록", "-", "사후 데이터 대기"),
             ("커버리지", "-", basis_label),
         ]
     html_cards = []
@@ -2675,8 +2696,8 @@ def _analysis_track_record_cards(summary: dict[str, Any], *, basis_label: str = 
     <section class="analysis-track-record" aria-labelledby="track-record-title">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">공개 검증 기록</p>
-          <h2 id="track-record-title">성과 검증 스냅샷</h2>
+          <p class="eyebrow">공개 사후 기록</p>
+          <h2 id="track-record-title">리포트 이후 기록 스냅샷</h2>
         </div>
         <span class="status-pill">5일 / 20일</span>
       </div>
@@ -2845,7 +2866,7 @@ def _analysis_outcome_feed_cards(
               <div class="analysis-feed-actions">
                 <a href="{_h(report_path)}">리포트 읽기</a>
                 <a href="{_h(stock_path)}">종목 보기</a>
-                <a href="{_h(api_path)}">원문 JSON</a>
+                <a class="subtle-action" href="{_h(api_path)}">원문 데이터</a>
               </div>
             </article>
             """
@@ -2893,13 +2914,13 @@ def _analysis_feed_cards(
             ticker = str(ticker_code)
             return f"""
             <article class="analysis-feed-card empty">
-              <span>필터 결과 없음</span>
+              <span>아직 공개 기록 없음</span>
               <h3>{_h(ticker)} 공개 분석 없음</h3>
               <p>아직 이 종목의 완료된 공개 리서치가 없습니다. 종목 페이지에서 가격·공시·뉴스 흐름을 먼저 확인하거나, 로그인 후 리서치 요청을 남길 수 있습니다.</p>
               <div class="analysis-feed-signal-row" aria-label="필터 결과 없음">
                 <span>{_h(str(filter_label))}</span>
                 <span>리포트 0개</span>
-                <span>검증 대기</span>
+                <span>사후 기록 대기</span>
               </div>
               <div class="analysis-feed-actions">
                 <a href="/analyses">필터 초기화</a>
@@ -2910,13 +2931,13 @@ def _analysis_feed_cards(
             """
         return """
         <article class="analysis-feed-card empty">
-          <span>대기</span>
-          <h3>공개 리서치 대기</h3>
-          <p>완료되어 공개 가능한 리포트가 생기면 이 목록에 표시됩니다.</p>
+          <span>아직 공개 기록 없음</span>
+          <h3>아직 공개된 리포트가 없습니다</h3>
+          <p>완료되어 공개 가능한 리포트가 생기면 이 목록에 표시됩니다. 먼저 샘플 종목과 리서치 흐름을 확인해 보세요.</p>
           <div class="analysis-feed-signal-row" aria-label="공개 분석 대기 상태">
-            <span>분석 ID 대기</span>
+            <span>공개 기록 없음</span>
             <span>리포트 0개</span>
-            <span>검증 대기</span>
+            <span>사후 기록 대기</span>
           </div>
           <div class="analysis-feed-actions">
             <a href="/stocks/005930">샘플 종목</a>
@@ -2936,7 +2957,7 @@ def _analysis_feed_cards(
         decision = _decision_pair_label(item.get("decision_rating"), item.get("decision_action"))
         alpha = _percent(item.get("alpha_return"), signed=True)
         horizon = item.get("outcome_horizon_days")
-        outcome_label = f"{horizon}일 검증" if horizon else "검증 대기"
+        outcome_label = f"{horizon}일 기록" if horizon else "사후 기록 대기"
         alpha_class = _analysis_outcome_alpha_class(item.get("alpha_return"))
         report_count = item.get("report_count")
         reports = f"{report_count}개" if report_count is not None else "-"
@@ -2958,19 +2979,19 @@ def _analysis_feed_cards(
               <div class="analysis-feed-signal-row" aria-label="분석 카드 상태">
                 <span>AI 의견 {_h(str(decision))}</span>
                 <span>{_h(reports)} 리포트</span>
-                <span>성과 {_h(outcome_label)} / {_h(alpha if alpha != "-" else "초과수익 대기")}</span>
+                <span>사후 기록 {_h(outcome_label)} / {_h(alpha if alpha != "-" else "벤치마크 차이 대기")}</span>
               </div>
               <dl>
                 <div><dt>상태</dt><dd>{_h(status_label)}</dd></div>
                 <div><dt>모델</dt><dd>{_h(str(model_provider))}</dd></div>
                 <div><dt>리포트</dt><dd>{_h(reports)}</dd></div>
-                <div><dt>초과수익</dt><dd>{_h(alpha)}</dd></div>
+                <div><dt>벤치마크 차이</dt><dd>{_h(alpha)}</dd></div>
               </dl>
               <div class="analysis-feed-actions">
                 <a href="{_h(str(report_path))}">리포트 읽기</a>
                 <a href="/stocks/{_h(str(code))}">종목 보기</a>
-                <a href="{_h(str(outcome_path))}">성과 확인</a>
-                <a href="{_h(str(api_path))}">원문 JSON</a>
+                <a href="{_h(str(outcome_path))}">사후 기록</a>
+                <a class="subtle-action" href="{_h(str(api_path))}">원문 데이터</a>
               </div>
             </article>
             """
@@ -2989,9 +3010,9 @@ def _analysis_detail_map(model: dict[str, Any]) -> str:
         ("03", "AI 리포트", f"{len(reports)}개", model.get("analyst_label") or "분석 목록 확인"),
         (
             "04",
-            "성과 검증",
+            "사후 기록",
             f"{summary.get('completed_outcome_count', len(outcomes) or 0)}개 완료",
-            f"평균 초과수익 {model.get('average_alpha_label') or '-'}",
+            f"평균 벤치마크 차이 {model.get('average_alpha_label') or '-'}",
         ),
     ]
     card_html = "".join(
@@ -3010,14 +3031,14 @@ def _analysis_detail_map(model: dict[str, Any]) -> str:
       <div class="analysis-detail-map-heading">
         <div>
           <p class="eyebrow">읽는 순서</p>
-          <h2>출처부터 성과까지 확인하세요</h2>
+          <h2>출처부터 사후 기록까지 확인하세요</h2>
           <p class="analysis-map-copy">출처와 기준일을 먼저 확인한 뒤 AI 의견, 리포트 본문, 사후 성과를 이어서 보세요.</p>
         </div>
         <nav aria-label="리포트 섹션 바로가기">
           <a href="#analysis-provenance">출처</a>
           <a href="#analysis-decision">의견</a>
           <a href="#analysis-reports">리포트</a>
-          <a href="#analysis-outcomes">성과</a>
+          <a href="#analysis-outcomes">사후 기록</a>
         </nav>
       </div>
       <div class="analysis-detail-map-grid">
@@ -3048,8 +3069,8 @@ def _analysis_detail_next_actions(model: dict[str, Any]) -> str:
         </a>
         <a href="{_h(outcomes_href)}">
           <span>02</span>
-          <strong>성과 확인</strong>
-          <small>5일/20일 이후 초과수익이 연결됐는지 확인합니다.</small>
+          <strong>사후 기록 확인</strong>
+          <small>5일/20일 이후 벤치마크 차이가 연결됐는지 확인합니다.</small>
         </a>
         <a href="{_h(request_href)}">
           <span>03</span>
@@ -3058,8 +3079,8 @@ def _analysis_detail_next_actions(model: dict[str, Any]) -> str:
         </a>
         <a href="/api/analyses/{_h(run_id)}">
           <span>04</span>
-          <strong>원문 JSON</strong>
-          <small>저장된 원문 필드와 리포트 전체 구조를 확인합니다.</small>
+          <strong>원문 데이터</strong>
+          <small>저장된 원문과 리포트 전체 구조를 확인합니다.</small>
         </a>
       </div>
     </section>
@@ -3075,11 +3096,11 @@ def _analysis_detail_report_cards(
     if not reports:
         return f"""
         <article class="analysis-detail-report-card empty">
-          <span>대기</span>
-          <h3>리포트 대기</h3>
-          <p>저장된 AI 리포트가 아직 없습니다. 원문 JSON에서 저장 상태를 확인하거나, 같은 종목의 새 리서치를 요청할 수 있습니다.</p>
+          <span>아직 없음</span>
+          <h3>아직 저장된 리포트가 없습니다</h3>
+          <p>저장된 AI 리포트가 아직 없습니다. 원문 데이터에서 저장 상태를 확인하거나, 같은 종목의 새 리서치를 요청할 수 있습니다.</p>
           <div class="analysis-empty-actions">
-            <a href="/api/analyses/{_h(str(run_id))}">원문 JSON</a>
+            <a href="/api/analyses/{_h(str(run_id))}">원문 데이터</a>
             <a href="/stocks/{_h(str(ticker_code))}">종목 페이지</a>
             <a href="/analyses">분석 목록</a>
             <a href="/member?mode=signup&tab=analysis#analysis-request-section">새 리서치 요청</a>
@@ -3169,11 +3190,11 @@ def _analysis_detail_decision_card(
     if not decision:
         body = f"""
         <article class="analysis-rationale-card empty">
-          <span>대기</span>
-          <h2>AI 의견 대기</h2>
-          <p>저장된 AI 의견이 아직 없습니다. 원문 JSON과 종목 페이지를 확인한 뒤, 필요하면 같은 종목의 새 리서치를 요청할 수 있습니다.</p>
+          <span>아직 없음</span>
+          <h2>아직 저장된 AI 의견이 없습니다</h2>
+          <p>원문 데이터와 종목 페이지를 확인한 뒤, 필요하면 같은 종목의 새 리서치를 요청할 수 있습니다.</p>
           <div class="analysis-empty-actions">
-            <a href="/api/analyses/{_h(str(run_id))}">원문 JSON</a>
+            <a href="/api/analyses/{_h(str(run_id))}">원문 데이터</a>
             <a href="/stocks/{_h(str(ticker_code))}">종목 페이지</a>
             <a href="/member?mode=signup&tab=analysis#analysis-request-section">새 리서치 요청</a>
           </div>
@@ -3208,9 +3229,9 @@ def _analysis_detail_provenance(model: dict[str, Any]) -> str:
         ("데이터 출처", "KRX/DART/Naver", "시세, 공시, 뉴스 연결 기준입니다. 장애와 누락은 원문 데이터와 본문을 함께 확인합니다."),
         ("분석 역할", model["analyst_label"], "저장된 분석 설정 기준"),
         ("모델", model["model_label"], model["metadata_note"]),
-        ("성과 검증", model["completed_outcome_label"], f"평균 초과수익 {model['average_alpha_label']}"),
+        ("사후 기록", model["completed_outcome_label"], f"평균 벤치마크 차이 {model['average_alpha_label']}"),
         ("공개 분석 ID", model["run_id"], "화면 리포트와 원문 데이터가 같은 ID를 공유합니다."),
-        ("검증 경로", "HTML + 원문 데이터", f"화면 요약은 저장된 리포트 묶음에서 렌더링하며 /api/analyses/{model['run_id']}로 대조합니다."),
+        ("표시 방식", "화면 요약 + 원문 데이터", "화면 요약은 저장된 리포트 묶음을 읽기 좋게 정리한 것입니다."),
         ("한계", "주문 없는 리서치", "투자 조언/주문 아님. 휴장, 제공처 장애, 누락 데이터, 모델 오류 가능성이 있습니다."),
     ]
     return "".join(
@@ -5204,6 +5225,13 @@ h3 {
   color: #ffffff;
 }
 
+.analysis-feed-actions a.subtle-action,
+.analysis-detail-actions a.subtle-action {
+  border-color: rgba(246, 243, 232, 0.12);
+  background: rgba(246, 243, 232, 0.045);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.78));
+}
+
 .feature-shell,
 .admin-shell {
   padding: clamp(52px, 8vw, 96px) 0 80px;
@@ -6885,6 +6913,7 @@ h3 {
   .outcome-feed-grid,
   .analysis-summary-grid,
   .analysis-track-grid,
+  .analysis-reader-guide-grid,
   .analysis-pipeline-strip,
   .policy-card-grid,
   .feature-card-grid,
@@ -7224,6 +7253,7 @@ h3 {
   .outcome-feed-grid,
   .analysis-summary-grid,
   .analysis-track-grid,
+  .analysis-reader-guide-grid,
   .analysis-pipeline-strip,
   .policy-card-grid,
   .policy-callout-grid,
@@ -8987,6 +9017,74 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.analysis-reader-guide {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.28fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid rgba(215, 255, 63, 0.2);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(215, 255, 63, 0.055), rgba(143, 216, 189, 0.035)),
+    rgba(15, 22, 18, 0.72);
+}
+
+.analysis-reader-guide h2 {
+  max-width: 24ch;
+  margin: 0;
+  color: var(--home-ink);
+  font-size: clamp(28px, 3vw, 44px);
+  line-height: 1.04;
+  text-wrap: balance;
+}
+
+.analysis-reader-guide p:not(.eyebrow) {
+  max-width: 60ch;
+  margin: 12px 0 0;
+  color: var(--home-readable, rgba(246, 243, 232, 0.84));
+  line-height: 1.68;
+}
+
+.analysis-reader-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.13);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.13);
+}
+
+.analysis-reader-guide-grid article {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-height: 150px;
+  padding: 16px;
+  background: rgba(9, 13, 11, 0.5);
+}
+
+.analysis-reader-guide-grid span {
+  color: var(--home-acid);
+  font-family: var(--app-font-stack);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.analysis-reader-guide-grid strong {
+  color: var(--home-ink);
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.analysis-reader-guide-grid small {
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.78));
+  line-height: 1.5;
+}
+
 .analysis-filter-form {
   display: grid;
   grid-template-columns: auto minmax(120px, 1fr) auto auto;
@@ -9835,6 +9933,7 @@ button:disabled {
   .analysis-detail-map-grid,
   .analysis-next-actions,
   .analysis-filter-panel,
+  .analysis-reader-guide,
   .stock-flow-strip,
   .stock-reading-guide,
   .stock-reading-nav,
