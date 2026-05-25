@@ -93,7 +93,7 @@ def render_public_stock_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
     <form class="ticker-search" action="/stocks" method="get">
       <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
@@ -111,7 +111,7 @@ def render_public_stock_page(
         <p class="asof">{_h(model["generated_at"])} 기준</p>
         <div class="stock-hero-actions" aria-label="종목 상세 주요 이동">
           <a href="/analyses?ticker={_h(model["code"])}">공개 분석 이력</a>
-          <a href="/member#analysis-request-section">분석 요청</a>
+          <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
         </div>
       </div>
       <aside class="stock-hero-stack" aria-label="종목 리서치 요약">
@@ -260,7 +260,7 @@ def render_public_analysis_feed_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -352,7 +352,12 @@ def render_public_outcomes_page(
     model = _analysis_outcomes_view_model(payload, site_base_url=site_base_url)
     summary_html = _analysis_outcome_summary_cards(model["summary"])
     cadence_html = _analysis_outcome_cadence_strip(model)
-    cards_html = _analysis_outcome_feed_cards(model["items"])
+    cards_html = _analysis_outcome_feed_cards(
+        model["items"],
+        ticker_code=model["ticker_code"],
+        filter_status=model["filter_status"],
+        filter_label=model["filter_label"],
+    )
     payload_json = _script_json(payload)
 
     return f"""<!doctype html>
@@ -387,7 +392,7 @@ def render_public_outcomes_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -400,7 +405,7 @@ def render_public_outcomes_page(
         <div class="analysis-detail-actions">
           <a href="/analyses">공개 분석 보기</a>
           <a href="/features/outcomes">검증 방식</a>
-          <a href="/api/analysis-outcomes">원문 데이터(JSON)</a>
+          <a href="/api/analysis-outcomes">원문 데이터 보기</a>
         </div>
       </div>
       <div class="decision-box">
@@ -518,7 +523,7 @@ def render_public_analysis_detail_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -537,7 +542,7 @@ def render_public_analysis_detail_page(
         <div class="analysis-detail-actions">
           <a href="/stocks/{_h(model["ticker_code"])}">종목 페이지</a>
           <a href="/analyses">분석 목록</a>
-          <a href="/api/analyses/{_h(model["run_id"])}">원문 데이터(JSON)</a>
+          <a href="/api/analyses/{_h(model["run_id"])}">원문 데이터 보기</a>
         </div>
       </div>
       <aside class="decision-box analysis-detail-decision">
@@ -566,7 +571,7 @@ def render_public_analysis_detail_page(
       <div class="analysis-report-stack">
         {reports_html}
       </div>
-      <p class="analysis-report-note">화면에는 읽기 편하도록 본문 일부를 먼저 보여줍니다. 전체 원문은 상단의 원문 데이터(JSON)에서 확인할 수 있습니다.</p>
+      <p class="analysis-report-note">화면에는 읽기 편하도록 본문 일부를 먼저 보여줍니다. 전체 원문 필드는 상단의 원문 데이터 보기에서 확인할 수 있습니다.</p>
     </section>
 
     {outcomes_html}
@@ -631,7 +636,7 @@ def render_public_home_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -880,6 +885,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "cta_href": "/stocks/005930",
         "secondary_cta_label": "회원 기능 보기",
         "secondary_cta_href": "/features/member-workspace",
+        "diagram_label": "리서치 흐름",
     },
     "member-workspace": {
         "path": "/features/member-workspace",
@@ -887,7 +893,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "description": "로그인한 사용자를 위한 수동 포트폴리오, 관심목록, 분석 요청 대기열의 구성 방식입니다.",
         "eyebrow": "서비스 소개 / 회원 작업공간",
         "heading": "마이페이지는 로그인 후에만 개인 데이터를 불러옵니다",
-        "lead": "회원 화면은 인증 전에는 로그인/가입만 보여주고, 세션 확인 뒤에만 수동 기록과 분석 요청 데이터를 불러옵니다. 공개 페이지와 개인 기록의 데이터 경계를 명확히 나눕니다.",
+        "lead": "회원 화면은 로그인 전에는 로그인/가입만 보여주고, 로그인 상태를 확인한 뒤에만 수동 기록과 분석 요청 데이터를 불러옵니다. 공개 페이지와 개인 기록의 데이터 경계를 명확히 나눕니다.",
         "proof": (("인증", "이메일 로그인"), ("저장", "사용자별 개인 기록"), ("범위", "조회/기록 전용")),
         "cards": (
             ("수동 포트폴리오", "매수·매도 기록, 평균단가, 비용, 목표가, 손절가를 직접 관리합니다."),
@@ -895,10 +901,11 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
             ("분석 요청 대기열", "원하는 종목과 날짜를 대기열에 넣고 처리 상태를 확인합니다."),
         ),
         "steps": ("로그인", "마이페이지", "개인 기록", "분석 요청", "주문 차단"),
-        "cta_label": "마이페이지 열기",
-        "cta_href": "/mypage",
+        "cta_label": "가입하고 마이페이지 열기",
+        "cta_href": "/member?mode=signup",
         "secondary_cta_label": "리서치 구조 보기",
         "secondary_cta_href": "/features/research",
+        "diagram_label": "회원 작업공간",
     },
     "outcomes": {
         "path": "/features/outcomes",
@@ -918,6 +925,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "cta_href": "/analyses",
         "secondary_cta_label": "신뢰 기준 보기",
         "secondary_cta_href": "/features/methodology",
+        "diagram_label": "성과 검증",
     },
     "methodology": {
         "path": "/features/methodology",
@@ -940,6 +948,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "cta_href": "/analyses",
         "secondary_cta_label": "사후 검증 보기",
         "secondary_cta_href": "/features/outcomes",
+        "diagram_label": "신뢰 기준",
     },
 }
 
@@ -1159,7 +1168,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -1186,7 +1195,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
           {step_html}
         </div>
         <div class="feature-signal-card">
-          <span>{_h(slug.upper())}</span>
+          <span>{_h(str(page.get("diagram_label") or page["eyebrow"]))}</span>
           <strong>{_h(page["heading"])}</strong>
           <small>{_h(page["description"])}</small>
         </div>
@@ -1197,14 +1206,14 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
       {card_html}
     </section>
 
-    <section class="home-ops-strip feature-boundary" aria-label="데이터 로딩 경계">
+    <section class="home-ops-strip feature-boundary" aria-label="데이터 경계">
       <div>
-        <p class="eyebrow">로딩 경계</p>
-        <h2>페이지 목적에 맞는 데이터만 요청합니다</h2>
+        <p class="eyebrow">데이터 경계</p>
+        <h2>필요한 데이터만 불러옵니다</h2>
       </div>
       <ul>
-        <li>공개 상세 페이지는 정적 설명과 인증 상태 네비게이션만 사용합니다.</li>
-        <li>회원 데이터는 로그인 세션 확인 뒤 마이페이지에서만 불러옵니다.</li>
+        <li>공개 상세 페이지는 안내 내용과 로그인 상태 표시만 사용합니다.</li>
+        <li>회원 데이터는 로그인 상태를 확인한 뒤 마이페이지에서만 불러옵니다.</li>
       </ul>
     </section>
   </main>
@@ -1271,7 +1280,7 @@ def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -1349,7 +1358,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <a href="/outcomes">성과</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden aria-current="page">운영 콘솔</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden aria-current="page">운영 콘솔</a>
     </nav>
   </header>
 
@@ -1481,7 +1490,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
             <p class="eyebrow">성과 검증 작업</p>
             <h2>성과 검증 처리</h2>
           </div>
-          <span class="status-pill">5D / 20D</span>
+          <span class="status-pill">5일 / 20일</span>
         </div>
         <label class="admin-number-field">처리 건수 <input id="adminOutcomeLimit" type="number" min="1" max="50" value="10"></label>
         <div class="button-row">
@@ -1535,7 +1544,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -2082,9 +2091,9 @@ def _analysis_missing_data_warnings(
     if status == "missing":
         warnings.append("공개 분석이 아직 저장되지 않았습니다.")
     elif status == "not_configured":
-        warnings.append("분석 저장소가 연결되지 않아 저장된 리포트를 확인할 수 없습니다.")
+        warnings.append("저장된 공개 리포트를 아직 확인할 수 없습니다.")
     elif status == "unavailable":
-        warnings.append("분석 저장소 응답을 확인하지 못했습니다.")
+        warnings.append("공개 분석 응답을 확인하지 못했습니다.")
     elif status != "available":
         warnings.append("공개 분석 상태를 확인해야 합니다.")
 
@@ -2108,7 +2117,7 @@ def _analysis_confidence_summary(*, status: str, score: int, warnings: list[str]
     if status != "available":
         return "저장된 공개 분석이 없거나 불완전해 리포트 근거를 제한적으로만 볼 수 있습니다."
     if warnings:
-        return "분석은 표시되지만 일부 근거가 비어 있어 원문 데이터(JSON)와 기준일을 함께 확인해야 합니다."
+        return "분석은 표시되지만 일부 근거가 비어 있어 원문 데이터와 기준일을 함께 확인해야 합니다."
     return f"분석, 판단, 차트 근거가 함께 있어 현재 공개 화면 기준 신뢰 점수 {score}/7입니다."
 
 
@@ -2515,7 +2524,7 @@ def _analysis_track_record_cards(summary: dict[str, Any], *, basis_label: str = 
           <p class="eyebrow">공개 검증 기록</p>
           <h2 id="track-record-title">성과 검증 스냅샷</h2>
         </div>
-        <span class="status-pill">5D / 20D</span>
+        <span class="status-pill">5일 / 20일</span>
       </div>
       <div class="analysis-track-grid">
         {"".join(html_cards)}
@@ -2536,7 +2545,7 @@ def _analysis_outcome_summary_cards(summary: dict[str, Any]) -> str:
         ("검증 완료", f"{completed}건", "완료된 성과 검증"),
         ("평균 알파", average_alpha, f"종목 수익률 {average_raw}"),
         ("알파 우위", positive_rate, f"양수 알파 {positive_alpha}건"),
-        ("대기/누락", f"{pending}/{unavailable}", "pending / unavailable"),
+        ("대기/확인 필요", f"{pending}/{unavailable}", "대기 / 데이터 없음"),
     ]
     html_cards = []
     for label, value, note in cards:
@@ -2567,7 +2576,7 @@ def _analysis_outcome_cadence_strip(model: dict[str, Any]) -> str:
       </article>
       <article>
         <span>02</span>
-        <strong>5D / 20D</strong>
+        <strong>5일 / 20일</strong>
         <small>기준일 이후 충분한 거래일이 쌓이면 5일/20일 결과를 저장합니다.</small>
       </article>
       <article>
@@ -2584,15 +2593,46 @@ def _analysis_outcome_cadence_strip(model: dict[str, Any]) -> str:
     """
 
 
-def _analysis_outcome_feed_cards(items: list[dict[str, Any]]) -> str:
+def _analysis_outcome_feed_cards(
+    items: list[dict[str, Any]],
+    *,
+    ticker_code: str | None = None,
+    filter_status: str | None = None,
+    filter_label: str = "전체 성과",
+) -> str:
     if not items:
+        if ticker_code or filter_status:
+            ticker = str(ticker_code or "").strip()
+            status_label = _outcome_status_label(str(filter_status or "")) if filter_status else "전체 상태"
+            title_bits = [bit for bit in (ticker, status_label if filter_status else None) if bit]
+            title = f"{' '.join(title_bits)} 검증 없음" if title_bits else "조건에 맞는 검증 없음"
+            analyses_href = f"/analyses?ticker={_h(ticker)}" if ticker else "/analyses"
+            stock_action = f'<a href="/stocks/{_h(ticker)}">종목 페이지</a>' if ticker else ""
+            return f"""
+            <article class="analysis-feed-card outcome-feed-card empty">
+              <span>필터 결과 없음</span>
+              <h3>{_h(title)}</h3>
+              <p>선택한 조건에 맞는 성과 검증 기록이 아직 없습니다. 필터를 초기화하거나 공개 분석 목록에서 같은 종목의 리포트 상태를 먼저 확인하세요.</p>
+              <div class="analysis-feed-signal-row" aria-label="성과 검증 필터 결과 없음">
+                <span>{_h(str(filter_label))}</span>
+                <span>결과 0건</span>
+                <span>조건 변경 가능</span>
+              </div>
+              <div class="analysis-feed-actions">
+                <a href="/outcomes">필터 초기화</a>
+                <a href="{analyses_href}">분석 목록</a>
+                {stock_action}
+                <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
+              </div>
+            </article>
+            """
         return """
         <article class="analysis-feed-card outcome-feed-card empty">
           <span>대기</span>
           <h3>성과 검증 대기</h3>
           <p>성과 검증 작업이 공개 분석을 평가하면 이곳에 5일/20일 성과가 누적됩니다.</p>
           <div class="analysis-feed-signal-row" aria-label="성과 검증 대기 상태">
-            <span>5D/20D 대기</span>
+            <span>5일/20일 대기</span>
             <span>알파 대기</span>
             <span>주문 없음</span>
           </div>
@@ -2600,7 +2640,7 @@ def _analysis_outcome_feed_cards(items: list[dict[str, Any]]) -> str:
             <a href="/stocks/005930">샘플 종목</a>
             <a href="/analyses">분석 목록</a>
             <a href="/features/outcomes">검증 방식</a>
-            <a href="/member#analysis-request-section">분석 요청</a>
+            <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
           </div>
         </article>
         """
@@ -2646,7 +2686,7 @@ def _analysis_outcome_feed_cards(items: list[dict[str, Any]]) -> str:
               <div class="analysis-feed-actions">
                 <a href="{_h(report_path)}">리포트</a>
                 <a href="{_h(stock_path)}">종목</a>
-                <a href="{_h(api_path)}">원문 데이터(JSON)</a>
+                <a href="{_h(api_path)}">원문 데이터 보기</a>
               </div>
             </article>
             """
@@ -2674,7 +2714,7 @@ def _outcome_status_options(selected: Any) -> str:
         ("", "전체"),
         ("completed", "완료"),
         ("pending", "대기"),
-        ("unavailable", "누락"),
+        ("unavailable", "데이터 없음"),
     ]
     html_options = []
     for value, label in options:
@@ -2705,7 +2745,7 @@ def _analysis_feed_cards(
               <div class="analysis-feed-actions">
                 <a href="/analyses">필터 지우기</a>
                 <a href="/stocks/{_h(ticker)}">종목 페이지</a>
-                <a href="/member?tab=analysis#analysis-request-section">분석 요청</a>
+                <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
               </div>
             </article>
             """
@@ -2722,7 +2762,7 @@ def _analysis_feed_cards(
           <div class="analysis-feed-actions">
             <a href="/stocks/005930">샘플 종목</a>
             <a href="/features/research">리서치 흐름</a>
-            <a href="/member#analysis-request-section">분석 요청</a>
+            <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
           </div>
         </article>
         """
@@ -2782,7 +2822,7 @@ def _analysis_feed_cards(
                 <a href="{_h(str(report_path))}">리포트</a>
                 <a href="/stocks/{_h(str(code))}">종목</a>
                 <a href="{_h(str(outcome_path))}">성과</a>
-                <a href="{_h(str(api_path))}">원문 데이터(JSON)</a>
+                <a href="{_h(str(api_path))}">원문 데이터 보기</a>
               </div>
             </article>
             """
@@ -2843,7 +2883,7 @@ def _analysis_detail_next_actions(model: dict[str, Any]) -> str:
     run_id = str(model.get("run_id") or "")
     stock_href = f"/stocks/{ticker_code}" if ticker_code else "/analyses"
     outcomes_href = f"/outcomes?ticker={ticker_code}" if ticker_code else "/outcomes"
-    request_href = "/member?tab=analysis#analysis-request-section"
+    request_href = "/member?mode=signup&tab=analysis#analysis-request-section"
     return f"""
     <section class="analysis-next-actions" aria-labelledby="analysis-next-actions-title">
       <div>
@@ -2869,7 +2909,7 @@ def _analysis_detail_next_actions(model: dict[str, Any]) -> str:
         </a>
         <a href="/api/analyses/{_h(run_id)}">
           <span>04</span>
-          <strong>원문 데이터(JSON)</strong>
+          <strong>원문 데이터 보기</strong>
           <small>저장된 원문 필드와 리포트 전체 구조를 확인합니다.</small>
         </a>
       </div>
@@ -2890,10 +2930,10 @@ def _analysis_detail_report_cards(
           <h3>리포트 대기</h3>
           <p>저장된 AI 리포트가 아직 없습니다. 원문 데이터에서 저장 상태를 확인하거나, 같은 종목의 새 분석을 요청할 수 있습니다.</p>
           <div class="analysis-empty-actions">
-            <a href="/api/analyses/{_h(str(run_id))}">원문 데이터(JSON)</a>
+            <a href="/api/analyses/{_h(str(run_id))}">원문 데이터 보기</a>
             <a href="/stocks/{_h(str(ticker_code))}">종목 페이지</a>
             <a href="/analyses">분석 목록</a>
-            <a href="/member?tab=analysis#analysis-request-section">재분석 요청</a>
+            <a href="/member?mode=signup&tab=analysis#analysis-request-section">재분석 요청</a>
           </div>
         </article>
         """
@@ -2984,9 +3024,9 @@ def _analysis_detail_decision_card(
           <h2>최종 판단 대기</h2>
           <p>저장된 최종 판단이 아직 없습니다. 원문 데이터와 종목 페이지를 확인한 뒤, 필요하면 같은 종목의 새 분석을 요청할 수 있습니다.</p>
           <div class="analysis-empty-actions">
-            <a href="/api/analyses/{_h(str(run_id))}">원문 데이터(JSON)</a>
+            <a href="/api/analyses/{_h(str(run_id))}">원문 데이터 보기</a>
             <a href="/stocks/{_h(str(ticker_code))}">종목 페이지</a>
-            <a href="/member?tab=analysis#analysis-request-section">재분석 요청</a>
+            <a href="/member?mode=signup&tab=analysis#analysis-request-section">재분석 요청</a>
           </div>
         </article>
         """
@@ -3070,15 +3110,15 @@ def _top_count_label(counts: dict[str, Any]) -> str | None:
 def _analysis_feed_status_label(status: Any) -> str:
     return {
         "available": "분석 사용 가능",
-        "not_configured": "저장소 미연결",
+        "not_configured": "공개 리포트 준비 중",
     }.get(str(status), "상태 확인")
 
 
 def _analysis_outcomes_status_label(status: Any) -> str:
     return {
         "available": "성과 사용 가능",
-        "not_configured": "저장소 미연결",
-        "unavailable": "성과 저장소 확인 필요",
+        "not_configured": "검증 기록 준비 중",
+        "unavailable": "검증 기록 확인 필요",
     }.get(str(status), "상태 확인")
 
 
@@ -3243,7 +3283,7 @@ def _analysis_status_label(status: Any) -> str:
     return {
         "available": "분석 완료",
         "missing": "분석 대기",
-        "not_configured": "저장소 미연결",
+        "not_configured": "공개 분석 준비 중",
         "skipped": "분석 제외",
     }.get(str(status), "상태 확인")
 
@@ -3303,7 +3343,7 @@ def _outcome_status_label(status: str) -> str:
     return {
         "completed": "완료",
         "pending": "대기",
-        "unavailable": "불가",
+        "unavailable": "데이터 없음",
     }.get(status, "확인")
 
 
@@ -9283,11 +9323,16 @@ PAGE_JS = """
       memberStorageGet(memberAccessTokenKey)
       || memberStorageGet(memberRefreshTokenKey)
     );
+    const adminVisible = Boolean(memberStorageGet("tradingagents.admin.worker_token"))
+      || window.location.pathname === "/admin";
     document.querySelectorAll('[data-auth-visible="signed-out"]').forEach((node) => {
       node.hidden = signedIn;
     });
     document.querySelectorAll('[data-auth-visible="signed-in"]').forEach((node) => {
       node.hidden = !signedIn;
+    });
+    document.querySelectorAll('[data-auth-visible="admin"]').forEach((node) => {
+      node.hidden = !adminVisible;
     });
   }
 
@@ -9942,7 +9987,7 @@ ADMIN_PAGE_JS = """
     opsSummary.textContent = "";
     recentPanel && (recentPanel.textContent = "");
     const fragment = document.createDocumentFragment();
-    appendOpsCell(fragment, "Ops", "확인 중", message, "is-waiting");
+    appendOpsCell(fragment, "운영", "확인 중", message, "is-waiting");
     opsSummary.appendChild(fragment);
   }
 
@@ -9973,7 +10018,7 @@ ADMIN_PAGE_JS = """
     appendOpsCell(fragment, "완료", String(counts.completed || 0), "완료된 분석 요청 누적", "is-ok");
     appendOpsCell(fragment, "실패", String(failed), "최근 실패 목록은 아래에서 확인", failed ? "is-error" : "is-ok");
     appendOpsCell(fragment, "검증 후보", String(candidates), `미리 보기 제한 ${limits.outcome_worker_max || "-"}`, candidates ? "is-warn" : "is-ok");
-    appendOpsCell(fragment, "최근 검증", String(completedOutcomes), `대기 샘플 ${outcomes.pending_sample_count || 0} · 불가 샘플 ${outcomes.unavailable_sample_count || 0}`, "is-ok");
+    appendOpsCell(fragment, "최근 검증", String(completedOutcomes), `대기 샘플 ${outcomes.pending_sample_count || 0} · 데이터 없음 샘플 ${outcomes.unavailable_sample_count || 0}`, "is-ok");
     opsSummary.appendChild(fragment);
 
     if (recentPanel) {
@@ -9989,7 +10034,7 @@ ADMIN_PAGE_JS = """
     if (!readinessPanel) return;
     readinessPanel.textContent = "";
     const fragment = document.createDocumentFragment();
-    appendReadinessCell(fragment, "Status", "확인 중", message, "is-waiting");
+    appendReadinessCell(fragment, "상태", "확인 중", message, "is-waiting");
     readinessPanel.appendChild(fragment);
   }
 
@@ -10288,6 +10333,7 @@ MEMBER_PAGE_JS = """
   const memberWorkspace = document.getElementById("memberWorkspace");
   const signedOutNavItems = Array.from(document.querySelectorAll('[data-auth-visible="signed-out"]'));
   const signedInNavItems = Array.from(document.querySelectorAll('[data-auth-visible="signed-in"]'));
+  const adminNavItems = Array.from(document.querySelectorAll('[data-auth-visible="admin"]'));
   const sessionKeys = [accessTokenKey, refreshTokenKey, expiresAtKey, userEmailKey, userIdKey];
 
   function storageAreaGet(area, key) {
@@ -10406,6 +10452,9 @@ MEMBER_PAGE_JS = """
     });
     signedInNavItems.forEach((node) => {
       node.hidden = !signedIn;
+    });
+    adminNavItems.forEach((node) => {
+      node.hidden = !storageGet("tradingagents.admin.worker_token");
     });
   }
 

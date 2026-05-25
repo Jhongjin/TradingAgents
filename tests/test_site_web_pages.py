@@ -140,7 +140,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "stock-signal-card" in html
     assert "stock-flow-strip" in html
     assert "공개 분석 이력" in html
-    assert 'href="/member#analysis-request-section"' in html
+    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section"' in html
     assert "1개월" in html
     assert "KRX 14D" in html
     assert "pykrx / 2개 거래일 / auto 요청에서 pykrx 사용" in html
@@ -298,7 +298,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "member-report-card" in html
     assert "member-admin-card" in html
     assert "운영 콘솔 열기" in html
-    assert 'class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>' in html
+    assert 'class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>' in html
+    assert 'storageGet("tradingagents.admin.worker_token")' in html
     assert 'href="/analyses">분석 목록 열기</a>' in html
     assert 'data-member-jump="portfolio"' in html
     assert 'data-member-tab="portfolio"' in html
@@ -415,13 +416,13 @@ def test_render_feature_detail_pages_use_public_theme():
 
     assert "KRX부터 공개 리포트까지 한 화면에 연결" in html
     assert "feature-diagram" in html
-    assert "로딩 경계" in html
-    assert "페이지 목적에 맞는 데이터만 요청합니다" in html
+    assert "데이터 경계" in html
+    assert "필요한 데이터만 불러옵니다" in html
     assert "color: var(--home-readable, rgba(246, 243, 232, 0.84));" in html
     assert 'href="/features/member-workspace">회원 기능 보기</a>' in html
     assert 'href="/outcomes">성과</a>' in html
     assert '<link rel="canonical" href="https://example.com/features/research">' in html
-    assert 'href="/mypage"' in html
+    assert 'href="/member?mode=signup">가입하고 마이페이지 열기</a>' in member_html
     assert "/api/member/dashboard" not in html
     assert 'href="/features/research">리서치 구조 보기</a>' in member_html
     assert "/api/member/dashboard" not in member_html
@@ -712,7 +713,7 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "<dt>리포트</dt><dd>1개</dd>" in html
     assert f'href="/analyses/{run_id}">리포트</a>' in html
     assert 'href="/outcomes?ticker=005930">성과</a>' in html
-    assert f'href="/api/analyses/{run_id}">원문 데이터(JSON)</a>' in html
+    assert f'href="/api/analyses/{run_id}">원문 데이터 보기</a>' in html
     assert "/stocks/005930" in html
     assert '<link rel="canonical" href="https://example.com/analyses">' in html
 
@@ -724,7 +725,7 @@ def test_render_public_analysis_feed_empty_state_has_next_actions():
     assert "분석 ID 대기" in html
     assert 'href="/stocks/005930">샘플 종목</a>' in html
     assert 'href="/features/research">리서치 흐름</a>' in html
-    assert 'href="/member#analysis-request-section">분석 요청</a>' in html
+    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
 
 
 def test_render_public_analysis_feed_filtered_empty_state_guides_recovery():
@@ -735,7 +736,7 @@ def test_render_public_analysis_feed_filtered_empty_state_guides_recovery():
     assert "005930 필터 결과" in html
     assert 'href="/analyses">필터 지우기</a>' in html
     assert 'href="/stocks/005930">종목 페이지</a>' in html
-    assert 'href="/member?tab=analysis#analysis-request-section">분석 요청</a>' in html
+    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
 
 
 def test_render_public_outcomes_page_shows_public_track_record():
@@ -798,12 +799,25 @@ def test_render_public_outcomes_page_empty_state_has_next_actions():
     html = render_public_outcomes_page(repo=_repo(), site_base_url="https://example.com")
 
     assert "성과 검증 대기" in html
-    assert "5D/20D 대기" in html
+    assert "5일/20일 대기" in html
     assert "알파 대기" in html
     assert 'href="/stocks/005930">샘플 종목</a>' in html
     assert 'href="/analyses">분석 목록</a>' in html
     assert 'href="/features/outcomes">검증 방식</a>' in html
-    assert 'href="/member#analysis-request-section">분석 요청</a>' in html
+    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
+
+
+def test_render_public_outcomes_page_filtered_empty_state_guides_recovery():
+    html = render_public_outcomes_page(repo=_repo(), ticker="005930", status="completed", site_base_url="https://example.com")
+
+    assert "필터 결과 없음" in html
+    assert "005930 완료 검증 없음" in html
+    assert "선택한 조건에 맞는 성과 검증 기록이 아직 없습니다." in html
+    assert "005930 / 완료" in html
+    assert 'href="/outcomes">필터 초기화</a>' in html
+    assert 'href="/analyses?ticker=005930">분석 목록</a>' in html
+    assert 'href="/stocks/005930">종목 페이지</a>' in html
+    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
 
 
 def test_render_public_analysis_detail_page_shows_report_context():
@@ -885,10 +899,10 @@ def test_render_public_analysis_detail_page_shows_report_context():
     assert "analysis-detail-report-body" in html
     assert "analysis-next-actions" in html
     assert "리포트를 읽은 뒤 이어서 볼 곳" in html
-    assert 'href="/member?tab=analysis#analysis-request-section"' in html
+    assert 'href="/member?mode=signup&amp;tab=analysis#analysis-request-section"' in html
     assert "Ticker anchor" in html
     assert "성과 검증 기록" in html
-    assert f'href="/api/analyses/{run_id}">원문 데이터(JSON)</a>' in html
+    assert f'href="/api/analyses/{run_id}">원문 데이터 보기</a>' in html
     assert f'<link rel="canonical" href="https://example.com/analyses/{run_id}">' in html
     assert 'id="analysis-detail-payload"' in html
     assert "syncTopAuthLinks" in html
@@ -915,9 +929,9 @@ def test_render_public_analysis_detail_missing_sections_have_recovery_actions():
     assert "최종 판단 대기" in html
     assert "리포트 대기" in html
     assert "analysis-empty-actions" in html
-    assert f'href="/api/analyses/{run_id}">원문 데이터(JSON)</a>' in html
+    assert f'href="/api/analyses/{run_id}">원문 데이터 보기</a>' in html
     assert 'href="/stocks/005930">종목 페이지</a>' in html
-    assert 'href="/member?tab=analysis#analysis-request-section">재분석 요청</a>' in html
+    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">재분석 요청</a>' in html
 
 
 def test_api_app_serves_public_analysis_feed_page(monkeypatch):
