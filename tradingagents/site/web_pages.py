@@ -312,7 +312,7 @@ def render_public_analysis_feed_page(
       <article>
         <span>03</span>
         <strong>사후 기록</strong>
-        <small>5일/20일 검증 기록이 연결되면 시장 기준과 함께 표시합니다.</small>
+        <small>5일/20일 사후 기록이 연결되면 시장 기준과 함께 표시합니다.</small>
       </article>
     </section>
 
@@ -420,7 +420,7 @@ def render_public_outcomes_page(
         </div>
       </div>
       <div class="decision-box">
-        <span class="decision-label">검증 기록</span>
+        <span class="decision-label">사후 기록</span>
         <strong>{_h(model["item_count"])}</strong>
         <span>{_h(model["status_label"])}</span>
       </div>
@@ -2796,7 +2796,7 @@ def _analysis_track_record_cards(summary: dict[str, Any], *, basis_label: str = 
     ]
     if completed_outcomes == 0:
         cards = [
-            ("사후 기록 대기", "0건", "검증 기록이 완료하면 채워집니다."),
+            ("사후 기록 대기", "0건", "사후 기록이 완료되면 채워집니다."),
             ("평균 벤치마크 차이", "-", "사후 데이터 대기"),
             ("벤치마크 우위 기록", "-", "사후 데이터 대기"),
             ("커버리지", "-", basis_label),
@@ -3036,7 +3036,11 @@ def _analysis_feed_cards(
             <article class="analysis-feed-card empty">
               <span>아직 공개 기록 없음</span>
               <h3>{_h(ticker)} 공개 분석 없음</h3>
-              <p>아직 이 종목의 완료된 공개 리서치가 없습니다. 종목 페이지에서 가격·공시·뉴스 흐름을 먼저 확인하거나, 로그인 후 리서치 요청을 남길 수 있습니다.</p>
+              <p>아직 이 종목으로 공개된 리포트가 없습니다. 종목 페이지에서 가격·공시·뉴스 흐름을 먼저 보고, 필요하면 회원 작업공간에서 같은 종목의 리서치를 요청하세요.</p>
+              <div class="analysis-empty-plan" aria-label="다음 행동">
+                <div><strong>1</strong><span>종목 페이지에서 최신 데이터 흐름을 확인합니다.</span></div>
+                <div><strong>2</strong><span>로그인 후 리서치 요청을 남기면 대기열에서 처리됩니다.</span></div>
+              </div>
               <div class="analysis-feed-signal-row" aria-label="필터 결과 없음">
                 <span>{_h(str(filter_label))}</span>
                 <span>리포트 0개</span>
@@ -3053,7 +3057,12 @@ def _analysis_feed_cards(
         <article class="analysis-feed-card empty">
           <span>아직 공개 기록 없음</span>
           <h3>아직 공개된 리포트가 없습니다</h3>
-          <p>완료되어 공개 가능한 리포트가 생기면 이 목록에 표시됩니다. 먼저 샘플 종목과 리서치 흐름을 확인해 보세요.</p>
+          <p>지금은 공개 피드가 비어 있습니다. 서비스 구조를 먼저 둘러본 뒤, 가입하면 관심종목을 저장하고 보고 싶은 종목의 리서치를 요청할 수 있습니다.</p>
+          <div class="analysis-empty-plan" aria-label="처음 이용할 때 할 일">
+            <div><strong>1</strong><span>샘플 종목에서 가격·공시·뉴스가 어떻게 묶이는지 확인합니다.</span></div>
+            <div><strong>2</strong><span>리서치 흐름을 보고 AI 리포트가 어떤 기준으로 공개되는지 확인합니다.</span></div>
+            <div><strong>3</strong><span>가입 후 관심종목과 요청 대기열을 내 작업공간에서 관리합니다.</span></div>
+          </div>
           <div class="analysis-feed-signal-row" aria-label="공개 분석 대기 상태">
             <span>공개 기록 없음</span>
             <span>리포트 0개</span>
@@ -3461,8 +3470,8 @@ def _analysis_feed_status_label(status: Any) -> str:
 def _analysis_outcomes_status_label(status: Any) -> str:
     return {
         "available": "사후 기록 사용 가능",
-        "not_configured": "검증 기록 준비 중",
-        "unavailable": "검증 기록 확인 필요",
+        "not_configured": "사후 기록 준비 중",
+        "unavailable": "사후 기록 확인 필요",
     }.get(str(status), "상태 확인")
 
 
@@ -5273,6 +5282,47 @@ h3 {
 
 .analysis-feed-card.empty {
   grid-column: 1 / -1;
+}
+
+.analysis-empty-plan {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--line);
+}
+
+.analysis-empty-plan div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  min-height: 74px;
+  padding: 12px;
+  background: var(--surface-strong);
+}
+
+.analysis-empty-plan strong {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.analysis-empty-plan span {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.45;
+  text-transform: none;
 }
 
 .outcome-feed-card {
@@ -8941,6 +8991,24 @@ button:disabled {
   color: var(--home-celadon);
 }
 
+.market-page .analysis-empty-plan {
+  border-color: rgba(246, 243, 232, 0.13);
+  background: rgba(246, 243, 232, 0.13);
+}
+
+.market-page .analysis-empty-plan div {
+  background: rgba(9, 13, 11, 0.48);
+}
+
+.market-page .analysis-empty-plan strong {
+  background: var(--home-acid);
+  color: #10130f;
+}
+
+.market-page .analysis-empty-plan span {
+  color: var(--home-readable, rgba(246, 243, 232, 0.84));
+}
+
 .market-page .analysis-feed-card .analysis-feed-signal-row span {
   border-color: rgba(215, 255, 63, 0.22);
   background: rgba(215, 255, 63, 0.08);
@@ -10082,6 +10150,8 @@ button:disabled {
   .analysis-next-actions,
   .analysis-filter-panel,
   .analysis-reader-guide,
+  .analysis-reader-guide-grid,
+  .analysis-empty-plan,
   .stock-flow-strip,
   .stock-reading-guide,
   .stock-reading-nav,
@@ -10169,6 +10239,11 @@ button:disabled {
 
   .analysis-next-action-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .analysis-reader-guide-grid article,
+  .analysis-empty-plan div {
+    min-height: auto;
   }
 
   .analysis-filter-form,
