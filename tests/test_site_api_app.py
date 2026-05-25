@@ -158,9 +158,45 @@ def test_api_app_serves_non_secret_readiness(monkeypatch):
     assert body["deployment"]["vercel_env"] == "preview"
     assert body["deployment"]["git_ref"] == "codex/kr-market"
     assert body["deployment"]["git_sha"] == "1234567890ab"
+    assert body["deployment"]["trace_source"] == "git_sha"
+    assert body["deployment"]["trace_id"] == "1234567890ab"
     assert "diagnostics" not in body
     assert "sk-test" not in response.text
     assert "anon" not in response.text
+
+
+def test_api_app_readiness_traces_archive_deployments_without_git_sha(monkeypatch):
+    monkeypatch.delenv("VERCEL_GIT_COMMIT_SHA", raising=False)
+    monkeypatch.delenv("TRADINGAGENTS_DEPLOYMENT_SHA", raising=False)
+    monkeypatch.setenv("VERCEL_ENV", "production")
+    monkeypatch.setenv("VERCEL_DEPLOYMENT_ID", "dpl_archive_deployment_123")
+    monkeypatch.setenv("VERCEL_URL", "trading-agents-archive.vercel.app")
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    response = client.get("/api/readiness", headers={"X-Forwarded-Proto": "https"})
+
+    deployment = response.json()["deployment"]
+    assert deployment["git_sha"] is None
+    assert deployment["deployment_id"] == "dpl_archive_deployment_123"
+    assert deployment["vercel_url"] == "trading-agents-archive.vercel.app"
+    assert deployment["trace_source"] == "deployment_id"
+    assert deployment["trace_id"] == "dpl_archive_deployment_123"
+
+
+def test_api_app_readiness_falls_back_to_vercel_url_trace(monkeypatch):
+    monkeypatch.delenv("VERCEL_GIT_COMMIT_SHA", raising=False)
+    monkeypatch.delenv("TRADINGAGENTS_DEPLOYMENT_SHA", raising=False)
+    monkeypatch.delenv("VERCEL_DEPLOYMENT_ID", raising=False)
+    monkeypatch.setenv("VERCEL_URL", "trading-agents-fallback.vercel.app")
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    response = client.get("/api/readiness")
+
+    deployment = response.json()["deployment"]
+    assert deployment["git_sha"] is None
+    assert deployment["deployment_id"] is None
+    assert deployment["trace_source"] == "vercel_url"
+    assert deployment["trace_id"] == "trading-agents-fallback.vercel.app"
 
 
 def test_api_app_readiness_degrades_when_live_trading_enabled(monkeypatch):

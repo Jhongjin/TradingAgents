@@ -9422,6 +9422,18 @@ ADMIN_PAGE_JS = """
     readinessPanel.appendChild(fragment);
   }
 
+  function deploymentTraceLabel(deployment) {
+    const sourceLabels = {
+      git_sha: "SHA",
+      deployment_id: "Deploy",
+      vercel_url: "URL"
+    };
+    const traceId = deployment.trace_id || deployment.git_sha || deployment.deployment_id || deployment.vercel_url;
+    if (!traceId) return "배포 식별자 없음";
+    const traceSource = deployment.trace_source || (deployment.git_sha ? "git_sha" : "deployment");
+    return `${sourceLabels[traceSource] || "Trace"} ${traceId}`;
+  }
+
   function renderReadinessPanel(payload) {
     if (!readinessPanel) return;
     const checks = payload?.checks || {};
@@ -9434,8 +9446,7 @@ ADMIN_PAGE_JS = """
     readinessPanel.textContent = "";
 
     const isOk = payload?.status === "ok";
-    const sha = deployment.git_sha ? `SHA ${deployment.git_sha}` : "deployment SHA 없음";
-    appendReadinessCell(fragment, "Status", isOk ? "OK" : "DEGRADED", sha, isOk ? "is-ok" : "is-warn");
+    appendReadinessCell(fragment, "Status", isOk ? "OK" : "DEGRADED", deploymentTraceLabel(deployment), isOk ? "is-ok" : "is-warn");
 
     const storageOk = Boolean(checks.storage_online && checks.storage_schema_ready);
     const storageValue = storageOk ? "Online" : checks.storage_configured ? "점검 필요" : "미설정";

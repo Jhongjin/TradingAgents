@@ -434,6 +434,8 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     assert "adminReadinessPanel" in html
     assert "readiness-cell" in html
     assert "renderReadinessPanel" in html
+    assert "deploymentTraceLabel" in html
+    assert "배포 식별자 없음" in html
     assert "Trust header" in html
     assert "Vendor probes" in html
     assert "Site URL" in html

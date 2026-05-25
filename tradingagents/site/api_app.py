@@ -1595,12 +1595,49 @@ def _has_any_env(names: tuple[str, ...]) -> bool:
 
 
 def _deployment_context() -> dict[str, str | None]:
+    git_sha = _short_sha(os.getenv("VERCEL_GIT_COMMIT_SHA") or os.getenv("TRADINGAGENTS_DEPLOYMENT_SHA"))
+    deployment_id = _non_empty_env("VERCEL_DEPLOYMENT_ID")
+    vercel_url = _non_empty_env("VERCEL_URL")
+    trace_source, trace_id = _deployment_trace(
+        git_sha=git_sha,
+        deployment_id=deployment_id,
+        vercel_url=vercel_url,
+    )
     return {
-        "vercel_env": os.getenv("VERCEL_ENV"),
-        "git_ref": os.getenv("VERCEL_GIT_COMMIT_REF"),
-        "git_sha": _short_sha(os.getenv("VERCEL_GIT_COMMIT_SHA")),
-        "vercel_url": os.getenv("VERCEL_URL"),
+        "vercel_env": _non_empty_env("VERCEL_ENV"),
+        "target_env": _non_empty_env("VERCEL_TARGET_ENV"),
+        "git_ref": _non_empty_env("VERCEL_GIT_COMMIT_REF") or _non_empty_env("TRADINGAGENTS_DEPLOYMENT_REF"),
+        "git_sha": git_sha,
+        "deployment_id": deployment_id,
+        "vercel_url": vercel_url,
+        "production_url": _non_empty_env("VERCEL_PROJECT_PRODUCTION_URL"),
+        "region": _non_empty_env("VERCEL_REGION"),
+        "trace_source": trace_source,
+        "trace_id": trace_id,
     }
+
+
+def _deployment_trace(
+    *,
+    git_sha: str | None,
+    deployment_id: str | None,
+    vercel_url: str | None,
+) -> tuple[str | None, str | None]:
+    if git_sha:
+        return "git_sha", git_sha
+    if deployment_id:
+        return "deployment_id", deployment_id
+    if vercel_url:
+        return "vercel_url", vercel_url
+    return None, None
+
+
+def _non_empty_env(name: str) -> str | None:
+    value = os.getenv(name)
+    if not value:
+        return None
+    value = value.strip()
+    return value or None
 
 
 def _short_sha(value: str | None) -> str | None:
