@@ -1920,8 +1920,8 @@ def _chart_source_rows(chart: dict[str, Any], points: list[dict[str, Any]]) -> l
         ("출처", str(chart.get("data_source_label") or _chart_vendor_label(chart.get("vendor")))),
         ("신선도", f"{chart.get('end_date') or '-'} 기준"),
         ("범위", f"{point_count}거래일"),
-        ("vendor", f"요청 {requested} / 응답 {resolved}"),
-        ("fallback", f"auto→{resolved} 사용" if chart.get("fallback_used") else "없음"),
+        ("데이터 벤더", f"요청 {requested} / 응답 {resolved}"),
+        ("대체 경로", f"auto 요청에서 {resolved} 사용" if chart.get("fallback_used") else "없음"),
     ]
 
 
@@ -2863,7 +2863,7 @@ def _analysis_detail_provenance(model: dict[str, Any]) -> str:
     cells = [
         ("데이터 기준일", model["trade_date"], model["timestamp_label"]),
         ("데이터 출처", "KRX/DART/Naver", "시세, 공시, 뉴스 adapter 기반. 장애와 누락은 JSON/본문 기준으로 확인합니다."),
-        ("Agent coverage", model["analyst_label"], "metadata_json.selected_analysts 기준"),
+        ("Agent 범위", model["analyst_label"], "metadata_json.selected_analysts 기준"),
         ("모델", model["model_label"], model["metadata_note"]),
         ("성과 검증", model["completed_outcome_label"], f"평균 알파 {model['average_alpha_label']}"),
         ("공개 Run ID", model["run_id"], "JSON 원문과 HTML 리포트가 같은 id를 공유"),

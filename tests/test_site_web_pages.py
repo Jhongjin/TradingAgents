@@ -146,8 +146,10 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "pykrx / 2개 거래일 / auto→pykrx 사용" in html
     assert "차트 데이터 출처" in html
     assert "2026-05-05 기준" in html
+    assert "<dt>데이터 벤더</dt>" in html
     assert "요청 auto / 응답 pykrx" in html
-    assert "<dd>auto→pykrx 사용</dd>" in html
+    assert "<dt>대체 경로</dt>" in html
+    assert "<dd>auto 요청에서 pykrx 사용</dd>" in html
     assert "공개 분석 출처" in html
     assert "공개 run 00000000" in html
     assert "최신 (fresh / 0일 경과)" in html
@@ -842,7 +844,7 @@ def test_render_public_analysis_detail_page_shows_report_context():
     assert "데이터 기준일" in html
     assert "데이터 출처" in html
     assert "KRX/DART/Naver" in html
-    assert "Agent coverage" in html
+    assert "Agent 범위" in html
     assert "market, news, fundamentals" in html
     assert "source trading_graph / currency KRW / language ko-KR" in html
     assert "휴장, vendor 장애, 누락 데이터, 모델 오류 가능성" in html
