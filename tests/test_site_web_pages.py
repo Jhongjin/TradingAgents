@@ -143,15 +143,15 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert 'href="/member#analysis-request-section"' in html
     assert "1개월" in html
     assert "KRX 14D" in html
-    assert "pykrx / 2개 거래일 / auto→pykrx 사용" in html
+    assert "pykrx / 2개 거래일 / auto 요청에서 pykrx 사용" in html
     assert "차트 데이터 출처" in html
     assert "2026-05-05 기준" in html
-    assert "<dt>데이터 벤더</dt>" in html
+    assert "<dt>데이터 제공처</dt>" in html
     assert "요청 auto / 응답 pykrx" in html
     assert "<dt>대체 경로</dt>" in html
     assert "<dd>auto 요청에서 pykrx 사용</dd>" in html
     assert "공개 분석 출처" in html
-    assert "공개 run 00000000" in html
+    assert "공개 분석 00000000" in html
     assert "최신 (fresh / 0일 경과)" in html
     assert "분석 신뢰도" in html
     assert "근거 충분" in html
@@ -164,7 +164,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "한국형 투자 렌즈" in html
     assert "안전 가드레일" in html
     assert "사후 성과 검증" in html
-    assert "benchmark alpha +3.00%" in html
+    assert "벤치마크 대비 알파 +3.00%" in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html
     assert 'type="application/ld+json"' in html
@@ -233,13 +233,15 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "TradingAgents Korea" in html
     assert "한국 주식 AI 분석" in html
     assert "최근 공개 분석" in html
-    assert "한국 투자자를 위한 AI 리서치 신호망" in html
-    assert "KR Market Signal Desk" in html
+    assert "한국 주식 분석을 한곳에서 확인하세요" in html
+    assert "한국 주식 AI 리서치 / 주문 없는 읽기 전용 서비스" in html
+    assert "처음 방문해도 바로 쓸 수 있는 세 가지 흐름" in html
+    assert "가입하고 내 투자 노트 만들기" in html
     assert "home-trust-panel" in html
     assert "공식·공개 데이터" in html
     assert "실거래 주문 기능 차단" in html
-    assert "5D / 20D outcome" in html
-    assert "KRX SIGNAL" in html
+    assert "5일/20일 성과 검증" in html
+    assert "KRX 신호" in html
     assert "homeSignalCanvas" in html
     assert "homeSignalTicker" in html
     assert "homeSignalDecision" in html
@@ -254,7 +256,8 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert 'href="/mypage"' in html
     assert 'data-auth-visible="signed-out"' in html
     assert 'data-auth-visible="signed-in" hidden' in html
-    assert "Analysis Lenses" in html
+    assert "분석 흐름" in html
+    assert "home-service-map" in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html
     assert "/stocks/005930" in html
@@ -287,10 +290,10 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'id="member-home-section"' in html
     assert "마이페이지 홈" in html
     assert "member-home-grid" in html
-    assert "운영 콘솔" in html
-    assert "member-admin-card" in html
+    assert "공개 리포트 확인" in html
+    assert "member-report-card" in html
     assert 'class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>' in html
-    assert 'href="/admin">운영 콘솔 열기</a>' in html
+    assert 'href="/analyses">분석 목록 열기</a>' in html
     assert 'data-member-jump="portfolio"' in html
     assert 'data-member-tab="portfolio"' in html
     assert 'aria-selected="true"' in html
@@ -318,6 +321,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "/api/member/dashboard?include_latest_prices=true" in html
     assert 'id="targetForm"' in html
     assert "/targets/${encodeURIComponent(tickerCode)}" in html
+    assert 'options.method || "POST"' in html
+    assert '{ method: "PUT" }' in html
     assert 'name="target_price"' in html
     assert 'name="stop_price"' in html
     assert 'name="fee"' in html
@@ -336,8 +341,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'method: "DELETE"' in html
     assert "analysisRequestSummary" in html
     assert "status_label" in html
-    assert "worker 처리 대기 중" in html
-    assert "worker 큐 상태, 제한 사용량, 완료 리포트 연결" in html
+    assert "분석 처리 대기 중" in html
+    assert "요청 상태, 하루 요청 가능 횟수, 완료 리포트 연결" in html
     assert "analysis-queue-overview" in html
     assert "analysis-queue-meters" in html
     assert "quota_policy" in html
@@ -363,6 +368,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'type="button" data-auth-action="signup"' in html
     assert "가입하려면 이메일과 비밀번호를 입력한 뒤 가입하기를 선택하세요." in html
     assert "requestedAuthMode" in html
+    assert "requestedMemberTab" in html
+    assert 'url.searchParams.set("tab", tab)' in html
     assert "auth-suggested" in html
     assert "shouldSkipInitialLoad" in html
     assert 'href="/member?mode=signup"' in html
@@ -383,7 +390,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "safeMemberApi" in html
     assert "member-sublist" in html
     assert "window.history.replaceState" in html
-    assert 'throw new Error("Supabase 공개 Auth 설정 대기 중")' in html
+    assert 'throw new Error("Supabase 공개 인증 설정 대기 중")' in html
     assert '"Authorization": `Bearer ${config.supabase_anon_key}`' in html
     assert '"configured":true' in html
     assert "anon-key" in html
@@ -399,7 +406,7 @@ def test_render_feature_detail_pages_use_public_theme():
 
     assert "KRX부터 공개 리포트까지 한 화면에 연결" in html
     assert "feature-diagram" in html
-    assert "Loading Boundary" in html
+    assert "로딩 경계" in html
     assert "페이지 목적에 맞는 데이터만 요청합니다" in html
     assert "color: var(--home-readable, rgba(246, 243, 232, 0.84));" in html
     assert 'href="/features/member-workspace">회원 기능 보기</a>' in html
@@ -413,7 +420,7 @@ def test_render_feature_detail_pages_use_public_theme():
     assert "/api/member/dashboard" not in outcomes_html
     assert "데이터 출처와 한계를 함께 공개합니다" in methodology_html
     assert "KRX / DART / Naver" in methodology_html
-    assert "주문 placement는 구현하지 않습니다" in methodology_html
+    assert "주문 기능은 구현하지 않습니다" in methodology_html
     assert 'href="/features/outcomes">사후 검증 보기</a>' in methodology_html
     assert '<link rel="canonical" href="https://example.com/features/methodology">' in methodology_html
     assert "/api/member/dashboard" not in methodology_html
@@ -442,7 +449,7 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     assert "deploymentTraceLabel" in html
     assert "배포 식별자 없음" in html
     assert "신뢰 헤더" in html
-    assert "Vendor 응답 점검" in html
+    assert "외부 데이터 응답 점검" in html
     assert "사이트 URL" in html
     assert "AdSense 키가 준비되기 전까지는 운영 보류 항목입니다." in html
     assert "probe_vendors" in html
@@ -608,8 +615,8 @@ def test_render_policy_pages_use_public_theme():
         assert heading in html
         assert "policy-card-grid" in html
         assert "policy-callout-grid" in html
-        assert "READ-ONLY" in html
-        assert "실거래 주문 기능을 제공하지 않는 read-only AI research platform" in html
+        assert "주문 없음" in html
+        assert "실거래 주문 기능을 제공하지 않는 읽기 전용 AI 리서치 플랫폼" in html
         assert f'<link rel="canonical" href="https://example.com{path}">' in html
         assert 'href="/features/methodology"' in html
         assert 'href="/mypage"' in html
@@ -676,7 +683,7 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "공개 분석 목록" in html
     assert "삼성전자" in html
     assert "공개 분석 커버리지 요약" in html
-    assert "Public Track Record" in html
+    assert "공개 검증 기록" in html
     assert "성과 검증 스냅샷" in html
     assert "알파 우위" in html
     assert "완료 리포트" in html
@@ -745,7 +752,7 @@ def test_render_public_outcomes_page_shows_public_track_record():
     assert 'class="public-home market-page outcome-page"' in html
     assert "성과 검증" in html
     assert "대시보드" in html
-    assert "Outcome Track Record" in html
+    assert "검증 기록" in html
     assert "outcome-filter-panel" in html
     assert "outcome-cadence-strip" in html
     assert "outcome-feed-card" in html
@@ -753,7 +760,7 @@ def test_render_public_outcomes_page_shows_public_track_record():
     assert "평균 알파" in html
     assert "+3.00%" in html
     assert "알파 우위" in html
-    assert '<dt>Alpha</dt><dd>+3.00%</dd>' in html
+    assert '<dt>알파</dt><dd>+3.00%</dd>' in html
     assert f'href="/analyses/{run_id}">리포트</a>' in html
     assert 'href="/stocks/005930">종목</a>' in html
     assert "/api/analysis-outcomes" in html
@@ -836,7 +843,7 @@ def test_render_public_analysis_detail_page_shows_report_context():
     assert "analysis-detail-map" in html
     assert "analysis-detail-meta-strip" in html
     assert "투자 조언 아님" in html
-    assert "Read-only 리서치" in html
+    assert "주문 없는 리서치" in html
     assert "리포트 읽기 순서" in html
     assert 'href="#analysis-reports"' in html
     assert 'id="analysis-decision"' in html
@@ -844,16 +851,16 @@ def test_render_public_analysis_detail_page_shows_report_context():
     assert "데이터 기준일" in html
     assert "데이터 출처" in html
     assert "KRX/DART/Naver" in html
-    assert "Agent 범위" in html
+    assert "에이전트 범위" in html
     assert "market, news, fundamentals" in html
-    assert "source trading_graph / currency KRW / language ko-KR" in html
-    assert "휴장, vendor 장애, 누락 데이터, 모델 오류 가능성" in html
+    assert "생성 경로 trading_graph / 통화 KRW / 언어 ko-KR" in html
+    assert "휴장, 제공처 장애, 누락 데이터, 모델 오류 가능성" in html
     assert "판단 체크포인트" in html
     assert "Market report" in html
     assert "근거 점검" in html
     assert "analysis-detail-report-body" in html
     assert "Ticker anchor" in html
-    assert "Outcome Track Record" in html
+    assert "성과 검증 기록" in html
     assert f'href="/api/analyses/{run_id}">JSON</a>' in html
     assert f'<link rel="canonical" href="https://example.com/analyses/{run_id}">' in html
     assert 'id="analysis-detail-payload"' in html
