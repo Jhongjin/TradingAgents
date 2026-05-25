@@ -1522,7 +1522,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
 
     model = {
         "title": "회원 대시보드 | TradingAgents Korea",
-        "description": "수동 포트폴리오, 관심목록, 한국 주식 AI 분석 요청을 관리합니다.",
+        "description": "수동 포트폴리오, 관심종목, 한국 주식 리서치 요청을 관리합니다.",
         "canonical_url": canonical_url(canonical_path, site_base_url=site_base_url),
     }
     config_json = _script_json(_public_supabase_config())
@@ -1568,8 +1568,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
     <section class="member-auth-landing" id="memberAuthLanding" aria-labelledby="member-auth-title">
       <div class="member-auth-copy">
         <p class="eyebrow">회원 전용 공간</p>
-        <h1 id="member-auth-title">리서치 노트를 안전하게 보관하세요</h1>
-        <p class="member-auth-lead">회원 작업공간은 로그인 후에만 열립니다. 가입하면 수동 포트폴리오와 관심종목을 저장하고, 보고 싶은 종목의 AI 분석을 요청할 수 있습니다. TradingAgents Korea는 계좌 주문을 실행하지 않습니다.</p>
+        <h1 id="member-auth-title">리서치 기록을 내 공간에 보관하세요</h1>
+        <p class="member-auth-lead">회원 작업공간은 로그인 후에만 열립니다. 가입하면 수동 포트폴리오와 관심종목을 저장하고, 더 살펴보고 싶은 종목의 리서치 요청을 남길 수 있습니다. TradingAgents Korea는 계좌 주문을 실행하지 않습니다.</p>
         <div class="member-auth-points" aria-label="회원 영역 원칙">
           <article>
             <span>01</span>
@@ -1624,6 +1624,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <p class="eyebrow">회원 작업공간</p>
           <h1 id="member-title">내 투자 노트</h1>
           <p class="asof" id="memberStatus">로그인 상태 확인 중</p>
+          <p class="member-workspace-lede">종목을 저장하고, 매매 기록은 직접 남기고, 필요한 리서치만 요청합니다. 주문 기능은 열리지 않습니다.</p>
         </div>
         <div class="member-signed-in" id="memberSignedIn" hidden>
           <span class="status-pill" id="memberSignedInState">대시보드 확인 중</span>
@@ -1642,7 +1643,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <a id="home-tab" class="is-active" href="#member-home-section" role="tab" data-member-tab="home" aria-controls="member-home-section" aria-selected="true">홈 <span id="memberHomeStatus">준비됨</span></a>
         <a id="portfolio-tab" href="#portfolio-section" role="tab" data-member-tab="portfolio" aria-controls="portfolio-section" aria-selected="false">포트폴리오 <span id="portfolioTabCount">0</span></a>
         <a id="watchlist-tab" href="#watchlist-section" role="tab" data-member-tab="watchlist" aria-controls="watchlist-section" aria-selected="false">관심종목 <span id="watchlistTabCount">0</span></a>
-        <a id="analysis-tab" href="#analysis-request-section" role="tab" data-member-tab="analysis" aria-controls="analysis-request-section" aria-selected="false">분석 요청 <span id="analysisTabCount">0</span></a>
+        <a id="analysis-tab" href="#analysis-request-section" role="tab" data-member-tab="analysis" aria-controls="analysis-request-section" aria-selected="false">리서치 요청 <span id="analysisTabCount">0</span></a>
       </nav>
 
       <section class="member-grid" aria-label="회원 기능">
@@ -1651,7 +1652,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <div>
               <p class="eyebrow">마이페이지</p>
               <h2>마이페이지 홈</h2>
-              <p class="panel-copy">내 기록, 관심종목, 분석 요청 상태를 먼저 보고 필요한 작업만 각 탭에서 이어갑니다.</p>
+              <p class="panel-copy">처음이라면 포트폴리오 이름을 만들고, 자주 보는 종목을 관심목록에 담은 뒤, 더 확인할 종목만 리서치 요청으로 넘기세요.</p>
             </div>
             <span class="status-pill">읽기 전용</span>
           </div>
@@ -1680,32 +1681,32 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <div class="member-home-grid" aria-label="다음 작업">
             <article class="member-home-card">
               <span>01</span>
-              <strong>거래 기록 정리</strong>
-              <small>매수·매도 내역, 수수료, 세금, 목표가를 수동으로 남깁니다.</small>
-              <button class="ghost-button" type="button" data-member-jump="portfolio">포트폴리오 열기</button>
-            </article>
-            <article class="member-home-card">
-              <span>02</span>
               <strong>관심종목 점검</strong>
               <small>추적할 한국 종목을 묶고 메모와 현재가 상태를 같이 봅니다.</small>
               <button class="ghost-button" type="button" data-member-jump="watchlist">관심종목 열기</button>
             </article>
             <article class="member-home-card">
-              <span>03</span>
-              <strong>AI 분석 요청</strong>
+              <span>02</span>
+              <strong>리서치 요청</strong>
               <small>요청 가능 횟수, 처리 상태, 완료 리포트 연결 상태를 확인합니다.</small>
-              <button class="ghost-button" type="button" data-member-jump="analysis">분석 요청 열기</button>
+              <button class="ghost-button" type="button" data-member-jump="analysis">리서치 요청 열기</button>
             </article>
             <article class="member-home-card member-report-card">
-              <span>04</span>
+              <span>03</span>
               <strong>공개 리포트 확인</strong>
               <small>요청한 분석이 완료되면 공개 분석 목록과 종목 페이지에서 리포트를 확인합니다.</small>
               <a class="ghost-button member-report-link" href="/analyses">분석 목록 열기</a>
             </article>
-            <article class="member-home-card member-admin-card">
+            <article class="member-home-card">
+              <span>04</span>
+              <strong>포트폴리오 기록</strong>
+              <small>매수·매도 내역, 수수료, 세금, 목표가를 주문 연결 없이 수동으로 남깁니다.</small>
+              <button class="ghost-button" type="button" data-member-jump="portfolio">포트폴리오 열기</button>
+            </article>
+            <article class="member-home-card member-admin-card" data-admin-token-visible hidden>
               <span>05</span>
               <strong>운영 콘솔</strong>
-              <small>작업자 토큰이 있는 운영자만 서비스 상태와 처리 대기열을 점검합니다.</small>
+              <small>운영자는 worker token을 입력한 브라우저에서 상태와 처리 대기열을 점검합니다.</small>
               <a class="ghost-button member-admin-link" href="/admin">운영 콘솔 열기</a>
             </article>
           </div>
@@ -1715,7 +1716,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <div class="panel-heading">
             <div>
               <p class="eyebrow">수동 포트폴리오</p>
-              <h2>수동 매수 기록</h2>
+              <h2>포트폴리오 기록</h2>
+              <p class="panel-copy">거래소 주문과 연결되지 않는 개인 기록입니다. 매수·매도 내역과 목표가 메모를 직접 남깁니다.</p>
             </div>
             <button class="ghost-button" id="refreshMemberData" type="button">새로고침</button>
           </div>
@@ -1796,8 +1798,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <section class="member-panel" id="analysis-request-section" role="tabpanel" data-member-panel="analysis" aria-labelledby="analysis-tab" hidden>
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">AI 분석 요청</p>
-              <h2>분석 요청</h2>
+              <p class="eyebrow">리서치 요청</p>
+              <h2>새 리서치 요청</h2>
               <p class="panel-copy">요청 상태, 하루 요청 가능 횟수, 완료 리포트 연결을 한 곳에서 확인합니다.</p>
             </div>
             <span class="status-pill">요청 대기열</span>
@@ -1806,7 +1808,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <form class="member-form compact-form" id="analysisRequestForm">
             <input name="ticker" list="memberTickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" aria-label="분석 요청 종목코드 또는 종목명" autocomplete="off" data-member-ticker-lookup required>
             <input name="requested_trade_date" type="date" aria-label="분석 기준일">
-            <input name="reason" maxlength="500" placeholder="요청 메모" aria-label="요청 메모">
+            <input name="reason" maxlength="500" placeholder="궁금한 점 메모" aria-label="요청 메모">
             <button type="submit">요청</button>
           </form>
           <div class="member-list" id="analysisRequestList"></div>
@@ -5867,6 +5869,14 @@ h3 {
   align-items: stretch;
 }
 
+.member-workspace-lede {
+  max-width: 620px;
+  margin: 12px 0 0;
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
+  font-size: 14px;
+  line-height: 1.55;
+}
+
 .member-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -6067,6 +6077,15 @@ h3 {
 .member-page .member-form input::placeholder,
 .member-page .member-action-item input::placeholder {
   color: rgba(246, 243, 232, 0.42);
+}
+
+.member-form input:disabled,
+.member-form select:disabled,
+.member-form button:disabled,
+.member-action-item input:disabled,
+.member-action-item button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .password-row {
@@ -6487,6 +6506,29 @@ h3 {
   padding: 12px;
   border: 1px dashed var(--line);
   border-radius: 8px;
+}
+
+.member-empty-action {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px dashed rgba(215, 255, 63, 0.34);
+  border-radius: 8px;
+  background: rgba(215, 255, 63, 0.045);
+}
+
+.member-empty-action strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.member-empty-action small {
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
+  line-height: 1.55;
+}
+
+.member-empty-action .ghost-button {
+  justify-self: start;
 }
 
 .member-error {
@@ -9667,7 +9709,8 @@ PAGE_JS = """
       memberStorageGet(memberAccessTokenKey)
       || memberStorageGet(memberRefreshTokenKey)
     );
-    const adminVisible = Boolean(memberStorageGet("tradingagents.admin.worker_token"))
+    const adminVisible = signedIn
+      || Boolean(memberStorageGet("tradingagents.admin.worker_token"))
       || window.location.pathname === "/admin";
     document.querySelectorAll('[data-auth-visible="signed-out"]').forEach((node) => {
       node.hidden = signedIn;
@@ -10750,6 +10793,7 @@ MEMBER_PAGE_JS = """
   const signedOutNavItems = Array.from(document.querySelectorAll('[data-auth-visible="signed-out"]'));
   const signedInNavItems = Array.from(document.querySelectorAll('[data-auth-visible="signed-in"]'));
   const adminNavItems = Array.from(document.querySelectorAll('[data-auth-visible="admin"]'));
+  const adminTokenItems = Array.from(document.querySelectorAll("[data-admin-token-visible]"));
   const sessionKeys = [accessTokenKey, refreshTokenKey, expiresAtKey, userEmailKey, userIdKey];
 
   function storageAreaGet(area, key) {
@@ -10915,6 +10959,9 @@ MEMBER_PAGE_JS = """
       node.hidden = !signedIn;
     });
     adminNavItems.forEach((node) => {
+      node.hidden = !(signedIn || storageGet("tradingagents.admin.worker_token") || window.location.pathname === "/admin");
+    });
+    adminTokenItems.forEach((node) => {
       node.hidden = !storageGet("tradingagents.admin.worker_token");
     });
     syncMemberTopNavigationState(signedIn);
@@ -11254,6 +11301,28 @@ MEMBER_PAGE_JS = """
     node.className = "member-empty";
     node.textContent = message;
     return node;
+  }
+
+  function emptyActionNode(title, message, actionLabel = "", onAction = null) {
+    const node = document.createElement("div");
+    node.className = "member-empty-action";
+    const strong = document.createElement("strong");
+    const small = document.createElement("small");
+    strong.textContent = title;
+    small.textContent = message;
+    node.append(strong, small);
+    if (actionLabel && typeof onAction === "function") {
+      const button = smallButton(actionLabel);
+      button.addEventListener("click", onAction);
+      node.append(button);
+    }
+    return node;
+  }
+
+  function focusField(form, name) {
+    const input = form?.elements?.[name];
+    if (!input) return;
+    input.focus({ preventScroll: false });
   }
 
   function money(value) {
@@ -11633,6 +11702,13 @@ MEMBER_PAGE_JS = """
     }));
   }
 
+  function setFormControlsDisabled(form, disabled) {
+    if (!form) return;
+    Array.from(form.elements || []).forEach((control) => {
+      control.disabled = Boolean(disabled);
+    });
+  }
+
   function fillPortfolioSelects(rows) {
     fillSelect(portfolioSelect, rows, "name", "포트폴리오를 먼저 추가하세요");
     fillSelect(targetPortfolioSelect, rows, "name", "포트폴리오를 먼저 추가하세요");
@@ -11641,26 +11717,46 @@ MEMBER_PAGE_JS = """
   function renderPortfolios(payload, details = {}, error = "") {
     if (error) {
       fillPortfolioSelects([]);
+      setFormControlsDisabled(tradeForm, true);
+      setFormControlsDisabled(targetForm, true);
       portfolioList.replaceChildren(emptyNode(`포트폴리오를 불러오지 못했습니다: ${error}`));
       return;
     }
     const rows = payload.items || [];
     fillPortfolioSelects(rows);
+    setFormControlsDisabled(tradeForm, !rows.length);
+    setFormControlsDisabled(targetForm, !rows.length);
     portfolioList.replaceChildren(
-      ...(rows.length ? rows.map((row) => portfolioCard(row, details[row.id])) : [emptyNode("저장된 포트폴리오가 없습니다")])
+      ...(rows.length ? rows.map((row) => portfolioCard(row, details[row.id])) : [
+        emptyActionNode(
+          "포트폴리오를 먼저 만들어 보세요",
+          "이름을 만들면 매수·매도 기록과 목표가 메모를 한곳에 묶어 볼 수 있습니다.",
+          "포트폴리오 이름 입력",
+          () => focusField(portfolioForm, "name")
+        )
+      ])
     );
   }
 
   function renderWatchlists(payload, details = {}, error = "") {
     if (error) {
       fillSelect(watchlistSelect, [], "name");
+      setFormControlsDisabled(watchlistItemForm, true);
       watchlistList.replaceChildren(emptyNode(`관심목록을 불러오지 못했습니다: ${error}`));
       return;
     }
     const rows = payload.items || [];
     fillSelect(watchlistSelect, rows, "name", "관심목록을 먼저 추가하세요");
+    setFormControlsDisabled(watchlistItemForm, !rows.length);
     watchlistList.replaceChildren(
-      ...(rows.length ? rows.map((row) => watchlistCard(row, details[row.id])) : [emptyNode("저장된 관심목록이 없습니다")])
+      ...(rows.length ? rows.map((row) => watchlistCard(row, details[row.id])) : [
+        emptyActionNode(
+          "관심목록을 만들어 보세요",
+          "자주 보는 종목을 산업, 전략, 점검 주제별로 묶어두면 현재가와 메모를 같이 확인할 수 있습니다.",
+          "관심목록 이름 입력",
+          () => focusField(watchlistForm, "name")
+        )
+      ])
     );
   }
 
@@ -11672,7 +11768,14 @@ MEMBER_PAGE_JS = """
     const rows = payload.items || [];
     analysisRequestList.replaceChildren(
       analysisRequestSummary(payload.summary),
-      ...(rows.length ? rows.map((row) => analysisRequestCard(row)) : [emptyNode("분석 요청 내역이 없습니다")])
+      ...(rows.length ? rows.map((row) => analysisRequestCard(row)) : [
+        emptyActionNode(
+          "아직 리서치 요청이 없습니다",
+          "종목명이나 6자리 코드만 입력하면 대기열에 등록됩니다. 완료되면 공개 분석과 종목 페이지에서 확인할 수 있습니다.",
+          "요청 종목 입력",
+          () => focusField(analysisRequestForm, "ticker")
+        )
+      ])
     );
   }
 
@@ -11921,6 +12024,9 @@ MEMBER_PAGE_JS = """
     clearSession();
     fillPortfolioSelects([]);
     fillSelect(watchlistSelect, [], "name");
+    setFormControlsDisabled(tradeForm, true);
+    setFormControlsDisabled(targetForm, true);
+    setFormControlsDisabled(watchlistItemForm, true);
     portfolioList?.replaceChildren(emptyNode("로그인 후 포트폴리오가 표시됩니다"));
     watchlistList?.replaceChildren(emptyNode("로그인 후 관심목록이 표시됩니다"));
     analysisRequestList?.replaceChildren(emptyNode("로그인 후 분석 요청이 표시됩니다"));

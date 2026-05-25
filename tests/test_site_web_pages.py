@@ -293,9 +293,10 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
 
     html = render_member_dashboard_page(site_base_url="https://example.com")
 
-    assert "리서치 노트를 안전하게 보관하세요" in html
+    assert "리서치 기록을 내 공간에 보관하세요" in html
     assert "회원 작업공간은 로그인 후에만 열립니다" in html
     assert "내 투자 노트" in html
+    assert "필요한 리서치만 요청합니다" in html
     assert "memberSessionGate" in html
     assert "세션을 확인하고 있습니다" in html
     assert "세션 확인" in html
@@ -309,9 +310,12 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "공개 리포트 확인" in html
     assert "member-report-card" in html
     assert "member-admin-card" in html
+    assert "data-admin-token-visible hidden" in html
+    assert "adminTokenItems" in html
     assert "운영 콘솔 열기" in html
     assert 'class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>' in html
     assert 'storageGet("tradingagents.admin.worker_token")' in html
+    assert 'node.hidden = !(signedIn || storageGet("tradingagents.admin.worker_token")' in html
     assert 'href="/analyses">분석 목록 열기</a>' in html
     assert 'data-member-jump="portfolio"' in html
     assert 'data-member-tab="portfolio"' in html
@@ -361,6 +365,10 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "watchlistActionList" in html
     assert "portfolioCard" in html
     assert "watchlistCard" in html
+    assert "member-empty-action" in html
+    assert "emptyActionNode" in html
+    assert "setFormControlsDisabled" in html
+    assert "포트폴리오를 먼저 만들어 보세요" in html
     assert "member-metric-grid" in html
     assert "member-action-item" in html
     assert "public_stock_path" in html
@@ -369,6 +377,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "analysisRequestSummary" in html
     assert "status_label" in html
     assert "분석 처리 대기 중" in html
+    assert "리서치 요청" in html
+    assert "새 리서치 요청" in html
     assert "요청 상태, 하루 요청 가능 횟수, 완료 리포트 연결" in html
     assert "종목명이나 6자리 코드만 입력하면 가장 최근 기준일로 요청합니다" in html
     assert "analysis-queue-overview" in html
