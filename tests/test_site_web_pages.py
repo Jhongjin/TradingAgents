@@ -246,6 +246,7 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "가입하기" in html
     assert 'href="/member?mode=signup"' in html
     assert 'href="/features/research"' in html
+    assert 'href="/outcomes">성과</a>' in html
     assert 'href="/mypage"' in html
     assert 'data-auth-visible="signed-out"' in html
     assert 'data-auth-visible="signed-in" hidden' in html
@@ -302,6 +303,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'data-auth-visible="signed-out"' in html
     assert 'data-auth-visible="signed-in" hidden' in html
     assert 'href="/features/research"' in html
+    assert 'href="/outcomes">성과</a>' in html
     assert 'href="/mypage"' in html
     assert 'href="/stocks/005930">삼성전자</a>' not in html
     assert "/api/portfolios" in html
@@ -392,6 +394,7 @@ def test_render_feature_detail_pages_use_public_theme():
     assert "페이지 목적에 맞는 데이터만 요청합니다" in html
     assert "color: var(--home-readable, rgba(246, 243, 232, 0.84));" in html
     assert 'href="/features/member-workspace">회원 기능 보기</a>' in html
+    assert 'href="/outcomes">성과</a>' in html
     assert '<link rel="canonical" href="https://example.com/features/research">' in html
     assert 'href="/mypage"' in html
     assert "/api/member/dashboard" not in html
@@ -412,6 +415,7 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
 
     assert "관리자 콘솔" in html
     assert 'aria-current="page">운영 콘솔</a>' in html
+    assert 'href="/outcomes">성과</a>' in html
     assert "admin-health-strip" in html
     assert "admin-workflow-strip" in html
     assert ".admin-health-strip small" in html
