@@ -175,9 +175,9 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "하락 파랑" in html
     assert "한국형 투자 렌즈" in html
     assert "안전 가드레일" in html
-    assert "사후 성과 검증" in html
-    assert "초과수익은 종목 수익률에서 벤치마크 수익률을 뺀 값입니다" in html
-    assert "벤치마크 대비 초과수익 +3.00%" in html
+    assert "리포트 이후 기록" in html
+    assert "벤치마크 차이는 종목 수익률에서 시장 기준 수익률을 뺀 값입니다" in html
+    assert "벤치마크 차이 +3.00%" in html
     assert "AI 리포트 본문" in html
     assert 'href="/analyses/00000000-0000-0000-0000-000000000010">전체 리포트 읽기</a>' in html
     assert 'href="/api/analyses/00000000-0000-0000-0000-000000000010">원문 데이터</a>' in html
@@ -261,7 +261,7 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "home-trust-panel" in html
     assert "공식·공개 데이터" in html
     assert "실거래 주문 기능 차단" in html
-    assert "5일/20일 성과 검증" in html
+    assert "5일/20일 사후 기록" in html
     assert "KRX 신호" in html
     assert "homeSignalCanvas" in html
     assert "homeSignalTicker" in html
@@ -496,7 +496,7 @@ def test_render_feature_detail_pages_use_public_theme():
     assert "/api/member/dashboard" not in member_html
     assert 'href="/features/methodology">신뢰 기준 보기</a>' in outcomes_html
     assert 'href="/outcomes">리포트 이후 기록 보기</a>' in outcomes_html
-    assert "사후 기록은 추천 성과가 아니라 리포트 품질 기록입니다" in outcomes_html
+    assert "사후 기록은 추천 결과가 아니라 리포트 품질 기록입니다" in outcomes_html
     assert "/api/member/dashboard" not in outcomes_html
     assert "어떤 데이터로 판단했는지 먼저 공개합니다" in methodology_html
     assert "KRX / DART / Naver" in methodology_html
