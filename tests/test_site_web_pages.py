@@ -177,6 +177,8 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "005930 또는 삼성전자" in html
     assert '<link rel="canonical" href="https://example.com/stocks/005930">' in html
     assert 'property="og:title"' in html
+    assert '<meta property="og:locale" content="ko_KR">' in html
+    assert '<meta name="twitter:card" content="summary">' in html
     assert '"code":"005930"' in html
     assert "71,800원" in html
 
@@ -257,6 +259,8 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert 'href="/stocks/005930">삼성전자</a>' not in html
     assert "/analyses" in html
     assert '<link rel="canonical" href="https://example.com/">' in html
+    assert '<meta property="og:locale" content="ko_KR">' in html
+    assert '<meta name="twitter:card" content="summary">' in html
     assert 'href="/disclaimer"' in html
     assert 'href="/terms"' in html
     assert 'href="/privacy"' in html

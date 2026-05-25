@@ -69,6 +69,8 @@ def render_public_stock_page(
   <meta name="description" content="{_h(model["description"])}">
   <link rel="canonical" href="{_h(model["canonical_url"])}">
   <meta property="og:type" content="website">
+  <meta property="og:locale" content="ko_KR">
+  <meta name="twitter:card" content="summary">
   <meta property="og:site_name" content="TradingAgents Korea">
   <meta property="og:title" content="{_h(model["title"])}">
   <meta property="og:description" content="{_h(model["description"])}">
@@ -231,6 +233,8 @@ def render_public_analysis_feed_page(
   <meta name="description" content="{_h(model["description"])}">
   <link rel="canonical" href="{_h(model["canonical_url"])}">
   <meta property="og:type" content="website">
+  <meta property="og:locale" content="ko_KR">
+  <meta name="twitter:card" content="summary">
   <meta property="og:site_name" content="TradingAgents Korea">
   <meta property="og:title" content="{_h(model["title"])}">
   <meta property="og:description" content="{_h(model["description"])}">
@@ -356,6 +360,8 @@ def render_public_outcomes_page(
   <meta name="description" content="{_h(model["description"])}">
   <link rel="canonical" href="{_h(model["canonical_url"])}">
   <meta property="og:type" content="website">
+  <meta property="og:locale" content="ko_KR">
+  <meta name="twitter:card" content="summary">
   <meta property="og:site_name" content="TradingAgents Korea">
   <meta property="og:title" content="{_h(model["title"])}">
   <meta property="og:description" content="{_h(model["description"])}">
@@ -474,6 +480,8 @@ def render_public_analysis_detail_page(
   <meta name="description" content="{_h(model["description"])}">
   <link rel="canonical" href="{_h(model["canonical_url"])}">
   <meta property="og:type" content="article">
+  <meta property="og:locale" content="ko_KR">
+  <meta name="twitter:card" content="summary">
   <meta property="og:site_name" content="TradingAgents Korea">
   <meta property="og:title" content="{_h(model["title"])}">
   <meta property="og:description" content="{_h(model["description"])}">
@@ -578,6 +586,8 @@ def render_public_home_page(
   <meta name="description" content="{_h(model["description"])}">
   <link rel="canonical" href="{_h(model["canonical_url"])}">
   <meta property="og:type" content="website">
+  <meta property="og:locale" content="ko_KR">
+  <meta name="twitter:card" content="summary">
   <meta property="og:site_name" content="TradingAgents Korea">
   <meta property="og:title" content="{_h(model["title"])}">
   <meta property="og:description" content="{_h(model["description"])}">
@@ -1066,6 +1076,8 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
   <meta name="description" content="{_h(page["description"])}">
   <link rel="canonical" href="{_h(canonical)}">
   <meta property="og:type" content="website">
+  <meta property="og:locale" content="ko_KR">
+  <meta name="twitter:card" content="summary">
   <meta property="og:site_name" content="TradingAgents Korea">
   <meta property="og:title" content="{_h(page["title"])}">
   <meta property="og:description" content="{_h(page["description"])}">
@@ -1176,6 +1188,8 @@ def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
   <meta name="description" content="{_h(page["description"])}">
   <link rel="canonical" href="{_h(canonical)}">
   <meta property="og:type" content="website">
+  <meta property="og:locale" content="ko_KR">
+  <meta name="twitter:card" content="summary">
   <meta property="og:site_name" content="TradingAgents Korea">
   <meta property="og:title" content="{_h(page["title"])}">
   <meta property="og:description" content="{_h(page["description"])}">
