@@ -149,7 +149,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "요청 auto / 응답 pykrx" in html
     assert "<dd>auto→pykrx 사용</dd>" in html
     assert "공개 분석 출처" in html
-    assert "public run 00000000" in html
+    assert "공개 run 00000000" in html
     assert "최신 (fresh / 0일 경과)" in html
     assert "분석 신뢰도" in html
     assert "근거 충분" in html
@@ -355,6 +355,9 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "로그인 세션이 만료되었습니다" in html
     assert 'aria-live="polite"' in html
     assert 'id="passwordToggle"' in html
+    assert "비밀번호 표시" in html
+    assert "비밀번호 숨김" in html
+    assert 'href="/admin"' in html
     assert 'type="button" data-auth-action="signup"' in html
     assert "가입하려면 이메일과 비밀번호를 입력한 뒤 가입하기를 선택하세요." in html
     assert "requestedAuthMode" in html
@@ -436,14 +439,16 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     assert "renderReadinessPanel" in html
     assert "deploymentTraceLabel" in html
     assert "배포 식별자 없음" in html
-    assert "Trust header" in html
-    assert "Vendor probes" in html
-    assert "Site URL" in html
-    assert "AdSense 승인 후 publisher id 또는 ads.txt 값을 설정하세요." in html
+    assert "신뢰 헤더" in html
+    assert "Vendor 응답 점검" in html
+    assert "사이트 URL" in html
+    assert "AdSense 키가 준비되기 전까지는 운영 보류 항목입니다." in html
     assert "probe_vendors" in html
     assert "vendor_probes" in html
     assert "quota headers" in html
-    assert "dry run 우선" in html
+    assert "미리 보기 우선" in html
+    assert "확인 후 실행" in html
+    assert 'data-admin-action$="process"][data-confirmed="true"]' in html
     assert '<meta name="robots" content="noindex,nofollow">' in html
     assert "adminWorkerToken" in html
     assert "X-TradingAgents-Worker-Token" in html
@@ -664,7 +669,7 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert 'class="public-home market-page analysis-page"' in html
     assert "analysis-filter-panel" in html
     assert "analysis-pipeline-strip" in html
-    assert "Stored Run" in html
+    assert "저장된 분석" in html
     assert 'id="analysisTicker"' in html
     assert "공개 분석 목록" in html
     assert "삼성전자" in html
@@ -827,20 +832,24 @@ def test_render_public_analysis_detail_page_shows_report_context():
     assert 'class="public-home market-page analysis-page analysis-detail-page"' in html
     assert "삼성전자 공개 분석 리포트" in html
     assert "analysis-detail-map" in html
+    assert "analysis-detail-meta-strip" in html
+    assert "투자 조언 아님" in html
+    assert "Read-only 리서치" in html
     assert "리포트 읽기 순서" in html
     assert 'href="#analysis-reports"' in html
     assert 'id="analysis-decision"' in html
     assert 'id="analysis-outcomes"' in html
     assert "데이터 기준일" in html
-    assert "데이터/vendor" in html
+    assert "데이터 출처" in html
     assert "KRX/DART/Naver" in html
     assert "Agent coverage" in html
     assert "market, news, fundamentals" in html
     assert "source trading_graph / currency KRW / language ko-KR" in html
     assert "휴장, vendor 장애, 누락 데이터, 모델 오류 가능성" in html
-    assert "Decision checkpoint" in html
+    assert "판단 체크포인트" in html
     assert "Market report" in html
     assert "근거 점검" in html
+    assert "analysis-detail-report-body" in html
     assert "Ticker anchor" in html
     assert "Outcome Track Record" in html
     assert f'href="/api/analyses/{run_id}">JSON</a>' in html

@@ -285,6 +285,18 @@ class StorageRepository:
         if limit <= 0:
             raise ValueError("limit must be positive")
 
+        stmt = self._public_analysis_runs_statement(ticker_code=ticker_code, status=status, limit=limit)
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+
+    def _public_analysis_runs_statement(
+        self,
+        *,
+        ticker_code: str | None = None,
+        status: str | None = "completed",
+        limit: int = 20,
+    ):
         stmt = (
             select(analysis_runs)
             .where(analysis_runs.c.visibility == "public")
@@ -296,9 +308,7 @@ class StorageRepository:
         if status:
             stmt = stmt.where(analysis_runs.c.status == status)
 
-        with self.engine.begin() as conn:
-            rows = conn.execute(stmt).mappings().all()
-        return [dict(row) for row in rows]
+        return stmt
 
     def list_public_analysis_feed_items(
         self,
@@ -313,12 +323,17 @@ class StorageRepository:
         card while preserving the fields the API and HTML feed need.
         """
 
-        runs = self.list_public_analysis_runs(ticker_code=ticker_code, status=status, limit=limit)
-        if not runs:
-            return []
+        if limit <= 0:
+            raise ValueError("limit must be positive")
 
-        run_ids = [str(run["id"]) for run in runs]
+        run_stmt = self._public_analysis_runs_statement(ticker_code=ticker_code, status=status, limit=limit)
         with self.engine.begin() as conn:
+            run_rows = conn.execute(run_stmt).mappings().all()
+            if not run_rows:
+                return []
+
+            runs = [dict(row) for row in run_rows]
+            run_ids = [str(run["id"]) for run in runs]
             report_count_rows = conn.execute(
                 select(
                     agent_reports.c.analysis_run_id,

@@ -274,19 +274,74 @@ def test_storage_repository_lists_public_analysis_feed_items_without_full_bundle
         )
     )
     repo.complete_analysis_run(run_id)
+    latest_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 6),
+            visibility="public",
+            model_provider="openai",
+        )
+    )
+    repo.add_agent_report(
+        AgentReportInput(
+            analysis_run_id=latest_id,
+            role="market",
+            content="latest market report",
+        )
+    )
+    repo.add_agent_report(
+        AgentReportInput(
+            analysis_run_id=latest_id,
+            role="news",
+            content="latest news report",
+        )
+    )
+    repo.record_trade_decision(
+        TradeDecisionInput(
+            analysis_run_id=latest_id,
+            rating="Buy",
+            action="buy",
+            raw_decision="Rating: Buy",
+        )
+    )
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=latest_id,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 6),
+            evaluated_at=date(2026, 6, 3),
+            horizon_days=20,
+            raw_return=0.05,
+            benchmark_return=0.02,
+            alpha_return=0.03,
+            status="completed",
+        )
+    )
+    repo.complete_analysis_run(latest_id)
 
     items = repo.list_public_analysis_feed_items(ticker_code="005930")
 
-    assert len(items) == 1
-    assert items[0]["id"] == run_id
-    assert items[0]["report_count"] == 1
-    assert items[0]["decision_rating"] == "Hold"
-    assert items[0]["decision_action"] == "hold"
-    assert items[0]["completed_outcome_count"] == 2
-    assert items[0]["outcome_horizon_days"] == 5
+    assert [item["id"] for item in items] == [latest_id, run_id]
+    assert items[0]["report_count"] == 2
+    assert items[0]["decision_rating"] == "Buy"
+    assert items[0]["decision_action"] == "buy"
+    assert items[0]["completed_outcome_count"] == 1
+    assert items[0]["outcome_horizon_days"] == 20
     assert items[0]["alpha_return"] == 0.03
-    assert items[0]["report_path"] == f"/analyses/{run_id}"
-    assert items[0]["api_path"] == f"/api/analyses/{run_id}"
+    assert items[0]["report_path"] == f"/analyses/{latest_id}"
+    assert items[0]["api_path"] == f"/api/analyses/{latest_id}"
+    assert items[1]["report_count"] == 1
+    assert items[1]["decision_rating"] == "Hold"
+    assert items[1]["decision_action"] == "hold"
+    assert items[1]["completed_outcome_count"] == 2
+    assert items[1]["outcome_horizon_days"] == 5
+    assert items[1]["alpha_return"] == 0.03
+    assert items[1]["report_path"] == f"/analyses/{run_id}"
+    assert items[1]["api_path"] == f"/api/analyses/{run_id}"
 
 
 def test_storage_repository_queues_analysis_refresh_requests():

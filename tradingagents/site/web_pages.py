@@ -281,23 +281,23 @@ def render_public_analysis_feed_page(
         <button type="submit">필터 적용</button>
         <a href="/analyses">전체 보기</a>
       </form>
-      <p>저장된 public run만 노출하며, 회원 포트폴리오나 개인 watchlist API는 호출하지 않습니다.</p>
+      <p>저장된 공개 분석 결과만 표시하며, 회원 포트폴리오나 개인 관심목록 API는 호출하지 않습니다.</p>
     </section>
 
     <section class="analysis-pipeline-strip" aria-label="공개 분석 공개 기준">
       <article>
         <span>01</span>
-        <strong>Stored Run</strong>
-        <small>완료된 public 분석만 목록에 노출합니다.</small>
+        <strong>저장된 분석</strong>
+        <small>완료된 공개 분석만 목록에 노출합니다.</small>
       </article>
       <article>
         <span>02</span>
-        <strong>Agent Evidence</strong>
+        <strong>에이전트 근거</strong>
         <small>에이전트 리포트와 판단 요약을 분리해 제공합니다.</small>
       </article>
       <article>
         <span>03</span>
-        <strong>Outcome Check</strong>
+        <strong>성과 검증</strong>
         <small>5일/20일 성과 검증이 연결되면 알파를 표시합니다.</small>
       </article>
     </section>
@@ -309,7 +309,7 @@ def render_public_analysis_feed_page(
     <section class="report-section" aria-labelledby="feed-list-title">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">Completed Runs</p>
+          <p class="eyebrow">COMPLETED RESEARCH</p>
           <h2 id="feed-list-title">최근 완료된 분석</h2>
         </div>
         <span class="status-pill">{_h(model["filter_label"])}</span>
@@ -321,8 +321,8 @@ def render_public_analysis_feed_page(
 
     <section class="notice-strip" aria-label="투자 유의사항">
       <ul>
-        <li>AI analysis is for informational purposes only and is not investment advice.</li>
-        <li>Live trading and broker order placement are intentionally not supported.</li>
+        <li>AI 분석은 정보 제공용이며 투자 조언이 아닙니다.</li>
+        <li>실거래와 브로커 주문 실행은 의도적으로 지원하지 않습니다.</li>
       </ul>
     </section>
   </main>
@@ -417,7 +417,7 @@ def render_public_outcomes_page(
         <button type="submit">필터 적용</button>
         <a href="/outcomes">초기화</a>
       </form>
-      <p>완료된 public run의 5일/20일 사후 성과만 공개합니다. 계좌 주문이나 브로커 실행 권한은 연결하지 않습니다.</p>
+      <p>완료된 공개 분석의 5일/20일 사후 성과만 공개합니다. 계좌 주문이나 브로커 실행 권한은 연결하지 않습니다.</p>
     </section>
 
     {summary_html}
@@ -512,17 +512,23 @@ def render_public_analysis_detail_page(
   <main id="main-content" class="shell market-shell">
     <section class="analysis-detail-hero" aria-labelledby="analysis-detail-title">
       <div>
-        <p class="eyebrow">Public Analysis Report</p>
+        <p class="eyebrow">PUBLIC RESEARCH FILE</p>
         <h1 id="analysis-detail-title">{_h(model["heading"])}</h1>
         <p class="asof">{_h(model["subtitle"])}</p>
+        <div class="analysis-detail-meta-strip" aria-label="리포트 기준">
+          <span>{_h(model["market"])}</span>
+          <span>{_h(model["ticker_code"])}</span>
+          <span>{_h(model["trade_date"])} 기준</span>
+          <span>Read-only 리서치</span>
+        </div>
         <div class="analysis-detail-actions">
           <a href="/stocks/{_h(model["ticker_code"])}">종목 페이지</a>
-          <a href="/analyses">목록</a>
+          <a href="/analyses">분석 목록</a>
           <a href="/api/analyses/{_h(model["run_id"])}">JSON</a>
         </div>
       </div>
       <aside class="decision-box analysis-detail-decision">
-        <span class="decision-label">투자 판단 아님</span>
+        <span class="decision-label">투자 조언 아님</span>
         <strong>{_h(model["decision_label"])}</strong>
         <span>{_h(model["data_basis"])}</span>
       </aside>
@@ -539,7 +545,7 @@ def render_public_analysis_detail_page(
     <section id="analysis-reports" class="report-section analysis-detail-reports" aria-labelledby="analysis-reports-title">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">Agent Reports</p>
+          <p class="eyebrow">AGENT REPORTS</p>
           <h2 id="analysis-reports-title">에이전트 리포트</h2>
         </div>
         <span class="status-pill">{_h(model["report_count_label"])}</span>
@@ -762,7 +768,7 @@ def render_public_home_page(
       </div>
       <ul>
         <li>실거래 주문 기능은 의도적으로 지원하지 않습니다.</li>
-        <li>AI analysis is informational and is not investment advice.</li>
+        <li>AI 분석은 정보 제공용이며 투자 조언이 아닙니다.</li>
         <li><a href="/features/methodology">데이터 출처와 한계</a>를 공개 방법론으로 분리해 설명합니다.</li>
         <li><a href="/disclaimer">투자 유의사항</a>, <a href="/terms">이용약관</a>, <a href="/privacy">개인정보처리방침</a>을 공개합니다.</li>
       </ul>
@@ -785,7 +791,7 @@ def render_public_home_page(
         <article>
           <span>02</span>
           <strong>관심종목</strong>
-          <p>한국 종목코드 기준으로 메모와 함께 watchlist를 관리합니다.</p>
+          <p>한국 종목코드 기준으로 메모와 함께 관심목록을 관리합니다.</p>
         </article>
         <article>
           <span>03</span>
@@ -811,11 +817,11 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "lead": "종목 상세 페이지는 가격, 공시, 뉴스, 에이전트 리포트, 사후 검증을 분리해 불러옵니다. 사용자가 종목을 조회할 때 필요한 공개 데이터만 조합하고 회원 전용 기록은 요청하지 않습니다.",
         "proof": (("공개 페이지", "종목·분석 피드"), ("데이터", "KRX / DART / Naver"), ("주문", "실거래 차단")),
         "cards": (
-            ("종목 조회", "6자리 한국 종목코드와 종목명 resolver로 KOSPI/KOSDAQ 종목을 찾습니다."),
-            ("차트 payload", "OHLCV 차트, 가격 상태, 데이터 vendor 표기를 종목 화면에만 전달합니다."),
-            ("공개 분석", "완료된 public 리포트와 판단, 모델, 리포트 수를 공개 피드와 연결합니다."),
+            ("종목 조회", "6자리 한국 종목코드와 종목명 검색으로 KOSPI/KOSDAQ 종목을 찾습니다."),
+            ("차트 데이터", "OHLCV 차트, 가격 상태, 데이터 vendor 표기를 종목 화면에만 전달합니다."),
+            ("공개 분석", "완료된 공개 리포트와 판단, 모델, 리포트 수를 공개 피드와 연결합니다."),
         ),
-        "steps": ("Ticker resolver", "KRX OHLCV", "DART disclosure", "Naver news", "Agents report"),
+        "steps": ("종목 검색", "KRX OHLCV", "DART 공시", "Naver 뉴스", "Agent 리포트"),
         "cta_label": "샘플 종목 보기",
         "cta_href": "/stocks/005930",
         "secondary_cta_label": "회원 기능 보기",
@@ -831,7 +837,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "proof": (("인증", "Supabase Auth"), ("저장", "사용자별 private API"), ("범위", "조회/기록 전용")),
         "cards": (
             ("수동 포트폴리오", "매수·매도 기록, 평균단가, 비용, 목표가, 손절가를 직접 관리합니다."),
-            ("관심목록", "한국 종목코드 기준 watchlist와 메모를 사용자별로 분리합니다."),
+            ("관심목록", "한국 종목코드 기준 관심목록과 메모를 사용자별로 분리합니다."),
             ("분석 요청 큐", "원하는 종목과 날짜를 큐에 넣고 처리 상태를 확인합니다."),
         ),
         "steps": ("Sign in", "Member dashboard", "Private records", "Request queue", "Read-only guard"),
@@ -846,14 +852,14 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "description": "AI 분석 이후 5일/20일 성과와 벤치마크 대비 알파를 공개 검증하는 구조입니다.",
         "eyebrow": "Feature / Outcome Verification",
         "heading": "AI 판단 이후의 결과까지 남깁니다",
-        "lead": "공개 분석은 완료 시점에서 끝나지 않습니다. outcome worker가 5일/20일 이후 성과를 계산하고 벤치마크 대비 알파를 남겨, 리포트 품질을 추적할 수 있게 합니다.",
-        "proof": (("검증", "5D / 20D"), ("지표", "raw return / alpha"), ("노출", "public feed")),
+        "lead": "공개 분석은 완료 시점에서 끝나지 않습니다. 성과 검증 작업이 5일/20일 이후 성과를 계산하고 벤치마크 대비 알파를 남겨, 리포트 품질을 추적할 수 있게 합니다.",
+        "proof": (("검증", "5D / 20D"), ("지표", "수익률 / 알파"), ("노출", "공개 피드")),
         "cards": (
             ("성과 저장", "분석 run과 horizon별 outcome을 저장해 공개 리포트와 연결합니다."),
             ("벤치마크 비교", "KOSPI/KOSDAQ 흐름과 비교한 alpha return을 보여줍니다."),
             ("운영 점검", "관리자와 cron worker가 큐를 처리하고 실패 상태를 확인합니다."),
         ),
-        "steps": ("Completed run", "Outcome worker", "Benchmark return", "Alpha return", "Public review"),
+        "steps": ("분석 완료", "성과 검증", "벤치마크 수익률", "초과 성과", "공개 리뷰"),
         "cta_label": "공개 분석 보기",
         "cta_href": "/analyses",
         "secondary_cta_label": "신뢰 기준 보기",
@@ -870,9 +876,9 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "cards": (
             ("데이터 기준", "공개 화면은 기준일, vendor, fallback 여부를 최대한 노출하고 원문 JSON으로 검증할 수 있게 둡니다."),
             ("AI 한계", "리포트는 정보 제공용이며 누락 데이터, 시장 휴장, vendor 장애, 모델 오류 가능성을 전제로 읽어야 합니다."),
-            ("사후 검증", "완료된 public run은 outcome worker가 5일/20일 뒤 raw return과 benchmark alpha를 추적합니다."),
+            ("사후 검증", "완료된 공개 분석은 성과 검증 작업이 5일/20일 뒤 종목 수익률과 벤치마크 대비 알파를 추적합니다."),
             ("회원 경계", "회원 포트폴리오와 관심종목은 개인 기록이며 공개 리포트 feed와 분리해 호출합니다."),
-            ("운영 보안", "worker token은 브라우저 세션 입력값으로만 사용하고 HTML, 문서, 커밋에 포함하지 않습니다."),
+            ("운영 보안", "작업자 토큰은 브라우저 세션 입력값으로만 사용하고 HTML, 문서, 커밋에 포함하지 않습니다."),
             ("실행 차단", "KIS 같은 브로커 연동은 read-only 계좌조회 검토까지만 가능하며 주문 placement는 구현하지 않습니다."),
         ),
         "steps": ("Source labels", "Run metadata", "Agent report", "Outcome check", "No order path"),
@@ -913,7 +919,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
                     "회원 가입과 로그인에 필요한 이메일 주소, 인증 세션 정보",
                     "사용자가 직접 입력한 포트폴리오, 매매 기록, 목표가·손절가 메모",
                     "관심종목, 분석 요청 종목, 요청 메모, 처리 상태와 생성 시각",
-                    "서비스 안정성 확인에 필요한 요청 로그, 오류 정보, readiness 상태",
+                    "서비스 안정성 확인에 필요한 요청 로그, 오류 정보, 상태 점검 결과",
                 ),
             ),
             (
@@ -921,7 +927,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
                 (
                     "회원 본인의 기록을 불러오고 수정할 수 있게 하기 위해 사용합니다.",
                     "분석 요청 큐를 처리하고 공개 리포트와 사후 성과 검증을 연결하기 위해 사용합니다.",
-                    "보안, 장애 대응, abuse 방지, 성능 개선을 위해 최소한의 운영 로그를 확인합니다.",
+                    "보안, 장애 대응, 오남용 방지, 성능 개선을 위해 최소한의 운영 로그를 확인합니다.",
                 ),
             ),
             (
@@ -953,7 +959,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
         "callouts": (
             ("Read Only", "주문 placement, 자동매매, 브로커 매매 실행 기능은 제공하지 않습니다."),
             ("User Control", "회원 기록은 사용자가 직접 입력하고 관리하는 수동 데이터입니다."),
-            ("Public Feed", "완료된 public 분석은 종목 페이지와 공개 분석 목록에 노출될 수 있습니다."),
+            ("Public Feed", "완료된 공개 분석은 종목 페이지와 공개 분석 목록에 노출될 수 있습니다."),
         ),
         "sections": (
             (
@@ -1297,12 +1303,12 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
     <section class="admin-hero" aria-labelledby="admin-title">
       <div>
         <p class="home-kicker">Operator Console / No Secret Embedded</p>
-        <h1 id="admin-title">운영 큐와 readiness만 점검합니다</h1>
-        <p>관리자 화면은 worker token을 코드나 HTML에 포함하지 않습니다. 토큰은 브라우저 세션에만 보관되며 기존 admin API 호출 헤더로만 전송됩니다.</p>
+        <h1 id="admin-title">운영 큐와 상태 점검만 확인합니다</h1>
+        <p>관리자 화면은 작업자 토큰을 코드나 HTML에 포함하지 않습니다. 토큰은 브라우저 세션에만 보관되며 관리 API 호출 헤더로만 전송됩니다.</p>
       </div>
       <form class="admin-token-panel" id="adminTokenForm">
         <label>
-          <span>Worker token</span>
+          <span>작업자 토큰</span>
           <input id="adminWorkerToken" name="worker_token" type="password" autocomplete="off" placeholder="TRADINGAGENTS_WORKER_TOKEN">
         </label>
         <button type="submit">세션에 저장</button>
@@ -1312,23 +1318,23 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
 
     <section class="admin-health-strip" aria-label="운영 기준 요약">
       <article>
-        <span>readiness</span>
+        <span>상태 점검</span>
         <strong>수동 확인</strong>
-        <small>배포 SHA, storage, KRX probe를 같은 패널에서 확인합니다.</small>
+        <small>배포 trace, storage, KRX 응답을 같은 패널에서 확인합니다.</small>
       </article>
       <article>
-        <span>worker</span>
+        <span>작업자</span>
         <strong>토큰 입력형</strong>
         <small>HTML에는 secret을 싣지 않고 세션 스토리지에만 둡니다.</small>
       </article>
       <article>
-        <span>queue</span>
-        <strong>dry run 우선</strong>
-        <small>분석 요청과 outcome 처리는 실행 전 결과를 미리 봅니다.</small>
+        <span>큐</span>
+        <strong>미리 보기 우선</strong>
+        <small>분석 요청과 성과 검증 처리는 실행 전 대상을 먼저 확인합니다.</small>
       </article>
       <article>
-        <span>boundary</span>
-        <strong>read-only</strong>
+        <span>경계</span>
+        <strong>읽기 전용</strong>
         <small>운영 콘솔에도 실거래 주문 경로는 없습니다.</small>
       </article>
     </section>
@@ -1336,23 +1342,23 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
     <section class="admin-workflow-strip" aria-label="권장 운영 순서">
       <article>
         <span>01</span>
-        <strong>Readiness</strong>
-        <small>페이지 진입 시 자동 조회하고, 필요할 때 KRX/vendor probe를 추가합니다.</small>
+        <strong>상태 점검</strong>
+        <small>페이지 진입 시 자동 조회하고, 필요할 때 KRX/vendor 응답 점검을 추가합니다.</small>
       </article>
       <article>
         <span>02</span>
-        <strong>Dry run</strong>
-        <small>worker token 입력 후 실행 전 처리 대상과 제한값을 확인합니다.</small>
+        <strong>미리 보기</strong>
+        <small>작업자 토큰 입력 후 실행 전 처리 대상과 제한값을 확인합니다.</small>
       </article>
       <article>
         <span>03</span>
-        <strong>Process</strong>
-        <small>분석 요청 또는 outcome worker를 제한된 건수만큼 실행합니다.</small>
+        <strong>처리 실행</strong>
+        <small>분석 요청 또는 성과 검증 작업을 제한된 건수만큼 실행합니다.</small>
       </article>
       <article>
         <span>04</span>
-        <strong>Audit</strong>
-        <small>결과 JSON과 readiness panel을 함께 보고 다음 운영 큐를 결정합니다.</small>
+        <strong>감사 확인</strong>
+        <small>결과 JSON과 상태 패널을 함께 보고 다음 운영 큐를 결정합니다.</small>
       </article>
     </section>
 
@@ -1361,7 +1367,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
         <div>
           <p class="eyebrow">Operations Snapshot</p>
           <h2 id="admin-ops-title">큐 현황과 최근 결과</h2>
-          <p class="panel-copy">worker token으로만 조회합니다. 사용자별 private 데이터 대신 운영 큐 상태와 공개 outcome 처리 흐름만 요약합니다.</p>
+          <p class="panel-copy">작업자 토큰으로만 조회합니다. 사용자별 private 데이터 대신 운영 큐 상태와 공개 성과 검증 흐름만 요약합니다.</p>
         </div>
         <button type="button" data-admin-ops-summary>운영 요약 조회</button>
       </div>
@@ -1369,7 +1375,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
         <div class="ops-cell is-waiting">
           <span>Queue</span>
           <strong>대기</strong>
-          <small>worker token 저장 후 운영 요약을 조회하세요.</small>
+          <small>작업자 토큰 저장 후 운영 요약을 조회하세요.</small>
         </div>
       </div>
       <div class="admin-recent-grid" id="adminRecentPanel" aria-label="최근 운영 항목"></div>
@@ -1380,12 +1386,12 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <article class="admin-card">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Readiness</p>
+            <p class="eyebrow">상태 점검</p>
             <h2>서비스 상태</h2>
           </div>
           <div class="admin-check-row">
-            <label class="admin-inline-check"><input id="adminProbeKrx" type="checkbox"> KRX probe</label>
-            <label class="admin-inline-check"><input id="adminProbeVendors" type="checkbox"> Vendor probes</label>
+            <label class="admin-inline-check"><input id="adminProbeKrx" type="checkbox"> KRX 응답 점검</label>
+            <label class="admin-inline-check"><input id="adminProbeVendors" type="checkbox"> Vendor 응답 점검</label>
           </div>
         </div>
         <button type="button" data-admin-readiness>상태 확인</button>
@@ -1393,7 +1399,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
           <div class="readiness-cell is-waiting">
             <span>Status</span>
             <strong>대기</strong>
-            <small>readiness를 실행하면 배포와 vendor 상태를 요약합니다.</small>
+            <small>상태 점검을 실행하면 배포와 vendor 상태를 요약합니다.</small>
           </div>
         </div>
         <pre id="adminReadinessOutput">대기 중</pre>
@@ -1402,14 +1408,14 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <article class="admin-card">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Analysis Queue</p>
+            <p class="eyebrow">분석 요청 큐</p>
             <h2>분석 요청 처리</h2>
           </div>
-          <span class="status-pill">admin api</span>
+          <span class="status-pill">관리 API</span>
         </div>
-        <label class="admin-number-field">Limit <input id="adminRequestLimit" type="number" min="1" max="20" value="5"></label>
+        <label class="admin-number-field">처리 건수 <input id="adminRequestLimit" type="number" min="1" max="20" value="5"></label>
         <div class="button-row">
-          <button type="button" data-admin-action="requests-dry-run">Dry run</button>
+          <button type="button" data-admin-action="requests-dry-run">미리 보기</button>
           <button type="button" data-admin-action="requests-process">처리 실행</button>
         </div>
         <pre id="adminRequestsOutput">대기 중</pre>
@@ -1418,14 +1424,14 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <article class="admin-card">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Outcome Worker</p>
+            <p class="eyebrow">성과 검증 작업</p>
             <h2>성과 검증 처리</h2>
           </div>
           <span class="status-pill">5D / 20D</span>
         </div>
-        <label class="admin-number-field">Limit <input id="adminOutcomeLimit" type="number" min="1" max="50" value="10"></label>
+        <label class="admin-number-field">처리 건수 <input id="adminOutcomeLimit" type="number" min="1" max="50" value="10"></label>
         <div class="button-row">
-          <button type="button" data-admin-action="outcomes-dry-run">Dry run</button>
+          <button type="button" data-admin-action="outcomes-dry-run">미리 보기</button>
           <button type="button" data-admin-action="outcomes-process">처리 실행</button>
         </div>
         <pre id="adminOutcomesOutput">대기 중</pre>
@@ -1528,7 +1534,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <span>비밀번호</span>
             <span class="password-row">
               <input name="password" type="password" autocomplete="current-password" required>
-              <button class="ghost-button password-toggle" id="passwordToggle" type="button" aria-pressed="false">보기</button>
+              <button class="ghost-button password-toggle" id="passwordToggle" type="button" aria-pressed="false" aria-label="비밀번호 표시">비밀번호 표시</button>
             </span>
           </label>
           <div class="button-row auth-button-row" aria-label="인증 작업">
@@ -1579,22 +1585,22 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           </div>
           <section class="member-overview-strip" id="memberOverview" aria-label="작업공간 요약">
             <article>
-              <span>Portfolios</span>
+              <span>포트폴리오</span>
               <strong id="memberOverviewPortfolios">0</strong>
               <small>저장된 노트</small>
             </article>
             <article>
-              <span>Watchlist</span>
+              <span>관심목록</span>
               <strong id="memberOverviewWatchlists">0</strong>
               <small>관심목록</small>
             </article>
             <article>
-              <span>Active Queue</span>
+              <span>활성 큐</span>
               <strong id="memberOverviewActiveRequests">0</strong>
               <small>대기/처리 중</small>
             </article>
             <article>
-              <span>Reports</span>
+              <span>리포트</span>
               <strong id="memberOverviewCompletedReports">0</strong>
               <small>완료 리포트</small>
             </article>
@@ -1621,7 +1627,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <article class="member-home-card member-admin-card">
               <span>04</span>
               <strong>운영 콘솔</strong>
-              <small>readiness, 큐 현황, worker dry run을 확인합니다. 실행 작업은 worker token 입력 후에만 가능합니다.</small>
+              <small>상태 점검, 큐 현황, 작업자 미리 보기를 확인합니다. 실행 작업은 작업자 토큰 입력 후에만 가능합니다.</small>
               <a class="ghost-button member-admin-link" href="/admin">운영 콘솔 열기</a>
             </article>
           </div>
@@ -1923,7 +1929,7 @@ def _analysis_source_rows(analysis: dict[str, Any], refresh: dict[str, Any]) -> 
     run = analysis.get("run") or {}
     provider = run.get("model_provider") or "AI"
     run_id = str(run.get("id") or "")
-    source = f"public run {run_id[:8]}" if run_id else _analysis_status_label(analysis.get("status"))
+    source = f"공개 run {run_id[:8]}" if run_id else _analysis_status_label(analysis.get("status"))
     return [
         ("출처", source),
         ("기준일", str(run.get("trade_date") or "-")),
@@ -2417,7 +2423,7 @@ def _analysis_track_record_cards(summary: dict[str, Any]) -> str:
     ]
     if completed_outcomes == 0:
         cards = [
-            ("검증 대기", "0건", "outcome worker가 완료하면 채워집니다."),
+            ("검증 대기", "0건", "성과 검증 작업이 완료하면 채워집니다."),
             ("평균 알파", "-", "성과 데이터 대기"),
             ("알파 우위", "-", "성과 데이터 대기"),
             ("커버리지", "-", "현재 공개 목록 기준"),
@@ -2487,8 +2493,8 @@ def _analysis_outcome_cadence_strip(model: dict[str, Any]) -> str:
     <section class="analysis-pipeline-strip outcome-cadence-strip" aria-label="성과 검증 흐름">
       <article>
         <span>01</span>
-        <strong>Public Run</strong>
-        <small>완료된 public 분석 run만 검증 대상으로 삼습니다.</small>
+        <strong>공개 분석</strong>
+        <small>완료된 공개 분석만 검증 대상으로 삼습니다.</small>
       </article>
       <article>
         <span>02</span>
@@ -2515,7 +2521,7 @@ def _analysis_outcome_feed_cards(items: list[dict[str, Any]]) -> str:
         <article class="analysis-feed-card outcome-feed-card empty">
           <span>waiting</span>
           <h3>성과 검증 대기</h3>
-          <p>outcome worker가 public run을 평가하면 이곳에 5일/20일 성과가 누적됩니다.</p>
+          <p>성과 검증 작업이 공개 분석을 평가하면 이곳에 5일/20일 성과가 누적됩니다.</p>
           <div class="analysis-feed-signal-row" aria-label="성과 검증 대기 상태">
             <span>5D/20D 대기</span>
             <span>알파 대기</span>
@@ -2667,7 +2673,7 @@ def _analysis_feed_cards(items: list[dict[str, Any]]) -> str:
                 <small>{_h(str(trade_date))}</small>
               </div>
               <h3><a href="{_h(str(report_path))}">{_h(str(name))} <small>{_h(str(code))}</small></a></h3>
-              <p>{_h(str(trade_date))} 기준 public run입니다. 판단, 리포트 수, outcome 연결 상태를 함께 확인합니다.</p>
+              <p>{_h(str(trade_date))} 기준 공개 분석입니다. 판단, 리포트 수, 성과 연결 상태를 함께 확인합니다.</p>
               <div class="analysis-feed-signal-row" aria-label="분석 카드 상태">
                 <span>판단 {_h(str(decision))}</span>
                 <span>{_h(reports)} 리포트</span>
@@ -2697,12 +2703,12 @@ def _analysis_detail_map(model: dict[str, Any]) -> str:
     run_id = str(model.get("run_id") or "")
     summary = model.get("summary") or {}
     cards = [
-        ("01", "Stored run", f"run {run_id[:8] or '-'}", model.get("timestamp_label") or "저장 시각 없음"),
-        ("02", "Decision", model.get("decision_label") or "-", model.get("data_basis") or "기준 데이터 확인"),
-        ("03", "Agent reports", f"{len(reports)}개", model.get("analyst_label") or "agent 목록 확인"),
+        ("01", "저장된 Run", f"run {run_id[:8] or '-'}", model.get("timestamp_label") or "저장 시각 없음"),
+        ("02", "최종 판단", model.get("decision_label") or "-", model.get("data_basis") or "기준 데이터 확인"),
+        ("03", "Agent 리포트", f"{len(reports)}개", model.get("analyst_label") or "agent 목록 확인"),
         (
             "04",
-            "Outcome",
+            "성과 검증",
             f"{summary.get('completed_outcome_count', len(outcomes) or 0)}개 완료",
             f"평균 알파 {model.get('average_alpha_label') or '-'}",
         ),
@@ -2754,6 +2760,7 @@ def _analysis_detail_report_cards(reports: list[dict[str, Any]]) -> str:
         role = str(report.get("role") or "agent")
         title = str(report.get("title") or role)
         content = _excerpt(str(report.get("content") or ""), limit=1600)
+        body_html = _analysis_report_body_html(content or "리포트 본문이 비어 있습니다.")
         quality_html = _analysis_quality_html(_report_quality(report))
         cards.append(
             f"""
@@ -2761,11 +2768,20 @@ def _analysis_detail_report_cards(reports: list[dict[str, Any]]) -> str:
               <span>{_h(role)}</span>
               <h3>{_h(title)}</h3>
               {quality_html}
-              <p>{_h(content or "리포트 본문이 비어 있습니다.")}</p>
+              <div class="analysis-detail-report-body">
+                {body_html}
+              </div>
             </article>
             """
         )
     return "\n".join(cards)
+
+
+def _analysis_report_body_html(content: str) -> str:
+    paragraphs = [part.strip() for part in content.replace("\r\n", "\n").split("\n") if part.strip()]
+    if not paragraphs:
+        paragraphs = ["리포트 본문이 비어 있습니다."]
+    return "\n".join(f"<p>{_h(paragraph)}</p>" for paragraph in paragraphs[:6])
 
 
 def _report_quality(report: dict[str, Any]) -> dict[str, Any] | None:
@@ -2827,12 +2843,12 @@ def _analysis_detail_decision_card(decision: dict[str, Any]) -> str:
         rationale = decision.get("rationale") or decision.get("raw_decision") or "판단 근거가 저장되지 않았습니다."
         body = f"""
         <article class="analysis-rationale-card">
-          <span>Decision checkpoint</span>
+          <span>판단 체크포인트</span>
           <h2>최종 판단: {_h(rating)}</h2>
           <p>{_h(_excerpt(str(rationale), limit=900))}</p>
           <dl>
-            <div><dt>Action</dt><dd>{_h(action)}</dd></div>
-            <div><dt>Target weight</dt><dd>{_h(_percent(target_weight) if target_weight is not None else "-")}</dd></div>
+            <div><dt>행동</dt><dd>{_h(action)}</dd></div>
+            <div><dt>목표 비중</dt><dd>{_h(_percent(target_weight) if target_weight is not None else "-")}</dd></div>
           </dl>
         </article>
         """
@@ -2846,7 +2862,7 @@ def _analysis_detail_decision_card(decision: dict[str, Any]) -> str:
 def _analysis_detail_provenance(model: dict[str, Any]) -> str:
     cells = [
         ("데이터 기준일", model["trade_date"], model["timestamp_label"]),
-        ("데이터/vendor", "KRX/DART/Naver", "시세, 공시, 뉴스 adapter 기반. 장애와 누락은 JSON/본문 기준으로 확인합니다."),
+        ("데이터 출처", "KRX/DART/Naver", "시세, 공시, 뉴스 adapter 기반. 장애와 누락은 JSON/본문 기준으로 확인합니다."),
         ("Agent coverage", model["analyst_label"], "metadata_json.selected_analysts 기준"),
         ("모델", model["model_label"], model["metadata_note"]),
         ("성과 검증", model["completed_outcome_label"], f"평균 알파 {model['average_alpha_label']}"),
@@ -3230,6 +3246,11 @@ PAGE_CSS = """
   --warn: #8a5a0a;
   --shadow: 0 18px 50px rgba(20, 31, 28, 0.08);
   --app-font-stack: Geist, "Geist Fallback", "Noto Sans KR", "Noto Sans KR Fallback", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+
+html {
+  font-family: var(--app-font-stack);
+  text-rendering: geometricPrecision;
 }
 
 * {
@@ -5171,6 +5192,28 @@ h3 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.admin-card button[data-admin-action$="dry-run"] {
+  border-color: rgba(143, 216, 189, 0.36);
+  background: rgba(143, 216, 189, 0.1);
+  color: var(--home-ink);
+}
+
+.admin-card button[data-admin-action$="process"] {
+  border-color: rgba(255, 184, 107, 0.62);
+  background: rgba(255, 184, 107, 0.12);
+  color: #ffe1bd;
+}
+
+.admin-card button[data-admin-action$="process"][data-confirmed="true"] {
+  border-color: #ffb86b;
+  background: rgba(255, 184, 107, 0.22);
+}
+
+.admin-card button[data-admin-action$="dry-run"]:hover,
+.admin-card button[data-admin-action$="process"]:hover {
+  transform: translateY(-1px);
+}
+
 .admin-card pre {
   min-height: 190px;
   max-height: 360px;
@@ -5264,7 +5307,7 @@ h3 {
   --surface: rgba(23, 26, 22, 0.84);
   --surface-strong: rgba(246, 243, 232, 0.07);
   --ink: #f6f3e8;
-  --muted: rgba(246, 243, 232, 0.66);
+  --muted: rgba(246, 243, 232, 0.78);
   --line: rgba(246, 243, 232, 0.16);
   --accent: #8fd8bd;
   --accent-strong: #d7ff3f;
@@ -5436,7 +5479,7 @@ h3 {
 .member-auth-lead {
   max-width: 620px;
   margin: 0;
-  color: var(--muted);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
   font-size: clamp(17px, 2vw, 21px);
   line-height: 1.72;
   text-wrap: pretty;
@@ -5472,7 +5515,7 @@ h3 {
 }
 
 .member-auth-points small {
-  color: var(--muted);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
   font-size: 13px;
   line-height: 1.55;
 }
@@ -5560,7 +5603,7 @@ h3 {
 }
 
 .member-overview-strip small {
-  color: var(--muted);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
 }
 
 .member-home-panel {
@@ -5599,7 +5642,7 @@ h3 {
 }
 
 .member-home-card small {
-  color: var(--muted);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
   line-height: 1.55;
 }
 
@@ -5644,7 +5687,7 @@ h3 {
 .panel-copy {
   max-width: 58ch;
   margin: 6px 0 0;
-  color: var(--muted);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
   font-size: 13px;
   line-height: 1.45;
 }
@@ -7785,6 +7828,23 @@ button:disabled {
   color: rgba(246, 243, 232, 0.72);
 }
 
+.market-page .chart-legend span {
+  background: rgba(9, 13, 11, 0.76);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
+  backdrop-filter: blur(8px);
+}
+
+.market-page .chart-tooltip {
+  border-color: rgba(215, 255, 63, 0.28);
+  background: rgba(9, 13, 11, 0.92);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.32);
+  color: var(--home-ink);
+}
+
+.market-page .chart-tooltip span {
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
+}
+
 .market-page .data-source-strip {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   border-color: rgba(246, 243, 232, 0.13);
@@ -8002,6 +8062,31 @@ button:disabled {
   text-wrap: balance;
   word-break: keep-all;
   overflow-wrap: anywhere;
+}
+
+.analysis-detail-meta-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.analysis-detail-meta-strip span {
+  display: inline-grid;
+  min-height: 32px;
+  place-items: center;
+  border: 1px solid rgba(246, 243, 232, 0.16);
+  border-radius: 6px;
+  background: rgba(10, 16, 13, 0.54);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.analysis-detail-meta-strip span:last-child {
+  border-color: rgba(143, 216, 189, 0.34);
+  color: var(--home-celadon);
 }
 
 .analysis-detail-actions {
@@ -8293,10 +8378,18 @@ button:disabled {
   line-height: 1.45;
 }
 
-.analysis-detail-report-card p {
-  max-width: 96ch;
+.analysis-detail-report-body {
+  display: grid;
+  gap: 12px;
+  max-width: 78ch;
+  margin-top: 16px;
+}
+
+.analysis-detail-report-body p {
+  margin: 0;
   color: var(--home-readable, rgba(246, 243, 232, 0.84));
   line-height: 1.74;
+  text-wrap: pretty;
 }
 
 .market-page .notice-strip {
@@ -8306,6 +8399,15 @@ button:disabled {
 
 .market-page .notice-strip ul {
   color: rgba(246, 243, 232, 0.72);
+}
+
+.member-page .notice-strip {
+  border-color: rgba(199, 154, 58, 0.28);
+  background: rgba(199, 154, 58, 0.08);
+}
+
+.member-page .notice-strip ul {
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
 }
 
 .market-page .positive {
@@ -9390,19 +9492,19 @@ ADMIN_PAGE_JS = """
     const failed = Number(requests.failed_count || 0);
     const candidates = Array.isArray(outcomes.candidate_runs) ? outcomes.candidate_runs.length : 0;
     const completedOutcomes = Array.isArray(outcomes.recent_completed) ? outcomes.recent_completed.length : 0;
-    appendOpsCell(fragment, "Active Queue", String(active), `queued ${counts.queued || 0} · running ${counts.running || 0}`, active ? "is-warn" : "is-ok");
-    appendOpsCell(fragment, "Completed", String(counts.completed || 0), "완료된 분석 요청 누적", "is-ok");
-    appendOpsCell(fragment, "Failures", String(failed), "최근 실패 목록은 아래에서 확인", failed ? "is-error" : "is-ok");
-    appendOpsCell(fragment, "Outcome Candidates", String(candidates), `dry run limit ${limits.outcome_worker_max || "-"}`, candidates ? "is-warn" : "is-ok");
-    appendOpsCell(fragment, "Recent Outcomes", String(completedOutcomes), `pending sample ${outcomes.pending_sample_count || 0} · unavailable sample ${outcomes.unavailable_sample_count || 0}`, "is-ok");
+    appendOpsCell(fragment, "활성 큐", String(active), `대기 ${counts.queued || 0} · 처리 중 ${counts.running || 0}`, active ? "is-warn" : "is-ok");
+    appendOpsCell(fragment, "완료", String(counts.completed || 0), "완료된 분석 요청 누적", "is-ok");
+    appendOpsCell(fragment, "실패", String(failed), "최근 실패 목록은 아래에서 확인", failed ? "is-error" : "is-ok");
+    appendOpsCell(fragment, "검증 후보", String(candidates), `미리 보기 제한 ${limits.outcome_worker_max || "-"}`, candidates ? "is-warn" : "is-ok");
+    appendOpsCell(fragment, "최근 검증", String(completedOutcomes), `대기 샘플 ${outcomes.pending_sample_count || 0} · 불가 샘플 ${outcomes.unavailable_sample_count || 0}`, "is-ok");
     opsSummary.appendChild(fragment);
 
     if (recentPanel) {
       recentPanel.textContent = "";
-      recentPanel.appendChild(renderRecentList("대기/처리 중", "Queue", [...(recent.queued || []), ...(recent.running || [])], requestLabel));
-      recentPanel.appendChild(renderRecentList("최근 실패", "Failure", recent.failed || [], requestLabel));
-      recentPanel.appendChild(renderRecentList("Outcome 후보", "Outcome", outcomes.candidate_runs || [], runLabel));
-      recentPanel.appendChild(renderRecentList("최근 완료 outcome", "Result", outcomes.recent_completed || [], outcomeLabel));
+      recentPanel.appendChild(renderRecentList("대기/처리 중", "큐", [...(recent.queued || []), ...(recent.running || [])], requestLabel));
+      recentPanel.appendChild(renderRecentList("최근 실패", "실패", recent.failed || [], requestLabel));
+      recentPanel.appendChild(renderRecentList("검증 후보", "성과", outcomes.candidate_runs || [], runLabel));
+      recentPanel.appendChild(renderRecentList("최근 완료 검증", "결과", outcomes.recent_completed || [], outcomeLabel));
     }
   }
 
@@ -9446,20 +9548,20 @@ ADMIN_PAGE_JS = """
     readinessPanel.textContent = "";
 
     const isOk = payload?.status === "ok";
-    appendReadinessCell(fragment, "Status", isOk ? "OK" : "DEGRADED", deploymentTraceLabel(deployment), isOk ? "is-ok" : "is-warn");
+    appendReadinessCell(fragment, "상태", isOk ? "OK" : "DEGRADED", deploymentTraceLabel(deployment), isOk ? "is-ok" : "is-warn");
 
     const storageOk = Boolean(checks.storage_online && checks.storage_schema_ready);
     const storageValue = storageOk ? "Online" : checks.storage_configured ? "점검 필요" : "미설정";
     const storageNote = errors.storage_online || errors.storage_schema_ready
       || `storage ${readinessText(checks.storage_online)} · schema ${readinessText(checks.storage_schema_ready)}`;
-    appendReadinessCell(fragment, "Storage", storageValue, storageNote, storageOk ? "is-ok" : "is-warn");
+    appendReadinessCell(fragment, "저장소", storageValue, storageNote, storageOk ? "is-ok" : "is-warn");
 
     const hasKrxProbe = Object.prototype.hasOwnProperty.call(checks, "krx_online");
     let krxValue = checks.krx_configured ? "Configured" : "미설정";
-    let krxNote = checks.krx_configured ? "KRX probe checkbox로 온라인 응답을 확인할 수 있습니다." : "KRX_API_KEY 또는 KRX_OPENAPI_KEY가 필요합니다.";
+    let krxNote = checks.krx_configured ? "KRX 응답 점검 체크박스로 온라인 응답을 확인할 수 있습니다." : "KRX_API_KEY 또는 KRX_OPENAPI_KEY가 필요합니다.";
     let krxState = checks.krx_configured ? "is-ok" : "is-warn";
     if (hasKrxProbe) {
-      krxValue = checks.krx_online ? "Online" : "Probe failed";
+      krxValue = checks.krx_online ? "Online" : "점검 실패";
       krxState = checks.krx_online ? "is-ok" : "is-warn";
       if (krxProbe) {
         krxNote = krxProbe.status === "ok"
@@ -9470,7 +9572,7 @@ ADMIN_PAGE_JS = """
     appendReadinessCell(fragment, "KRX", krxValue, krxNote, krxState);
 
     const vendorCount = [checks.dart_configured, checks.naver_configured, checks.openai_configured].filter(Boolean).length;
-    let vendorValue = `${vendorCount}/3 configured`;
+    let vendorValue = `${vendorCount}/3 설정`;
     let vendorNote = `DART ${readinessText(checks.dart_configured)} · Naver ${readinessText(checks.naver_configured)} · OpenAI ${readinessText(checks.openai_configured)}`;
     let vendorState = vendorCount === 3 ? "is-ok" : "is-warn";
     if (vendorProbes.dart || vendorProbes.naver) {
@@ -9479,27 +9581,27 @@ ADMIN_PAGE_JS = """
         `Naver ${probeSummary(vendorProbes.naver)}`
       ];
       const onlineCount = [vendorProbes.dart, vendorProbes.naver].filter((probe) => probe?.status === "ok").length;
-      vendorValue = `${onlineCount}/2 online`;
+      vendorValue = `${onlineCount}/2 온라인`;
       vendorNote = vendorProbeRows.join(" · ");
       vendorState = onlineCount === 2 ? "is-ok" : "is-warn";
     }
-    appendReadinessCell(fragment, "Vendors", vendorValue, vendorNote, vendorState);
+    appendReadinessCell(fragment, "벤더", vendorValue, vendorNote, vendorState);
 
     appendReadinessCell(
       fragment,
-      "Boundary",
-      checks.live_trading_disabled ? "Read only" : "확인 필요",
+      "실행 경계",
+      checks.live_trading_disabled ? "읽기 전용" : "확인 필요",
       checks.live_trading_disabled ? "실거래 주문 경로는 비활성 상태입니다." : "TRADINGAGENTS_LIVE_TRADING 설정을 확인하세요.",
       checks.live_trading_disabled ? "is-ok" : "is-warn"
     );
 
     const authWorkerOk = Boolean(checks.supabase_auth_configured && checks.worker_token_configured);
-    const authWorkerNote = `Auth ${readinessText(checks.supabase_auth_configured)} · Worker token ${readinessText(checks.worker_token_configured)}`;
-    appendReadinessCell(fragment, "Access", authWorkerOk ? "Ready" : "점검 필요", authWorkerNote, authWorkerOk ? "is-ok" : "is-warn");
+    const authWorkerNote = `Auth ${readinessText(checks.supabase_auth_configured)} · 작업자 토큰 ${readinessText(checks.worker_token_configured)}`;
+    appendReadinessCell(fragment, "접근", authWorkerOk ? "Ready" : "점검 필요", authWorkerNote, authWorkerOk ? "is-ok" : "is-warn");
 
     appendReadinessCell(
       fragment,
-      "Site URL",
+      "사이트 URL",
       checks.site_base_url_configured ? "Configured" : "미설정",
       checks.site_base_url_configured ? "canonical, sitemap, redirect 기준 URL이 설정되어 있습니다." : "TRADINGAGENTS_SITE_BASE_URL 설정을 확인하세요.",
       checks.site_base_url_configured ? "is-ok" : "is-warn"
@@ -9507,15 +9609,15 @@ ADMIN_PAGE_JS = """
 
     appendReadinessCell(
       fragment,
-      "Ads",
-      checks.ads_configured ? "Configured" : "승인 대기",
-      checks.ads_configured ? "ads.txt 또는 publisher id가 설정되어 있습니다." : "AdSense 승인 후 publisher id 또는 ads.txt 값을 설정하세요.",
-      checks.ads_configured ? "is-ok" : "is-warn"
+      "광고",
+      checks.ads_configured ? "Configured" : "보류",
+      checks.ads_configured ? "ads.txt 또는 publisher id가 설정되어 있습니다." : "AdSense 키가 준비되기 전까지는 운영 보류 항목입니다.",
+      checks.ads_configured ? "is-ok" : "is-waiting"
     );
 
     const securityOk = Boolean(checks.api_docs_disabled && checks.trusted_member_user_header_disabled && checks.https_request);
-    const securityNote = `Docs ${readinessText(checks.api_docs_disabled)} · Trust header ${readinessText(checks.trusted_member_user_header_disabled)} · HTTPS ${readinessText(checks.https_request)}`;
-    appendReadinessCell(fragment, "Security", securityOk ? "Locked" : "점검 필요", securityNote, securityOk ? "is-ok" : "is-warn");
+    const securityNote = `문서 ${readinessText(checks.api_docs_disabled)} · 신뢰 헤더 ${readinessText(checks.trusted_member_user_header_disabled)} · HTTPS ${readinessText(checks.https_request)}`;
+    appendReadinessCell(fragment, "보안", securityOk ? "잠김" : "점검 필요", securityNote, securityOk ? "is-ok" : "is-warn");
 
     readinessPanel.appendChild(fragment);
   }
@@ -9528,7 +9630,7 @@ ADMIN_PAGE_JS = """
     };
     if (requireToken) {
       const token = currentToken();
-      if (!token) throw new Error("Worker token을 입력하세요.");
+      if (!token) throw new Error("작업자 토큰을 입력하세요.");
       headers["X-TradingAgents-Worker-Token"] = token;
     }
     const response = await fetch(path, { ...options, headers });
@@ -9540,18 +9642,18 @@ ADMIN_PAGE_JS = """
   }
 
   if (tokenInput) tokenInput.value = savedToken();
-  if (savedToken() && tokenState) tokenState.textContent = "세션에 저장된 worker token을 사용합니다.";
+  if (savedToken() && tokenState) tokenState.textContent = "세션에 저장된 작업자 토큰을 사용합니다.";
 
   tokenForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     const token = (tokenInput?.value || "").trim();
     if (!token) {
       sessionStorage.removeItem(tokenKey);
-      if (tokenState) tokenState.textContent = "저장된 worker token을 지웠습니다.";
+      if (tokenState) tokenState.textContent = "저장된 작업자 토큰을 지웠습니다.";
       return;
     }
     sessionStorage.setItem(tokenKey, token);
-    if (tokenState) tokenState.textContent = "worker token을 이 브라우저 세션에 저장했습니다.";
+    if (tokenState) tokenState.textContent = "작업자 토큰을 이 브라우저 세션에 저장했습니다.";
   });
 
   const readinessButton = document.querySelector("[data-admin-readiness]");
@@ -9562,7 +9664,7 @@ ADMIN_PAGE_JS = """
     try {
       setBusy(button, true);
       setOutput(readinessOutput, "확인 중");
-      renderReadinessPending("배포, storage, vendor, read-only boundary를 조회하고 있습니다.");
+      renderReadinessPending("배포, 저장소, vendor, 읽기 전용 경계를 조회하고 있습니다.");
       const params = new URLSearchParams();
       if (probeKrx?.checked) params.set("probe_krx", "true");
       if (probeVendors?.checked) params.set("probe_vendors", "true");
@@ -9571,7 +9673,7 @@ ADMIN_PAGE_JS = """
       renderReadinessPanel(payload);
       setOutput(readinessOutput, payload);
     } catch (error) {
-      const message = error.message || "Readiness failed";
+      const message = error.message || "상태 점검 실패";
       renderReadinessError(message);
       setOutput(readinessOutput, message);
     } finally {
@@ -9584,12 +9686,12 @@ ADMIN_PAGE_JS = """
     try {
       setBusy(button, true);
       setOutput(opsOutput, "운영 요약 확인 중");
-      renderOpsSummaryPending("worker token으로 큐 현황과 최근 처리 결과를 조회합니다.");
+      renderOpsSummaryPending("작업자 토큰으로 큐 현황과 최근 처리 결과를 조회합니다.");
       const payload = await fetchJson("/api/admin/ops-summary", { method: "GET" }, true);
       renderOpsSummary(payload);
       setOutput(opsOutput, payload);
     } catch (error) {
-      const message = error.message || "Ops summary failed";
+      const message = error.message || "운영 요약 조회 실패";
       renderOpsSummaryError(message);
       setOutput(opsOutput, message);
     } finally {
@@ -9605,19 +9707,39 @@ ADMIN_PAGE_JS = """
     const isDryRun = action.endsWith("dry-run");
     const isOutcome = action.startsWith("outcomes");
     const output = isOutcome ? outcomesOutput : requestsOutput;
+    const originalLabel = button.dataset.originalLabel || button.textContent;
+    button.dataset.originalLabel = originalLabel;
     const limit = Math.max(1, Number((isOutcome ? outcomeLimit : requestLimit)?.value || 1));
     const path = isOutcome ? "/api/admin/analysis-outcomes/process" : "/api/admin/analysis-requests/process";
     const body = isOutcome
       ? { limit, dry_run: isDryRun, horizons: [5, 20] }
       : { limit, dry_run: isDryRun };
+    if (!isDryRun && button.dataset.confirmed !== "true") {
+      button.dataset.confirmed = "true";
+      button.textContent = "확인 후 실행";
+      setOutput(output, "실행 전 미리 보기를 권장합니다. 실제 처리를 실행하려면 이 버튼을 한 번 더 누르세요.");
+      window.setTimeout(() => {
+        if (button.dataset.confirmed === "true") {
+          button.dataset.confirmed = "false";
+          button.textContent = button.dataset.originalLabel || originalLabel;
+        }
+      }, 5000);
+      return;
+    }
     try {
       setBusy(button, true);
-      setOutput(output, isDryRun ? "dry run 확인 중" : "처리 요청 중");
+      setOutput(output, isDryRun ? "미리 보기 확인 중" : "처리 요청 중");
       setOutput(output, await fetchJson(path, { method: "POST", body: JSON.stringify(body) }, true));
+      button.dataset.confirmed = "false";
+      button.textContent = originalLabel;
       if (opsButton && !opsButton.disabled) opsButton.click();
     } catch (error) {
-      setOutput(output, error.message || "Admin action failed");
+      setOutput(output, error.message || "관리 작업 실패");
     } finally {
+      if (!isDryRun) {
+        button.dataset.confirmed = "false";
+        button.textContent = originalLabel;
+      }
       setBusy(button, false);
     }
   }
@@ -10718,7 +10840,9 @@ MEMBER_PAGE_JS = """
     if (!input) return;
     const showing = input.type === "text";
     input.type = showing ? "password" : "text";
-    passwordToggle.textContent = showing ? "보기" : "숨김";
+    const label = showing ? "비밀번호 표시" : "비밀번호 숨김";
+    passwordToggle.textContent = label;
+    passwordToggle.setAttribute("aria-label", label);
     passwordToggle.setAttribute("aria-pressed", showing ? "false" : "true");
   });
 
