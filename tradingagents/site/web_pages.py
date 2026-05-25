@@ -1013,10 +1013,10 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
         "description": "TradingAgents Korea가 회원 인증, 수동 기록, 분석 요청을 처리할 때 다루는 개인정보와 보관 원칙입니다.",
         "eyebrow": "정책 / 개인정보",
         "heading": "개인정보는 기록과 인증에 필요한 만큼만 다룹니다",
-        "lead": "TradingAgents Korea는 공개 리서치와 개인 기록을 분리합니다. 회원 기능은 Supabase 인증 세션을 확인한 뒤에만 열리고, 포트폴리오·관심종목·분석 요청은 사용자가 직접 남긴 기록을 조회하고 관리하기 위한 목적으로만 사용합니다.",
+        "lead": "TradingAgents Korea는 공개 리서치와 개인 기록을 분리합니다. 회원 기능은 로그인 세션을 확인한 뒤에만 열리고, 포트폴리오·관심종목·분석 요청은 사용자가 직접 남긴 기록을 다시 확인하고 관리하기 위한 목적으로만 사용합니다.",
         "summary": (("범위", "인증·수동 기록"), ("보관", "사용자별 개인 기록"), ("권한", "주문 실행 없음")),
         "callouts": (
-            ("인증", "이메일 로그인과 세션 검증에 필요한 공개 Supabase 설정만 브라우저에 노출합니다."),
+            ("인증", "이메일 로그인과 세션 확인에 필요한 공개 설정만 브라우저에 노출합니다."),
             ("개인 기록", "포트폴리오, 관심종목, 분석 요청은 로그인한 사용자 기록으로 분리합니다."),
             ("외부 서비스", "서비스 운영에는 Vercel, Supabase, OpenAI 및 공개 데이터 제공처가 사용될 수 있습니다."),
         ),
@@ -1055,6 +1055,11 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
                 ),
             ),
         ),
+        "next_actions": (
+            ("회원 기능 보기", "/features/member-workspace", "가입하면 어떤 기록 공간이 열리는지 먼저 확인합니다."),
+            ("마이페이지 열기", "/mypage", "로그인 후 관심종목과 리서치 요청을 내 공간에서 관리합니다."),
+            ("신뢰 기준 확인", "/features/methodology", "데이터 출처와 AI 분석 한계를 함께 읽습니다."),
+        ),
     },
     "terms": {
         "path": "/terms",
@@ -1062,7 +1067,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
         "description": "TradingAgents Korea의 주문 없는 리서치 서비스 이용 조건과 회원 기능의 경계를 설명합니다.",
         "eyebrow": "정책 / 이용약관",
         "heading": "이 서비스는 투자 실행이 아닌 근거 확인을 돕습니다",
-        "lead": "TradingAgents Korea는 한국 주식 공개 데이터, AI 리포트, 사후 성과 검증, 회원 수동 기록을 제공하는 리서치 플랫폼입니다. 사용자는 제공된 정보를 직접 검토해야 하며, 서비스는 매매 주문 권한을 갖지 않습니다.",
+        "lead": "TradingAgents Korea는 한국 주식 공개 데이터, AI 리포트, 사후 성과 검증, 회원 수동 기록을 제공하는 리서치 플랫폼입니다. 사용자는 정보를 직접 검토하고 판단해야 하며, 서비스는 매매 주문 권한을 갖지 않습니다.",
         "summary": (("서비스", "AI 리서치"), ("회원 기능", "기록·조회·요청"), ("거래", "실거래 차단")),
         "callouts": (
             ("주문 없음", "자동매매나 브로커 주문 실행 기능은 제공하지 않습니다."),
@@ -1103,6 +1108,11 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
                 ),
             ),
         ),
+        "next_actions": (
+            ("공개 분석 보기", "/analyses", "완료된 AI 리포트와 사후 검증 상태를 공개 화면에서 확인합니다."),
+            ("가입 후 기록 공간 보기", "/features/member-workspace", "내 관심종목과 수동 기록이 어떻게 분리되는지 봅니다."),
+            ("투자 유의사항 읽기", "/disclaimer", "AI 리포트와 성과 기록을 읽을 때의 한계를 확인합니다."),
+        ),
     },
     "disclaimer": {
         "path": "/disclaimer",
@@ -1122,7 +1132,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
                 "투자 조언 아님",
                 (
                     "서비스의 모든 콘텐츠는 정보 제공 목적이며 개인별 투자 목적, 재산 상황, 위험 선호를 반영하지 않습니다.",
-                    "AI 의견과 rating/action 같은 원문 필드는 사용자의 독립적인 검토를 돕는 참고 정보입니다.",
+                    "AI 의견과 요약 표시는 사용자의 독립적인 검토를 돕는 참고 정보입니다.",
                     "실제 매매 전에는 공식 공시, 원자료, 전문가 의견, 본인의 투자 원칙을 함께 확인해야 합니다.",
                 ),
             ),
@@ -1150,6 +1160,11 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
                     "성과 통계는 공개 리포트 품질을 추적하기 위한 운영 지표로 읽어야 합니다.",
                 ),
             ),
+        ),
+        "next_actions": (
+            ("방법론 확인", "/features/methodology", "데이터 출처, 기준일, 주문 차단 원칙을 함께 확인합니다."),
+            ("사후 성과 보기", "/outcomes", "과거 리포트 이후의 5일/20일 결과를 검토합니다."),
+            ("공개 분석 보기", "/analyses", "실제 공개 리포트를 읽고 원문 JSON까지 확인합니다."),
         ),
     },
 }
@@ -1306,6 +1321,10 @@ def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
       </article>"""
         for index, (title, items) in enumerate(page["sections"], start=1)
     )
+    next_actions_html = "".join(
+        f"""<a href="{_h(href)}"><span>{index:02d}</span><strong>{_h(label)}</strong><small>{_h(copy)}</small></a>"""
+        for index, (label, href, copy) in enumerate(page.get("next_actions", ()), start=1)
+    )
     canonical = canonical_url(str(page["path"]), site_base_url=site_base_url)
 
     return f"""<!doctype html>
@@ -1369,6 +1388,17 @@ def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
 
     <section class="policy-card-grid" aria-label="정책 세부 내용">
       {sections_html}
+    </section>
+
+    <section class="policy-next-actions" aria-labelledby="policy-next-actions-title">
+      <div>
+        <p class="eyebrow">다음으로 확인할 화면</p>
+        <h2 id="policy-next-actions-title">정책을 읽은 뒤 실제 서비스 흐름으로 이어갑니다</h2>
+        <p>법적 안내에서 끝나지 않고, 공개 리서치와 회원 작업공간이 어떻게 분리되는지 바로 확인할 수 있습니다.</p>
+      </div>
+      <div class="policy-next-action-grid">
+        {next_actions_html}
+      </div>
     </section>
 
     <section class="home-ops-strip policy-boundary" aria-label="서비스 정책 연결">
@@ -5577,6 +5607,80 @@ h3 {
   line-height: 1.62;
 }
 
+.policy-next-actions {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.28fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-top: clamp(26px, 4vw, 46px);
+  padding: 18px;
+  border: 1px solid rgba(215, 255, 63, 0.22);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(215, 255, 63, 0.055), rgba(143, 216, 189, 0.028)),
+    rgba(15, 22, 18, 0.76);
+}
+
+.policy-next-actions h2 {
+  max-width: 20ch;
+  margin: 0;
+  color: var(--home-ink);
+  font-size: clamp(28px, 3vw, 42px);
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+.policy-next-actions p:not(.eyebrow) {
+  max-width: 58ch;
+  margin: 12px 0 0;
+  color: var(--home-readable);
+  line-height: 1.68;
+}
+
+.policy-next-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.13);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.12);
+}
+
+.policy-next-action-grid a {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 150px;
+  padding: 18px;
+  background: rgba(9, 13, 11, 0.5);
+  color: inherit;
+  text-decoration: none;
+}
+
+.policy-next-action-grid a:hover {
+  background: rgba(215, 255, 63, 0.085);
+}
+
+.policy-next-action-grid span {
+  color: var(--home-acid);
+  font-family: var(--app-font-stack);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.policy-next-action-grid strong {
+  color: var(--home-ink);
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.policy-next-action-grid small {
+  color: var(--home-muted-readable);
+  line-height: 1.55;
+}
+
 .policy-boundary {
   margin-top: clamp(34px, 5vw, 62px);
 }
@@ -6720,6 +6824,7 @@ h3 {
   .feature-hero,
   .feature-journey,
   .policy-hero,
+  .policy-next-actions,
   .admin-hero,
   .member-auth-landing,
   .member-summary-band {
@@ -7122,6 +7227,7 @@ h3 {
   .analysis-pipeline-strip,
   .policy-card-grid,
   .policy-callout-grid,
+  .policy-next-action-grid,
   .feature-card-grid,
   .feature-journey-grid,
   .feature-step-track,

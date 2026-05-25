@@ -675,11 +675,16 @@ def test_render_policy_pages_use_public_theme():
         assert heading in html
         assert "policy-card-grid" in html
         assert "policy-callout-grid" in html
+        assert "policy-next-actions" in html
+        assert "다음으로 확인할 화면" in html
+        assert "정책을 읽은 뒤 실제 서비스 흐름으로 이어갑니다" in html
         assert "주문 없음" in html
         assert "실거래 주문 기능을 제공하지 않는 읽기 전용 AI 리서치 플랫폼" in html
         assert f'<link rel="canonical" href="https://example.com{path}">' in html
         assert 'href="/features/methodology"' in html
         assert 'href="/mypage"' in html
+        assert 'href="/features/member-workspace"' in html or 'href="/analyses"' in html or 'href="/outcomes"' in html
+        assert "rating/action" not in html
         assert "/api/member/dashboard" not in html
         assert "/api/portfolios" not in html
         assert "/api/watchlists" not in html
