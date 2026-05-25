@@ -1584,7 +1584,10 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
           <span>작업자 토큰</span>
           <input id="adminWorkerToken" name="worker_token" type="password" autocomplete="off" placeholder="TRADINGAGENTS_WORKER_TOKEN">
         </label>
-        <button type="submit">세션에 저장</button>
+        <div class="admin-token-actions">
+          <button type="submit">세션에 저장</button>
+          <button type="button" data-admin-token-clear>토큰 지우기</button>
+        </div>
         <small id="adminTokenState">토큰은 서버 렌더 HTML에 저장되지 않습니다.</small>
       </form>
     </section>
@@ -1904,10 +1907,10 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <small>매수·매도 내역, 수수료, 세금, 목표가를 주문 연결 없이 수동으로 남깁니다.</small>
               <button class="ghost-button" type="button" data-member-jump="portfolio">포트폴리오 열기</button>
             </article>
-            <article class="member-home-card member-admin-card" data-admin-token-visible hidden>
+            <article class="member-home-card member-admin-card">
               <span>05</span>
-              <strong>운영 콘솔</strong>
-              <small>운영자는 worker token을 입력한 브라우저에서 상태와 처리 대기열을 점검합니다.</small>
+              <strong>운영자 콘솔</strong>
+              <small>운영자는 worker token을 입력한 뒤 readiness와 처리 대기열을 점검합니다. 일반 회원 기능과 분리되어 있습니다.</small>
               <a class="ghost-button member-admin-link" href="/admin">운영 콘솔 열기</a>
             </article>
           </div>
@@ -5874,6 +5877,12 @@ h3 {
   display: grid;
   gap: 12px;
   padding: 22px;
+}
+
+.admin-token-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .admin-token-panel label,
@@ -10243,6 +10252,7 @@ PAGE_JS = """
 
   syncTopAuthLinks();
   window.addEventListener("storage", syncTopAuthLinks);
+  window.addEventListener("tradingagents:admin-token", syncTopAuthLinks);
 
   async function searchTickers(query) {
     const trimmed = query.trim();
@@ -10805,6 +10815,7 @@ ADMIN_PAGE_JS = """
   const tokenKey = "tradingagents.admin.worker_token";
   const tokenForm = document.getElementById("adminTokenForm");
   const tokenInput = document.getElementById("adminWorkerToken");
+  const tokenClearButton = document.querySelector("[data-admin-token-clear]");
   const tokenState = document.getElementById("adminTokenState");
   const readinessOutput = document.getElementById("adminReadinessOutput");
   const readinessPanel = document.getElementById("adminReadinessPanel");
@@ -10824,6 +10835,13 @@ ADMIN_PAGE_JS = """
 
   function currentToken() {
     return (tokenInput?.value || "").trim() || savedToken();
+  }
+
+  function clearSavedToken(message = "저장된 작업자 토큰을 지웠습니다.") {
+    sessionStorage.removeItem(tokenKey);
+    if (tokenInput) tokenInput.value = "";
+    if (tokenState) tokenState.textContent = message;
+    window.dispatchEvent(new Event("tradingagents:admin-token"));
   }
 
   function setOutput(node, payload) {
@@ -11143,12 +11161,16 @@ ADMIN_PAGE_JS = """
     event.preventDefault();
     const token = (tokenInput?.value || "").trim();
     if (!token) {
-      sessionStorage.removeItem(tokenKey);
-      if (tokenState) tokenState.textContent = "저장된 작업자 토큰을 지웠습니다.";
+      clearSavedToken();
       return;
     }
     sessionStorage.setItem(tokenKey, token);
     if (tokenState) tokenState.textContent = "작업자 토큰을 이 브라우저 세션에 저장했습니다.";
+    window.dispatchEvent(new Event("tradingagents:admin-token"));
+  });
+
+  tokenClearButton?.addEventListener("click", () => {
+    clearSavedToken("세션에 저장된 작업자 토큰을 지웠습니다.");
   });
 
   const readinessButton = document.querySelector("[data-admin-readiness]");

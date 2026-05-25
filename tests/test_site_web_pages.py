@@ -319,7 +319,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "공개 리포트 확인" in html
     assert "member-report-card" in html
     assert "member-admin-card" in html
-    assert "data-admin-token-visible hidden" in html
+    assert "운영자 콘솔" in html
+    assert "일반 회원 기능과 분리되어 있습니다." in html
     assert "adminTokenItems" in html
     assert "운영 콘솔 열기" in html
     assert 'class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>' in html
@@ -539,6 +540,10 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     assert 'data-admin-action$="process"][data-confirmed="true"]' in html
     assert '<meta name="robots" content="noindex,nofollow">' in html
     assert "adminWorkerToken" in html
+    assert "data-admin-token-clear" in html
+    assert "tokenClearButton" in html
+    assert "세션에 저장된 작업자 토큰을 지웠습니다." in html
+    assert "tradingagents:admin-token" in html
     assert "X-TradingAgents-Worker-Token" in html
     assert "/api/admin/analysis-requests/process" in html
     assert "/api/admin/analysis-outcomes/process" in html
