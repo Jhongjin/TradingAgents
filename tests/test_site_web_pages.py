@@ -456,23 +456,31 @@ def test_render_feature_detail_pages_use_public_theme():
     outcomes_html = render_feature_detail_page("outcomes", site_base_url="https://example.com")
     methodology_html = render_feature_detail_page("methodology", site_base_url="https://example.com")
 
-    assert "KRX부터 공개 리포트까지 한 화면에 연결" in html
+    assert "종목을 검색하면 가격·출처·AI 리포트가 한 화면에 모입니다" in html
     assert "feature-diagram" in html
+    assert "feature-journey" in html
+    assert "사용자 흐름" in html
+    assert "처음 방문자도 바로 확인할 수 있습니다" in html
+    assert "가입 후 저장" in html
     assert "데이터 경계" in html
     assert "필요한 데이터만 불러옵니다" in html
     assert "color: var(--home-readable, rgba(246, 243, 232, 0.84));" in html
-    assert 'href="/features/member-workspace">회원 기능 보기</a>' in html
+    assert 'href="/features/member-workspace">가입하면 열리는 기능</a>' in html
     assert 'href="/outcomes">성과</a>' in html
     assert '<link rel="canonical" href="https://example.com/features/research">' in html
-    assert 'href="/member?mode=signup">가입하고 마이페이지 열기</a>' in member_html
+    assert 'href="/member?mode=signup">가입하고 내 투자 노트 열기</a>' in member_html
     assert "/api/member/dashboard" not in html
-    assert 'href="/features/research">리서치 구조 보기</a>' in member_html
+    assert 'href="/features/research">공개 리서치 먼저 보기</a>' in member_html
+    assert "로그인 후에는 개인 기록만 따로 열립니다" in member_html
     assert "/api/member/dashboard" not in member_html
     assert 'href="/features/methodology">신뢰 기준 보기</a>' in outcomes_html
+    assert 'href="/outcomes">사후 성과 기록 보기</a>' in outcomes_html
+    assert "성과는 추천 성과가 아니라 리포트 품질 기록입니다" in outcomes_html
     assert "/api/member/dashboard" not in outcomes_html
-    assert "데이터 출처와 한계를 함께 공개합니다" in methodology_html
+    assert "어떤 데이터로 판단했는지 먼저 공개합니다" in methodology_html
     assert "KRX / DART / Naver" in methodology_html
     assert "주문 기능은 구현하지 않습니다" in methodology_html
+    assert "리포트는 출처, 한계, 결과를 함께 읽습니다" in methodology_html
     assert 'href="/features/outcomes">사후 검증 보기</a>' in methodology_html
     assert '<link rel="canonical" href="https://example.com/features/methodology">' in methodology_html
     assert "/api/member/dashboard" not in methodology_html

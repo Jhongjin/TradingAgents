@@ -885,18 +885,26 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "title": "AI 리서치 파이프라인 | TradingAgents Korea",
         "description": "KRX, DART, Naver 뉴스와 AI 리포트를 연결하는 한국 주식 AI 리서치 흐름입니다.",
         "eyebrow": "서비스 소개 / 리서치 흐름",
-        "heading": "KRX부터 공개 리포트까지 한 화면에 연결",
-        "lead": "종목 상세 페이지는 가격, 공시, 뉴스, AI 리포트, 사후 검증을 분리해 불러옵니다. 사용자가 종목을 조회할 때 필요한 공개 데이터만 조합하고 회원 전용 기록은 요청하지 않습니다.",
+        "heading": "종목을 검색하면 가격·출처·AI 리포트가 한 화면에 모입니다",
+        "lead": "처음 방문자는 종목명이나 6자리 코드를 검색해 가격 흐름, 데이터 출처, 공개 리포트, 사후 성과를 바로 확인할 수 있습니다. 가입하면 관심종목을 저장하고 필요한 종목의 새 리서치를 요청할 수 있습니다.",
         "proof": (("공개 페이지", "종목·분석 피드"), ("데이터", "KRX / DART / Naver"), ("주문", "실거래 차단")),
         "cards": (
             ("종목 조회", "6자리 한국 종목코드와 종목명 검색으로 KOSPI/KOSDAQ 종목을 찾습니다."),
             ("차트 데이터", "OHLCV 차트, 가격 상태, 데이터 제공처 표기를 종목 화면에만 전달합니다."),
             ("공개 분석", "완료된 공개 리포트와 판단, 모델, 리포트 수를 공개 피드와 연결합니다."),
         ),
+        "journey_heading": "처음 방문자도 바로 확인할 수 있습니다",
+        "journey_intro": "공개 화면에서 리서치 흐름을 먼저 읽고, 반복해서 볼 종목만 회원 작업공간에 담는 흐름입니다.",
+        "journey": (
+            ("01", "종목 검색", "삼성전자처럼 종목명으로 검색해도 6자리 코드 화면으로 이동합니다."),
+            ("02", "출처 확인", "가격 기준일, 제공처, 대체 데이터 사용 여부를 먼저 봅니다."),
+            ("03", "리포트 읽기", "AI 의견과 에이전트별 리포트를 투자 판단의 참고자료로 읽습니다."),
+            ("04", "가입 후 저장", "관심종목과 리서치 요청은 로그인한 내 투자 노트에만 저장됩니다."),
+        ),
         "steps": ("종목 검색", "KRX 가격 데이터", "DART 공시", "Naver 뉴스", "AI 리포트"),
-        "cta_label": "샘플 종목 보기",
+        "cta_label": "삼성전자 예시 보기",
         "cta_href": "/stocks/005930",
-        "secondary_cta_label": "회원 기능 보기",
+        "secondary_cta_label": "가입하면 열리는 기능",
         "secondary_cta_href": "/features/member-workspace",
         "diagram_label": "리서치 흐름",
     },
@@ -905,18 +913,26 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "title": "회원 작업공간 | TradingAgents Korea",
         "description": "로그인한 사용자를 위한 수동 포트폴리오, 관심목록, 분석 요청 대기열의 구성 방식입니다.",
         "eyebrow": "서비스 소개 / 회원 작업공간",
-        "heading": "마이페이지는 로그인 후에만 개인 데이터를 불러옵니다",
-        "lead": "회원 화면은 로그인 전에는 로그인/가입만 보여주고, 로그인 상태를 확인한 뒤에만 수동 기록과 분석 요청 데이터를 불러옵니다. 공개 페이지와 개인 기록의 데이터 경계를 명확히 나눕니다.",
+        "heading": "가입하면 관심종목, 기록, 리서치 요청을 한 곳에서 관리합니다",
+        "lead": "회원 화면은 로그인 전에는 로그인/가입만 보여줍니다. 로그인 후에는 관심종목, 수동 포트폴리오, 리서치 요청 대기열을 불러와 내 판단 근거를 따로 보관할 수 있습니다. 주문 기능은 열리지 않습니다.",
         "proof": (("인증", "이메일 로그인"), ("저장", "사용자별 개인 기록"), ("범위", "조회/기록 전용")),
         "cards": (
             ("수동 포트폴리오", "매수·매도 기록, 평균단가, 비용, 목표가, 손절가를 직접 관리합니다."),
             ("관심목록", "한국 종목코드 기준 관심목록과 메모를 사용자별로 분리합니다."),
             ("분석 요청 대기열", "원하는 종목과 날짜를 대기열에 넣고 처리 상태를 확인합니다."),
         ),
+        "journey_heading": "로그인 후에는 개인 기록만 따로 열립니다",
+        "journey_intro": "회원 작업공간은 공개 리포트를 읽은 뒤 내가 다시 볼 종목과 요청 상태를 보관하는 공간입니다.",
+        "journey": (
+            ("01", "가입/로그인", "이메일 인증 세션을 확인한 뒤에만 개인 데이터를 불러옵니다."),
+            ("02", "관심종목 저장", "다시 확인할 한국 종목을 메모와 함께 묶어 둡니다."),
+            ("03", "수동 기록", "매수·매도 내역과 목표가를 주문 연결 없이 직접 남깁니다."),
+            ("04", "리서치 요청", "필요한 종목만 대기열에 넣고 완료 리포트 연결을 확인합니다."),
+        ),
         "steps": ("로그인", "마이페이지", "개인 기록", "분석 요청", "주문 차단"),
-        "cta_label": "가입하고 마이페이지 열기",
+        "cta_label": "가입하고 내 투자 노트 열기",
         "cta_href": "/member?mode=signup",
-        "secondary_cta_label": "리서치 구조 보기",
+        "secondary_cta_label": "공개 리서치 먼저 보기",
         "secondary_cta_href": "/features/research",
         "diagram_label": "회원 작업공간",
     },
@@ -925,17 +941,25 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "title": "사후 성과 검증 | TradingAgents Korea",
         "description": "AI 분석 이후 5일/20일 성과와 벤치마크 대비 초과수익을 공개 검증하는 구조입니다.",
         "eyebrow": "서비스 소개 / 성과 검증",
-        "heading": "AI 의견 이후의 결과까지 남깁니다",
-        "lead": "공개 분석은 완료 시점에서 끝나지 않습니다. 성과 검증 작업이 5일/20일 이후 성과를 계산하고 벤치마크 대비 초과수익을 남겨, 리포트 품질을 추적할 수 있게 합니다.",
+        "heading": "리포트가 나온 뒤 5일/20일 결과를 다시 확인합니다",
+        "lead": "공개 리서치는 생성 시점에서 끝나지 않습니다. 성과 검증 작업이 5일/20일 뒤 종목 수익률과 벤치마크 초과수익을 남겨, AI 리포트를 실제 결과와 함께 되돌아볼 수 있게 합니다.",
         "proof": (("검증", "5일 / 20일"), ("지표", "수익률 / 초과수익"), ("노출", "공개 리포트")),
         "cards": (
             ("성과 저장", "분석 기준일과 검증 기간별 결과를 저장해 공개 리포트와 연결합니다."),
             ("벤치마크 비교", "KOSPI/KOSDAQ 흐름과 비교한 초과 성과를 보여줍니다."),
             ("운영 점검", "운영 작업이 검증 대상을 처리하고 실패 상태를 확인합니다."),
         ),
+        "journey_heading": "성과는 추천 성과가 아니라 리포트 품질 기록입니다",
+        "journey_intro": "검증 화면은 투자 결과를 보장하지 않고, 과거 공개 리서치가 이후 시장에서 어떻게 움직였는지 확인하는 자료입니다.",
+        "journey": (
+            ("01", "원 리포트 확인", "어떤 기준일의 AI 의견인지 먼저 확인합니다."),
+            ("02", "기간 확인", "5일 또는 20일 검증 기간과 평가일을 봅니다."),
+            ("03", "시장 비교", "종목 수익률에서 벤치마크 수익률을 뺀 초과수익을 읽습니다."),
+            ("04", "다음 판단", "결과를 매매 지시가 아니라 리포트 품질 점검 자료로 남깁니다."),
+        ),
         "steps": ("분석 완료", "성과 검증", "벤치마크 수익률", "초과 성과", "공개 리뷰"),
-        "cta_label": "공개 분석 보기",
-        "cta_href": "/analyses",
+        "cta_label": "사후 성과 기록 보기",
+        "cta_href": "/outcomes",
         "secondary_cta_label": "신뢰 기준 보기",
         "secondary_cta_href": "/features/methodology",
         "diagram_label": "성과 검증",
@@ -945,7 +969,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "title": "방법론과 신뢰 기준 | TradingAgents Korea",
         "description": "TradingAgents Korea의 데이터 출처, AI 분석 한계, 성과 검증, 주문 없는 운영 원칙입니다.",
         "eyebrow": "신뢰 기준 / 방법론",
-        "heading": "데이터 출처와 한계를 함께 공개합니다",
+        "heading": "어떤 데이터로 판단했는지 먼저 공개합니다",
         "lead": "공개 리포트는 종목 판단의 근거를 보여주는 자료입니다. KRX, DART, Naver 뉴스, AI 리포트, 5일/20일 성과 검증을 한 흐름으로 묶되, 투자 실행 권한은 서비스가 갖지 않습니다.",
         "proof": (("출처", "KRX / DART / Naver"), ("검증", "5일 / 20일"), ("권한", "주문 차단")),
         "cards": (
@@ -955,6 +979,14 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
             ("회원 경계", "회원 포트폴리오와 관심종목은 개인 기록이며 공개 리포트 목록과 분리해 호출합니다."),
             ("운영 보안", "운영 키는 브라우저 세션 입력값으로만 사용하고 HTML, 문서, 커밋에 포함하지 않습니다."),
             ("실행 차단", "KIS 같은 브로커 연동은 읽기 전용 계좌조회 검토까지만 가능하며 주문 기능은 구현하지 않습니다."),
+        ),
+        "journey_heading": "리포트는 출처, 한계, 결과를 함께 읽습니다",
+        "journey_intro": "신뢰 기준은 화면의 숫자와 문장을 어떻게 읽어야 하는지 알려주는 기준점입니다.",
+        "journey": (
+            ("01", "출처", "가격, 공시, 뉴스, 리포트가 어디서 왔는지 확인합니다."),
+            ("02", "기준일", "차트와 리포트가 같은 날짜 기준인지 점검합니다."),
+            ("03", "한계", "누락, 지연, 모델 오류 가능성을 전제로 읽습니다."),
+            ("04", "검증", "5일/20일 사후 성과로 리포트 품질을 계속 되돌아봅니다."),
         ),
         "steps": ("출처 표기", "분석 기준", "AI 리포트", "성과 검증", "주문 없음"),
         "cta_label": "공개 분석 보기",
@@ -1146,6 +1178,10 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
         f"""<article><span>{index:02d}</span><strong>{_h(title)}</strong><p>{_h(copy)}</p></article>"""
         for index, (title, copy) in enumerate(page["cards"], start=1)
     )
+    journey_html = "".join(
+        f"""<article><span>{_h(number)}</span><strong>{_h(title)}</strong><p>{_h(copy)}</p></article>"""
+        for number, title, copy in page.get("journey", ())
+    )
     step_html = "".join(f"<span>{_h(step)}</span>" for step in page["steps"])
     canonical = canonical_url(str(page["path"]), site_base_url=site_base_url)
 
@@ -1217,6 +1253,17 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
 
     <section class="feature-card-grid" aria-label="기능 세부 구성">
       {card_html}
+    </section>
+
+    <section class="feature-journey" aria-labelledby="feature-journey-title">
+      <div class="feature-journey-heading">
+        <p class="eyebrow">사용자 흐름</p>
+        <h2 id="feature-journey-title">{_h(str(page.get("journey_heading", "처음 방문자도 바로 이어갈 수 있습니다")))}</h2>
+        <p>{_h(str(page.get("journey_intro", "공개 리서치를 먼저 확인하고 필요한 기록만 회원 작업공간에 저장합니다.")))}</p>
+      </div>
+      <div class="feature-journey-grid">
+        {journey_html}
+      </div>
     </section>
 
     <section class="home-ops-strip feature-boundary" aria-label="데이터 경계">
@@ -5304,6 +5351,74 @@ h3 {
   color: rgba(246, 243, 232, 0.78);
 }
 
+.feature-journey {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.58fr) minmax(0, 1.42fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(215, 255, 63, 0.06), rgba(143, 216, 189, 0.035)),
+    rgba(15, 22, 18, 0.72);
+}
+
+.feature-journey-heading h2 {
+  max-width: 18ch;
+  margin: 0;
+  color: var(--home-ink);
+  font-size: clamp(28px, 3.4vw, 48px);
+  line-height: 1;
+  text-wrap: balance;
+}
+
+.feature-journey-heading p:not(.eyebrow) {
+  max-width: 58ch;
+  margin: 14px 0 0;
+  color: var(--home-readable, rgba(246, 243, 232, 0.84));
+  line-height: 1.68;
+}
+
+.feature-journey-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.12);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.12);
+}
+
+.feature-journey-grid article {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 170px;
+  padding: 18px;
+  background: rgba(9, 13, 11, 0.46);
+}
+
+.feature-journey-grid span {
+  color: var(--home-acid);
+  font-family: var(--app-font-stack);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.feature-journey-grid strong {
+  color: var(--home-ink);
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.feature-journey-grid p {
+  margin: 0;
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.78));
+  line-height: 1.55;
+}
+
 .policy-shell {
   padding: clamp(48px, 7vw, 88px) 0 82px;
 }
@@ -6603,6 +6718,7 @@ h3 {
   .home-analysis-zone,
   .home-ops-strip,
   .feature-hero,
+  .feature-journey,
   .policy-hero,
   .admin-hero,
   .member-auth-landing,
@@ -7007,6 +7123,7 @@ h3 {
   .policy-card-grid,
   .policy-callout-grid,
   .feature-card-grid,
+  .feature-journey-grid,
   .feature-step-track,
   .admin-grid,
   .member-grid,
