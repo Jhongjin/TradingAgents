@@ -17,6 +17,7 @@ from tradingagents.site.seo import build_ads_txt, build_robots_txt, build_sitema
 from tradingagents.site.web_pages import (
     render_admin_console_page,
     render_feature_detail_page,
+    render_feature_index_page,
     render_member_dashboard_page,
     render_policy_page,
     render_public_analysis_detail_page,
@@ -251,7 +252,8 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "한국 주식 AI 리서치" in html
     assert "한국 주식 AI 리서치 / 주문 없는 읽기 전용 서비스" in html
     assert "처음 방문해도 바로 쓸 수 있는 세 가지 흐름" in html
-    assert "가입하고 내 투자 노트 만들기" in html
+    assert "가입하고 리서치 작업공간 만들기" in html
+    assert 'href="/features">서비스 흐름 보기</a>' in html
     assert "가입하면 열리는 기능" in html
     assert "home-member-preview" in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청으로 시작하기</a>' in html
@@ -450,6 +452,23 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert '<meta name="robots" content="noindex,nofollow">' in html
 
 
+def test_render_feature_index_page_guides_first_visit():
+    html = render_feature_index_page(site_base_url="https://example.com")
+
+    assert "기능 안내 | TradingAgents Korea" in html
+    assert "종목을 읽고, 필요한 기록만 내 공간에 남깁니다" in html
+    assert "처음에는 종목을 검색해 공개 리포트를 읽고" in html
+    assert "TradingAgents Korea는 투자 판단을 돕는 자료를 제공하지만 주문은 실행하지 않습니다." in html
+    assert 'href="/features/research"' in html
+    assert 'href="/features/member-workspace"' in html
+    assert 'href="/features/outcomes"' in html
+    assert 'href="/features/methodology"' in html
+    assert 'href="/member?mode=signup">가입하고 작업공간 열기</a>' in html
+    assert '<link rel="canonical" href="https://example.com/features">' in html
+    assert "/api/member/dashboard" not in html
+    assert "/api/portfolios" not in html
+
+
 def test_render_feature_detail_pages_use_public_theme():
     html = render_feature_detail_page("research", site_base_url="https://example.com")
     member_html = render_feature_detail_page("member-workspace", site_base_url="https://example.com")
@@ -474,8 +493,8 @@ def test_render_feature_detail_pages_use_public_theme():
     assert "로그인 후에는 개인 기록만 따로 열립니다" in member_html
     assert "/api/member/dashboard" not in member_html
     assert 'href="/features/methodology">신뢰 기준 보기</a>' in outcomes_html
-    assert 'href="/outcomes">사후 성과 기록 보기</a>' in outcomes_html
-    assert "성과는 추천 성과가 아니라 리포트 품질 기록입니다" in outcomes_html
+    assert 'href="/outcomes">리포트 이후 기록 보기</a>' in outcomes_html
+    assert "사후 기록은 추천 성과가 아니라 리포트 품질 기록입니다" in outcomes_html
     assert "/api/member/dashboard" not in outcomes_html
     assert "어떤 데이터로 판단했는지 먼저 공개합니다" in methodology_html
     assert "KRX / DART / Naver" in methodology_html
@@ -621,6 +640,10 @@ def test_api_app_serves_feature_and_admin_pages(monkeypatch):
 
     monkeypatch.setattr("tradingagents.site.api_app.render_feature_detail_page", fake_feature)
     monkeypatch.setattr(
+        "tradingagents.site.api_app.render_feature_index_page",
+        lambda *args, **kwargs: "<!doctype html><html><body>feature index</body></html>",
+    )
+    monkeypatch.setattr(
         "tradingagents.site.api_app.render_policy_page",
         lambda slug, *args, **kwargs: f"<!doctype html><html><body>policy {slug}</body></html>",
     )
@@ -630,6 +653,7 @@ def test_api_app_serves_feature_and_admin_pages(monkeypatch):
     )
     client = TestClient(create_app(repo=None, load_repo_from_env=False, public_cache_seconds=60))
 
+    feature_index_response = client.get("/features")
     feature_response = client.get("/features/research")
     unknown_response = client.get("/features/unknown")
     admin_response = client.get("/admin")
@@ -637,6 +661,9 @@ def test_api_app_serves_feature_and_admin_pages(monkeypatch):
     terms_response = client.get("/terms")
     disclaimer_response = client.get("/disclaimer")
 
+    assert feature_index_response.status_code == 200
+    assert feature_index_response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    assert "feature index" in feature_index_response.text
     assert feature_response.status_code == 200
     assert feature_response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
     assert "feature research" in feature_response.text
@@ -1102,6 +1129,7 @@ def test_seo_helpers_build_canonical_robots_and_sitemap():
     assert "https://example.com/outcomes" in sitemap
     assert "https://example.com/analyses/run-1" in sitemap
     assert "/not-public/run-2" not in sitemap
+    assert "https://example.com/features" in sitemap
     assert "https://example.com/features/research" in sitemap
     assert "https://example.com/features/member-workspace" in sitemap
     assert "https://example.com/features/methodology" in sitemap
@@ -1151,6 +1179,7 @@ def test_api_app_serves_robots_sitemap_and_ads_txt(monkeypatch):
     assert sitemap_response.status_code == 200
     assert sitemap_response.headers["content-type"].startswith("application/xml")
     assert "http://testserver/analyses" in sitemap_response.text
+    assert "http://testserver/features" in sitemap_response.text
     assert "http://testserver/features/research" in sitemap_response.text
     assert "http://testserver/features/methodology" in sitemap_response.text
     assert "http://testserver/privacy" in sitemap_response.text

@@ -658,7 +658,7 @@ def render_public_home_page(
       <div class="home-hero-copy home-hero-content">
         <p class="home-kicker">한국 주식 AI 리서치 / 주문 없는 읽기 전용 서비스</p>
         <h1 id="home-title">한국 주식 AI 리서치</h1>
-        <p class="home-lede">종목을 검색하면 KRX 시세, DART 공시, Naver 뉴스, AI 의견, 5일/20일 사후 성과를 한 화면에서 확인합니다. 가입하면 내 포트폴리오, 관심종목, 분석 요청 대기열이 열립니다.</p>
+        <p class="home-lede">종목을 검색하면 KRX 시세, DART 공시, Naver 뉴스, AI 의견, 리포트 이후 기록을 한 화면에서 확인합니다. 가입하면 관심종목, 리서치 요청, 수동 기록을 내 작업공간에 저장합니다.</p>
         <form class="ticker-search home-search home-command-search" action="/stocks" method="get">
           <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
           <input id="ticker" name="ticker" list="tickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" autocomplete="off">
@@ -667,8 +667,9 @@ def render_public_home_page(
         </form>
         <div class="home-cta-row home-action-row" aria-label="첫 방문자 주요 행동">
           <a class="home-primary-link" href="/stocks/005930">샘플 분석 보기</a>
-          <a class="home-secondary-link" href="/member?mode=signup">가입하고 내 투자 노트 만들기</a>
+          <a class="home-secondary-link" href="/member?mode=signup">가입하고 리서치 작업공간 만들기</a>
           <a class="home-secondary-link" href="/analyses">최근 공개 분석</a>
+          <a class="home-secondary-link" href="/features">서비스 흐름 보기</a>
         </div>
         <aside class="home-member-preview" aria-label="가입 후 제공 기능">
           <strong>가입하면 열리는 기능</strong>
@@ -941,44 +942,44 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
     },
     "outcomes": {
         "path": "/features/outcomes",
-        "title": "사후 성과 검증 | TradingAgents Korea",
-        "description": "AI 분석 이후 5일/20일 성과와 벤치마크 대비 초과수익을 공개 검증하는 구조입니다.",
-        "eyebrow": "서비스 소개 / 성과 검증",
+        "title": "리포트 이후 기록 | TradingAgents Korea",
+        "description": "AI 분석 이후 5일/20일 기록과 시장 기준 대비 차이를 공개 리포트에 연결하는 구조입니다.",
+        "eyebrow": "서비스 소개 / 사후 기록",
         "heading": "리포트가 나온 뒤 5일/20일 결과를 다시 확인합니다",
-        "lead": "공개 리서치는 생성 시점에서 끝나지 않습니다. 성과 검증 작업이 5일/20일 뒤 종목 수익률과 벤치마크 초과수익을 남겨, AI 리포트를 실제 결과와 함께 되돌아볼 수 있게 합니다.",
-        "proof": (("검증", "5일 / 20일"), ("지표", "수익률 / 초과수익"), ("노출", "공개 리포트")),
+        "lead": "공개 리서치는 생성 시점에서 끝나지 않습니다. 사후 기록 작업이 5일/20일 뒤 종목 수익률과 벤치마크 차이를 남겨, AI 리포트를 이후 흐름과 함께 되돌아볼 수 있게 합니다.",
+        "proof": (("기록", "5일 / 20일"), ("지표", "수익률 / 벤치마크 차이"), ("노출", "공개 리포트")),
         "cards": (
-            ("성과 저장", "분석 기준일과 검증 기간별 결과를 저장해 공개 리포트와 연결합니다."),
-            ("벤치마크 비교", "KOSPI/KOSDAQ 흐름과 비교한 초과 성과를 보여줍니다."),
-            ("운영 점검", "운영 작업이 검증 대상을 처리하고 실패 상태를 확인합니다."),
+            ("기록 저장", "분석 기준일과 확인 기간별 결과를 저장해 공개 리포트와 연결합니다."),
+            ("시장 기준 비교", "KOSPI/KOSDAQ 흐름과 비교한 차이를 함께 보여줍니다."),
+            ("운영 점검", "운영 작업이 기록 대상을 처리하고 실패 상태를 확인합니다."),
         ),
-        "journey_heading": "성과는 추천 성과가 아니라 리포트 품질 기록입니다",
-        "journey_intro": "검증 화면은 투자 결과를 보장하지 않고, 과거 공개 리서치가 이후 시장에서 어떻게 움직였는지 확인하는 자료입니다.",
+        "journey_heading": "사후 기록은 추천 성과가 아니라 리포트 품질 기록입니다",
+        "journey_intro": "기록 화면은 투자 결과를 보장하지 않고, 과거 공개 리서치가 이후 시장에서 어떻게 움직였는지 확인하는 자료입니다.",
         "journey": (
             ("01", "원 리포트 확인", "어떤 기준일의 AI 의견인지 먼저 확인합니다."),
-            ("02", "기간 확인", "5일 또는 20일 검증 기간과 평가일을 봅니다."),
-            ("03", "시장 비교", "종목 수익률에서 벤치마크 수익률을 뺀 초과수익을 읽습니다."),
+            ("02", "기간 확인", "5일 또는 20일 확인 기간과 평가일을 봅니다."),
+            ("03", "시장 비교", "종목 수익률과 시장 기준 수익률의 차이를 읽습니다."),
             ("04", "다음 판단", "결과를 매매 지시가 아니라 리포트 품질 점검 자료로 남깁니다."),
         ),
-        "steps": ("분석 완료", "성과 검증", "벤치마크 수익률", "초과 성과", "공개 리뷰"),
-        "cta_label": "사후 성과 기록 보기",
+        "steps": ("분석 완료", "사후 기록", "시장 기준", "차이 확인", "공개 리뷰"),
+        "cta_label": "리포트 이후 기록 보기",
         "cta_href": "/outcomes",
         "secondary_cta_label": "신뢰 기준 보기",
         "secondary_cta_href": "/features/methodology",
-        "diagram_label": "성과 검증",
+        "diagram_label": "사후 기록",
     },
     "methodology": {
         "path": "/features/methodology",
         "title": "방법론과 신뢰 기준 | TradingAgents Korea",
-        "description": "TradingAgents Korea의 데이터 출처, AI 분석 한계, 성과 검증, 주문 없는 운영 원칙입니다.",
+        "description": "TradingAgents Korea의 데이터 출처, AI 분석 한계, 사후 기록, 주문 없는 운영 원칙입니다.",
         "eyebrow": "신뢰 기준 / 방법론",
         "heading": "어떤 데이터로 판단했는지 먼저 공개합니다",
-        "lead": "공개 리포트는 종목 판단의 근거를 보여주는 자료입니다. KRX, DART, Naver 뉴스, AI 리포트, 5일/20일 성과 검증을 한 흐름으로 묶되, 투자 실행 권한은 서비스가 갖지 않습니다.",
+        "lead": "공개 리포트는 종목 판단의 근거를 보여주는 자료입니다. KRX, DART, Naver 뉴스, AI 리포트, 5일/20일 사후 기록을 한 흐름으로 묶되, 투자 실행 권한은 서비스가 갖지 않습니다.",
         "proof": (("출처", "KRX / DART / Naver"), ("검증", "5일 / 20일"), ("권한", "주문 차단")),
         "cards": (
             ("데이터 기준", "공개 화면은 기준일, 데이터 제공처, 대체 경로 여부를 최대한 노출하고 원문 데이터로 검증할 수 있게 둡니다."),
             ("AI 한계", "리포트는 정보 제공용이며 누락 데이터, 시장 휴장, 제공처 장애, 모델 오류 가능성을 전제로 읽어야 합니다."),
-            ("사후 검증", "완료된 공개 분석은 성과 검증 작업이 5일/20일 뒤 종목 수익률과 벤치마크 대비 초과수익을 추적합니다."),
+            ("사후 기록", "완료된 공개 분석은 사후 기록 작업이 5일/20일 뒤 종목 수익률과 시장 기준 차이를 추적합니다."),
             ("회원 경계", "회원 포트폴리오와 관심종목은 개인 기록이며 공개 리포트 목록과 분리해 호출합니다."),
             ("운영 보안", "운영 키는 브라우저 세션 입력값으로만 사용하고 HTML, 문서, 커밋에 포함하지 않습니다."),
             ("실행 차단", "KIS 같은 브로커 연동은 읽기 전용 계좌조회 검토까지만 가능하며 주문 기능은 구현하지 않습니다."),
@@ -989,9 +990,9 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
             ("01", "출처", "가격, 공시, 뉴스, 리포트가 어디서 왔는지 확인합니다."),
             ("02", "기준일", "차트와 리포트가 같은 날짜 기준인지 점검합니다."),
             ("03", "한계", "누락, 지연, 모델 오류 가능성을 전제로 읽습니다."),
-            ("04", "검증", "5일/20일 사후 성과로 리포트 품질을 계속 되돌아봅니다."),
+            ("04", "검증", "5일/20일 사후 기록으로 리포트 품질을 계속 되돌아봅니다."),
         ),
-        "steps": ("출처 표기", "분석 기준", "AI 리포트", "성과 검증", "주문 없음"),
+        "steps": ("출처 표기", "분석 기준", "AI 리포트", "사후 기록", "주문 없음"),
         "cta_label": "공개 분석 보기",
         "cta_href": "/analyses",
         "secondary_cta_label": "사후 검증 보기",
@@ -1007,6 +1008,122 @@ def feature_detail_slugs() -> tuple[str, ...]:
 
 def feature_detail_paths() -> tuple[str, ...]:
     return tuple(str(page["path"]) for page in FEATURE_DETAIL_PAGES.values())
+
+
+def render_feature_index_page(*, site_base_url: str | None = None) -> str:
+    """Render the public feature hub for first-time visitors."""
+
+    feature_cards = "".join(
+        f"""<a class="feature-index-card" href="{_h(str(page["path"]))}">
+          <span>{index:02d}</span>
+          <strong>{_h(str(page["heading"]))}</strong>
+          <small>{_h(str(page["description"]))}</small>
+        </a>"""
+        for index, page in enumerate(FEATURE_DETAIL_PAGES.values(), start=1)
+    )
+    proof_html = "".join(
+        f"""<div><dt>{_h(label)}</dt><dd>{_h(value)}</dd></div>"""
+        for label, value in (
+            ("공개 리서치", "검색 / 분석 / 사후 기록"),
+            ("회원 공간", "관심종목 / 요청 / 수동 기록"),
+            ("투자 실행", "실거래 주문 차단"),
+        )
+    )
+    canonical = canonical_url("/features", site_base_url=site_base_url)
+
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>기능 안내 | TradingAgents Korea</title>
+  <meta name="description" content="TradingAgents Korea의 공개 리서치, 회원 작업공간, 사후 기록, 신뢰 기준을 한 번에 확인합니다.">
+  <link rel="canonical" href="{_h(canonical)}">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ko_KR">
+  <meta name="twitter:card" content="summary">
+  <meta property="og:site_name" content="TradingAgents Korea">
+  <meta property="og:title" content="기능 안내 | TradingAgents Korea">
+  <meta property="og:description" content="공개 리서치부터 회원 작업공간까지, TradingAgents Korea에서 무엇을 할 수 있는지 안내합니다.">
+  <meta property="og:url" content="{_h(canonical)}">
+  <style>{PAGE_CSS}</style>
+</head>
+<body class="public-home feature-page feature-index-page">
+  <a class="skip-link" href="#main-content">본문 바로가기</a>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="TradingAgents Korea home">
+      <span class="brand-mark">TA</span>
+      <span>TradingAgents Korea</span>
+    </a>
+    <nav class="top-links" aria-label="공개 페이지">
+      <a href="/features" aria-current="page">기능</a>
+      <a href="/features/methodology">신뢰 기준</a>
+      <a href="/analyses">분석 목록</a>
+      <a href="/outcomes">성과</a>
+      <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
+      <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
+      <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
+    </nav>
+  </header>
+
+  <main id="main-content" class="home-shell feature-shell">
+    <section class="feature-hero" aria-labelledby="feature-index-title">
+      <div class="feature-copy">
+        <p class="home-kicker">서비스 안내 / 처음 방문자를 위한 흐름</p>
+        <h1 id="feature-index-title">종목을 읽고, 필요한 기록만 내 공간에 남깁니다</h1>
+        <p>처음에는 종목을 검색해 공개 리포트를 읽고, 가입 후에는 관심종목과 리서치 요청, 수동 기록을 내 작업공간에 저장합니다. TradingAgents Korea는 투자 판단을 돕는 자료를 제공하지만 주문은 실행하지 않습니다.</p>
+        <dl class="home-proof-row feature-proof-row" aria-label="서비스 범위">
+          {proof_html}
+        </dl>
+        <div class="home-cta-row">
+          <a class="home-primary-link" href="/stocks/005930">샘플 종목 보기</a>
+          <a class="home-secondary-link" href="/member?mode=signup">가입하고 작업공간 열기</a>
+          <a class="home-secondary-link" href="/analyses">공개 분석 보기</a>
+        </div>
+      </div>
+      <div class="feature-diagram" aria-label="서비스 이용 흐름">
+        <div class="feature-diagram-top">
+          <span>TA-KR</span>
+          <span>READ ONLY</span>
+        </div>
+        <div class="feature-step-track">
+          <span>종목 검색</span>
+          <span>공개 리포트</span>
+          <span>회원 기록</span>
+          <span>요청 대기열</span>
+          <span>주문 차단</span>
+        </div>
+        <div class="feature-signal-card">
+          <span>첫 방문 경로</span>
+          <strong>검색은 공개, 기록은 회원 공간</strong>
+          <small>공개 데이터와 개인 기록을 분리해 불러옵니다.</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="feature-index-grid" aria-label="기능 목록">
+      {feature_cards}
+    </section>
+
+    <section class="feature-journey" aria-labelledby="feature-index-journey-title">
+      <div class="feature-journey-heading">
+        <p class="eyebrow">사용자 흐름</p>
+        <h2 id="feature-index-journey-title">처음 방문자가 바로 이어갈 수 있는 순서</h2>
+        <p>공개 리서치로 먼저 확인하고, 다시 볼 종목이나 새 리서치 요청만 회원 공간에 보관하세요.</p>
+      </div>
+      <div class="feature-journey-grid">
+        <article><span>01</span><strong>종목 검색</strong><p>6자리 코드나 종목명으로 공개 가격, 뉴스, 공시, 리포트를 확인합니다.</p></article>
+        <article><span>02</span><strong>근거 확인</strong><p>데이터 기준일과 출처, AI 의견, 리포트 본문, 사후 기록을 차례로 읽습니다.</p></article>
+        <article><span>03</span><strong>회원 저장</strong><p>가입 후 관심종목, 수동 기록, 리서치 요청을 개인 작업공간에 남깁니다.</p></article>
+        <article><span>04</span><strong>주문 없음</strong><p>서비스는 브로커 주문 권한을 갖지 않고 기록과 조회 흐름만 제공합니다.</p></article>
+      </div>
+    </section>
+  </main>
+
+  <script>{PAGE_JS}</script>
+</body>
+</html>"""
 
 
 POLICY_PAGES: dict[str, dict[str, Any]] = {
@@ -5364,6 +5481,7 @@ h3 {
 }
 
 .feature-card-grid,
+.feature-index-grid,
 .admin-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -5380,6 +5498,7 @@ h3 {
 }
 
 .feature-card-grid article,
+.feature-index-card,
 .admin-card {
   display: grid;
   gap: 16px;
@@ -5388,7 +5507,23 @@ h3 {
   background: rgba(15, 22, 18, 0.76);
 }
 
-.feature-card-grid span {
+.feature-index-card {
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
+}
+
+.feature-index-card:hover,
+.feature-index-card:focus-visible {
+  background: rgba(207, 255, 35, 0.09);
+  transform: translateY(-2px);
+}
+
+.feature-card-grid span,
+.feature-index-card span {
   color: var(--home-acid);
   font-family: var(--app-font-stack);
   font-size: 12px;
@@ -5396,12 +5531,14 @@ h3 {
 }
 
 .feature-card-grid strong,
+.feature-index-card strong,
 .admin-card h2 {
   color: var(--home-ink);
   font-size: 22px;
 }
 
 .feature-card-grid p,
+.feature-index-card small,
 .feature-boundary li,
 .admin-card label,
 .admin-card pre,
@@ -6917,6 +7054,7 @@ h3 {
   .analysis-pipeline-strip,
   .policy-card-grid,
   .feature-card-grid,
+  .feature-index-grid,
   .home-service-grid,
   .admin-grid {
     grid-template-columns: 1fr 1fr;
@@ -7259,6 +7397,7 @@ h3 {
   .policy-callout-grid,
   .policy-next-action-grid,
   .feature-card-grid,
+  .feature-index-grid,
   .feature-journey-grid,
   .feature-step-track,
   .admin-grid,

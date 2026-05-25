@@ -117,6 +117,7 @@ def build_sitemap_xml(
     date_value = generated_date or datetime.utcnow().date().isoformat()
     urls = [
         (canonical_url("/", site_base_url=base), "daily", "1.0"),
+        (canonical_url("/features", site_base_url=base), "weekly", "0.8"),
         (canonical_url("/analyses", site_base_url=base), "hourly", "0.8"),
         (canonical_url("/outcomes", site_base_url=base), "hourly", "0.8"),
     ]

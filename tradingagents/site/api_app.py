@@ -40,6 +40,7 @@ from .watchlist_api import build_watchlist_list_payload, build_watchlist_payload
 from .web_pages import (
     render_admin_console_page,
     render_feature_detail_page,
+    render_feature_index_page,
     render_member_dashboard_page,
     render_policy_page,
     render_public_analysis_detail_page,
@@ -154,6 +155,7 @@ def create_app(
             or request.url.path == "/outcomes"
             or request.url.path == "/stocks"
             or request.url.path.startswith("/stocks/")
+            or request.url.path == "/features"
             or request.url.path.startswith("/features/")
             or request.url.path in {"/privacy", "/terms", "/disclaimer"}
             or request.url.path in {"/ads.txt", "/robots.txt", "/sitemap.xml"}
@@ -387,6 +389,10 @@ def create_app(
     @app.get("/disclaimer", response_class=HTMLResponse, include_in_schema=False)
     def disclaimer_page(request: Request) -> HTMLResponse:
         return HTMLResponse(render_policy_page("disclaimer", site_base_url=_request_site_base_url(request)))
+
+    @app.get("/features", response_class=HTMLResponse, include_in_schema=False)
+    def feature_index(request: Request) -> HTMLResponse:
+        return HTMLResponse(render_feature_index_page(site_base_url=_request_site_base_url(request)))
 
     @app.get("/features/{feature_slug}", response_class=HTMLResponse, include_in_schema=False)
     def feature_detail(feature_slug: str, request: Request) -> HTMLResponse:
