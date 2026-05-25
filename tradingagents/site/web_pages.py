@@ -6,7 +6,7 @@ import html
 import json
 import os
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlencode
 
 from tradingagents.storage import StorageRepository
@@ -117,7 +117,7 @@ def render_public_stock_page(
       </div>
       <aside class="stock-hero-stack" aria-label="종목 리서치 요약">
         <div class="decision-box">
-          <span class="decision-label">AI 판단</span>
+          <span class="decision-label">AI 의견</span>
           <strong>{_h(model["rating"])}</strong>
           <span>{_h(model["action"])}</span>
         </div>
@@ -301,12 +301,12 @@ def render_public_analysis_feed_page(
       <article>
         <span>02</span>
         <strong>AI 근거</strong>
-        <small>AI 리포트와 판단 요약을 분리해 제공합니다.</small>
+        <small>AI 리포트와 의견 요약을 분리해 제공합니다.</small>
       </article>
       <article>
         <span>03</span>
         <strong>성과 검증</strong>
-        <small>5일/20일 성과 검증이 연결되면 알파를 표시합니다.</small>
+        <small>5일/20일 성과 검증이 연결되면 벤치마크 대비 초과수익을 표시합니다.</small>
       </article>
     </section>
 
@@ -715,7 +715,7 @@ def render_public_home_page(
           <div class="home-console-focus">
             <span id="homeSignalTicker">005930 / 삼성전자</span>
             <strong id="homeSignalDecision">보유 관찰</strong>
-            <small id="homeSignalMeta">가격 + 공시 + 뉴스 + 벤치마크 알파</small>
+            <small id="homeSignalMeta">가격 + 공시 + 뉴스 + 초과수익</small>
           </div>
           <div class="home-sparkline" aria-hidden="true">
             <i style="--h: 38%"></i>
@@ -744,11 +744,11 @@ def render_public_home_page(
         <div class="home-live-tape" aria-hidden="true">
           <div class="home-live-tape-track">
             <span>005930 삼성전자 / KRX OHLCV / DART 공시</span>
-            <span>000660 SK하이닉스 / 벤치마크 알파 / 뉴스 반응</span>
+            <span>000660 SK하이닉스 / 초과수익 / 뉴스 반응</span>
             <span>035420 NAVER / 공시 확인 / 20일 검증</span>
             <span>086520 에코프로 / 변동성 점검 / 주문 없음</span>
             <span>005930 삼성전자 / KRX OHLCV / DART 공시</span>
-            <span>000660 SK하이닉스 / 벤치마크 알파 / 뉴스 반응</span>
+            <span>000660 SK하이닉스 / 초과수익 / 뉴스 반응</span>
           </div>
         </div>
       </div>
@@ -796,8 +796,8 @@ def render_public_home_page(
         <article><span>01</span><strong>가격</strong><p>KRW OHLCV와 이동평균, 거래량 흐름을 확인합니다.</p></article>
         <article><span>02</span><strong>공시</strong><p>DART 공시와 재무 이벤트를 분석 흐름에 반영합니다.</p></article>
         <article><span>03</span><strong>뉴스</strong><p>Naver 뉴스 신호로 단기 이슈와 시장 반응을 추적합니다.</p></article>
-        <article><span>04</span><strong>AI 판단</strong><p>복수 에이전트 판단을 공개 리포트 구조로 정리합니다.</p></article>
-        <article><span>05</span><strong>성과 검증</strong><p>5일/20일 성과 검증으로 판단 이후를 기록합니다.</p></article>
+        <article><span>04</span><strong>AI 의견</strong><p>복수 에이전트의 근거와 의견을 공개 리포트 구조로 정리합니다.</p></article>
+        <article><span>05</span><strong>성과 검증</strong><p>5일/20일 성과 검증으로 의견 이후의 결과를 기록합니다.</p></article>
       </div>
     </section>
 
@@ -805,7 +805,7 @@ def render_public_home_page(
       <div class="home-section-copy">
         <p class="eyebrow">공개 리포트</p>
         <h2 id="recent-title">최근 공개 분석</h2>
-        <p>완료된 AI 분석은 종목 페이지와 공개 목록에 누적됩니다. 판단, 모델, 리포트 수, 벤치마크 대비 알파를 빠르게 훑고 원문 데이터까지 확인할 수 있습니다.</p>
+        <p>완료된 AI 분석은 종목 페이지와 공개 목록에 누적됩니다. AI 의견, 모델, 리포트 수, 벤치마크 대비 초과수익을 빠르게 훑고 원문 데이터까지 확인할 수 있습니다.</p>
         <a class="home-secondary-link" href="/analyses">전체 분석 목록</a>
       </div>
       <div class="home-analysis-grid">
@@ -916,11 +916,11 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
     "outcomes": {
         "path": "/features/outcomes",
         "title": "사후 성과 검증 | TradingAgents Korea",
-        "description": "AI 분석 이후 5일/20일 성과와 벤치마크 대비 알파를 공개 검증하는 구조입니다.",
+        "description": "AI 분석 이후 5일/20일 성과와 벤치마크 대비 초과수익을 공개 검증하는 구조입니다.",
         "eyebrow": "서비스 소개 / 성과 검증",
-        "heading": "AI 판단 이후의 결과까지 남깁니다",
-        "lead": "공개 분석은 완료 시점에서 끝나지 않습니다. 성과 검증 작업이 5일/20일 이후 성과를 계산하고 벤치마크 대비 알파를 남겨, 리포트 품질을 추적할 수 있게 합니다.",
-        "proof": (("검증", "5일 / 20일"), ("지표", "수익률 / 알파"), ("노출", "공개 리포트")),
+        "heading": "AI 의견 이후의 결과까지 남깁니다",
+        "lead": "공개 분석은 완료 시점에서 끝나지 않습니다. 성과 검증 작업이 5일/20일 이후 성과를 계산하고 벤치마크 대비 초과수익을 남겨, 리포트 품질을 추적할 수 있게 합니다.",
+        "proof": (("검증", "5일 / 20일"), ("지표", "수익률 / 초과수익"), ("노출", "공개 리포트")),
         "cards": (
             ("성과 저장", "분석 기준일과 검증 기간별 결과를 저장해 공개 리포트와 연결합니다."),
             ("벤치마크 비교", "KOSPI/KOSDAQ 흐름과 비교한 초과 성과를 보여줍니다."),
@@ -944,7 +944,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "cards": (
             ("데이터 기준", "공개 화면은 기준일, 데이터 제공처, 대체 경로 여부를 최대한 노출하고 원문 데이터로 검증할 수 있게 둡니다."),
             ("AI 한계", "리포트는 정보 제공용이며 누락 데이터, 시장 휴장, 제공처 장애, 모델 오류 가능성을 전제로 읽어야 합니다."),
-            ("사후 검증", "완료된 공개 분석은 성과 검증 작업이 5일/20일 뒤 종목 수익률과 벤치마크 대비 알파를 추적합니다."),
+            ("사후 검증", "완료된 공개 분석은 성과 검증 작업이 5일/20일 뒤 종목 수익률과 벤치마크 대비 초과수익을 추적합니다."),
             ("회원 경계", "회원 포트폴리오와 관심종목은 개인 기록이며 공개 리포트 목록과 분리해 호출합니다."),
             ("운영 보안", "운영 키는 브라우저 세션 입력값으로만 사용하고 HTML, 문서, 커밋에 포함하지 않습니다."),
             ("실행 차단", "KIS 같은 브로커 연동은 읽기 전용 계좌조회 검토까지만 가능하며 주문 기능은 구현하지 않습니다."),
@@ -1083,7 +1083,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
                 "투자 조언 아님",
                 (
                     "서비스의 모든 콘텐츠는 정보 제공 목적이며 개인별 투자 목적, 재산 상황, 위험 선호를 반영하지 않습니다.",
-                    "AI 판단, rating, action, strategy lens는 사용자의 독립적인 검토를 돕는 참고 정보입니다.",
+                    "AI 의견과 rating/action 같은 원문 필드는 사용자의 독립적인 검토를 돕는 참고 정보입니다.",
                     "실제 매매 전에는 공식 공시, 원자료, 전문가 의견, 본인의 투자 원칙을 함께 확인해야 합니다.",
                 ),
             ),
@@ -1106,7 +1106,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
             (
                 "성과 검증 해석",
                 (
-                    "5일/20일 성과와 벤치마크 대비 알파는 사후 측정값이며 거래 비용, 세금, 체결 가능성을 모두 반영하지 않을 수 있습니다.",
+                    "5일/20일 성과와 벤치마크 대비 초과수익은 사후 측정값이며 거래 비용, 세금, 체결 가능성을 모두 반영하지 않을 수 있습니다.",
                     "과거 분석의 양호한 성과는 이후 분석 또는 동일 종목의 미래 성과를 보장하지 않습니다.",
                     "성과 통계는 공개 리포트 품질을 추적하기 위한 운영 지표로 읽어야 합니다.",
                 ),
@@ -1839,8 +1839,12 @@ def _view_model(payload: dict[str, Any], *, site_base_url: str | None = None) ->
     code = ticker.get("code", "")
     market = ticker.get("market", "KR")
     benchmark = ticker.get("benchmark_symbol") or "KR Benchmark"
-    rating = decision.get("rating") or _analysis_status_label(analysis.get("status"))
-    action = decision.get("action") or "read-only"
+    rating = (
+        _decision_rating_label(decision.get("rating"))
+        if decision.get("rating")
+        else _analysis_status_label(analysis.get("status"))
+    )
+    action = _decision_action_label(decision.get("action"), fallback="조회 전용")
 
     return {
         "title": f"{name} ({code}) | TradingAgents Korea",
@@ -1851,7 +1855,7 @@ def _view_model(payload: dict[str, Any], *, site_base_url: str | None = None) ->
         "canonical_url": stock_canonical_url(code, site_base_url=site_base_url),
         "generated_at": _short_datetime(payload.get("generated_at")),
         "rating": str(rating),
-        "action": str(action).upper(),
+        "action": str(action),
         "close": _money(close),
         "change": _change(change_value, change_rate),
         "change_class": _change_class(change_value),
@@ -1973,8 +1977,8 @@ def _stock_reading_guide(model: dict[str, Any]) -> str:
     outcomes_href = f"/outcomes?ticker={code}" if code else "/outcomes"
     links = [
         ("01", "가격과 출처", "#stock-chart-section", "차트 기간, 제공처, 대체 경로를 먼저 확인합니다."),
-        ("02", "분석과 근거", "#stock-analysis-section", "AI 판단은 신뢰도와 누락 경고를 함께 읽습니다."),
-        ("03", "성과 검증", "#analysis-outcomes", "5일/20일 알파가 연결됐는지 확인합니다."),
+        ("02", "분석과 근거", "#stock-analysis-section", "AI 의견은 신뢰도와 누락 경고를 함께 읽습니다."),
+        ("03", "성과 검증", "#analysis-outcomes", "5일/20일 초과수익이 연결됐는지 확인합니다."),
         ("04", "리포트 본문", "#stock-reports-section", "에이전트별 요약과 근거 점검을 이어서 봅니다."),
     ]
     link_html = "".join(
@@ -2148,7 +2152,7 @@ def _analysis_missing_data_warnings(
     if status == "available" and report_count == 0:
         warnings.append("AI 리포트가 저장되지 않았습니다.")
     if status == "available" and not has_decision:
-        warnings.append("최종 판단 레코드가 저장되지 않았습니다.")
+        warnings.append("AI 의견 레코드가 저장되지 않았습니다.")
     if status == "available" and outcome_count == 0:
         warnings.append("5일/20일 사후 성과 검증이 아직 없습니다.")
     if chart.get("status") != "available":
@@ -2349,7 +2353,7 @@ def _analysis_outcomes_view_model(payload: dict[str, Any], *, site_base_url: str
     filter_label = " / ".join(filters) if filters else "전체 성과"
     return {
         "title": "성과 검증 대시보드 | TradingAgents Korea",
-        "description": "TradingAgents Korea 공개 분석의 5일/20일 사후 성과와 벤치마크 대비 알파를 확인합니다.",
+        "description": "TradingAgents Korea 공개 분석의 5일/20일 사후 성과와 벤치마크 대비 초과수익을 확인합니다.",
         "canonical_url": canonical_url("/outcomes", site_base_url=site_base_url),
         "subtitle": "공개 분석의 5일/20일 사후 성과를 검증합니다.",
         "status_label": _analysis_outcomes_status_label(payload.get("status")),
@@ -2388,8 +2392,10 @@ def _analysis_detail_view_model(
     analyst_label = _metadata_list_label(metadata.get("selected_analysts"), fallback="저장된 분석 역할 없음")
     created_label = _compact_timestamp(run.get("created_at"))
     completed_label = _compact_timestamp(run.get("completed_at"))
-    rating = str(summary.get("decision_rating") or decision.get("rating") or "-")
-    action = str(summary.get("decision_action") or decision.get("action") or "-")
+    rating_raw = summary.get("decision_rating") or decision.get("rating")
+    action_raw = summary.get("decision_action") or decision.get("action")
+    rating = _decision_rating_label(rating_raw)
+    action = _decision_action_label(action_raw)
     model_bits = [provider]
     if deep_model:
         model_bits.append(f"상세 모델 {deep_model}")
@@ -2398,7 +2404,7 @@ def _analysis_detail_view_model(
     heading = f"{ticker_name} 공개 분석 리포트"
     description = (
         f"{trade_date} 기준 {ticker_name}({ticker_code}) 공개 AI 분석입니다. "
-        f"판단 {rating}, 리포트 {len(reports)}개, 사후 성과 검증 {summary.get('completed_outcome_count', 0)}건을 제공합니다."
+        f"AI 의견 {rating}, 리포트 {len(reports)}개, 사후 성과 검증 {summary.get('completed_outcome_count', 0)}건을 제공합니다."
     )
     return {
         "title": f"{ticker_name} {ticker_code} 공개 분석 리포트 | TradingAgents Korea",
@@ -2413,7 +2419,7 @@ def _analysis_detail_view_model(
         "market": market,
         "trade_date": trade_date,
         "decision": decision,
-        "decision_label": f"{rating} / {action}",
+        "decision_label": _decision_pair_label(rating_raw, action_raw),
         "data_basis": f"{trade_date} 기준, 공개 분석",
         "reports": reports,
         "outcomes": outcomes,
@@ -2506,12 +2512,12 @@ def _analysis_summary_cards(summary: dict[str, Any], *, basis_label: str = "현�
     ratings = summary.get("decision_rating_counts") if isinstance(summary.get("decision_rating_counts"), dict) else {}
     top_market = _top_count_label(markets) or "-"
     top_provider = _top_count_label(providers) or "-"
-    top_rating = _top_count_label(ratings) or "-"
+    top_rating = _top_count_label(ratings, formatter=_decision_rating_label) or "-"
     cards = [
         ("완료 리포트", summary.get("completed_count", 0), basis_label),
         ("커버 종목", summary.get("unique_ticker_count", 0), "중복 제외"),
-        ("최신 기준일", latest, f"평균 알파 {_percent(summary.get('average_alpha_return'), signed=True)}"),
-        ("주요 판단/시장", top_rating, top_market),
+        ("최신 기준일", latest, f"평균 초과수익 {_percent(summary.get('average_alpha_return'), signed=True)}"),
+        ("주요 AI 의견/시장", top_rating, top_market),
     ]
     html_cards = []
     for label, value, note in cards:
@@ -2540,15 +2546,15 @@ def _analysis_track_record_cards(summary: dict[str, Any], *, basis_label: str = 
     positive_count = int(summary.get("positive_alpha_count") or 0)
     cards = [
         ("검증 완료", f"{completed_outcomes}건", f"성과 연결 분석 {outcome_covered}개"),
-        ("평균 알파", average_alpha, "벤치마크 대비"),
-        ("알파 우위", positive_rate, f"양수 알파 {positive_count}건"),
+        ("평균 초과수익", average_alpha, "벤치마크 대비"),
+        ("초과수익 우위", positive_rate, f"양수 초과수익 {positive_count}건"),
         ("커버리지", coverage, basis_label),
     ]
     if completed_outcomes == 0:
         cards = [
             ("검증 대기", "0건", "성과 검증 작업이 완료하면 채워집니다."),
-            ("평균 알파", "-", "성과 데이터 대기"),
-            ("알파 우위", "-", "성과 데이터 대기"),
+            ("평균 초과수익", "-", "성과 데이터 대기"),
+            ("초과수익 우위", "-", "성과 데이터 대기"),
             ("커버리지", "-", basis_label),
         ]
     html_cards = []
@@ -2588,8 +2594,8 @@ def _analysis_outcome_summary_cards(summary: dict[str, Any]) -> str:
     positive_rate = _percent(summary.get("positive_alpha_rate"))
     cards = [
         ("검증 완료", f"{completed}건", "완료된 성과 검증"),
-        ("평균 알파", average_alpha, f"종목 수익률 {average_raw}"),
-        ("알파 우위", positive_rate, f"양수 알파 {positive_alpha}건"),
+        ("평균 초과수익", average_alpha, f"종목 수익률 {average_raw}"),
+        ("초과수익 우위", positive_rate, f"양수 초과수익 {positive_alpha}건"),
         ("대기/확인 필요", f"{pending}/{unavailable}", "대기 / 데이터 없음"),
     ]
     html_cards = []
@@ -2626,8 +2632,8 @@ def _analysis_outcome_cadence_strip(model: dict[str, Any]) -> str:
       </article>
       <article>
         <span>03</span>
-        <strong>벤치마크 대비 알파</strong>
-        <small>종목 수익률과 한국 시장 기준 대비 초과 성과를 나눠 표시합니다.</small>
+        <strong>벤치마크 대비 초과수익</strong>
+        <small>종목 수익률과 한국 시장 기준 대비 초과수익을 나눠 표시합니다.</small>
       </article>
       <article>
         <span>04</span>
@@ -2678,7 +2684,7 @@ def _analysis_outcome_feed_cards(
           <p>성과 검증 작업이 공개 분석을 평가하면 이곳에 5일/20일 성과가 누적됩니다.</p>
           <div class="analysis-feed-signal-row" aria-label="성과 검증 대기 상태">
             <span>5일/20일 대기</span>
-            <span>알파 대기</span>
+            <span>초과수익 대기</span>
             <span>주문 없음</span>
           </div>
           <div class="analysis-feed-actions">
@@ -2703,7 +2709,7 @@ def _analysis_outcome_feed_cards(
         raw_return = _percent(item.get("raw_return"), signed=True)
         benchmark_return = _percent(item.get("benchmark_return"), signed=True)
         alpha_return = _percent(item.get("alpha_return"), signed=True)
-        decision = item.get("decision_rating") or item.get("decision_action") or "-"
+        decision = _decision_pair_label(item.get("decision_rating"), item.get("decision_action"))
         report_path = f"/analyses/{run_id}" if run_id else "/analyses"
         stock_path = f"/stocks/{code}" if code else "/analyses"
         query = {"limit": "20"}
@@ -2721,11 +2727,11 @@ def _analysis_outcome_feed_cards(
                 <small>{_h(str(evaluated_at))}</small>
               </div>
               <h3><a href="{_h(report_path)}">{_h(name)} <small>{_h(code)}</small></a></h3>
-              <p>{_h(_outcome_status_label(status))} / 판단 {_h(str(decision))} / 기준일 {_h(str(trade_date))}</p>
+              <p>{_h(_outcome_status_label(status))} / AI 의견 {_h(str(decision))} / 기준일 {_h(str(trade_date))}</p>
               <dl>
                 <div><dt>종목</dt><dd>{_h(raw_return)}</dd></div>
                 <div><dt>벤치마크</dt><dd>{_h(benchmark_return)}</dd></div>
-                <div><dt>알파</dt><dd>{_h(alpha_return)}</dd></div>
+                <div><dt>초과수익</dt><dd>{_h(alpha_return)}</dd></div>
                 <div><dt>분석 ID</dt><dd>{_h(run_id[:8] or "-")}</dd></div>
               </dl>
               <div class="analysis-feed-actions">
@@ -2819,22 +2825,11 @@ def _analysis_feed_cards(
         market = item.get("market") or "KR"
         trade_date = item.get("trade_date") or "-"
         model_provider = item.get("model_provider") or "AI"
-        decision = item.get("decision_rating") or item.get("decision_action") or "-"
+        decision = _decision_pair_label(item.get("decision_rating"), item.get("decision_action"))
         alpha = _percent(item.get("alpha_return"), signed=True)
         horizon = item.get("outcome_horizon_days")
         outcome_label = f"{horizon}일 검증" if horizon else "검증 대기"
-        alpha_raw = item.get("alpha_return")
-        try:
-            alpha_number = float(alpha_raw) if alpha_raw is not None else None
-        except (TypeError, ValueError):
-            alpha_number = None
-        alpha_class = (
-            "is-positive-alpha"
-            if alpha_number is not None and alpha_number > 0
-            else "is-negative-alpha"
-            if alpha_number is not None and alpha_number < 0
-            else "is-neutral-alpha"
-        )
+        alpha_class = _analysis_outcome_alpha_class(item.get("alpha_return"))
         report_count = item.get("report_count")
         reports = f"{report_count}개" if report_count is not None else "-"
         run_id = str(item.get("id") or "")
@@ -2851,17 +2846,17 @@ def _analysis_feed_cards(
                 <small>{_h(str(trade_date))}</small>
               </div>
               <h3><a href="{_h(str(report_path))}">{_h(str(name))} <small>{_h(str(code))}</small></a></h3>
-              <p>{_h(str(trade_date))} 기준 공개 분석입니다. 판단, 리포트 수, 성과 연결 상태를 함께 확인합니다.</p>
+              <p>{_h(str(trade_date))} 기준 공개 분석입니다. AI 의견, 리포트 수, 성과 연결 상태를 함께 확인합니다.</p>
               <div class="analysis-feed-signal-row" aria-label="분석 카드 상태">
-                <span>판단 {_h(str(decision))}</span>
+                <span>AI 의견 {_h(str(decision))}</span>
                 <span>{_h(reports)} 리포트</span>
-                <span>{_h(outcome_label)} / {_h(alpha if alpha != "-" else "알파 대기")}</span>
+                <span>{_h(outcome_label)} / {_h(alpha if alpha != "-" else "초과수익 대기")}</span>
               </div>
               <dl>
                 <div><dt>상태</dt><dd>{_h(status_label)}</dd></div>
                 <div><dt>모델</dt><dd>{_h(str(model_provider))}</dd></div>
                 <div><dt>리포트</dt><dd>{_h(reports)}</dd></div>
-                <div><dt>알파</dt><dd>{_h(alpha)}</dd></div>
+                <div><dt>초과수익</dt><dd>{_h(alpha)}</dd></div>
               </dl>
               <div class="analysis-feed-actions">
                 <a href="{_h(str(report_path))}">리포트</a>
@@ -2882,13 +2877,13 @@ def _analysis_detail_map(model: dict[str, Any]) -> str:
     summary = model.get("summary") or {}
     cards = [
         ("01", "저장된 분석", f"ID {run_id[:8] or '-'}", model.get("timestamp_label") or "저장 시각 없음"),
-        ("02", "최종 판단", model.get("decision_label") or "-", model.get("data_basis") or "기준 데이터 확인"),
+        ("02", "AI 의견", model.get("decision_label") or "-", model.get("data_basis") or "기준 데이터 확인"),
         ("03", "AI 리포트", f"{len(reports)}개", model.get("analyst_label") or "분석 목록 확인"),
         (
             "04",
             "성과 검증",
             f"{summary.get('completed_outcome_count', len(outcomes) or 0)}개 완료",
-            f"평균 알파 {model.get('average_alpha_label') or '-'}",
+            f"평균 초과수익 {model.get('average_alpha_label') or '-'}",
         ),
     ]
     card_html = "".join(
@@ -2908,11 +2903,11 @@ def _analysis_detail_map(model: dict[str, Any]) -> str:
         <div>
           <p class="eyebrow">읽기 지도</p>
           <h2>리포트 읽기 순서</h2>
-          <p class="analysis-map-copy">출처와 기준일을 먼저 확인한 뒤 최종 판단, 리포트 본문, 성과 검증을 이어서 보세요.</p>
+          <p class="analysis-map-copy">출처와 기준일을 먼저 확인한 뒤 AI 의견, 리포트 본문, 성과 검증을 이어서 보세요.</p>
         </div>
         <nav aria-label="리포트 섹션 바로가기">
           <a href="#analysis-provenance">출처</a>
-          <a href="#analysis-decision">판단</a>
+          <a href="#analysis-decision">의견</a>
           <a href="#analysis-reports">리포트</a>
           <a href="#analysis-outcomes">성과</a>
         </nav>
@@ -2935,7 +2930,7 @@ def _analysis_detail_next_actions(model: dict[str, Any]) -> str:
       <div>
         <p class="eyebrow">다음 확인</p>
         <h2 id="analysis-next-actions-title">리포트를 읽은 뒤 이어서 볼 곳</h2>
-        <p>이 페이지는 판단 근거를 정리하는 공개 기록입니다. 종목 화면에서 최신 가격과 공시 흐름을 다시 보고, 필요하면 회원 작업공간에서 같은 종목의 분석을 요청하세요.</p>
+        <p>이 페이지는 AI 의견의 근거를 정리하는 공개 기록입니다. 종목 화면에서 최신 가격과 공시 흐름을 다시 보고, 필요하면 회원 작업공간에서 같은 종목의 분석을 요청하세요.</p>
       </div>
       <div class="analysis-next-action-grid">
         <a href="{_h(stock_href)}">
@@ -2946,7 +2941,7 @@ def _analysis_detail_next_actions(model: dict[str, Any]) -> str:
         <a href="{_h(outcomes_href)}">
           <span>02</span>
           <strong>성과 검증</strong>
-          <small>5일/20일 이후 알파가 연결됐는지 확인합니다.</small>
+          <small>5일/20일 이후 초과수익이 연결됐는지 확인합니다.</small>
         </a>
         <a href="{_h(request_href)}">
           <span>03</span>
@@ -3067,8 +3062,8 @@ def _analysis_detail_decision_card(
         body = f"""
         <article class="analysis-rationale-card empty">
           <span>대기</span>
-          <h2>최종 판단 대기</h2>
-          <p>저장된 최종 판단이 아직 없습니다. 원문 데이터와 종목 페이지를 확인한 뒤, 필요하면 같은 종목의 새 분석을 요청할 수 있습니다.</p>
+          <h2>AI 의견 대기</h2>
+          <p>저장된 AI 의견이 아직 없습니다. 원문 데이터와 종목 페이지를 확인한 뒤, 필요하면 같은 종목의 새 분석을 요청할 수 있습니다.</p>
           <div class="analysis-empty-actions">
             <a href="/api/analyses/{_h(str(run_id))}">원문 데이터 보기</a>
             <a href="/stocks/{_h(str(ticker_code))}">종목 페이지</a>
@@ -3077,23 +3072,23 @@ def _analysis_detail_decision_card(
         </article>
         """
     else:
-        rating = str(decision.get("rating") or "-")
-        action = str(decision.get("action") or "-")
+        rating = _decision_rating_label(decision.get("rating"))
+        action = _decision_action_label(decision.get("action"))
         target_weight = decision.get("target_weight")
-        rationale = decision.get("rationale") or decision.get("raw_decision") or "판단 근거가 저장되지 않았습니다."
+        rationale = decision.get("rationale") or decision.get("raw_decision") or "AI 의견 근거가 저장되지 않았습니다."
         body = f"""
         <article class="analysis-rationale-card">
-          <span>판단 체크포인트</span>
-          <h2>최종 판단: {_h(rating)}</h2>
+          <span>의견 체크포인트</span>
+          <h2>AI 의견: {_h(rating)}</h2>
           <p>{_h(_excerpt(str(rationale), limit=900))}</p>
           <dl>
-            <div><dt>행동</dt><dd>{_h(action)}</dd></div>
+            <div><dt>해석</dt><dd>{_h(action)}</dd></div>
             <div><dt>목표 비중</dt><dd>{_h(_percent(target_weight) if target_weight is not None else "-")}</dd></div>
           </dl>
         </article>
         """
     return f"""
-    <section id="analysis-decision" class="analysis-rationale-section" aria-label="최종 판단">
+    <section id="analysis-decision" class="analysis-rationale-section" aria-label="AI 의견">
       {body}
     </section>
     """
@@ -3105,7 +3100,7 @@ def _analysis_detail_provenance(model: dict[str, Any]) -> str:
         ("데이터 출처", "KRX/DART/Naver", "시세, 공시, 뉴스 연결 기준입니다. 장애와 누락은 원문 데이터와 본문을 함께 확인합니다."),
         ("분석 역할", model["analyst_label"], "저장된 분석 설정 기준"),
         ("모델", model["model_label"], model["metadata_note"]),
-        ("성과 검증", model["completed_outcome_label"], f"평균 알파 {model['average_alpha_label']}"),
+        ("성과 검증", model["completed_outcome_label"], f"평균 초과수익 {model['average_alpha_label']}"),
         ("공개 분석 ID", model["run_id"], "화면 리포트와 원문 데이터가 같은 ID를 공유합니다."),
         ("검증 경로", "HTML + 원문 데이터", f"화면 요약은 저장된 리포트 묶음에서 렌더링하며 /api/analyses/{model['run_id']}로 대조합니다."),
         ("한계", "주문 없는 리서치", "투자 조언/주문 아님. 휴장, 제공처 장애, 누락 데이터, 모델 오류 가능성이 있습니다."),
@@ -3146,11 +3141,65 @@ def _analysis_detail_structured_data(model: dict[str, Any], payload: dict[str, A
     }
 
 
-def _top_count_label(counts: dict[str, Any]) -> str | None:
+def _decision_rating_label(value: Any, *, fallback: str = "-") -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return fallback
+    normalized = raw.lower().replace("_", " ").replace("-", " ")
+    labels = {
+        "strong buy": "강한 매수 검토",
+        "buy": "매수 검토",
+        "accumulate": "비중 확대 검토",
+        "outperform": "긍정 관찰",
+        "hold": "보유 관찰",
+        "neutral": "중립 관찰",
+        "market perform": "시장 흐름 관찰",
+        "underperform": "주의 관찰",
+        "reduce": "비중 축소 검토",
+        "sell": "축소 검토",
+        "strong sell": "강한 축소 검토",
+        "avoid": "관망",
+    }
+    return labels.get(normalized, raw)
+
+
+def _decision_action_label(value: Any, *, fallback: str = "주문 없음") -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return fallback
+    normalized = raw.lower().replace("_", " ").replace("-", " ")
+    labels = {
+        "strong buy": "강한 매수 검토",
+        "buy": "매수 검토",
+        "accumulate": "비중 확대 검토",
+        "hold": "보유 관찰",
+        "watch": "관찰",
+        "wait": "대기",
+        "neutral": "중립 관찰",
+        "reduce": "비중 축소 검토",
+        "sell": "축소 검토",
+        "avoid": "관망",
+        "read only": "조회 전용",
+        "read-only": "조회 전용",
+        "none": "주문 없음",
+    }
+    return labels.get(normalized, raw)
+
+
+def _decision_pair_label(rating: Any, action: Any) -> str:
+    rating_label = _decision_rating_label(rating, fallback="")
+    action_label = _decision_action_label(action, fallback="")
+    if rating_label and action_label and rating_label != action_label:
+        return f"{rating_label} / {action_label}"
+    return rating_label or action_label or "-"
+
+
+def _top_count_label(counts: dict[str, Any], *, formatter: Callable[[Any], str] | None = None) -> str | None:
     if not counts:
         return None
     key, value = sorted(counts.items(), key=lambda item: (-int(item[1]), str(item[0])))[0]
-    return f"{key} {value}"
+    label = formatter(key) if formatter else str(key)
+    return f"{label} {value}"
 
 
 def _analysis_feed_status_label(status: Any) -> str:
@@ -3260,7 +3309,7 @@ def _outcome_cards(outcomes: list[dict[str, Any]]) -> str:
           <p class="eyebrow">성과 검증 기록</p>
           <h2 id="outcome-title">사후 성과 검증</h2>
         </div>
-        <span class="status-pill">ALPHA</span>
+        <span class="status-pill">초과수익</span>
       </div>
       <div class="outcome-grid">
         {cards}
@@ -3277,7 +3326,7 @@ def _outcome_card(outcome: dict[str, Any]) -> str:
     actual_days = outcome.get("actual_holding_days")
     title = f"{horizon}일 검증"
     if status == "completed":
-        summary = f"종목 수익률 {raw_return}, 벤치마크 대비 알파 {alpha_return}"
+        summary = f"종목 수익률 {raw_return}, 벤치마크 대비 초과수익 {alpha_return}"
     elif status == "pending":
         summary = f"현재 {actual_days or 0}거래일만 관측되어 검증을 기다리는 중입니다."
     else:
@@ -3289,7 +3338,7 @@ def _outcome_card(outcome: dict[str, Any]) -> str:
       <p>{_h(summary)}</p>
       <dl>
         <div><dt>종목</dt><dd>{_h(raw_return)}</dd></div>
-        <div><dt>알파</dt><dd>{_h(alpha_return)}</dd></div>
+        <div><dt>초과수익</dt><dd>{_h(alpha_return)}</dd></div>
         <div><dt>기준일</dt><dd>{_h(outcome.get("trade_date") or "-")}</dd></div>
         <div><dt>평가일</dt><dd>{_h(outcome.get("evaluated_at") or "-")}</dd></div>
       </dl>
@@ -3336,7 +3385,7 @@ def _analysis_status_label(status: Any) -> str:
 
 def _analysis_title(analysis: dict[str, Any], decision: dict[str, Any]) -> str:
     if analysis.get("status") == "available":
-        rating = decision.get("rating") or "완료"
+        rating = _decision_rating_label(decision.get("rating"), fallback="완료")
         return f"{rating} 의견"
     return _analysis_status_label(analysis.get("status"))
 
@@ -9672,7 +9721,7 @@ PAGE_JS = """
     {
       ticker: "005930 / 삼성전자",
       decision: "보유 관찰",
-      meta: "KRX 가격 + DART 공시 + 벤치마크 알파"
+      meta: "KRX 가격 + DART 공시 + 초과수익"
     },
     {
       ticker: "000660 / SK하이닉스",
@@ -10212,8 +10261,8 @@ ADMIN_PAGE_JS = """
     const ticker = [item.ticker_name, item.ticker_code].filter(Boolean).join(" ");
     const horizon = item.horizon_days ? `${item.horizon_days}D` : "run";
     const alpha = item.alpha_return === null || item.alpha_return === undefined
-      ? "alpha -"
-      : `alpha ${(Number(item.alpha_return) * 100).toFixed(2)}%`;
+      ? "초과수익 -"
+      : `초과수익 ${(Number(item.alpha_return) * 100).toFixed(2)}%`;
     return `${ticker || item.id || "outcome"} / ${horizon} / ${alpha}`;
   }
 

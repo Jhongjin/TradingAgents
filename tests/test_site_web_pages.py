@@ -172,7 +172,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "한국형 투자 렌즈" in html
     assert "안전 가드레일" in html
     assert "사후 성과 검증" in html
-    assert "벤치마크 대비 알파 +3.00%" in html
+    assert "벤치마크 대비 초과수익 +3.00%" in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html
     assert 'type="application/ld+json"' in html
@@ -726,13 +726,13 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "공개 분석 커버리지 요약" in html
     assert "공개 검증 기록" in html
     assert "성과 검증 스냅샷" in html
-    assert "알파 우위" in html
+    assert "초과수익 우위" in html
     assert "완료 리포트" in html
     assert "최근 20건 기준" in html
     assert "KOSPI 1" in html
-    assert "Hold 1" in html
-    assert "평균 알파 +3.00%" in html
-    assert "판단 Hold" in html
+    assert "보유 관찰 1" in html
+    assert "평균 초과수익 +3.00%" in html
+    assert "AI 의견 보유 관찰" in html
     assert "analysis-feed-card-top" in html
     assert "analysis-feed-signal-row" in html
     assert "분석 ID" in html
@@ -740,7 +740,7 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "5일 검증 / +3.00%" in html
     assert "analysis-feed-actions" in html
     assert "is-positive-alpha" in html
-    assert "<dt>알파</dt><dd>+3.00%</dd>" in html
+    assert "<dt>초과수익</dt><dd>+3.00%</dd>" in html
     assert "<dt>리포트</dt><dd>1개</dd>" in html
     assert f'href="/analyses/{run_id}">리포트</a>' in html
     assert 'href="/outcomes?ticker=005930">성과</a>' in html
@@ -814,10 +814,10 @@ def test_render_public_outcomes_page_shows_public_track_record():
     assert "outcome-cadence-strip" in html
     assert "outcome-feed-card" in html
     assert "삼성전자" in html
-    assert "평균 알파" in html
+    assert "평균 초과수익" in html
     assert "+3.00%" in html
-    assert "알파 우위" in html
-    assert '<dt>알파</dt><dd>+3.00%</dd>' in html
+    assert "초과수익 우위" in html
+    assert '<dt>초과수익</dt><dd>+3.00%</dd>' in html
     assert f'href="/analyses/{run_id}">리포트</a>' in html
     assert 'href="/stocks/005930">종목</a>' in html
     assert "/api/analysis-outcomes" in html
@@ -834,7 +834,7 @@ def test_render_public_outcomes_page_empty_state_has_next_actions():
 
     assert "성과 검증 대기" in html
     assert "5일/20일 대기" in html
-    assert "알파 대기" in html
+    assert "초과수익 대기" in html
     assert 'href="/stocks/005930">샘플 종목</a>' in html
     assert 'href="/analyses">분석 목록</a>' in html
     assert 'href="/features/outcomes">검증 방식</a>' in html
@@ -927,7 +927,7 @@ def test_render_public_analysis_detail_page_shows_report_context():
     assert "market, news, fundamentals" in html
     assert "생성 경로 trading_graph / 통화 KRW / 언어 ko-KR" in html
     assert "휴장, 제공처 장애, 누락 데이터, 모델 오류 가능성" in html
-    assert "판단 체크포인트" in html
+    assert "의견 체크포인트" in html
     assert "Market report" in html
     assert "본문 발췌" in html
     assert "화면에는 읽기 편하도록 본문 일부를 먼저 보여줍니다" in html
@@ -962,7 +962,7 @@ def test_render_public_analysis_detail_missing_sections_have_recovery_actions():
 
     html = render_public_analysis_detail_page(run_id, repo=repo, site_base_url="https://example.com")
 
-    assert "최종 판단 대기" in html
+    assert "AI 의견 대기" in html
     assert "리포트 대기" in html
     assert "analysis-empty-actions" in html
     assert f'href="/api/analyses/{run_id}">원문 데이터 보기</a>' in html
