@@ -179,6 +179,10 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "벤치마크 차이는 종목 수익률에서 시장 기준 수익률을 뺀 값입니다" in html
     assert "벤치마크 차이 +3.00%" in html
     assert "AI 리포트 본문" in html
+    assert "AI 분석은 정보 제공용이며 투자 조언이 아닙니다" in html
+    assert "실거래와 브로커 주문 실행은 의도적으로 지원하지 않습니다" in html
+    assert "AI analysis is for informational purposes" not in html
+    assert "Live trading and broker order placement" not in html
     assert 'href="/analyses/00000000-0000-0000-0000-000000000010">전체 리포트 읽기</a>' in html
     assert 'href="/api/analyses/00000000-0000-0000-0000-000000000010">원문 데이터</a>' in html
     assert "tickerSuggestions" in html
@@ -502,7 +506,7 @@ def test_render_feature_detail_pages_use_public_theme():
     assert "KRX / DART / Naver" in methodology_html
     assert "주문 기능은 구현하지 않습니다" in methodology_html
     assert "리포트는 출처, 한계, 결과를 함께 읽습니다" in methodology_html
-    assert 'href="/features/outcomes">사후 검증 보기</a>' in methodology_html
+    assert 'href="/features/outcomes">사후 기록 보기</a>' in methodology_html
     assert '<link rel="canonical" href="https://example.com/features/methodology">' in methodology_html
     assert "/api/member/dashboard" not in methodology_html
 
@@ -912,7 +916,7 @@ def test_render_public_outcomes_page_empty_state_has_next_actions():
     assert "필요한 가격 데이터가 부족할 수 있습니다" in html
     assert 'href="/stocks/005930">샘플 종목</a>' in html
     assert 'href="/analyses">리서치 목록</a>' in html
-    assert 'href="/features/outcomes">검증 기준</a>' in html
+    assert 'href="/features/outcomes">기록 기준</a>' in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">리서치 요청</a>' in html
 
 

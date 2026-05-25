@@ -6,7 +6,7 @@ import html
 import json
 import os
 from datetime import date, datetime, timedelta
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 from urllib.parse import urlencode
 
 from tradingagents.storage import StorageRepository
@@ -46,15 +46,17 @@ def render_public_stock_page(
         max_analysis_age_days=max_analysis_age_days,
         chart_vendor=chart_vendor,
     )
-    model = _view_model(payload, site_base_url=site_base_url)
-    payload_json = _script_json(payload)
-    structured_data_json = _script_json(_structured_data(model, payload))
+    notice_items = _stock_notice_items(payload.get("notices", []))
+    page_payload = {**payload, "notices": notice_items}
+    model = _view_model(page_payload, site_base_url=site_base_url)
+    payload_json = _script_json(page_payload)
+    structured_data_json = _script_json(_structured_data(model, page_payload))
     chart_controls_html = _chart_controls(model)
     reports_html = _report_cards(model["reports"])
     stock_report_actions_html = _stock_report_actions(model)
     lenses_html = _strategy_lens_cards(payload.get("strategy_lenses") or [])
     outcomes_html = _outcome_cards((payload.get("analysis") or {}).get("outcomes") or [])
-    notices_html = "".join(f"<li>{_h(notice)}</li>" for notice in payload.get("notices", []))
+    notices_html = "".join(f"<li>{_h(notice)}</li>" for notice in notice_items)
     chart_source_html = _data_source_strip(model["chart_source_rows"], label="차트 데이터 기준")
     analysis_source_html = _data_source_strip(model["analysis_source_rows"], label="AI 리서치 출처")
     confidence_html = _analysis_confidence_panel(model["analysis_confidence"])
@@ -415,7 +417,7 @@ def render_public_outcomes_page(
         <p class="outcome-hero-copy">AI 리서치가 나온 뒤 5일/20일 동안 종목 수익률이 시장 기준과 얼마나 달랐는지 남기는 기록입니다. 매매 성과가 아니라 공개 리포트 품질을 되돌아보는 자료입니다.</p>
         <div class="analysis-detail-actions">
           <a href="/analyses">공개 리서치 보기</a>
-          <a href="/features/outcomes">검증 기준</a>
+          <a href="/features/outcomes">기록 기준</a>
           <a href="/api/analysis-outcomes">원문 데이터</a>
         </div>
       </div>
@@ -460,7 +462,7 @@ def render_public_outcomes_page(
 
     <section class="notice-strip" aria-label="투자 유의사항">
       <ul>
-        <li>사후 기록은 과거 공개 분석의 검증 자료이며 미래 수익을 보장하지 않습니다.</li>
+        <li>사후 기록은 과거 공개 분석을 되돌아보는 점검 자료이며 미래 수익을 보장하지 않습니다.</li>
         <li>TradingAgents Korea는 실거래 주문이나 브로커 주문 실행 기능을 제공하지 않습니다.</li>
       </ul>
     </section>
@@ -711,7 +713,7 @@ def render_public_home_page(
             <div><span>가격</span><strong>OHLCV</strong></div>
             <div><span>공시</span><strong>DART</strong></div>
             <div><span>뉴스</span><strong>Naver</strong></div>
-            <div><span>검증</span><strong>5일 / 20일</strong></div>
+            <div><span>사후 기록</span><strong>5일 / 20일</strong></div>
           </div>
         </div>
         <div class="home-pipeline signal-flow-row" aria-hidden="true">
@@ -725,7 +727,7 @@ def render_public_home_page(
           <div class="home-live-tape-track">
             <span>005930 삼성전자 / KRX OHLCV / DART 공시</span>
             <span>000660 SK하이닉스 / 벤치마크 차이 / 뉴스 반응</span>
-            <span>035420 NAVER / 공시 확인 / 20일 검증</span>
+            <span>035420 NAVER / 공시 확인 / 20일 기록</span>
             <span>086520 에코프로 / 변동성 점검 / 주문 없음</span>
             <span>005930 삼성전자 / KRX OHLCV / DART 공시</span>
             <span>000660 SK하이닉스 / 벤치마크 차이 / 뉴스 반응</span>
@@ -741,7 +743,7 @@ def render_public_home_page(
           <strong>KRX / DART / Naver</strong>
         </div>
         <div>
-          <span>사후 검증</span>
+          <span>사후 기록</span>
           <strong>5일/20일 사후 기록</strong>
         </div>
         <div>
@@ -975,9 +977,9 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "eyebrow": "신뢰 기준 / 방법론",
         "heading": "어떤 데이터로 판단했는지 먼저 공개합니다",
         "lead": "공개 리포트는 종목 판단의 근거를 보여주는 자료입니다. KRX, DART, Naver 뉴스, AI 리포트, 5일/20일 사후 기록을 한 흐름으로 묶되, 투자 실행 권한은 서비스가 갖지 않습니다.",
-        "proof": (("출처", "KRX / DART / Naver"), ("검증", "5일 / 20일"), ("권한", "주문 차단")),
+        "proof": (("출처", "KRX / DART / Naver"), ("사후 기록", "5일 / 20일"), ("권한", "주문 차단")),
         "cards": (
-            ("데이터 기준", "공개 화면은 기준일, 데이터 제공처, 대체 경로 여부를 최대한 노출하고 원문 데이터로 검증할 수 있게 둡니다."),
+            ("데이터 기준", "공개 화면은 기준일, 데이터 제공처, 대체 경로 여부를 최대한 노출하고 원문 데이터로 확인할 수 있게 둡니다."),
             ("AI 한계", "리포트는 정보 제공용이며 누락 데이터, 시장 휴장, 제공처 장애, 모델 오류 가능성을 전제로 읽어야 합니다."),
             ("사후 기록", "완료된 공개 분석은 사후 기록 작업이 5일/20일 뒤 종목 수익률과 시장 기준 차이를 추적합니다."),
             ("회원 경계", "회원 포트폴리오와 관심종목은 개인 기록이며 공개 리포트 목록과 분리해 호출합니다."),
@@ -990,12 +992,12 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
             ("01", "출처", "가격, 공시, 뉴스, 리포트가 어디서 왔는지 확인합니다."),
             ("02", "기준일", "차트와 리포트가 같은 날짜 기준인지 점검합니다."),
             ("03", "한계", "누락, 지연, 모델 오류 가능성을 전제로 읽습니다."),
-            ("04", "검증", "5일/20일 사후 기록으로 리포트 품질을 계속 되돌아봅니다."),
+            ("04", "사후 기록", "5일/20일 기록으로 리포트 품질을 계속 되돌아봅니다."),
         ),
         "steps": ("출처 표기", "분석 기준", "AI 리포트", "사후 기록", "주문 없음"),
         "cta_label": "공개 분석 보기",
         "cta_href": "/analyses",
-        "secondary_cta_label": "사후 검증 보기",
+        "secondary_cta_label": "사후 기록 보기",
         "secondary_cta_href": "/features/outcomes",
         "diagram_label": "신뢰 기준",
     },
@@ -1229,9 +1231,9 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
             ),
         ),
         "next_actions": (
-            ("공개 분석 보기", "/analyses", "완료된 AI 리포트와 사후 검증 상태를 공개 화면에서 확인합니다."),
+            ("공개 분석 보기", "/analyses", "완료된 AI 리포트와 사후 기록 상태를 공개 화면에서 확인합니다."),
             ("가입 후 기록 공간 보기", "/features/member-workspace", "내 관심종목과 수동 기록이 어떻게 분리되는지 봅니다."),
-            ("투자 유의사항 읽기", "/disclaimer", "AI 리포트와 성과 기록을 읽을 때의 한계를 확인합니다."),
+            ("투자 유의사항 읽기", "/disclaimer", "AI 리포트와 사후 기록을 읽을 때의 한계를 확인합니다."),
         ),
     },
     "disclaimer": {
@@ -2206,7 +2208,7 @@ def _stock_reading_guide(model: dict[str, Any]) -> str:
       <div>
         <p class="eyebrow">읽기 안내</p>
         <h2 id="stock-reading-title">종목 페이지 읽는 순서</h2>
-        <p>이 화면은 주문 버튼 없이 가격 기준과 출처, AI 의견의 근거, 리포트 본문, 이후 성과 기록을 이어 보여줍니다. 먼저 데이터가 언제 어디서 왔는지 확인하고, 의견은 판단 참고자료로만 읽어 주세요.</p>
+        <p>이 화면은 주문 버튼 없이 가격 기준과 출처, AI 의견의 근거, 리포트 본문, 사후 기록을 이어 보여줍니다. 먼저 데이터가 언제 어디서 왔는지 확인하고, 의견은 판단 참고자료로만 읽어 주세요.</p>
       </div>
       <nav class="stock-reading-nav" aria-label="종목 페이지 섹션 바로가기">
         {link_html}
@@ -2789,7 +2791,7 @@ def _analysis_track_record_cards(summary: dict[str, Any], *, basis_label: str = 
     average_alpha = _percent(summary.get("average_alpha_return"), signed=True)
     positive_count = int(summary.get("positive_alpha_count") or 0)
     cards = [
-        ("사후 기록 완료", f"{completed_outcomes}건", f"검증 연결 리포트 {outcome_covered}개"),
+        ("사후 기록 완료", f"{completed_outcomes}건", f"사후 기록 연결 리포트 {outcome_covered}개"),
         ("평균 벤치마크 차이", average_alpha, "종목 수익률 - 시장 기준"),
         ("벤치마크 우위 기록", positive_rate, f"양수 기록 {positive_count}건"),
         ("커버리지", coverage, basis_label),
@@ -2837,7 +2839,7 @@ def _analysis_outcome_summary_cards(summary: dict[str, Any]) -> str:
     average_raw = _percent(summary.get("average_raw_return"), signed=True)
     positive_rate = _percent(summary.get("positive_alpha_rate"))
     cards = [
-        ("검증 완료", f"{completed}건", "사후 기록 완료"),
+        ("사후 기록 완료", f"{completed}건", "사후 기록 완료"),
         ("평균 벤치마크 차이", average_alpha, f"종목 평균 {average_raw}"),
         ("벤치마크 우위 기록", positive_rate, f"양수 차이 {positive_alpha}건"),
         ("대기/확인 필요", f"{pending}/{unavailable}", "대기 / 데이터 없음"),
@@ -2871,7 +2873,7 @@ def _analysis_outcome_cadence_strip(model: dict[str, Any]) -> str:
       </article>
       <article>
         <span>02</span>
-        <strong>검증 기간 확인</strong>
+        <strong>기록 기간 확인</strong>
         <small>기준일 이후 5일 또는 20일 기록인지 구분합니다.</small>
       </article>
       <article>
@@ -2934,7 +2936,7 @@ def _analysis_outcome_feed_cards(
           <div class="analysis-feed-actions">
             <a href="/stocks/005930">샘플 종목</a>
             <a href="/analyses">리서치 목록</a>
-            <a href="/features/outcomes">검증 기준</a>
+            <a href="/features/outcomes">기록 기준</a>
             <a href="/member?mode=signup&tab=analysis#analysis-request-section">리서치 요청</a>
           </div>
         </article>
@@ -3550,11 +3552,11 @@ def _outcome_cards(outcomes: list[dict[str, Any]]) -> str:
         cards = """
         <article class="outcome-card empty">
           <span>대기</span>
-          <h3>검증 대기</h3>
-          <p>분석 기준일 이후 충분한 거래일이 쌓이면 5일/20일 성과가 표시됩니다.</p>
+          <h3>사후 기록 대기</h3>
+          <p>분석 기준일 이후 충분한 거래일이 쌓이면 5일/20일 기록이 표시됩니다.</p>
           <div class="analysis-feed-actions outcome-card-actions">
             <a href="/analyses">리서치 목록</a>
-            <a href="/features/outcomes">검증 기준</a>
+            <a href="/features/outcomes">기록 기준</a>
           </div>
         </article>
         """
@@ -3583,11 +3585,11 @@ def _outcome_card(outcome: dict[str, Any]) -> str:
     raw_return = _percent(outcome.get("raw_return"))
     alpha_return = _percent(outcome.get("alpha_return"), signed=True)
     actual_days = outcome.get("actual_holding_days")
-    title = f"{horizon}일 검증"
+    title = f"{horizon}일 기록"
     if status == "completed":
         summary = f"종목 수익률 {raw_return}, 벤치마크 차이 {alpha_return}"
     elif status == "pending":
-        summary = f"현재 {actual_days or 0}거래일만 관측되어 검증을 기다리는 중입니다."
+        summary = f"현재 {actual_days or 0}거래일만 관측되어 사후 기록을 기다리는 중입니다."
     else:
         summary = "사후 기록 데이터를 아직 확보하지 못했습니다."
     return f"""
@@ -3776,6 +3778,27 @@ def _public_supabase_config() -> dict[str, str | bool | None]:
 
 def _h(value: Any) -> str:
     return html.escape(str(value), quote=True)
+
+
+def _stock_notice_items(notices: Iterable[Any]) -> list[str]:
+    translated: list[str] = []
+    for notice in notices:
+        text = str(notice or "").strip()
+        if not text:
+            continue
+        lower = text.lower()
+        if "informational purposes" in lower or "investment advice" in lower:
+            translated.append("AI 분석은 정보 제공용이며 투자 조언이 아닙니다.")
+        elif "live trading" in lower or "broker order" in lower:
+            translated.append("실거래와 브로커 주문 실행은 의도적으로 지원하지 않습니다.")
+        else:
+            translated.append(text)
+    if translated:
+        return translated
+    return [
+        "AI 분석은 정보 제공용이며 투자 조언이 아닙니다.",
+        "실거래와 브로커 주문 실행은 의도적으로 지원하지 않습니다.",
+    ]
 
 
 PAGE_CSS = """
@@ -10461,7 +10484,7 @@ PAGE_JS = """
     {
       ticker: "000660 / SK하이닉스",
       decision: "위험 점검",
-      meta: "변동성 방어 + 뉴스 반응 + 20일 검증"
+      meta: "변동성 방어 + 뉴스 반응 + 20일 기록"
     },
     {
       ticker: "035420 / NAVER",
@@ -11083,16 +11106,16 @@ ADMIN_PAGE_JS = """
     appendOpsCell(fragment, "처리 중 요청", String(active), `대기 ${counts.queued || 0} · 처리 중 ${counts.running || 0}`, active ? "is-warn" : "is-ok");
     appendOpsCell(fragment, "완료", String(counts.completed || 0), "완료된 분석 요청 누적", "is-ok");
     appendOpsCell(fragment, "실패", String(failed), "최근 실패 목록은 아래에서 확인", failed ? "is-error" : "is-ok");
-    appendOpsCell(fragment, "검증 후보", String(candidates), `미리 보기 제한 ${limits.outcome_worker_max || "-"}`, candidates ? "is-warn" : "is-ok");
-    appendOpsCell(fragment, "최근 검증", String(completedOutcomes), `대기 샘플 ${outcomes.pending_sample_count || 0} · 데이터 없음 샘플 ${outcomes.unavailable_sample_count || 0}`, "is-ok");
+    appendOpsCell(fragment, "기록 후보", String(candidates), `미리 보기 제한 ${limits.outcome_worker_max || "-"}`, candidates ? "is-warn" : "is-ok");
+    appendOpsCell(fragment, "최근 기록", String(completedOutcomes), `대기 샘플 ${outcomes.pending_sample_count || 0} · 데이터 없음 샘플 ${outcomes.unavailable_sample_count || 0}`, "is-ok");
     opsSummary.appendChild(fragment);
 
     if (recentPanel) {
       recentPanel.textContent = "";
       recentPanel.appendChild(renderRecentList("대기/처리 중", "대기열", [...(recent.queued || []), ...(recent.running || [])], requestLabel));
       recentPanel.appendChild(renderRecentList("최근 실패", "실패", recent.failed || [], requestLabel));
-      recentPanel.appendChild(renderRecentList("검증 후보", "성과", outcomes.candidate_runs || [], runLabel));
-      recentPanel.appendChild(renderRecentList("최근 완료 검증", "결과", outcomes.recent_completed || [], outcomeLabel));
+      recentPanel.appendChild(renderRecentList("기록 후보", "사후 기록", outcomes.candidate_runs || [], runLabel));
+      recentPanel.appendChild(renderRecentList("최근 완료 기록", "결과", outcomes.recent_completed || [], outcomeLabel));
     }
   }
 
