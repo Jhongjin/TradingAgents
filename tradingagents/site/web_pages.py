@@ -58,6 +58,7 @@ def render_public_stock_page(
     analysis_source_html = _data_source_strip(model["analysis_source_rows"], label="공개 분석 출처")
     confidence_html = _analysis_confidence_panel(model["analysis_confidence"])
     stock_flow_html = _stock_flow_strip(model)
+    stock_reading_html = _stock_reading_guide(model)
     stock_signal_html = _stock_signal_card(model)
 
     return f"""<!doctype html>
@@ -126,8 +127,10 @@ def render_public_stock_page(
 
     {stock_flow_html}
 
+    {stock_reading_html}
+
     <section class="workspace">
-      <section class="chart-panel" aria-labelledby="chart-title">
+      <section id="stock-chart-section" class="chart-panel" aria-labelledby="chart-title">
         <div class="panel-heading">
           <div>
             <p class="eyebrow">KRW OHLCV</p>
@@ -169,7 +172,7 @@ def render_public_stock_page(
           </article>
         </section>
 
-        <section class="analysis-panel">
+        <section id="stock-analysis-section" class="analysis-panel">
           <p class="eyebrow">공개 분석</p>
           <h2>{_h(model["analysis_title"])}</h2>
           <p>{_h(model["rationale"])}</p>
@@ -183,7 +186,7 @@ def render_public_stock_page(
 
     {outcomes_html}
 
-    <section class="report-section" aria-labelledby="reports-title">
+    <section id="stock-reports-section" class="report-section" aria-labelledby="reports-title">
       <div class="panel-heading">
         <div>
           <p class="eyebrow">AI 리포트</p>
@@ -533,6 +536,7 @@ def render_public_analysis_detail_page(
         <p class="eyebrow">공개 분석 리포트</p>
         <h1 id="analysis-detail-title">{_h(model["heading"])}</h1>
         <p class="asof">{_h(model["subtitle"])}</p>
+        <p class="analysis-detail-lede">이 리포트는 매수/매도 지시가 아니라 공개 데이터와 AI 에이전트 판단을 한곳에 모은 기록입니다. 출처와 기준일을 먼저 확인한 뒤 판단, 본문, 성과 검증을 이어서 읽어주세요.</p>
         <div class="analysis-detail-meta-strip" aria-label="리포트 기준">
           <span>{_h(model["market"])}</span>
           <span>{_h(model["ticker_code"])}</span>
@@ -1961,6 +1965,44 @@ def _stock_flow_strip(model: dict[str, Any]) -> str:
     """
 
 
+def _stock_reading_guide(model: dict[str, Any]) -> str:
+    code = str(model.get("code") or "")
+    outcomes_href = f"/outcomes?ticker={code}" if code else "/outcomes"
+    links = [
+        ("01", "가격과 출처", "#stock-chart-section", "차트 기간, 제공처, 대체 경로를 먼저 확인합니다."),
+        ("02", "분석과 근거", "#stock-analysis-section", "AI 판단은 신뢰도와 누락 경고를 함께 읽습니다."),
+        ("03", "성과 검증", "#analysis-outcomes", "5일/20일 알파가 연결됐는지 확인합니다."),
+        ("04", "리포트 본문", "#stock-reports-section", "에이전트별 요약과 근거 점검을 이어서 봅니다."),
+    ]
+    link_html = "".join(
+        f"""
+        <a href="{_h(href)}">
+          <span>{_h(number)}</span>
+          <strong>{_h(title)}</strong>
+          <small>{_h(copy)}</small>
+        </a>
+        """
+        for number, title, href, copy in links
+    )
+    return f"""
+    <section class="stock-reading-guide" aria-labelledby="stock-reading-title">
+      <div>
+        <p class="eyebrow">읽기 안내</p>
+        <h2 id="stock-reading-title">종목 페이지 읽는 순서</h2>
+        <p>TradingAgents Korea는 주문을 실행하지 않습니다. 이 화면은 가격 흐름, 데이터 출처, 공개 리포트, 성과 검증을 이어 붙여 투자자가 스스로 확인할 근거를 정리합니다.</p>
+      </div>
+      <nav class="stock-reading-nav" aria-label="종목 페이지 섹션 바로가기">
+        {link_html}
+        <a href="{_h(outcomes_href)}" class="stock-reading-more">
+          <span>전체</span>
+          <strong>성과 목록</strong>
+          <small>같은 종목의 공개 검증 기록을 따로 봅니다.</small>
+        </a>
+      </nav>
+    </section>
+    """
+
+
 def _stock_query_href(code: str, params: dict[str, str]) -> str:
     query = urlencode({key: value for key, value in params.items() if value})
     return f"/stocks/{code}?{query}" if query else f"/stocks/{code}"
@@ -2863,6 +2905,7 @@ def _analysis_detail_map(model: dict[str, Any]) -> str:
         <div>
           <p class="eyebrow">읽기 지도</p>
           <h2>리포트 읽기 순서</h2>
+          <p class="analysis-map-copy">출처와 기준일을 먼저 확인한 뒤 최종 판단, 리포트 본문, 성과 검증을 이어서 보세요.</p>
         </div>
         <nav aria-label="리포트 섹션 바로가기">
           <a href="#analysis-provenance">출처</a>
@@ -8082,6 +8125,82 @@ button:disabled {
   line-height: 1.5;
 }
 
+.stock-reading-guide {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.74fr) minmax(0, 1.26fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-top: 18px;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 8px;
+  padding: 18px;
+  background:
+    linear-gradient(135deg, rgba(215, 255, 63, 0.07), rgba(143, 216, 189, 0.04)),
+    rgba(15, 22, 18, 0.72);
+}
+
+.stock-reading-guide h2 {
+  max-width: 14ch;
+  color: var(--home-ink);
+  font-size: 34px;
+  line-height: 1;
+  text-wrap: balance;
+  word-break: keep-all;
+}
+
+.stock-reading-guide p:not(.eyebrow) {
+  max-width: 62ch;
+  margin: 14px 0 0;
+  color: var(--home-readable, rgba(246, 243, 232, 0.84));
+  line-height: 1.7;
+  text-wrap: pretty;
+}
+
+.stock-reading-nav {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.12);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.12);
+}
+
+.stock-reading-nav a {
+  display: grid;
+  gap: 8px;
+  min-height: 118px;
+  padding: 14px;
+  background: rgba(9, 13, 11, 0.46);
+  color: var(--home-ink);
+  transition: background 180ms ease, transform 180ms ease;
+}
+
+.stock-reading-nav a:hover {
+  transform: translateY(-1px);
+  background: rgba(215, 255, 63, 0.1);
+}
+
+.stock-reading-nav span {
+  color: var(--home-acid);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.stock-reading-nav strong {
+  font-size: 16px;
+  line-height: 1.1;
+}
+
+.stock-reading-nav small {
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.78));
+  line-height: 1.45;
+}
+
+.stock-reading-more {
+  border-left: 2px solid rgba(215, 255, 63, 0.54);
+}
+
 .market-page .eyebrow {
   color: var(--home-celadon);
   font-family: var(--app-font-stack);
@@ -8464,6 +8583,15 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.analysis-detail-lede {
+  max-width: 74ch;
+  margin: 18px 0 0;
+  color: var(--home-readable, rgba(246, 243, 232, 0.84));
+  font-size: 17px;
+  line-height: 1.72;
+  text-wrap: pretty;
+}
+
 .analysis-detail-meta-strip {
   display: flex;
   flex-wrap: wrap;
@@ -8546,6 +8674,14 @@ button:disabled {
   color: var(--home-ink);
   font-size: clamp(24px, 3vw, 38px);
   line-height: 1;
+}
+
+.analysis-map-copy {
+  max-width: 68ch;
+  margin: 10px 0 0;
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
+  line-height: 1.6;
+  text-wrap: pretty;
 }
 
 .analysis-detail-map-heading nav {
@@ -9203,6 +9339,8 @@ button:disabled {
   .analysis-next-actions,
   .analysis-filter-panel,
   .stock-flow-strip,
+  .stock-reading-guide,
+  .stock-reading-nav,
   .admin-readiness-panel,
   .admin-ops-grid,
   .admin-recent-grid,

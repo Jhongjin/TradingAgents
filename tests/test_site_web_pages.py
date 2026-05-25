@@ -139,6 +139,13 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "stock-hero-stack" in html
     assert "stock-signal-card" in html
     assert "stock-flow-strip" in html
+    assert "stock-reading-guide" in html
+    assert "종목 페이지 읽는 순서" in html
+    assert "가격과 출처" in html
+    assert 'href="#stock-chart-section"' in html
+    assert 'id="stock-chart-section"' in html
+    assert 'id="stock-analysis-section"' in html
+    assert 'id="stock-reports-section"' in html
     assert "공개 분석 이력" in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section"' in html
     assert "1개월" in html
@@ -880,7 +887,9 @@ def test_render_public_analysis_detail_page_shows_report_context():
     assert "analysis-detail-meta-strip" in html
     assert "투자 조언 아님" in html
     assert "주문 없는 리서치" in html
+    assert "매수/매도 지시가 아니라" in html
     assert "리포트 읽기 순서" in html
+    assert "출처와 기준일을 먼저 확인" in html
     assert 'href="#analysis-reports"' in html
     assert 'id="analysis-decision"' in html
     assert 'id="analysis-outcomes"' in html
@@ -900,7 +909,7 @@ def test_render_public_analysis_detail_page_shows_report_context():
     assert "analysis-next-actions" in html
     assert "리포트를 읽은 뒤 이어서 볼 곳" in html
     assert 'href="/member?mode=signup&amp;tab=analysis#analysis-request-section"' in html
-    assert "Ticker anchor" in html
+    assert "종목 기준" in html
     assert "성과 검증 기록" in html
     assert f'href="/api/analyses/{run_id}">원문 데이터 보기</a>' in html
     assert f'<link rel="canonical" href="https://example.com/analyses/{run_id}">' in html

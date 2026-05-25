@@ -80,31 +80,31 @@ def evaluate_report_quality(report: dict[str, Any], run: dict[str, Any]) -> dict
     checks = [
         _check(
             "ticker_anchor",
-            "Ticker anchor",
+            "종목 기준",
             bool((ticker_code and ticker_code in text) or (ticker_name and ticker_name in text)),
             f"{ticker_name or ticker_code or 'ticker'}가 본문에 명시되어야 합니다.",
         ),
         _check(
             "date_anchor",
-            "Date anchor",
+            "기준일",
             bool(trade_date and (trade_date in text or trade_date[:4] in text or "기준" in text)),
             f"데이터 기준일 {trade_date or '-'}를 본문 또는 기준 문구로 연결해야 합니다.",
         ),
         _check(
             "source_anchor",
-            "Source anchor",
+            "출처 근거",
             _contains_any(normalized, source_terms),
             "역할에 맞는 데이터 출처(KRX/DART/Naver/뉴스/공시/거래량 등)가 필요합니다.",
         ),
         _check(
             "certainty_guard",
-            "Certainty guard",
+            "확정 표현",
             not _contains_any(normalized, _CERTAINTY_TERMS),
             "확정 수익, 무위험, 보장 표현은 검토가 필요합니다.",
         ),
         _check(
             "execution_boundary",
-            "Execution boundary",
+            "주문 경계",
             not _contains_any(normalized, _EXECUTION_TERMS),
             "리포트가 실제 주문 실행을 암시하면 안 됩니다.",
             fail_when_missing=True,
