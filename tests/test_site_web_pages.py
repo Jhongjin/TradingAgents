@@ -237,6 +237,9 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "한국 주식 AI 리서치 / 주문 없는 읽기 전용 서비스" in html
     assert "처음 방문해도 바로 쓸 수 있는 세 가지 흐름" in html
     assert "가입하고 내 투자 노트 만들기" in html
+    assert "가입하면 열리는 기능" in html
+    assert "home-member-preview" in html
+    assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청으로 시작하기</a>' in html
     assert "home-trust-panel" in html
     assert "공식·공개 데이터" in html
     assert "실거래 주문 기능 차단" in html
@@ -283,6 +286,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "내 투자 노트" in html
     assert "memberSessionGate" in html
     assert "세션을 확인하고 있습니다" in html
+    assert "세션 확인" in html
     assert "member-tab-strip" in html
     assert "grid-template-columns: repeat(4, minmax(0, 1fr));" in html
     assert 'role="tablist"' in html
@@ -292,6 +296,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "member-home-grid" in html
     assert "공개 리포트 확인" in html
     assert "member-report-card" in html
+    assert "member-admin-card" in html
+    assert "운영 콘솔 열기" in html
     assert 'class="top-admin-link" href="/admin" data-auth-visible="signed-in" hidden>운영 콘솔</a>' in html
     assert 'href="/analyses">분석 목록 열기</a>' in html
     assert 'data-member-jump="portfolio"' in html
@@ -302,6 +308,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "memberOverview" in html
     assert "memberOverviewActiveRequests" in html
     assert "새 포트폴리오" in html
+    assert "먼저 기록을 묶을 포트폴리오 이름을 만듭니다." in html
+    assert 'aria-label="종목코드"' in html
     assert "매수/매도 기록" in html
     assert "목표/손절 메모" in html
     assert 'href="#portfolio-section"' in html
@@ -343,6 +351,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "status_label" in html
     assert "분석 처리 대기 중" in html
     assert "요청 상태, 하루 요청 가능 횟수, 완료 리포트 연결" in html
+    assert "종목코드만 입력하면 가장 최근 기준일로 요청합니다" in html
     assert "analysis-queue-overview" in html
     assert "analysis-queue-meters" in html
     assert "quota_policy" in html
@@ -454,7 +463,7 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     assert "AdSense 키가 준비되기 전까지는 운영 보류 항목입니다." in html
     assert "probe_vendors" in html
     assert "vendor_probes" in html
-    assert "quota headers" in html
+    assert "요청 제한 헤더" in html
     assert "미리 보기 우선" in html
     assert "확인 후 실행" in html
     assert 'data-admin-action$="process"][data-confirmed="true"]' in html

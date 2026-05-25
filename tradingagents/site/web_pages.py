@@ -640,7 +640,26 @@ def render_public_home_page(
       <div class="home-hero-copy home-hero-content">
         <p class="home-kicker">한국 주식 AI 리서치 / 주문 없는 읽기 전용 서비스</p>
         <h1 id="home-title">한국 주식 분석을 한곳에서 확인하세요</h1>
-        <p class="home-lede">종목을 검색하면 KRX 시세, DART 공시, Naver 뉴스, AI 리포트와 사후 성과를 함께 보여줍니다. 가입하면 내 포트폴리오와 관심종목을 따로 저장하고, 보고 싶은 종목의 분석을 요청할 수 있습니다.</p>
+        <p class="home-lede">종목을 검색하면 KRX 시세, DART 공시, Naver 뉴스, AI 분석 리포트와 사후 성과를 함께 보여줍니다. 가입하면 내 포트폴리오와 관심종목을 따로 저장하고, 보고 싶은 종목의 분석을 요청할 수 있습니다.</p>
+        <form class="ticker-search home-search home-command-search" action="/stocks" method="get">
+          <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
+          <input id="ticker" name="ticker" list="tickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" autocomplete="off">
+          <datalist id="tickerSuggestions"></datalist>
+          <button type="submit">조회</button>
+        </form>
+        <div class="home-cta-row home-action-row" aria-label="주요 링크">
+          <a class="home-primary-link" href="/stocks/005930">샘플 분석 보기</a>
+          <a class="home-secondary-link" href="/member?mode=signup">가입하고 내 투자 노트 만들기</a>
+          <a class="home-secondary-link" href="/analyses">최근 공개 분석</a>
+        </div>
+        <aside class="home-member-preview" aria-label="가입 후 제공 기능">
+          <strong>가입하면 열리는 기능</strong>
+          <ul>
+            <li><span>포트폴리오</span><small>매수·매도 기록과 목표가 메모를 직접 남깁니다.</small></li>
+            <li><span>관심종목</span><small>자주 보는 한국 종목을 목록으로 묶어 확인합니다.</small></li>
+            <li><span>분석 요청</span><small>보고 싶은 종목을 요청하고 완료 리포트 연결을 확인합니다.</small></li>
+          </ul>
+        </aside>
         <div class="home-trust-panel" aria-label="신뢰 운영 기준">
           <div>
             <span>공식·공개 데이터</span>
@@ -654,17 +673,6 @@ def render_public_home_page(
             <span>투자자 보호</span>
             <strong>실거래 주문 기능 차단</strong>
           </div>
-        </div>
-        <form class="ticker-search home-search home-command-search" action="/stocks" method="get">
-          <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
-          <input id="ticker" name="ticker" list="tickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" autocomplete="off">
-          <datalist id="tickerSuggestions"></datalist>
-          <button type="submit">조회</button>
-        </form>
-        <div class="home-cta-row home-action-row" aria-label="주요 링크">
-          <a class="home-primary-link" href="/stocks/005930">샘플 분석 보기</a>
-          <a class="home-secondary-link" href="/member?mode=signup">가입하고 내 투자 노트 만들기</a>
-          <a class="home-secondary-link" href="/analyses">최근 공개 분석</a>
         </div>
         <dl class="home-proof-row home-signal-strip" aria-label="운영 상태">
           <div>
@@ -760,7 +768,7 @@ def render_public_home_page(
           <span>03</span>
           <strong>AI 분석 요청하기</strong>
           <p>더 살펴보고 싶은 한국 종목을 요청하고, 처리 상태와 완료 리포트 연결을 마이페이지에서 확인합니다.</p>
-          <a href="/features/member-workspace">회원 기능 보기</a>
+          <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청으로 시작하기</a>
         </article>
       </div>
     </section>
@@ -841,7 +849,7 @@ def render_public_home_page(
         </article>
         <article>
           <span>03</span>
-          <strong>분석 요청 큐</strong>
+          <strong>분석 요청 대기열</strong>
           <p>원하는 종목을 요청하면 처리 상태와 완료 리포트 연결을 확인합니다.</p>
         </article>
       </div>
@@ -876,7 +884,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
     "member-workspace": {
         "path": "/features/member-workspace",
         "title": "회원 작업공간 | TradingAgents Korea",
-        "description": "로그인한 사용자를 위한 수동 포트폴리오, 관심목록, 분석 요청 큐의 구성 방식입니다.",
+        "description": "로그인한 사용자를 위한 수동 포트폴리오, 관심목록, 분석 요청 대기열의 구성 방식입니다.",
         "eyebrow": "서비스 소개 / 회원 작업공간",
         "heading": "마이페이지는 로그인 후에만 개인 데이터를 불러옵니다",
         "lead": "회원 화면은 인증 전에는 로그인/가입만 보여주고, 세션 확인 뒤에만 수동 기록과 분석 요청 데이터를 불러옵니다. 공개 페이지와 개인 기록의 데이터 경계를 명확히 나눕니다.",
@@ -884,7 +892,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "cards": (
             ("수동 포트폴리오", "매수·매도 기록, 평균단가, 비용, 목표가, 손절가를 직접 관리합니다."),
             ("관심목록", "한국 종목코드 기준 관심목록과 메모를 사용자별로 분리합니다."),
-            ("분석 요청 큐", "원하는 종목과 날짜를 큐에 넣고 처리 상태를 확인합니다."),
+            ("분석 요청 대기열", "원하는 종목과 날짜를 대기열에 넣고 처리 상태를 확인합니다."),
         ),
         "steps": ("로그인", "마이페이지", "개인 기록", "분석 요청", "주문 차단"),
         "cta_label": "마이페이지 열기",
@@ -972,7 +980,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
                 "이용 목적",
                 (
                     "회원 본인의 기록을 불러오고 수정할 수 있게 하기 위해 사용합니다.",
-                    "분석 요청 큐를 처리하고 공개 리포트와 사후 성과 검증을 연결하기 위해 사용합니다.",
+                    "분석 요청 대기열을 처리하고 공개 리포트와 사후 성과 검증을 연결하기 위해 사용합니다.",
                     "보안, 장애 대응, 오남용 방지, 성능 개선을 위해 최소한의 운영 로그를 확인합니다.",
                 ),
             ),
@@ -1012,7 +1020,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
                 "서비스 범위",
                 (
                     "공개 종목 상세, 공개 분석 목록, 사후 성과 검증, 방법론 설명 페이지를 제공합니다.",
-                    "회원에게는 수동 포트폴리오, 관심종목, 분석 요청 큐를 제공합니다.",
+                    "회원에게는 수동 포트폴리오, 관심종목, 분석 요청 대기열을 제공합니다.",
                     "브로커 주문, 자동매매, 실거래 위임 기능은 제공하지 않습니다.",
                 ),
             ),
@@ -1322,7 +1330,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>관리자 콘솔 | TradingAgents Korea</title>
-  <meta name="description" content="TradingAgents Korea 운영 큐와 상태를 점검하는 관리자 콘솔입니다.">
+  <meta name="description" content="TradingAgents Korea 운영 대기열과 상태를 점검하는 관리자 콘솔입니다.">
   <meta name="robots" content="noindex,nofollow">
   <link rel="canonical" href="{_h(canonical)}">
   <style>{PAGE_CSS}</style>
@@ -1349,7 +1357,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
     <section class="admin-hero" aria-labelledby="admin-title">
       <div>
         <p class="home-kicker">운영 콘솔 / 비밀값 저장 없음</p>
-        <h1 id="admin-title">운영 큐와 상태 점검만 확인합니다</h1>
+        <h1 id="admin-title">운영 대기열과 상태 점검만 확인합니다</h1>
         <p>관리자 화면은 작업자 토큰을 코드나 HTML에 포함하지 않습니다. 토큰은 브라우저 세션에만 보관되며 관리 API 호출 헤더로만 전송됩니다.</p>
       </div>
       <form class="admin-token-panel" id="adminTokenForm">
@@ -1374,7 +1382,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
         <small>HTML에는 secret을 싣지 않고 세션 스토리지에만 둡니다.</small>
       </article>
       <article>
-        <span>큐</span>
+        <span>대기열</span>
         <strong>미리 보기 우선</strong>
         <small>분석 요청과 성과 검증 처리는 실행 전 대상을 먼저 확인합니다.</small>
       </article>
@@ -1404,7 +1412,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <article>
         <span>04</span>
         <strong>감사 확인</strong>
-        <small>결과 JSON과 상태 패널을 함께 보고 다음 운영 큐를 결정합니다.</small>
+        <small>결과 데이터와 상태 패널을 함께 보고 다음 운영 대기열을 결정합니다.</small>
       </article>
     </section>
 
@@ -1412,14 +1420,14 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <div class="panel-heading">
         <div>
           <p class="eyebrow">운영 요약</p>
-          <h2 id="admin-ops-title">큐 현황과 최근 결과</h2>
-          <p class="panel-copy">작업자 토큰으로만 조회합니다. 사용자별 개인 기록 대신 운영 큐 상태와 공개 성과 검증 흐름만 요약합니다.</p>
+          <h2 id="admin-ops-title">대기열 현황과 최근 결과</h2>
+          <p class="panel-copy">작업자 토큰으로만 조회합니다. 사용자별 개인 기록 대신 운영 대기열 상태와 공개 성과 검증 흐름만 요약합니다.</p>
         </div>
         <button type="button" data-admin-ops-summary>운영 요약 조회</button>
       </div>
       <div class="admin-ops-grid" id="adminOpsSummary" aria-live="polite">
         <div class="ops-cell is-waiting">
-          <span>큐</span>
+          <span>대기열</span>
           <strong>대기</strong>
           <small>작업자 토큰 저장 후 운영 요약을 조회하세요.</small>
         </div>
@@ -1454,7 +1462,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <article class="admin-card">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">분석 요청 큐</p>
+            <p class="eyebrow">분석 요청 대기열</p>
             <h2>분석 요청 처리</h2>
           </div>
           <span class="status-pill">관리 API</span>
@@ -1533,9 +1541,9 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
 
   <main id="main-content" class="shell member-shell">
     <section class="member-session-gate" id="memberSessionGate" aria-live="polite" aria-label="회원 세션 확인">
-      <p class="eyebrow">Session Check</p>
+      <p class="eyebrow">세션 확인</p>
       <h1>세션을 확인하고 있습니다</h1>
-      <p>저장된 로그인 토큰이 있으면 바로 투자 노트로 이동하고, 없으면 로그인/가입 화면을 엽니다.</p>
+      <p>로그인 상태가 남아 있으면 바로 투자 노트로 이동하고, 없으면 로그인/가입 화면을 엽니다.</p>
       <div class="member-session-meter" aria-hidden="true"><span></span></div>
     </section>
 
@@ -1613,7 +1621,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       </section>
 
       <nav class="member-tab-strip" role="tablist" aria-label="마이페이지 섹션">
-        <a id="home-tab" class="is-active" href="#member-home-section" role="tab" data-member-tab="home" aria-controls="member-home-section" aria-selected="true">홈 <span id="memberHomeStatus">Ready</span></a>
+        <a id="home-tab" class="is-active" href="#member-home-section" role="tab" data-member-tab="home" aria-controls="member-home-section" aria-selected="true">홈 <span id="memberHomeStatus">준비됨</span></a>
         <a id="portfolio-tab" href="#portfolio-section" role="tab" data-member-tab="portfolio" aria-controls="portfolio-section" aria-selected="false">포트폴리오 <span id="portfolioTabCount">0</span></a>
         <a id="watchlist-tab" href="#watchlist-section" role="tab" data-member-tab="watchlist" aria-controls="watchlist-section" aria-selected="false">관심종목 <span id="watchlistTabCount">0</span></a>
         <a id="analysis-tab" href="#analysis-request-section" role="tab" data-member-tab="analysis" aria-controls="analysis-request-section" aria-selected="false">분석 요청 <span id="analysisTabCount">0</span></a>
@@ -1623,7 +1631,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <section class="member-panel member-home-panel" id="member-home-section" role="tabpanel" data-member-panel="home" aria-labelledby="home-tab">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">My Page Home</p>
+              <p class="eyebrow">마이페이지</p>
               <h2>마이페이지 홈</h2>
               <p class="panel-copy">내 기록, 관심종목, 분석 요청 상태를 먼저 보고 필요한 작업만 각 탭에서 이어갑니다.</p>
             </div>
@@ -1641,7 +1649,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <small>관심목록</small>
             </article>
             <article>
-              <span>활성 큐</span>
+              <span>대기 중 요청</span>
               <strong id="memberOverviewActiveRequests">0</strong>
               <small>대기/처리 중</small>
             </article>
@@ -1676,13 +1684,19 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <small>요청한 분석이 완료되면 공개 분석 목록과 종목 페이지에서 리포트를 확인합니다.</small>
               <a class="ghost-button member-report-link" href="/analyses">분석 목록 열기</a>
             </article>
+            <article class="member-home-card member-admin-card">
+              <span>05</span>
+              <strong>운영 콘솔</strong>
+              <small>작업자 토큰이 있는 운영자만 서비스 상태와 처리 대기열을 점검합니다.</small>
+              <a class="ghost-button member-admin-link" href="/admin">운영 콘솔 열기</a>
+            </article>
           </div>
         </section>
 
         <section class="member-panel" id="portfolio-section" role="tabpanel" data-member-panel="portfolio" aria-labelledby="portfolio-tab" hidden>
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Manual Portfolio</p>
+              <p class="eyebrow">수동 포트폴리오</p>
               <h2>수동 매수 기록</h2>
             </div>
             <button class="ghost-button" id="refreshMemberData" type="button">새로고침</button>
@@ -1690,36 +1704,39 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <div class="member-form-stack">
             <div class="member-form-block">
               <strong>새 포트폴리오</strong>
+              <small class="member-form-hint">먼저 기록을 묶을 포트폴리오 이름을 만듭니다.</small>
               <form class="member-form compact-form" id="portfolioForm">
-                <input name="name" maxlength="80" placeholder="포트폴리오 이름" required>
+                <input name="name" maxlength="80" placeholder="포트폴리오 이름" aria-label="포트폴리오 이름" required>
                 <button type="submit">추가</button>
               </form>
             </div>
             <div class="member-form-block">
               <strong>매수/매도 기록</strong>
+              <small class="member-form-hint">종목코드, 날짜, 단가, 수량을 입력하면 평균단가와 손익을 계산합니다.</small>
               <form class="member-form trade-form" id="tradeForm">
-                <select name="portfolio_id" required></select>
-                <input name="ticker_code" maxlength="12" placeholder="005930" required>
-                <select name="side" required>
+                <select name="portfolio_id" aria-label="포트폴리오 선택" required></select>
+                <input name="ticker_code" maxlength="12" placeholder="005930" aria-label="종목코드" inputmode="numeric" required>
+                <select name="side" aria-label="매수 또는 매도" required>
                   <option value="buy">매수</option>
                   <option value="sell">매도</option>
                 </select>
-                <input name="trade_date" type="date" required>
-                <input name="price" type="number" min="1" step="1" placeholder="단가" required>
-                <input name="quantity" type="number" min="1" step="1" placeholder="수량" required>
-                <input name="fee" type="number" min="0" step="1" placeholder="수수료">
-                <input name="tax" type="number" min="0" step="1" placeholder="세금">
+                <input name="trade_date" type="date" aria-label="거래일" required>
+                <input name="price" type="number" min="1" step="1" placeholder="단가" aria-label="거래 단가" inputmode="numeric" required>
+                <input name="quantity" type="number" min="1" step="1" placeholder="수량" aria-label="거래 수량" inputmode="numeric" required>
+                <input name="fee" type="number" min="0" step="1" placeholder="수수료" aria-label="수수료" inputmode="numeric">
+                <input name="tax" type="number" min="0" step="1" placeholder="세금" aria-label="세금" inputmode="numeric">
                 <button type="submit">기록</button>
               </form>
             </div>
             <div class="member-form-block">
               <strong>목표/손절 메모</strong>
+              <small class="member-form-hint">목표가와 손절가는 주문으로 연결되지 않는 개인 메모입니다.</small>
               <form class="member-form target-form" id="targetForm">
-                <select name="portfolio_id" required></select>
-                <input name="ticker_code" maxlength="12" placeholder="005930" required>
-                <input name="target_price" type="number" min="1" step="1" placeholder="목표가">
-                <input name="stop_price" type="number" min="1" step="1" placeholder="손절가">
-                <input name="memo" maxlength="500" placeholder="목표 메모">
+                <select name="portfolio_id" aria-label="포트폴리오 선택" required></select>
+                <input name="ticker_code" maxlength="12" placeholder="005930" aria-label="종목코드" inputmode="numeric" required>
+                <input name="target_price" type="number" min="1" step="1" placeholder="목표가" aria-label="목표가" inputmode="numeric">
+                <input name="stop_price" type="number" min="1" step="1" placeholder="손절가" aria-label="손절가" inputmode="numeric">
+                <input name="memo" maxlength="500" placeholder="목표 메모" aria-label="목표 메모">
                 <button type="submit">저장</button>
               </form>
             </div>
@@ -1730,7 +1747,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <section class="member-panel" id="watchlist-section" role="tabpanel" data-member-panel="watchlist" aria-labelledby="watchlist-tab" hidden>
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Watchlist</p>
+              <p class="eyebrow">관심종목</p>
               <h2>관심종목</h2>
             </div>
             <span class="status-pill">KR</span>
@@ -1738,17 +1755,19 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <div class="member-form-stack">
             <div class="member-form-block">
               <strong>관심목록</strong>
+              <small class="member-form-hint">관심을 나눠 볼 주제나 전략 이름으로 목록을 만듭니다.</small>
               <form class="member-form compact-form" id="watchlistForm">
-                <input name="name" maxlength="80" placeholder="관심목록 이름" required>
+                <input name="name" maxlength="80" placeholder="관심목록 이름" aria-label="관심목록 이름" required>
                 <button type="submit">추가</button>
               </form>
             </div>
             <div class="member-form-block">
               <strong>종목 담기</strong>
+              <small class="member-form-hint">6자리 종목코드와 메모를 남기면 목록에서 현재가 상태를 함께 확인합니다.</small>
               <form class="member-form compact-form" id="watchlistItemForm">
-                <select name="watchlist_id" required></select>
-                <input name="ticker_code" maxlength="12" placeholder="005930" required>
-                <input name="memo" maxlength="500" placeholder="메모">
+                <select name="watchlist_id" aria-label="관심목록 선택" required></select>
+                <input name="ticker_code" maxlength="12" placeholder="005930" aria-label="종목코드" inputmode="numeric" required>
+                <input name="memo" maxlength="500" placeholder="메모" aria-label="관심종목 메모">
                 <button type="submit">담기</button>
               </form>
             </div>
@@ -1763,12 +1782,13 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <h2>분석 요청</h2>
               <p class="panel-copy">요청 상태, 하루 요청 가능 횟수, 완료 리포트 연결을 한 곳에서 확인합니다.</p>
             </div>
-            <span class="status-pill">대기열</span>
+            <span class="status-pill">요청 대기열</span>
           </div>
+          <p class="member-form-hint member-request-hint">종목코드만 입력하면 가장 최근 기준일로 요청합니다. 특정 날짜 기준으로 보고 싶을 때만 날짜를 선택하세요.</p>
           <form class="member-form compact-form" id="analysisRequestForm">
-            <input name="ticker" maxlength="12" placeholder="005930" required>
-            <input name="requested_trade_date" type="date">
-            <input name="reason" maxlength="500" placeholder="요청 메모">
+            <input name="ticker" maxlength="12" placeholder="005930" aria-label="분석 요청 종목코드" inputmode="numeric" required>
+            <input name="requested_trade_date" type="date" aria-label="분석 기준일">
+            <input name="reason" maxlength="500" placeholder="요청 메모" aria-label="요청 메모">
             <button type="submit">요청</button>
           </form>
           <div class="member-list" id="analysisRequestList"></div>
@@ -2845,7 +2865,7 @@ def _analysis_detail_next_actions(model: dict[str, Any]) -> str:
         <a href="{_h(request_href)}">
           <span>03</span>
           <strong>재분석 요청</strong>
-          <small>로그인 후 보고 싶은 종목을 요청 큐에 넣습니다.</small>
+          <small>로그인 후 보고 싶은 종목을 요청 대기열에 넣습니다.</small>
         </a>
         <a href="/api/analyses/{_h(run_id)}">
           <span>04</span>
@@ -5729,6 +5749,18 @@ h3 {
   text-transform: uppercase;
 }
 
+.member-form-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.member-request-hint {
+  margin: 10px 0 0;
+}
+
 .member-overview-strip strong {
   color: var(--ink);
   font-family: var(--app-font-stack);
@@ -5747,7 +5779,7 @@ h3 {
 
 .member-home-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 12px;
 }
 
@@ -6587,6 +6619,20 @@ h3 {
     line-height: 1.55;
   }
 
+  .home-member-preview ul,
+  .home-trust-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-trust-panel div {
+    border-right: 0;
+    border-bottom: 1px solid rgba(246, 243, 232, 0.12);
+  }
+
+  .home-trust-panel div:last-child {
+    border-bottom: 0;
+  }
+
   .home-hero-search {
     align-items: stretch;
     flex-direction: column;
@@ -6937,6 +6983,56 @@ h3 {
 
 .home-action-row {
   margin-top: 16px;
+}
+
+.home-member-preview {
+  display: grid;
+  gap: 12px;
+  width: min(100%, 650px);
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(143, 216, 189, 0.22);
+  border-left: 3px solid var(--home-celadon);
+  border-radius: 8px;
+  background: rgba(143, 216, 189, 0.07);
+}
+
+.home-member-preview > strong {
+  color: var(--home-ink);
+  font-size: 14px;
+}
+
+.home-member-preview ul {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.12);
+  border-radius: 6px;
+  background: rgba(246, 243, 232, 0.1);
+}
+
+.home-member-preview li {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 11px 12px;
+  background: rgba(15, 22, 18, 0.74);
+}
+
+.home-member-preview span {
+  color: var(--home-acid);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.home-member-preview small {
+  color: var(--home-readable);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .home-trust-panel {
@@ -9728,10 +9824,10 @@ ADMIN_PAGE_JS = """
   }
 
   function quotaSignalText(probe) {
-    if (!probe) return "quota 확인 대기";
-    if (probe.quota_signal === "headers_present") return "quota headers 감지";
-    if (probe.quota_signal === "wrapper_no_headers") return "quota headers 없음";
-    return "quota headers 미제공";
+    if (!probe) return "요청 제한 확인 대기";
+    if (probe.quota_signal === "headers_present") return "요청 제한 헤더 감지";
+    if (probe.quota_signal === "wrapper_no_headers") return "요청 제한 헤더 없음";
+    return "요청 제한 헤더 미제공";
   }
 
   function probeSummary(probe, fallback = "probe 대기") {
@@ -9873,7 +9969,7 @@ ADMIN_PAGE_JS = """
     const failed = Number(requests.failed_count || 0);
     const candidates = Array.isArray(outcomes.candidate_runs) ? outcomes.candidate_runs.length : 0;
     const completedOutcomes = Array.isArray(outcomes.recent_completed) ? outcomes.recent_completed.length : 0;
-    appendOpsCell(fragment, "활성 큐", String(active), `대기 ${counts.queued || 0} · 처리 중 ${counts.running || 0}`, active ? "is-warn" : "is-ok");
+    appendOpsCell(fragment, "처리 중 요청", String(active), `대기 ${counts.queued || 0} · 처리 중 ${counts.running || 0}`, active ? "is-warn" : "is-ok");
     appendOpsCell(fragment, "완료", String(counts.completed || 0), "완료된 분석 요청 누적", "is-ok");
     appendOpsCell(fragment, "실패", String(failed), "최근 실패 목록은 아래에서 확인", failed ? "is-error" : "is-ok");
     appendOpsCell(fragment, "검증 후보", String(candidates), `미리 보기 제한 ${limits.outcome_worker_max || "-"}`, candidates ? "is-warn" : "is-ok");
@@ -9882,7 +9978,7 @@ ADMIN_PAGE_JS = """
 
     if (recentPanel) {
       recentPanel.textContent = "";
-      recentPanel.appendChild(renderRecentList("대기/처리 중", "큐", [...(recent.queued || []), ...(recent.running || [])], requestLabel));
+      recentPanel.appendChild(renderRecentList("대기/처리 중", "대기열", [...(recent.queued || []), ...(recent.running || [])], requestLabel));
       recentPanel.appendChild(renderRecentList("최근 실패", "실패", recent.failed || [], requestLabel));
       recentPanel.appendChild(renderRecentList("검증 후보", "성과", outcomes.candidate_runs || [], runLabel));
       recentPanel.appendChild(renderRecentList("최근 완료 검증", "결과", outcomes.recent_completed || [], outcomeLabel));
@@ -10067,7 +10163,7 @@ ADMIN_PAGE_JS = """
     try {
       setBusy(button, true);
       setOutput(opsOutput, "운영 요약 확인 중");
-      renderOpsSummaryPending("작업자 토큰으로 큐 현황과 최근 처리 결과를 조회합니다.");
+      renderOpsSummaryPending("작업자 토큰으로 대기열 현황과 최근 처리 결과를 조회합니다.");
       const payload = await fetchJson("/api/admin/ops-summary", { method: "GET" }, true);
       renderOpsSummary(payload);
       setOutput(opsOutput, payload);
@@ -10841,7 +10937,7 @@ MEMBER_PAGE_JS = """
     const meters = document.createElement("div");
     meters.className = "analysis-queue-meters";
     [
-      ["활성 큐", `${policy.active_used ?? summary.active_count ?? 0}/${activeLimit}`, "대기+처리 중"],
+      ["대기 중 요청", `${policy.active_used ?? summary.active_count ?? 0}/${activeLimit}`, "대기+처리 중"],
       [`${windowHours}시간`, `${policy.daily_used ?? "-"}/${dailyLimit}`, "요청 제한"],
       ["완료", summary.completed_count || 0, "저장된 리포트"],
       ["실패", summary.failed_count || 0, "확인 필요"]
@@ -10873,7 +10969,7 @@ MEMBER_PAGE_JS = """
 
     const note = document.createElement("p");
     note.className = "analysis-queue-note";
-    note.textContent = "같은 종목과 기준일의 활성 요청은 기존 큐에 합쳐지며 quota를 다시 사용하지 않습니다.";
+    note.textContent = "같은 종목과 기준일의 처리 중인 요청은 기존 대기열에 합쳐지며 요청 가능 횟수를 다시 사용하지 않습니다.";
     node.append(meters, strip, note);
     return node;
   }
@@ -10893,7 +10989,7 @@ MEMBER_PAGE_JS = """
     strong.textContent = title;
     small.textContent = [
       `${row.market || "KR"} / 기준일 ${shortDate(row.requested_trade_date)}`,
-      row.member_queue_position ? `${row.queue_scope_label || "내 큐"} ${row.member_queue_position}번째` : null,
+      row.member_queue_position ? `${row.queue_scope_label || "내 대기열"} ${row.member_queue_position}번째` : null,
       `요청 ${shortDateTime(row.created_at)}`,
       `업데이트 ${shortDateTime(row.updated_at || row.created_at)}`
     ].filter(Boolean).join(" / ");
@@ -10904,7 +11000,7 @@ MEMBER_PAGE_JS = """
 
     const hint = document.createElement("p");
     hint.className = "analysis-request-hint";
-    hint.textContent = row.status_hint || "큐 상태를 확인하고 있습니다.";
+    hint.textContent = row.status_hint || "분석 요청 상태를 확인하고 있습니다.";
 
     const details = [];
     if (row.reason) details.push(`요청 메모 ${row.reason}`);
@@ -10927,7 +11023,7 @@ MEMBER_PAGE_JS = """
       actions.append(inlineLink(row.next_action_label || "확인", row.next_action_path));
     }
 
-    node.append(header, hint, miniList(details, "상세 상태 대기", "큐 상세"));
+    node.append(header, hint, miniList(details, "상세 상태 대기", "요청 상세"));
     if (actions.childElementCount) node.append(actions);
     return node;
   }
@@ -11005,7 +11101,7 @@ MEMBER_PAGE_JS = """
     const summary = requestsPayload.summary || {};
     const activeCount = summary.active_count ?? requestRows.filter((row) => row.is_active).length;
     const completedCount = summary.completed_count ?? requestRows.filter((row) => row.status === "completed").length;
-    const homeStatus = activeCount ? `큐 ${activeCount}` : completedCount ? `완료 ${completedCount}` : "준비 완료";
+    const homeStatus = activeCount ? `대기 ${activeCount}` : completedCount ? `완료 ${completedCount}` : "준비 완료";
     setText(memberHomeStatus, homeStatus);
     setText(portfolioTabCount, portfolioCount);
     setText(watchlistTabCount, watchlistCount);
@@ -11076,7 +11172,7 @@ MEMBER_PAGE_JS = """
       setSignedInState(true, {
         label: "대시보드 준비 완료",
         user: userLabel,
-        meta: "포트폴리오, 관심종목, 분석 요청 큐를 불러왔습니다."
+        meta: "포트폴리오, 관심종목, 분석 요청 대기열을 불러왔습니다."
       });
       setStatus("대시보드 준비 완료");
       return;
@@ -11201,11 +11297,11 @@ MEMBER_PAGE_JS = """
       form.reset();
       await loadMemberData();
       if (payload?.status === "already_queued") {
-        setStatus("이미 대기 중인 분석 요청이 있어 기존 큐 항목을 유지했습니다.");
+        setStatus("이미 대기 중인 분석 요청이 있어 기존 대기열 항목을 유지했습니다.");
       } else if (payload?.status === "queued") {
         const quota = payload?.quota;
         const suffix = quota ? ` (${quota.daily_used}/${quota.daily_limit}, 최근 ${quota.window_hours}시간)` : "";
-        setStatus(`분석 요청을 큐에 등록했습니다${suffix}.`);
+        setStatus(`분석 요청을 대기열에 등록했습니다${suffix}.`);
       }
     } catch (error) {
       setStatus(error.message, true);
