@@ -3576,10 +3576,18 @@ a {
 .top-links a {
   padding: 8px 10px;
   border-radius: 6px;
+  border: 1px solid transparent;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
 .top-links a:hover {
   background: var(--surface-strong);
+  color: var(--ink);
+}
+
+.top-links a[aria-current="page"] {
+  border-color: rgba(20, 107, 99, 0.36);
+  background: rgba(20, 107, 99, 0.1);
   color: var(--ink);
 }
 
@@ -5602,6 +5610,12 @@ h3 {
   color: var(--ink);
 }
 
+.member-page .top-links a[aria-current="page"] {
+  border-color: rgba(215, 255, 63, 0.46);
+  background: rgba(215, 255, 63, 0.12);
+  color: var(--ink);
+}
+
 .member-page .top-links .top-auth-link,
 .member-page .top-links .top-dashboard-link,
 .member-page .top-links .top-admin-link {
@@ -6570,8 +6584,8 @@ h3 {
   .topbar {
     align-items: stretch;
     flex-direction: column;
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 10px 12px;
   }
 
   .brand {
@@ -6582,14 +6596,14 @@ h3 {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     width: 100%;
-    gap: 6px;
+    gap: 5px;
   }
 
   .top-links a {
     display: grid;
-    min-height: 36px;
+    min-height: 34px;
     place-items: center;
-    padding: 7px 6px;
+    padding: 6px 5px;
     min-width: 0;
     font-size: 12px;
     text-align: center;
@@ -6598,6 +6612,16 @@ h3 {
 
   .ticker-search {
     width: 100%;
+  }
+
+  .ticker-search input,
+  .ticker-search button {
+    height: 36px;
+  }
+
+  .ticker-search button {
+    min-width: 58px;
+    padding: 0 10px;
   }
 
   .chart-toolbar,
@@ -6945,6 +6969,12 @@ h3 {
 
 .public-home .top-links a:hover {
   background: rgba(246, 243, 232, 0.08);
+  color: var(--home-ink);
+}
+
+.public-home .top-links a[aria-current="page"] {
+  border-color: rgba(215, 255, 63, 0.46);
+  background: rgba(215, 255, 63, 0.12);
   color: var(--home-ink);
 }
 
@@ -7844,6 +7874,10 @@ h3 {
 
   .top-links {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stock-page .top-links a[href^="/features/"] {
+    display: none;
   }
 
   .analysis-detail-page .top-links a[href^="/features/"],
@@ -9456,6 +9490,35 @@ PAGE_JS = """
     }
   }
 
+  function currentNavKey() {
+    const path = window.location.pathname;
+    const params = new URLSearchParams(window.location.search);
+    if (path === "/") return "/";
+    if (path === "/member" && params.get("mode") === "signup") return "/member?mode=signup";
+    if (path === "/member") return "/member";
+    if (path === "/mypage") return "/mypage";
+    if (path === "/admin") return "/admin";
+    if (path === "/features/methodology") return "/features/methodology";
+    if (path.startsWith("/features/")) return "/features/research";
+    if (path === "/analyses" || path.startsWith("/analyses/")) return "/analyses";
+    if (path === "/outcomes") return "/outcomes";
+    return "";
+  }
+
+  function syncTopNavigationState() {
+    const current = currentNavKey();
+    document.querySelectorAll(".top-links a[href]").forEach((link) => {
+      const href = link.getAttribute("href") || "";
+      const target = href.split("#")[0];
+      const isCurrent = Boolean(current && target === current);
+      if (isCurrent) {
+        link.setAttribute("aria-current", "page");
+      } else if (link.getAttribute("aria-current") === "page" && target !== "/admin") {
+        link.removeAttribute("aria-current");
+      }
+    });
+  }
+
   function syncTopAuthLinks() {
     const signedIn = Boolean(
       memberStorageGet(memberAccessTokenKey)
@@ -9472,6 +9535,7 @@ PAGE_JS = """
     document.querySelectorAll('[data-auth-visible="admin"]').forEach((node) => {
       node.hidden = !adminVisible;
     });
+    syncTopNavigationState();
   }
 
   syncTopAuthLinks();
@@ -10599,6 +10663,29 @@ MEMBER_PAGE_JS = """
     });
   }
 
+  function currentMemberNavKey(isSignedIn) {
+    const path = window.location.pathname;
+    if (path === "/member" && requestedAuthMode === "signup" && !isSignedIn) return "/member?mode=signup";
+    if (path === "/member" || path === "/mypage") return isSignedIn ? "/mypage" : "/member";
+    if (path === "/features/methodology") return "/features/methodology";
+    if (path.startsWith("/features/")) return "/features/research";
+    if (path === "/analyses" || path.startsWith("/analyses/")) return "/analyses";
+    if (path === "/outcomes") return "/outcomes";
+    return "";
+  }
+
+  function syncMemberTopNavigationState(isSignedIn) {
+    const current = currentMemberNavKey(Boolean(isSignedIn));
+    document.querySelectorAll(".top-links a[href]").forEach((link) => {
+      const target = (link.getAttribute("href") || "").split("#")[0];
+      if (current && target === current) {
+        link.setAttribute("aria-current", "page");
+      } else if (link.getAttribute("aria-current") === "page") {
+        link.removeAttribute("aria-current");
+      }
+    });
+  }
+
   function setAuthUiState(isSignedIn) {
     const signedIn = Boolean(isSignedIn);
     memberBody?.classList.remove("is-member-checking");
@@ -10616,6 +10703,7 @@ MEMBER_PAGE_JS = """
     adminNavItems.forEach((node) => {
       node.hidden = !storageGet("tradingagents.admin.worker_token");
     });
+    syncMemberTopNavigationState(signedIn);
   }
 
   function setStatus(message, isError = false) {

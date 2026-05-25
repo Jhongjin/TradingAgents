@@ -142,6 +142,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "stock-reading-guide" in html
     assert "종목 페이지 읽는 순서" in html
     assert "가격과 출처" in html
+    assert '.stock-page .top-links a[href^="/features/"]' in html
     assert 'href="#stock-chart-section"' in html
     assert 'id="stock-chart-section"' in html
     assert 'id="stock-analysis-section"' in html
@@ -258,6 +259,9 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "home-live-tape" in html
     assert "prefers-reduced-motion" in html
     assert "syncTopAuthLinks" in html
+    assert "currentNavKey" in html
+    assert "syncTopNavigationState" in html
+    assert '.top-links a[aria-current="page"]' in html
     assert "로그인" in html
     assert "가입하기" in html
     assert 'href="/member?mode=signup"' in html
@@ -375,6 +379,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "대시보드 준비 완료" in html
     assert "setSignedInState" in html
     assert "setAuthUiState" in html
+    assert "syncMemberTopNavigationState" in html
+    assert "currentMemberNavKey" in html
     assert "is-member-checking" in html
     assert "로그인 세션이 만료되었습니다" in html
     assert 'aria-live="polite"' in html
