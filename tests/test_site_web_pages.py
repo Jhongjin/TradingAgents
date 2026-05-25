@@ -748,6 +748,18 @@ def test_render_public_outcomes_page_shows_public_track_record():
     assert "/api/watchlists" not in html
 
 
+def test_render_public_outcomes_page_empty_state_has_next_actions():
+    html = render_public_outcomes_page(repo=_repo(), site_base_url="https://example.com")
+
+    assert "성과 검증 대기" in html
+    assert "5D/20D 대기" in html
+    assert "알파 대기" in html
+    assert 'href="/stocks/005930">샘플 종목</a>' in html
+    assert 'href="/analyses">분석 목록</a>' in html
+    assert 'href="/features/outcomes">검증 방식</a>' in html
+    assert 'href="/member#analysis-request-section">분석 요청</a>' in html
+
+
 def test_render_public_analysis_detail_page_shows_report_context():
     repo = _repo()
     run_id = repo.create_analysis_run(

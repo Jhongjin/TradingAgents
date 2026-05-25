@@ -2498,9 +2498,16 @@ def _analysis_outcome_feed_cards(items: list[dict[str, Any]]) -> str:
           <span>waiting</span>
           <h3>성과 검증 대기</h3>
           <p>outcome worker가 public run을 평가하면 이곳에 5일/20일 성과가 누적됩니다.</p>
+          <div class="analysis-feed-signal-row" aria-label="성과 검증 대기 상태">
+            <span>5D/20D 대기</span>
+            <span>알파 대기</span>
+            <span>주문 없음</span>
+          </div>
           <div class="analysis-feed-actions">
+            <a href="/stocks/005930">샘플 종목</a>
             <a href="/analyses">분석 목록</a>
             <a href="/features/outcomes">검증 방식</a>
+            <a href="/member#analysis-request-section">분석 요청</a>
           </div>
         </article>
         """
@@ -2964,6 +2971,10 @@ def _outcome_cards(outcomes: list[dict[str, Any]]) -> str:
           <span>pending</span>
           <h3>검증 대기</h3>
           <p>분석 기준일 이후 충분한 거래일이 쌓이면 5일/20일 성과가 표시됩니다.</p>
+          <div class="analysis-feed-actions outcome-card-actions">
+            <a href="/analyses">분석 목록</a>
+            <a href="/features/outcomes">검증 방식</a>
+          </div>
         </article>
         """
     else:
