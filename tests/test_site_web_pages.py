@@ -304,8 +304,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
 
     assert "리서치 기록을 내 공간에 보관하세요" in html
     assert "회원 작업공간은 로그인 후에만 열립니다" in html
-    assert "내 투자 노트" in html
-    assert "필요한 리서치만 요청합니다" in html
+    assert "내 리서치 작업공간" in html
+    assert "매매 기록은 주문이 아니라 개인 메모로만 남깁니다" in html
     assert "memberSessionGate" in html
     assert "세션을 확인하고 있습니다" in html
     assert "세션 확인" in html
@@ -315,6 +315,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'data-member-tab="home"' in html
     assert 'id="member-home-section"' in html
     assert "마이페이지 홈" in html
+    assert "처음이라면 관심종목을 하나 담거나 궁금한 종목의 리서치를 요청하세요." in html
     assert "member-home-grid" in html
     assert "공개 리포트 확인" in html
     assert "member-report-card" in html
@@ -488,7 +489,7 @@ def test_render_feature_detail_pages_use_public_theme():
     assert 'href="/features/member-workspace">가입하면 열리는 기능</a>' in html
     assert 'href="/outcomes">성과</a>' in html
     assert '<link rel="canonical" href="https://example.com/features/research">' in html
-    assert 'href="/member?mode=signup">가입하고 내 투자 노트 열기</a>' in member_html
+    assert 'href="/member?mode=signup">가입하고 내 리서치 작업공간 열기</a>' in member_html
     assert "/api/member/dashboard" not in html
     assert 'href="/features/research">공개 리서치 먼저 보기</a>' in member_html
     assert "로그인 후에는 개인 기록만 따로 열립니다" in member_html

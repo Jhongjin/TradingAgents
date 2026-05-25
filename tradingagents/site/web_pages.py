@@ -782,7 +782,7 @@ def render_public_home_page(
         </article>
         <article>
           <span>02</span>
-          <strong>내 투자 노트 만들기</strong>
+          <strong>내 리서치 작업공간 만들기</strong>
           <p>가입 후에는 수동 포트폴리오, 관심종목, 목표가·손절가 메모를 내 계정에 저장합니다.</p>
           <a href="/member?mode=signup">회원으로 시작하기</a>
         </article>
@@ -854,7 +854,7 @@ def render_public_home_page(
       <div class="home-section-heading">
         <div>
           <p class="eyebrow">회원 기능</p>
-          <h2 id="member-title">가입하면 내 투자 노트가 열립니다</h2>
+          <h2 id="member-title">가입하면 내 리서치 작업공간이 열립니다</h2>
         </div>
         <a class="home-primary-link" href="/member?mode=signup">회원으로 시작하기</a>
       </div>
@@ -903,7 +903,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
             ("01", "종목 검색", "삼성전자처럼 종목명으로 검색해도 6자리 코드 화면으로 이동합니다."),
             ("02", "출처 확인", "가격 기준일, 제공처, 대체 데이터 사용 여부를 먼저 봅니다."),
             ("03", "리포트 읽기", "AI 의견과 에이전트별 리포트를 투자 판단의 참고자료로 읽습니다."),
-            ("04", "가입 후 저장", "관심종목과 리서치 요청은 로그인한 내 투자 노트에만 저장됩니다."),
+            ("04", "가입 후 저장", "관심종목과 리서치 요청은 로그인한 내 리서치 작업공간에만 저장됩니다."),
         ),
         "steps": ("종목 검색", "KRX 가격 데이터", "DART 공시", "Naver 뉴스", "AI 리포트"),
         "cta_label": "삼성전자 예시 보기",
@@ -934,7 +934,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
             ("04", "리서치 요청", "필요한 종목만 대기열에 넣고 완료 리포트 연결을 확인합니다."),
         ),
         "steps": ("로그인", "마이페이지", "개인 기록", "분석 요청", "주문 차단"),
-        "cta_label": "가입하고 내 투자 노트 열기",
+        "cta_label": "가입하고 내 리서치 작업공간 열기",
         "cta_href": "/member?mode=signup",
         "secondary_cta_label": "공개 리서치 먼저 보기",
         "secondary_cta_href": "/features/research",
@@ -1826,9 +1826,9 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <section class="summary-band member-summary-band" aria-labelledby="member-title">
         <div>
           <p class="eyebrow">회원 작업공간</p>
-          <h1 id="member-title">내 투자 노트</h1>
+          <h1 id="member-title">내 리서치 작업공간</h1>
           <p class="asof" id="memberStatus">로그인 상태 확인 중</p>
-          <p class="member-workspace-lede">종목을 저장하고, 매매 기록은 직접 남기고, 필요한 리서치만 요청합니다. 주문 기능은 열리지 않습니다.</p>
+          <p class="member-workspace-lede">처음이라면 관심종목을 하나 저장하거나 궁금한 종목의 리서치를 요청하세요. 매매 기록은 주문이 아니라 개인 메모로만 남깁니다.</p>
         </div>
         <div class="member-signed-in" id="memberSignedIn" hidden>
           <span class="status-pill" id="memberSignedInState">대시보드 확인 중</span>
@@ -1856,7 +1856,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <div>
               <p class="eyebrow">마이페이지</p>
               <h2>마이페이지 홈</h2>
-              <p class="panel-copy">처음이라면 포트폴리오 이름을 만들고, 자주 보는 종목을 관심목록에 담은 뒤, 더 확인할 종목만 리서치 요청으로 넘기세요.</p>
+              <p class="panel-copy">처음이라면 관심종목을 하나 담거나 궁금한 종목의 리서치를 요청하세요. 포트폴리오 기록은 주문이 아니라 내 판단을 정리하는 메모입니다.</p>
             </div>
             <span class="status-pill">읽기 전용</span>
           </div>
