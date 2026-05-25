@@ -241,13 +241,14 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "TradingAgents Korea" in html
     assert "한국 주식 AI 분석" in html
     assert "최근 공개 분석" in html
-    assert "한국 주식 분석을 한곳에서 확인하세요" in html
+    assert "한국 주식 AI 리서치" in html
     assert "한국 주식 AI 리서치 / 주문 없는 읽기 전용 서비스" in html
     assert "처음 방문해도 바로 쓸 수 있는 세 가지 흐름" in html
     assert "가입하고 내 투자 노트 만들기" in html
     assert "가입하면 열리는 기능" in html
     assert "home-member-preview" in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청으로 시작하기</a>' in html
+    assert "home-start-strip" in html
     assert "home-trust-panel" in html
     assert "공식·공개 데이터" in html
     assert "실거래 주문 기능 차단" in html

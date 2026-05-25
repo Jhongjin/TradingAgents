@@ -650,15 +650,15 @@ def render_public_home_page(
     <section class="home-hero home-hero-artboard" aria-labelledby="home-title">
       <div class="home-hero-copy home-hero-content">
         <p class="home-kicker">한국 주식 AI 리서치 / 주문 없는 읽기 전용 서비스</p>
-        <h1 id="home-title">한국 주식 분석을 한곳에서 확인하세요</h1>
-        <p class="home-lede">종목을 검색하면 KRX 시세, DART 공시, Naver 뉴스, AI 분석 리포트와 사후 성과를 함께 보여줍니다. 가입하면 내 포트폴리오와 관심종목을 따로 저장하고, 보고 싶은 종목의 분석을 요청할 수 있습니다.</p>
+        <h1 id="home-title">한국 주식 AI 리서치</h1>
+        <p class="home-lede">종목을 검색하면 KRX 시세, DART 공시, Naver 뉴스, AI 의견, 5일/20일 사후 성과를 한 화면에서 확인합니다. 가입하면 내 포트폴리오, 관심종목, 분석 요청 대기열이 열립니다.</p>
         <form class="ticker-search home-search home-command-search" action="/stocks" method="get">
           <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
           <input id="ticker" name="ticker" list="tickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" autocomplete="off">
           <datalist id="tickerSuggestions"></datalist>
           <button type="submit">조회</button>
         </form>
-        <div class="home-cta-row home-action-row" aria-label="주요 링크">
+        <div class="home-cta-row home-action-row" aria-label="첫 방문자 주요 행동">
           <a class="home-primary-link" href="/stocks/005930">샘플 분석 보기</a>
           <a class="home-secondary-link" href="/member?mode=signup">가입하고 내 투자 노트 만들기</a>
           <a class="home-secondary-link" href="/analyses">최근 공개 분석</a>
@@ -671,34 +671,6 @@ def render_public_home_page(
             <li><span>분석 요청</span><small>보고 싶은 종목을 요청하고 완료 리포트 연결을 확인합니다.</small></li>
           </ul>
         </aside>
-        <div class="home-trust-panel" aria-label="신뢰 운영 기준">
-          <div>
-            <span>공식·공개 데이터</span>
-            <strong>KRX / DART / Naver</strong>
-          </div>
-          <div>
-            <span>사후 검증</span>
-            <strong>5일/20일 성과 검증</strong>
-          </div>
-          <div>
-            <span>투자자 보호</span>
-            <strong>실거래 주문 기능 차단</strong>
-          </div>
-        </div>
-        <dl class="home-proof-row home-signal-strip" aria-label="운영 상태">
-          <div>
-            <dt>시장</dt>
-            <dd>KOSPI/KOSDAQ</dd>
-          </div>
-          <div>
-            <dt>데이터</dt>
-            <dd>공식·공개 출처</dd>
-          </div>
-          <div>
-            <dt>모드</dt>
-            <dd>읽기 전용</dd>
-          </div>
-        </dl>
       </div>
       <div class="home-hero-visual home-signal-art" aria-label="한국 주식 AI 분석 신호 아트보드">
         <canvas id="homeSignalCanvas" class="home-signal-canvas" aria-hidden="true"></canvas>
@@ -752,6 +724,37 @@ def render_public_home_page(
           </div>
         </div>
       </div>
+    </section>
+
+    <section class="home-start-strip" aria-label="서비스 요약">
+      <div class="home-trust-panel" aria-label="신뢰 운영 기준">
+        <div>
+          <span>공식·공개 데이터</span>
+          <strong>KRX / DART / Naver</strong>
+        </div>
+        <div>
+          <span>사후 검증</span>
+          <strong>5일/20일 성과 검증</strong>
+        </div>
+        <div>
+          <span>투자자 보호</span>
+          <strong>실거래 주문 기능 차단</strong>
+        </div>
+      </div>
+      <dl class="home-proof-row home-signal-strip" aria-label="운영 상태">
+        <div>
+          <dt>시장</dt>
+          <dd>KOSPI/KOSDAQ</dd>
+        </div>
+        <div>
+          <dt>데이터</dt>
+          <dd>공식·공개 출처</dd>
+        </div>
+        <div>
+          <dt>모드</dt>
+          <dd>읽기 전용</dd>
+        </div>
+      </dl>
     </section>
 
     <section class="home-service-map" aria-labelledby="service-map-title">
@@ -7059,8 +7062,8 @@ h3 {
   grid-template-columns: minmax(0, 0.82fr) minmax(0, 0.9fr);
   gap: clamp(28px, 5vw, 72px);
   align-items: start;
-  min-height: min(820px, calc(100svh - 88px));
-  padding: clamp(44px, 7vh, 92px) 0 clamp(28px, 4vw, 52px);
+  min-height: min(720px, calc(100svh - 88px));
+  padding: clamp(36px, 6vh, 72px) 0 clamp(24px, 3vw, 42px);
   border-bottom: 1px solid var(--home-line);
 }
 
@@ -7096,11 +7099,11 @@ h3 {
 
 .home-hero-artboard h1 {
   max-width: 640px;
-  margin-bottom: 22px;
+  margin-bottom: 18px;
   color: var(--home-ink);
-  font-size: clamp(44px, 5.6vw, 82px);
+  font-size: clamp(42px, 5vw, 72px);
   font-weight: 900;
-  line-height: 0.96;
+  line-height: 0.98;
   letter-spacing: 0;
   text-wrap: balance;
   word-break: keep-all;
@@ -7108,10 +7111,10 @@ h3 {
 
 .home-hero-artboard .home-lede {
   max-width: 670px;
-  margin-bottom: 26px;
+  margin-bottom: 22px;
   color: rgba(246, 243, 232, 0.76);
-  font-size: clamp(16px, 1.4vw, 20px);
-  line-height: 1.68;
+  font-size: clamp(15px, 1.25vw, 18px);
+  line-height: 1.62;
 }
 
 .home-command-search {
@@ -7147,15 +7150,15 @@ h3 {
 }
 
 .home-action-row {
-  margin-top: 16px;
+  margin-top: 14px;
 }
 
 .home-member-preview {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   width: min(100%, 650px);
-  margin-top: 14px;
-  padding: 14px;
+  margin-top: 12px;
+  padding: 12px;
   border: 1px solid rgba(143, 216, 189, 0.22);
   border-left: 3px solid var(--home-celadon);
   border-radius: 8px;
@@ -7182,9 +7185,9 @@ h3 {
 
 .home-member-preview li {
   display: grid;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
-  padding: 11px 12px;
+  padding: 10px 11px;
   background: rgba(15, 22, 18, 0.74);
 }
 
@@ -7267,11 +7270,41 @@ h3 {
   color: var(--home-ink);
 }
 
+.home-start-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 0.62fr) minmax(300px, 0.38fr);
+  gap: 16px;
+  align-items: stretch;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--home-line);
+}
+
+.home-start-strip .home-trust-panel {
+  width: 100%;
+  margin-top: 0;
+}
+
+.home-start-strip .home-signal-strip {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 16px;
+  border: 1px solid rgba(246, 243, 232, 0.16);
+  background: rgba(246, 243, 232, 0.045);
+}
+
+.home-start-strip .home-signal-strip div {
+  display: grid;
+  align-content: center;
+  padding: 12px 0;
+  border-top: 0;
+}
+
 .home-signal-art {
   position: relative;
   max-width: 100%;
   margin-top: clamp(8px, 2vh, 28px);
-  min-height: clamp(380px, 42vw, 620px);
+  min-height: clamp(360px, 38vw, 560px);
   aspect-ratio: 1.06 / 1;
   overflow: hidden;
   border: 1px solid rgba(246, 243, 232, 0.18);
@@ -7779,6 +7812,10 @@ h3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .home-start-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .home-lens-grid article {
     border-bottom: 1px solid var(--home-line);
   }
@@ -7791,8 +7828,13 @@ h3 {
   }
 
   .home-hero-artboard {
-    padding: 28px 0 46px;
+    padding: 20px 0 0;
     overflow: hidden;
+  }
+
+  .home-kicker {
+    margin-bottom: 10px;
+    font-size: 10px;
   }
 
   .home-hero-content {
@@ -7801,7 +7843,8 @@ h3 {
 
   .home-hero-artboard h1 {
     max-width: 100%;
-    font-size: clamp(32px, 10vw, 44px);
+    margin-bottom: 12px;
+    font-size: clamp(30px, 9vw, 40px);
     line-height: 1.04;
     overflow-wrap: anywhere;
     word-break: break-word;
@@ -7810,8 +7853,15 @@ h3 {
 
   .home-hero-artboard .home-lede {
     max-width: 100%;
+    margin-bottom: 14px;
+    font-size: 14px;
+    line-height: 1.52;
     overflow-wrap: anywhere;
     word-break: break-word;
+  }
+
+  .home-action-row {
+    margin-top: 10px;
   }
 
   .home-action-row a {
@@ -7819,13 +7869,48 @@ h3 {
     width: 100%;
   }
 
+  .home-action-row a:nth-child(3) {
+    display: none;
+  }
+
   .home-command-search {
-    flex-direction: column;
+    flex-direction: row;
+    padding: 6px;
+  }
+
+  .home-member-preview {
+    gap: 8px;
+    margin-top: 10px;
+    padding: 10px;
+  }
+
+  .home-member-preview > strong {
+    font-size: 12px;
+  }
+
+  .home-member-preview ul {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .home-member-preview li {
+    min-height: 42px;
+    place-content: center;
+    padding: 8px 6px;
+    text-align: center;
+  }
+
+  .home-member-preview small {
+    display: none;
   }
 
   .home-service-grid,
   .home-lens-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-start-strip {
+    gap: 10px;
+    padding: 12px 0;
   }
 
   .home-signal-strip {
@@ -7861,8 +7946,8 @@ h3 {
   }
 
   .home-signal-art {
-    min-height: 360px;
-    aspect-ratio: auto;
+    min-height: 180px;
+    aspect-ratio: 16 / 9;
   }
 
   .signal-flow-row {
@@ -7881,11 +7966,16 @@ h3 {
     left: 16px;
     right: 16px;
     top: auto;
-    bottom: 48px;
+    bottom: 16px;
   }
 
   .signal-stock-card .home-console-focus {
-    padding: 16px;
+    padding: 12px;
+  }
+
+  .signal-stock-card .home-console-grid,
+  .home-live-tape {
+    display: none;
   }
 
   .signal-stock-card .home-console-focus strong {
