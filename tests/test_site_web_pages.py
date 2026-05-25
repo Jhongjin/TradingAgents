@@ -687,22 +687,23 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "성과 검증 스냅샷" in html
     assert "알파 우위" in html
     assert "완료 리포트" in html
+    assert "최근 20건 기준" in html
     assert "KOSPI 1" in html
     assert "Hold 1" in html
     assert "평균 알파 +3.00%" in html
     assert "판단 Hold" in html
     assert "analysis-feed-card-top" in html
     assert "analysis-feed-signal-row" in html
-    assert "Run " in html
+    assert "분석 ID" in html
     assert "1개 리포트" in html
-    assert "5D 검증 / +3.00%" in html
+    assert "5일 검증 / +3.00%" in html
     assert "analysis-feed-actions" in html
     assert "is-positive-alpha" in html
     assert "<dt>알파</dt><dd>+3.00%</dd>" in html
     assert "<dt>리포트</dt><dd>1개</dd>" in html
     assert f'href="/analyses/{run_id}">리포트</a>' in html
     assert 'href="/outcomes?ticker=005930">성과</a>' in html
-    assert f'href="/api/analyses/{run_id}">JSON</a>' in html
+    assert f'href="/api/analyses/{run_id}">원문 데이터(JSON)</a>' in html
     assert "/stocks/005930" in html
     assert '<link rel="canonical" href="https://example.com/analyses">' in html
 
@@ -711,9 +712,21 @@ def test_render_public_analysis_feed_empty_state_has_next_actions():
     html = render_public_analysis_feed_page(repo=_repo(), site_base_url="https://example.com")
 
     assert "공개 분석 대기" in html
+    assert "분석 ID 대기" in html
     assert 'href="/stocks/005930">샘플 종목</a>' in html
     assert 'href="/features/research">리서치 흐름</a>' in html
     assert 'href="/member#analysis-request-section">분석 요청</a>' in html
+
+
+def test_render_public_analysis_feed_filtered_empty_state_guides_recovery():
+    html = render_public_analysis_feed_page(repo=_repo(), ticker="005930", site_base_url="https://example.com")
+
+    assert "005930 공개 분석 없음" in html
+    assert "필터 결과 없음" in html
+    assert "005930 필터 결과" in html
+    assert 'href="/analyses">필터 지우기</a>' in html
+    assert 'href="/stocks/005930">종목 페이지</a>' in html
+    assert 'href="/member?tab=analysis#analysis-request-section">분석 요청</a>' in html
 
 
 def test_render_public_outcomes_page_shows_public_track_record():
@@ -851,22 +864,51 @@ def test_render_public_analysis_detail_page_shows_report_context():
     assert "데이터 기준일" in html
     assert "데이터 출처" in html
     assert "KRX/DART/Naver" in html
-    assert "에이전트 범위" in html
+    assert "분석 역할" in html
     assert "market, news, fundamentals" in html
     assert "생성 경로 trading_graph / 통화 KRW / 언어 ko-KR" in html
     assert "휴장, 제공처 장애, 누락 데이터, 모델 오류 가능성" in html
     assert "판단 체크포인트" in html
     assert "Market report" in html
+    assert "본문 발췌" in html
+    assert "화면에는 읽기 편하도록 본문 일부를 먼저 보여줍니다" in html
     assert "근거 점검" in html
     assert "analysis-detail-report-body" in html
+    assert "analysis-next-actions" in html
+    assert "리포트를 읽은 뒤 이어서 볼 곳" in html
+    assert 'href="/member?tab=analysis#analysis-request-section"' in html
     assert "Ticker anchor" in html
     assert "성과 검증 기록" in html
-    assert f'href="/api/analyses/{run_id}">JSON</a>' in html
+    assert f'href="/api/analyses/{run_id}">원문 데이터(JSON)</a>' in html
     assert f'<link rel="canonical" href="https://example.com/analyses/{run_id}">' in html
     assert 'id="analysis-detail-payload"' in html
     assert "syncTopAuthLinks" in html
     assert "/api/portfolios" not in html
     assert "/api/watchlists" not in html
+
+
+def test_render_public_analysis_detail_missing_sections_have_recovery_actions():
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+            model_provider="openai",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+
+    html = render_public_analysis_detail_page(run_id, repo=repo, site_base_url="https://example.com")
+
+    assert "최종 판단 대기" in html
+    assert "리포트 대기" in html
+    assert "analysis-empty-actions" in html
+    assert f'href="/api/analyses/{run_id}">원문 데이터(JSON)</a>' in html
+    assert 'href="/stocks/005930">종목 페이지</a>' in html
+    assert 'href="/member?tab=analysis#analysis-request-section">재분석 요청</a>' in html
 
 
 def test_api_app_serves_public_analysis_feed_page(monkeypatch):
