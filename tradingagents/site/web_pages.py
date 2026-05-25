@@ -91,7 +91,7 @@ def render_public_stock_page(
       <a href="/features/research">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
-      <a href="/outcomes">성과</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
@@ -263,7 +263,7 @@ def render_public_analysis_feed_page(
       <a href="/features/research">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
-      <a href="/outcomes">성과</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
@@ -398,7 +398,7 @@ def render_public_outcomes_page(
       <a href="/features/research">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
-      <a href="/outcomes" aria-current="page">성과</a>
+      <a href="/outcomes" aria-current="page">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
@@ -530,7 +530,7 @@ def render_public_analysis_detail_page(
       <a href="/features/research">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
-      <a href="/outcomes">성과</a>
+      <a href="/outcomes">사후 기록</a>
       <a href="/stocks/{_h(model["ticker_code"])}">종목</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
@@ -645,7 +645,7 @@ def render_public_home_page(
       <a href="/features/research">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
-      <a href="/outcomes">성과</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
@@ -1059,7 +1059,7 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
       <a href="/features" aria-current="page">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
-      <a href="/outcomes">성과</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
@@ -1348,7 +1348,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
       <a href="/features/research">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
-      <a href="/outcomes">성과</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
@@ -1475,7 +1475,7 @@ def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
       <a href="/features/research">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
-      <a href="/outcomes">성과</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
@@ -1565,7 +1565,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <a href="/features/research">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
-      <a href="/outcomes">성과</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
       <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden aria-current="page">운영 콘솔</a>
@@ -1753,7 +1753,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <a href="/features/research">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
-      <a href="/outcomes">성과</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입하기</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>마이페이지</a>
