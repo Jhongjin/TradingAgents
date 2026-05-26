@@ -17,11 +17,8 @@ from tradingagents.storage import StorageRepository
 from .strategy_lenses import build_korean_strategy_lenses
 
 
-SEO_DISCLAIMER = (
-    "AI analysis is for informational purposes only and is not investment, legal, "
-    "tax, or live trading advice."
-)
-TRADING_BOUNDARY = "Live trading and broker order placement are intentionally not supported."
+SEO_DISCLAIMER = "AI 분석은 정보 제공용이며 투자 조언, 세무·법률 자문, 실거래 안내가 아닙니다."
+TRADING_BOUNDARY = "TradingAgents Korea는 실거래 주문이나 브로커 주문 실행 기능을 제공하지 않습니다."
 
 
 def build_public_stock_payload(

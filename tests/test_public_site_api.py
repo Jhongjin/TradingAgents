@@ -123,7 +123,10 @@ def test_public_stock_payload_combines_analysis_and_chart(monkeypatch):
     assert payload["chart"]["points"][0]["close"] == 70500.0
     assert len(payload["strategy_lenses"]) == 6
     assert payload["strategy_lenses"][0]["id"] == "trend"
-    assert "notices" in payload
+    assert payload["notices"] == [
+        "AI 분석은 정보 제공용이며 투자 조언, 세무·법률 자문, 실거래 안내가 아닙니다.",
+        "TradingAgents Korea는 실거래 주문이나 브로커 주문 실행 기능을 제공하지 않습니다.",
+    ]
     assert payload["generated_at"]
 
 
