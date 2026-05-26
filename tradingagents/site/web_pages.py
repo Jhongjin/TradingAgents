@@ -375,6 +375,8 @@ def render_public_outcomes_page(
     model = _analysis_outcomes_view_model(payload, site_base_url=site_base_url)
     summary_html = _analysis_outcome_summary_cards(model["summary"])
     cadence_html = _analysis_outcome_cadence_strip(model)
+    filter_state_html = _outcome_filter_state(model)
+    feed_toolbar_html = _outcome_feed_toolbar(model)
     cards_html = _analysis_outcome_feed_cards(
         model["items"],
         ticker_code=model["ticker_code"],
@@ -440,17 +442,20 @@ def render_public_outcomes_page(
     </section>
 
     <section class="analysis-filter-panel outcome-filter-panel" aria-label="사후 기록 필터">
-      <form class="analysis-filter-form outcome-filter-form" action="/outcomes" method="get">
-        <label for="outcomeTicker">종목명 또는 코드</label>
-        <input id="outcomeTicker" name="ticker" list="outcomeTickerSuggestions" maxlength="80" value="{_h(str(model["ticker_code"] or ""))}" placeholder="005930 또는 삼성전자" autocomplete="off" data-ticker-lookup data-ticker-submit>
-        <datalist id="outcomeTickerSuggestions"></datalist>
-        <label for="outcomeStatus">상태</label>
-        <select id="outcomeStatus" name="status">
-          {_outcome_status_options(model["filter_status"])}
-        </select>
-        <button type="submit">기록 조회</button>
-        <a href="/outcomes">필터 초기화</a>
-      </form>
+      <div class="analysis-filter-stack">
+        <form class="analysis-filter-form outcome-filter-form" action="/outcomes" method="get">
+          <label for="outcomeTicker">종목명 또는 코드</label>
+          <input id="outcomeTicker" name="ticker" list="outcomeTickerSuggestions" maxlength="80" value="{_h(str(model["ticker_code"] or ""))}" placeholder="005930 또는 삼성전자" autocomplete="off" data-ticker-lookup data-ticker-submit>
+          <datalist id="outcomeTickerSuggestions"></datalist>
+          <label for="outcomeStatus">상태</label>
+          <select id="outcomeStatus" name="status">
+            {_outcome_status_options(model["filter_status"])}
+          </select>
+          <button type="submit">기록 조회</button>
+          <a href="/outcomes">필터 초기화</a>
+        </form>
+        {filter_state_html}
+      </div>
       <p>공개 리서치의 기준일 이후 5일/20일 기록을 종목 수익률과 벤치마크 차이로 나눠 봅니다. 계좌 주문이나 브로커 실행 권한은 연결하지 않습니다.</p>
     </section>
 
@@ -466,6 +471,7 @@ def render_public_outcomes_page(
         </div>
         <span class="status-pill">{_h(model["filter_label"])}</span>
       </div>
+      {feed_toolbar_html}
       <div class="outcome-feed-grid">
         {cards_html}
       </div>
@@ -2660,6 +2666,53 @@ def _analysis_feed_toolbar(model: dict[str, Any]) -> str:
     """
 
 
+def _outcome_filter_state(model: dict[str, Any]) -> str:
+    ticker = str(model.get("ticker_code") or "").strip()
+    status = str(model.get("filter_status") or "").strip()
+    count = str(model.get("item_count") or "0건")
+    filter_label = str(model.get("filter_label") or "전체 사후 기록")
+    query: dict[str, str] = {"limit": "20"}
+    if ticker:
+        query["ticker"] = ticker
+    if status:
+        query["status"] = status
+    api_path = f"/api/analysis-outcomes?{urlencode(query)}"
+    if ticker or status:
+        stock_link = f'<a href="/stocks/{_h(ticker)}">종목 페이지</a>' if ticker else ""
+        analyses_href = f"/analyses?ticker={_h(ticker)}" if ticker else "/analyses"
+        return f"""
+        <div class="analysis-filter-state outcome-filter-state" aria-label="현재 사후 기록 필터 상태">
+          <span>{_h(filter_label)} 적용</span>
+          <span>결과 {_h(count)}</span>
+          {stock_link}
+          <a href="{analyses_href}">분석 목록</a>
+          <a href="{_h(api_path)}">원문 데이터</a>
+        </div>
+        """
+    return f"""
+    <div class="analysis-filter-state outcome-filter-state" aria-label="현재 사후 기록 필터 상태">
+      <span>전체 사후 기록</span>
+      <span>5일 / 20일</span>
+      <span>결과 {_h(count)}</span>
+      <a href="/analyses">분석 목록</a>
+      <a href="{_h(api_path)}">원문 데이터</a>
+    </div>
+    """
+
+
+def _outcome_feed_toolbar(model: dict[str, Any]) -> str:
+    count = str(model.get("item_count") or "0건")
+    filter_label = str(model.get("filter_label") or "전체 사후 기록")
+    return f"""
+    <div class="analysis-feed-toolbar outcome-feed-toolbar" aria-label="사후 기록 목록 상태">
+      <span>결과 {_h(count)}</span>
+      <span>정렬: 최신 기준일순</span>
+      <span>{_h(filter_label)}</span>
+      <small>카드에서 리포트 상세, 종목, 같은 종목 분석, 원문 데이터로 바로 이동합니다.</small>
+    </div>
+    """
+
+
 def _analysis_outcomes_view_model(payload: dict[str, Any], *, site_base_url: str | None = None) -> dict[str, Any]:
     ticker_code = payload.get("ticker_code")
     filter_status = payload.get("filter_status")
@@ -3021,16 +3074,20 @@ def _analysis_outcome_feed_cards(
         name = str(item.get("ticker_name") or code or "공개 분석")
         market = str(item.get("market") or "KR")
         status = str(item.get("status") or "pending")
+        status_label = _outcome_status_label(status)
         run_id = str(item.get("analysis_run_id") or "")
         horizon = item.get("horizon_days") or "-"
         trade_date = item.get("trade_date") or "-"
         evaluated_at = item.get("evaluated_at") or "-"
+        actual_days = item.get("actual_holding_days")
+        actual_days_label = f"{actual_days}일" if actual_days is not None else "-"
         raw_return = _percent(item.get("raw_return"), signed=True)
         benchmark_return = _percent(item.get("benchmark_return"), signed=True)
         alpha_return = _percent(item.get("alpha_return"), signed=True)
         decision = _decision_pair_label(item.get("decision_rating"), item.get("decision_action"))
         report_path = f"/analyses/{run_id}" if run_id else "/analyses"
         stock_path = f"/stocks/{code}" if code else "/analyses"
+        analyses_path = f"/analyses?ticker={code}" if code else "/analyses"
         query = {"limit": "20"}
         if code:
             query["ticker"] = code
@@ -3042,25 +3099,30 @@ def _analysis_outcome_feed_cards(
             f"""
             <article class="analysis-feed-card outcome-feed-card {alpha_class} outcome-{_h(status)}">
               <div class="analysis-feed-card-top">
-                <span>{_h(market)} / {_h(str(horizon))}D</span>
-                <small>{_h(str(evaluated_at))}</small>
+                <span>{_h(market)} / 기준일 {_h(str(trade_date))}</span>
+                <small>{_h(str(horizon))}D / 평가일 {_h(str(evaluated_at))}</small>
               </div>
               <h3><a href="{_h(report_path)}">{_h(name)} <small>{_h(code)}</small></a></h3>
-              <p>{_h(str(trade_date))} 기준 리서치 이후 {_h(str(horizon))}일 기록을 공개 분석과 연결했습니다. AI 의견: {_h(str(decision))}.</p>
+              <small class="analysis-feed-meta-line">상태 {_h(status_label)} / 보유 {_h(actual_days_label)} / AI {_h(str(decision))}</small>
+              <p>리포트 이후 {_h(str(horizon))}일 동안 종목 수익률과 시장 기준의 차이를 공개 분석에 연결했습니다.</p>
               <div class="analysis-feed-signal-row" aria-label="벤치마크 차이 계산 기준">
-                <span>벤치마크 차이 = 종목 - 시장 기준</span>
-                <span>{_h(str(horizon))}일</span>
-                <span>{_h(_outcome_status_label(status))}</span>
+                <span>차이 {_h(alpha_return)}</span>
+                <span>종목 {_h(raw_return)}</span>
+                <span>시장 {_h(benchmark_return)}</span>
+                <span>{_h(status_label)}</span>
               </div>
-              <dl>
+              <dl class="analysis-feed-metrics">
                 <div><dt>종목</dt><dd>{_h(raw_return)}</dd></div>
                 <div><dt>벤치마크</dt><dd>{_h(benchmark_return)}</dd></div>
                 <div><dt>벤치마크 차이</dt><dd>{_h(alpha_return)}</dd></div>
+                <div><dt>보유일</dt><dd>{_h(actual_days_label)}</dd></div>
+                <div><dt>데이터 기준일</dt><dd>{_h(str(trade_date))}</dd></div>
                 <div><dt>분석 ID</dt><dd>{_h(run_id[:8] or "-")}</dd></div>
               </dl>
               <div class="analysis-feed-actions">
-                <a href="{_h(report_path)}">리포트 읽기</a>
+                <a href="{_h(report_path)}">리포트 상세</a>
                 <a href="{_h(stock_path)}">종목 보기</a>
+                <a href="{_h(analyses_path)}">같은 종목 분석</a>
                 <a class="subtle-action" href="{_h(api_path)}">원문 데이터</a>
               </div>
             </article>

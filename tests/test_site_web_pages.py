@@ -952,6 +952,7 @@ def test_render_public_outcomes_page_shows_public_track_record():
             trade_date=date(2026, 5, 5),
             evaluated_at=date(2026, 5, 12),
             horizon_days=5,
+            actual_holding_days=5,
             status="completed",
             raw_return=0.04,
             benchmark_return=0.01,
@@ -968,20 +969,31 @@ def test_render_public_outcomes_page_shows_public_track_record():
     assert "사후 기록" in html
     assert "공개 리포트 품질을 되돌아보는 자료" in html
     assert "outcome-filter-panel" in html
+    assert "outcome-filter-state" in html
+    assert "outcome-feed-toolbar" in html
     assert 'id="outcomeTickerSuggestions"' in html
     assert "data-ticker-submit" in html
     assert "005930 또는 삼성전자" in html
+    assert "전체 사후 기록" in html
+    assert "정렬: 최신 기준일순" in html
+    assert "카드에서 리포트 상세, 종목, 같은 종목 분석, 원문 데이터로 바로 이동합니다." in html
     assert "outcome-cadence-strip" in html
     assert "outcome-feed-card" in html
+    assert "analysis-feed-meta-line" in html
+    assert "analysis-feed-metrics" in html
     assert "삼성전자" in html
     assert "매매 성과가 아니라 공개 리포트 품질을 되돌아보는 자료입니다." in html
     assert "평균 벤치마크 차이" in html
     assert "+3.00%" in html
     assert "벤치마크 우위 기록" in html
-    assert "벤치마크 차이 = 종목 - 시장 기준" in html
+    assert "벤치마크 차이는 종목 수익률에서 시장 기준 수익률을 뺀 값입니다." in html
+    assert "차이 +3.00%" in html
     assert '<dt>벤치마크 차이</dt><dd>+3.00%</dd>' in html
-    assert f'href="/analyses/{run_id}">리포트 읽기</a>' in html
+    assert "<dt>보유일</dt><dd>5일</dd>" in html
+    assert "<dt>데이터 기준일</dt><dd>2026-05-05</dd>" in html
+    assert f'href="/analyses/{run_id}">리포트 상세</a>' in html
     assert 'href="/stocks/005930">종목 보기</a>' in html
+    assert 'href="/analyses?ticker=005930">같은 종목 분석</a>' in html
     assert "/api/analysis-outcomes" in html
     assert '<link rel="canonical" href="https://example.com/outcomes">' in html
     assert 'id="outcomes-payload"' in html
@@ -995,6 +1007,8 @@ def test_render_public_outcomes_page_empty_state_has_next_actions():
     html = render_public_outcomes_page(repo=_repo(), site_base_url="https://example.com")
 
     assert "사후 기록 대기" in html
+    assert "outcome-filter-state" in html
+    assert "전체 사후 기록" in html
     assert "5일/20일 대기" in html
     assert "벤치마크 차이 대기" in html
     assert "필요한 가격 데이터가 부족할 수 있습니다" in html
@@ -1011,6 +1025,7 @@ def test_render_public_outcomes_page_filtered_empty_state_guides_recovery():
     assert "005930 완료 기록 없음" in html
     assert "선택한 조건에 맞는 사후 기록이 아직 없습니다." in html
     assert "005930 / 완료" in html
+    assert "005930 / 완료 적용" in html
     assert 'href="/outcomes">필터 초기화</a>' in html
     assert 'href="/analyses?ticker=005930">리서치 목록</a>' in html
     assert 'href="/stocks/005930">종목 페이지</a>' in html
