@@ -313,6 +313,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "내 리서치 작업공간" in html
     assert "매매 기록은 주문이 아니라 개인 메모로만 남깁니다" in html
     assert "memberSessionGate" in html
+    assert "memberSessionTitle" in html
+    assert "memberSessionMessage" in html
     assert "세션을 확인하고 있습니다" in html
     assert "세션 확인" in html
     assert "member-tab-strip" in html
@@ -442,6 +444,10 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "preferredSessionSnapshot" in html
     assert "migrateSessionStorage" in html
     assert "bootstrapMemberSession" in html
+    assert "setSessionCheckingState" in html
+    assert "세션 복구 중" in html
+    assert "저장된 로그인 정보를 확인하고 있습니다" in html
+    assert "!accessToken() && refreshToken()" in html
     assert "저장된 세션으로 대시보드를 불러오고 있습니다" in html
     assert 'searchParams.has("code")' in html
     assert "tradingagents.member.active_tab" in html

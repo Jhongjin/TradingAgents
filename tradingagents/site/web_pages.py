@@ -1764,8 +1764,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
   <main id="main-content" class="shell member-shell">
     <section class="member-session-gate" id="memberSessionGate" aria-live="polite" aria-label="회원 세션 확인">
       <p class="eyebrow">세션 확인</p>
-      <h1>세션을 확인하고 있습니다</h1>
-      <p>로그인 상태가 남아 있으면 바로 투자 노트로 이동하고, 없으면 로그인/가입 화면을 엽니다.</p>
+      <h1 id="memberSessionTitle">세션을 확인하고 있습니다</h1>
+      <p id="memberSessionMessage">로그인 상태가 남아 있으면 바로 마이페이지로 이동하고, 없으면 로그인/가입 화면을 엽니다.</p>
       <div class="member-session-meter" aria-hidden="true"><span></span></div>
     </section>
 
@@ -11450,6 +11450,8 @@ MEMBER_PAGE_JS = """
   const requestedMemberTab = memberSearchParams.get("tab");
   const memberBody = document.body;
   const sessionGate = document.getElementById("memberSessionGate");
+  const sessionTitle = document.getElementById("memberSessionTitle");
+  const sessionMessage = document.getElementById("memberSessionMessage");
   const authLanding = document.getElementById("memberAuthLanding");
   const memberWorkspace = document.getElementById("memberWorkspace");
   const signedOutNavItems = Array.from(document.querySelectorAll('[data-auth-visible="signed-out"]'));
@@ -11606,6 +11608,29 @@ MEMBER_PAGE_JS = """
     });
   }
 
+  function setSessionCheckingState(
+    label = "세션을 확인하고 있습니다",
+    message = "로그인 상태가 남아 있으면 바로 마이페이지로 이동하고, 없으면 로그인/가입 화면을 엽니다."
+  ) {
+    memberBody?.classList.add("is-member-checking");
+    memberBody?.classList.remove("is-member-signed-in", "is-member-signed-out");
+    if (sessionGate) sessionGate.hidden = false;
+    if (sessionTitle) sessionTitle.textContent = label;
+    if (sessionMessage) sessionMessage.textContent = message;
+    if (authLanding) authLanding.hidden = true;
+    if (memberWorkspace) memberWorkspace.hidden = true;
+    signedOutNavItems.forEach((node) => {
+      node.hidden = true;
+    });
+    signedInNavItems.forEach((node) => {
+      node.hidden = true;
+    });
+    adminNavItems.forEach((node) => {
+      node.hidden = !(storageGet("tradingagents.admin.worker_token") || window.location.pathname === "/admin");
+    });
+    syncMemberTopNavigationState(false);
+  }
+
   function setAuthUiState(isSignedIn) {
     const signedIn = Boolean(isSignedIn);
     memberBody?.classList.remove("is-member-checking");
@@ -11718,7 +11743,7 @@ MEMBER_PAGE_JS = """
     if (requestedAuthMode !== "signup") return;
     const signupButton = authButtons.find((button) => button.dataset.authAction === "signup");
     signupButton?.classList.add("auth-suggested");
-    if (!accessToken()) {
+    if (!accessToken() && !refreshToken()) {
       setStatus("가입하려면 이메일과 비밀번호를 입력한 뒤 가입하기를 선택하세요.");
       authForm?.elements?.email?.focus({ preventScroll: true });
     }
@@ -12544,6 +12569,19 @@ MEMBER_PAGE_JS = """
       setStatus(config.configured ? "로그인 필요" : "Supabase 공개 인증 설정 대기 중", !config.configured);
       return;
     }
+    if (!accessToken() && refreshToken()) {
+      setSessionCheckingState(
+        "세션 복구 중",
+        "저장된 로그인 정보를 확인하고 있습니다. 확인이 끝나면 마이페이지가 열립니다."
+      );
+      setStatus("저장된 세션으로 로그인 상태를 확인하고 있습니다.");
+      const restoredToken = await ensureAccessToken();
+      if (!restoredToken) {
+        setSignedInState(false);
+        setStatus("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.", true);
+        return;
+      }
+    }
     setSignedInState(true, { label: "세션 확인 중", meta: "대시보드를 불러오고 있습니다." });
     setStatus("대시보드 불러오는 중");
     const dashboardResult = await safeMemberApi("/api/member/dashboard?include_latest_prices=true");
@@ -12773,7 +12811,14 @@ MEMBER_PAGE_JS = """
     const redirectSession = consumeRedirectSession();
     const hasStoredSession = Boolean(accessToken() || refreshToken());
     if (hasStoredSession) {
-      setSignedInState(true, { label: "세션 확인 중", meta: "저장된 세션으로 대시보드를 불러오고 있습니다." });
+      if (!accessToken() && refreshToken()) {
+        setSessionCheckingState(
+          "세션 복구 중",
+          "저장된 로그인 정보를 확인하고 있습니다. 확인이 끝나면 마이페이지가 열립니다."
+        );
+      } else {
+        setSignedInState(true, { label: "세션 확인 중", meta: "저장된 세션으로 대시보드를 불러오고 있습니다." });
+      }
     } else {
       setAuthUiState(false);
     }
