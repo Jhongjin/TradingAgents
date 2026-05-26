@@ -234,6 +234,8 @@ def render_public_analysis_feed_page(
     model = _analysis_feed_view_model(payload, site_base_url=site_base_url)
     summary_html = _analysis_summary_cards(model["summary"], basis_label=model["basis_label"])
     track_record_html = _analysis_track_record_cards(model["summary"], basis_label=model["basis_label"])
+    filter_state_html = _analysis_filter_state(model)
+    feed_toolbar_html = _analysis_feed_toolbar(model)
     cards_html = _analysis_feed_cards(
         model["items"],
         ticker_code=model["ticker_code"],
@@ -293,13 +295,16 @@ def render_public_analysis_feed_page(
     </section>
 
     <section class="analysis-filter-panel" aria-label="공개 분석 필터">
-      <form class="analysis-filter-form" action="/analyses" method="get">
-        <label for="analysisTicker">종목명 또는 코드</label>
-        <input id="analysisTicker" name="ticker" list="analysisTickerSuggestions" maxlength="80" value="{_h(str(model["ticker_code"] or ""))}" placeholder="005930 또는 삼성전자" autocomplete="off" data-ticker-lookup data-ticker-submit>
-        <datalist id="analysisTickerSuggestions"></datalist>
-        <button type="submit">목록 조회</button>
-        <a href="/analyses">필터 초기화</a>
-      </form>
+      <div class="analysis-filter-stack">
+        <form class="analysis-filter-form" action="/analyses" method="get">
+          <label for="analysisTicker">종목명 또는 코드</label>
+          <input id="analysisTicker" name="ticker" list="analysisTickerSuggestions" maxlength="80" value="{_h(str(model["ticker_code"] or ""))}" placeholder="005930 또는 삼성전자" autocomplete="off" data-ticker-lookup data-ticker-submit>
+          <datalist id="analysisTickerSuggestions"></datalist>
+          <button type="submit">목록 조회</button>
+          <a href="/analyses">필터 초기화</a>
+        </form>
+        {filter_state_html}
+      </div>
       <p>삼성전자처럼 종목명으로 입력해도 6자리 코드로 바꿔 조회합니다. 공개 리포트만 표시하며 개인 기록은 불러오지 않습니다.</p>
     </section>
 
@@ -335,6 +340,7 @@ def render_public_analysis_feed_page(
         </div>
         <span class="status-pill">{_h(model["filter_label"])}</span>
       </div>
+      {feed_toolbar_html}
       <div class="analysis-feed-grid">
         {cards_html}
       </div>
@@ -2603,6 +2609,43 @@ def _analysis_feed_reader_guide() -> str:
     """
 
 
+def _analysis_filter_state(model: dict[str, Any]) -> str:
+    ticker = str(model.get("ticker_code") or "").strip()
+    count = str(model.get("item_count") or "0")
+    basis_label = str(model.get("basis_label") or "최근 공개 리포트")
+    if ticker:
+        return f"""
+        <div class="analysis-filter-state" aria-label="현재 분석 필터 상태">
+          <span>{_h(ticker)} 필터 적용</span>
+          <span>결과 {_h(count)}건</span>
+          <a href="/stocks/{_h(ticker)}">종목 페이지</a>
+          <a href="/outcomes?ticker={_h(ticker)}">사후 기록</a>
+        </div>
+        """
+    return f"""
+    <div class="analysis-filter-state" aria-label="현재 분석 필터 상태">
+      <span>전체 공개 리포트</span>
+      <span>{_h(basis_label)}</span>
+      <span>결과 {_h(count)}건</span>
+      <a href="/outcomes">사후 기록</a>
+    </div>
+    """
+
+
+def _analysis_feed_toolbar(model: dict[str, Any]) -> str:
+    count = str(model.get("item_count") or "0")
+    basis_label = str(model.get("basis_label") or "최근 공개 리포트")
+    filter_label = str(model.get("filter_label") or "전체 종목")
+    return f"""
+    <div class="analysis-feed-toolbar" aria-label="리포트 목록 상태">
+      <span>결과 {_h(count)}건</span>
+      <span>정렬: 최신 기준일순</span>
+      <span>{_h(filter_label)}</span>
+      <small>{_h(basis_label)} 카드에서 리포트 상세, 종목, 사후 기록, 원문 데이터로 바로 이동합니다.</small>
+    </div>
+    """
+
+
 def _analysis_outcomes_view_model(payload: dict[str, Any], *, site_base_url: str | None = None) -> dict[str, Any]:
     ticker_code = payload.get("ticker_code")
     filter_status = payload.get("filter_status")
@@ -3114,21 +3157,23 @@ def _analysis_feed_cards(
         report_path = item.get("report_path") or (f"/analyses/{run_id}" if run_id else "/analyses")
         api_path = item.get("api_path") or (f"/api/analyses/{run_id}" if run_id else "/api/analyses")
         outcome_path = f"/outcomes?ticker={code}" if code else "/outcomes"
+        benchmark_label = alpha if alpha != "-" else "벤치마크 차이 대기"
         cards.append(
             f"""
             <article class="analysis-feed-card {alpha_class}">
               <div class="analysis-feed-card-top">
-                <span>{_h(str(market))} / 분석 ID {_h(run_label)}</span>
-                <small>{_h(str(trade_date))}</small>
+                <span>{_h(str(market))} / 기준일 {_h(str(trade_date))}</span>
+                <small>분석 ID {_h(run_label)}</small>
               </div>
               <h3><a href="{_h(str(report_path))}">{_h(str(name))} <small>{_h(str(code))}</small></a></h3>
-              <p>{_h(str(trade_date))} 기준 공개 리서치입니다. 먼저 기준일과 AI 의견을 보고, 리포트 본문과 사후 기록을 이어서 확인하세요.</p>
+              <small class="analysis-feed-meta-line">{_h(str(model_provider))} / 리포트 {_h(reports)} / {_h(benchmark_label)}</small>
+              <p>AI 의견과 사후 기록을 요약한 공개 카드입니다. 상세에서 출처와 리포트 본문을 확인하세요.</p>
               <div class="analysis-feed-signal-row" aria-label="분석 카드 상태">
-                <span>AI 의견 {_h(str(decision))}</span>
+                <span>AI {_h(str(decision))}</span>
                 <span>{_h(reports)} 리포트</span>
-                <span>사후 기록 {_h(outcome_label)} / {_h(alpha if alpha != "-" else "벤치마크 차이 대기")}</span>
+                <span>{_h(outcome_label)} / {_h(benchmark_label)}</span>
               </div>
-              <dl>
+              <dl class="analysis-feed-metrics">
                 <div><dt>데이터 기준일</dt><dd>{_h(str(trade_date))}</dd></div>
                 <div><dt>상태</dt><dd>{_h(status_label)}</dd></div>
                 <div><dt>모델</dt><dd>{_h(str(model_provider))}</dd></div>
@@ -3136,7 +3181,7 @@ def _analysis_feed_cards(
                 <div><dt>벤치마크 차이</dt><dd>{_h(alpha)}</dd></div>
               </dl>
               <div class="analysis-feed-actions">
-                <a href="{_h(str(report_path))}">리포트 읽기</a>
+                <a href="{_h(str(report_path))}">리포트 상세</a>
                 <a href="/stocks/{_h(str(code))}">종목 보기</a>
                 <a href="{_h(str(outcome_path))}">사후 기록</a>
                 <a class="subtle-action" href="{_h(str(api_path))}">원문 데이터</a>
@@ -5267,9 +5312,17 @@ h3 {
   font-size: 13px;
 }
 
+.analysis-feed-card .analysis-feed-meta-line {
+  color: var(--home-readable, rgba(246, 243, 232, 0.82));
+  font-family: var(--app-font-stack);
+  font-weight: 800;
+  line-height: 1.4;
+}
+
 .analysis-feed-card p {
   margin: 0 0 2px;
   color: var(--muted);
+  line-height: 1.5;
 }
 
 .analysis-feed-signal-row {
@@ -5302,12 +5355,30 @@ h3 {
   margin: 0;
 }
 
+.analysis-feed-card dl.analysis-feed-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--line);
+}
+
 .analysis-feed-card dl div {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   border-top: 1px solid var(--line);
   padding-top: 8px;
+}
+
+.analysis-feed-card dl.analysis-feed-metrics div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border-top: 0;
+  padding: 9px 10px;
+  background: var(--surface-strong);
 }
 
 .analysis-feed-card dt {
@@ -5318,6 +5389,7 @@ h3 {
 .analysis-feed-card dd {
   margin: 0;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .analysis-feed-card.empty {
@@ -5410,8 +5482,8 @@ h3 {
 }
 
 .analysis-feed-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
   gap: 8px;
   padding-top: 4px;
   border-top: 1px solid var(--line);
@@ -9352,11 +9424,56 @@ button:disabled {
   border-radius: 8px;
 }
 
+.analysis-filter-stack {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
 .analysis-filter-panel p {
   margin: 0;
   color: var(--home-muted-readable, rgba(246, 243, 232, 0.74));
   line-height: 1.55;
   overflow-wrap: anywhere;
+}
+
+.analysis-filter-state,
+.analysis-feed-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.analysis-filter-state span,
+.analysis-filter-state a,
+.analysis-feed-toolbar span {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border: 1px solid rgba(246, 243, 232, 0.16);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: var(--home-readable, rgba(246, 243, 232, 0.84));
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.analysis-filter-state a {
+  border-color: rgba(215, 255, 63, 0.28);
+  color: var(--home-acid);
+}
+
+.analysis-feed-toolbar {
+  margin: -2px 0 14px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(246, 243, 232, 0.1);
+  border-bottom: 1px solid rgba(246, 243, 232, 0.1);
+}
+
+.analysis-feed-toolbar small {
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.76));
+  line-height: 1.45;
 }
 
 .analysis-reader-guide {

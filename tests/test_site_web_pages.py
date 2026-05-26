@@ -816,6 +816,7 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "<!doctype html>" in html
     assert 'class="public-home market-page analysis-page"' in html
     assert "analysis-filter-panel" in html
+    assert "analysis-filter-state" in html
     assert "analysis-reader-guide" in html
     assert "목록 읽는 방법" in html
     assert "먼저 리포트를 읽고, 기준일과 사후 기록을 함께 확인하세요" in html
@@ -827,6 +828,9 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "data-ticker-lookup" in html
     assert "data-ticker-submit" in html
     assert "삼성전자처럼 종목명으로 입력해도 6자리 코드로 바꿔 조회합니다" in html
+    assert "전체 공개 리포트" in html
+    assert "정렬: 최신 기준일순" in html
+    assert "카드에서 리포트 상세, 종목, 사후 기록, 원문 데이터로 바로 이동합니다." in html
     assert "resolveTickerInput" in html
     assert "renderTickerOptions" in html
     assert "공개 AI 리서치 기록" in html
@@ -841,8 +845,10 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "KOSPI 1" in html
     assert "보유 관찰 1" in html
     assert "평균 벤치마크 차이 +3.00%" in html
-    assert "AI 의견 보유 관찰" in html
+    assert "AI 보유 관찰" in html
     assert "analysis-feed-card-top" in html
+    assert "analysis-feed-meta-line" in html
+    assert "analysis-feed-metrics" in html
     assert "analysis-feed-signal-row" in html
     assert "분석 ID" in html
     assert "1개 리포트" in html
@@ -852,7 +858,7 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "<dt>데이터 기준일</dt><dd>2026-05-05</dd>" in html
     assert "<dt>벤치마크 차이</dt><dd>+3.00%</dd>" in html
     assert "<dt>리포트</dt><dd>1개</dd>" in html
-    assert f'href="/analyses/{run_id}">리포트 읽기</a>' in html
+    assert f'href="/analyses/{run_id}">리포트 상세</a>' in html
     assert 'href="/outcomes?ticker=005930">사후 기록</a>' in html
     assert f'class="subtle-action" href="/api/analyses/{run_id}">원문 데이터</a>' in html
     assert "/stocks/005930" in html
@@ -879,8 +885,10 @@ def test_render_public_analysis_feed_filtered_empty_state_guides_recovery():
     assert "analysis-empty-plan" in html
     assert "종목 페이지에서 최신 데이터 흐름을 확인합니다" in html
     assert "005930 필터 결과" in html
+    assert "005930 필터 적용" in html
     assert 'href="/analyses">필터 초기화</a>' in html
     assert 'href="/stocks/005930">종목 페이지</a>' in html
+    assert 'href="/outcomes?ticker=005930">사후 기록</a>' in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">리서치 요청</a>' in html
 
 
