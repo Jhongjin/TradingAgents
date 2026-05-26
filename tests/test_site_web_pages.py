@@ -334,7 +334,9 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'data-member-tab="home"' in html
     assert 'id="member-home-section"' in html
     assert "마이페이지 홈" in html
-    assert "처음이라면 관심종목을 하나 담거나 궁금한 종목의 리서치를 요청하세요." in html
+    assert "저장된 항목 수와 다음 행동을 먼저 보여줍니다." in html
+    assert "memberHomeStateNote" in html
+    assert "빈 상태와 다음 행동" in html
     assert "member-home-grid" in html
     assert "member-primary-action" in html
     assert 'data-member-primary-action="watchlist"' in html
@@ -389,7 +391,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'id="targetForm"' in html
     assert "/targets/${encodeURIComponent(tickerCode)}" in html
     assert 'options.method || "POST"' in html
-    assert '{ method: "PUT" }' in html
+    assert 'method: "PUT", successMessage' in html
     assert 'name="target_price"' in html
     assert 'name="stop_price"' in html
     assert 'name="fee"' in html
@@ -404,7 +406,13 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "member-empty-action" in html
     assert "emptyActionNode" in html
     assert "setFormControlsDisabled" in html
-    assert "포트폴리오를 먼저 만들어 보세요" in html
+    assert "dashboardStatusMeta" in html
+    assert "빈 작업공간을 불러왔습니다" in html
+    assert "아직 포트폴리오 기록이 없습니다" in html
+    assert "아직 관심목록이 없습니다" in html
+    assert "진행 중에는 대기 위치를, 완료 후에는 공개 리포트 링크를 보여줍니다." in html
+    assert "포트폴리오를 만들었습니다." in html
+    assert "관심종목을 담았습니다." in html
     assert "member-metric-grid" in html
     assert "member-action-item" in html
     assert "public_stock_path" in html

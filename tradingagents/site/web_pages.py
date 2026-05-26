@@ -1834,7 +1834,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <p class="eyebrow">회원 작업공간</p>
           <h1 id="member-title">내 리서치 작업공간</h1>
           <p class="asof" id="memberStatus">로그인 상태 확인 중</p>
-          <p class="member-workspace-lede">처음이라면 관심종목을 하나 저장하거나 궁금한 종목의 리서치를 요청하세요. 매매 기록은 주문이 아니라 개인 메모로만 남깁니다.</p>
+          <p class="member-workspace-lede">홈에서 빈 상태와 다음 행동을 확인하고, 관심종목·수동 기록·리서치 요청을 이어가세요. 매매 기록은 주문이 아니라 개인 메모로만 남깁니다.</p>
         </div>
         <div class="member-signed-in" id="memberSignedIn" hidden>
           <span class="status-pill" id="memberSignedInState">대시보드 확인 중</span>
@@ -1862,7 +1862,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <div>
               <p class="eyebrow">마이페이지</p>
               <h2>마이페이지 홈</h2>
-              <p class="panel-copy">처음이라면 관심종목을 하나 담거나 궁금한 종목의 리서치를 요청하세요. 포트폴리오 기록은 주문이 아니라 내 판단을 정리하는 메모입니다.</p>
+              <p class="panel-copy">저장된 항목 수와 다음 행동을 먼저 보여줍니다. 빈 상태라면 관심종목, 포트폴리오, 리서치 요청 중 하나부터 시작하세요.</p>
             </div>
             <span class="status-pill">읽기 전용</span>
           </div>
@@ -1870,12 +1870,12 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <article>
               <span>포트폴리오</span>
               <strong id="memberOverviewPortfolios">0</strong>
-              <small>저장된 노트</small>
+              <small>수동 기록 묶음</small>
             </article>
             <article>
               <span>관심목록</span>
               <strong id="memberOverviewWatchlists">0</strong>
-              <small>관심목록</small>
+              <small>추적 목록</small>
             </article>
             <article>
               <span>대기 중 요청</span>
@@ -1888,11 +1888,12 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <small>완료 리포트</small>
             </article>
           </section>
+          <p class="member-home-state-note" id="memberHomeStateNote" aria-live="polite">로그인되면 빈 상태와 다음 행동을 이곳에 정리합니다.</p>
           <section class="member-primary-action" id="memberPrimaryAction" data-member-primary-action="watchlist" aria-live="polite">
             <div>
               <span>다음 추천 작업</span>
-              <strong id="memberPrimaryActionTitle">관심종목을 먼저 담아보세요</strong>
-              <small id="memberPrimaryActionCopy">자주 확인할 종목을 저장하면 이후 리서치 요청과 공개 리포트를 이어서 보기 쉽습니다.</small>
+              <strong id="memberPrimaryActionTitle">첫 관심목록을 만들어보세요</strong>
+              <small id="memberPrimaryActionCopy">자주 확인할 종목을 담아두면 이후 리서치 요청과 공개 리포트를 이어서 보기 쉽습니다.</small>
             </div>
             <button class="home-primary-link" type="button" id="memberPrimaryActionButton" data-member-jump="watchlist">관심종목 만들기</button>
           </section>
@@ -6469,6 +6470,17 @@ h3 {
 
 .member-overview-strip small {
   color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
+}
+
+.member-home-state-note {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(246, 243, 232, 0.12);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.045);
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.82));
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .member-home-panel {
@@ -11533,6 +11545,7 @@ MEMBER_PAGE_JS = """
   const overviewWatchlists = document.getElementById("memberOverviewWatchlists");
   const overviewActiveRequests = document.getElementById("memberOverviewActiveRequests");
   const overviewCompletedReports = document.getElementById("memberOverviewCompletedReports");
+  const memberHomeStateNote = document.getElementById("memberHomeStateNote");
   const memberPrimaryAction = document.getElementById("memberPrimaryAction");
   const memberPrimaryActionTitle = document.getElementById("memberPrimaryActionTitle");
   const memberPrimaryActionCopy = document.getElementById("memberPrimaryActionCopy");
@@ -12277,7 +12290,7 @@ MEMBER_PAGE_JS = """
     list.className = "member-action-list";
     const items = detail?.items || [];
     if (!items.length) {
-      list.append(emptyNode("담긴 관심 종목이 없습니다"));
+      list.append(emptyNode("이 목록에 담긴 종목이 없습니다. 위 입력란에 6자리 코드나 종목명을 넣어 저장하세요."));
       return list;
     }
     items.forEach((item) => {
@@ -12526,8 +12539,8 @@ MEMBER_PAGE_JS = """
     portfolioList.replaceChildren(
       ...(rows.length ? rows.map((row) => portfolioCard(row, details[row.id])) : [
         emptyActionNode(
-          "포트폴리오를 먼저 만들어 보세요",
-          "이름을 만들면 매수·매도 기록과 목표가 메모를 한곳에 묶어 볼 수 있습니다.",
+          "아직 포트폴리오 기록이 없습니다",
+          "주문이 연결되지 않는 기록 묶음입니다. 먼저 이름을 만들고, 이후 매수·매도 메모와 목표가를 추가하세요.",
           "포트폴리오 이름 입력",
           () => focusField(portfolioForm, "name")
         )
@@ -12548,8 +12561,8 @@ MEMBER_PAGE_JS = """
     watchlistList.replaceChildren(
       ...(rows.length ? rows.map((row) => watchlistCard(row, details[row.id])) : [
         emptyActionNode(
-          "관심목록을 만들어 보세요",
-          "자주 보는 종목을 산업, 전략, 점검 주제별로 묶어두면 현재가와 메모를 같이 확인할 수 있습니다.",
+          "아직 관심목록이 없습니다",
+          "자주 확인할 종목을 담을 목록을 먼저 만드세요. 목록을 만든 뒤 종목명 또는 6자리 코드와 메모를 저장할 수 있습니다.",
           "관심목록 이름 입력",
           () => focusField(watchlistForm, "name")
         )
@@ -12568,7 +12581,7 @@ MEMBER_PAGE_JS = """
       ...(rows.length ? rows.map((row) => analysisRequestCard(row)) : [
         emptyActionNode(
           "아직 리서치 요청이 없습니다",
-          "종목명이나 6자리 코드만 입력하면 대기열에 등록됩니다. 완료되면 공개 분석과 종목 페이지에서 확인할 수 있습니다.",
+          "종목명이나 6자리 코드를 입력하면 요청 대기열에 올라갑니다. 진행 중에는 대기 위치를, 완료 후에는 공개 리포트 링크를 보여줍니다.",
           "요청 종목 입력",
           () => focusField(analysisRequestForm, "ticker")
         )
@@ -12578,6 +12591,28 @@ MEMBER_PAGE_JS = """
 
   function setText(node, value) {
     if (node) node.textContent = String(value);
+  }
+
+  function dashboardStatusMeta(portfoliosPayload = {}, watchlistsPayload = {}, requestsPayload = {}) {
+    const portfolioCount = (portfoliosPayload.items || []).length;
+    const watchlistCount = (watchlistsPayload.items || []).length;
+    const requestRows = requestsPayload.items || [];
+    const summary = requestsPayload.summary || {};
+    const activeCount = summary.active_count ?? requestRows.filter((row) => row.is_active).length;
+    const completedCount = summary.completed_count ?? requestRows.filter((row) => row.status === "completed").length;
+    const parts = [];
+    if (portfolioCount) parts.push(`포트폴리오 ${portfolioCount}개`);
+    if (watchlistCount) parts.push(`관심목록 ${watchlistCount}개`);
+    if (activeCount) parts.push(`진행 중 요청 ${activeCount}건`);
+    if (completedCount) parts.push(`완료 리포트 ${completedCount}건`);
+    if (!parts.length) {
+      return "빈 작업공간을 불러왔습니다. 관심목록, 수동 기록, 리서치 요청 중 하나부터 시작할 수 있습니다.";
+    }
+    return `작업공간을 불러왔습니다: ${parts.join(" / ")}. 기록은 주문과 연결되지 않습니다.`;
+  }
+
+  function setMemberHomeNote(text) {
+    setText(memberHomeStateNote, text);
   }
 
   function setMemberPrimaryAction(tab, title, copy, label) {
@@ -12597,7 +12632,8 @@ MEMBER_PAGE_JS = """
     const summary = requestsPayload.summary || {};
     const activeCount = summary.active_count ?? requestRows.filter((row) => row.is_active).length;
     const completedCount = summary.completed_count ?? requestRows.filter((row) => row.status === "completed").length;
-    const homeStatus = activeCount ? `대기 ${activeCount}` : completedCount ? `완료 ${completedCount}` : "준비 완료";
+    const savedCount = portfolioCount + watchlistCount + requestRows.length;
+    const homeStatus = activeCount ? `진행 ${activeCount}` : completedCount ? `완료 ${completedCount}` : savedCount ? "정리됨" : "비어 있음";
     setText(memberHomeStatus, homeStatus);
     setText(portfolioTabCount, portfolioCount);
     setText(watchlistTabCount, watchlistCount);
@@ -12606,6 +12642,7 @@ MEMBER_PAGE_JS = """
     setText(overviewWatchlists, watchlistCount);
     setText(overviewActiveRequests, activeCount);
     setText(overviewCompletedReports, completedCount);
+    setMemberHomeNote(dashboardStatusMeta(portfoliosPayload, watchlistsPayload, requestsPayload));
     if (activeCount) {
       setMemberPrimaryAction(
         "analysis",
@@ -12616,8 +12653,8 @@ MEMBER_PAGE_JS = """
     } else if (!watchlistCount) {
       setMemberPrimaryAction(
         "watchlist",
-        "관심종목을 먼저 담아보세요",
-        "자주 확인할 종목을 저장하면 이후 리서치 요청과 공개 리포트를 이어서 보기 쉽습니다.",
+        "첫 관심목록을 만들어보세요",
+        "자주 확인할 종목을 담아두면 이후 리서치 요청과 공개 리포트를 이어서 보기 쉽습니다.",
         "관심종목 만들기"
       );
     } else if (!portfolioCount) {
@@ -12674,23 +12711,26 @@ MEMBER_PAGE_JS = """
     const userId = member.user_id || storageGet(userIdKey) || "";
     if (userId) storageSet(userIdKey, String(userId));
     const userLabel = storageGet(userEmailKey) || userId || "회원 세션";
+    const portfolios = payload?.portfolios || { items: [] };
+    const watchlists = payload?.watchlists || { items: [] };
+    const requests = payload?.analysis_requests || { items: [] };
     updateMemberOverview(
-      payload?.portfolios || { items: [] },
-      payload?.watchlists || { items: [] },
-      payload?.analysis_requests || { items: [] }
+      portfolios,
+      watchlists,
+      requests
     );
     renderPortfolios(
-      payload?.portfolios || { items: [] },
+      portfolios,
       payload?.portfolio_details || {},
       errorText(errors, "portfolios")
     );
     renderWatchlists(
-      payload?.watchlists || { items: [] },
+      watchlists,
       payload?.watchlist_details || {},
       errorText(errors, "watchlists")
     );
     renderAnalysisRequests(
-      payload?.analysis_requests || { items: [] },
+      requests,
       errorText(errors, "analysis_requests")
     );
     const errorCount = flattenErrorCount(errors);
@@ -12699,7 +12739,7 @@ MEMBER_PAGE_JS = """
       setSignedInState(true, {
         label: "대시보드 준비 완료",
         user: userLabel,
-        meta: "포트폴리오, 관심종목, 분석 요청 대기열을 불러왔습니다."
+        meta: dashboardStatusMeta(portfolios, watchlists, requests)
       });
       setStatus("대시보드 준비 완료");
       return;
@@ -12791,7 +12831,7 @@ MEMBER_PAGE_JS = """
     setSignedInState(true, {
       label: "기본 화면 준비 완료",
       user: userLabel,
-      meta: "통합 대시보드 대신 기본 API 응답으로 화면을 구성했습니다."
+      meta: dashboardStatusMeta(portfolios, watchlists, requests)
     });
     setStatus("대시보드 준비 완료");
   }
@@ -12844,6 +12884,8 @@ MEMBER_PAGE_JS = """
         const quota = payload?.quota;
         const suffix = quota ? ` (${quota.daily_used}/${quota.daily_limit}, 최근 ${quota.window_hours}시간)` : "";
         setStatus(`분석 요청을 대기열에 등록했습니다${suffix}.`);
+      } else if (options.successMessage) {
+        setStatus(options.successMessage);
       }
     } catch (error) {
       setStatus(error.message, true);
@@ -12894,7 +12936,7 @@ MEMBER_PAGE_JS = """
     submitJson(portfolioForm, "/api/portfolios", (form) => ({
       name: String(form.get("name") || ""),
       base_currency: "KRW"
-    }));
+    }), { successMessage: "포트폴리오를 만들었습니다. 이제 매수·매도 기록이나 목표/손절 메모를 추가할 수 있습니다." });
   });
 
   tradeForm?.addEventListener("submit", (event) => {
@@ -12909,7 +12951,7 @@ MEMBER_PAGE_JS = """
       quantity: Number(form.get("quantity") || 0),
       fee: optionalDecimal(form.get("fee")) || "0",
       tax: optionalDecimal(form.get("tax")) || "0"
-    }));
+    }), { successMessage: "매매 메모를 저장했습니다. 이 기록은 주문과 연결되지 않습니다." });
   });
 
   targetForm?.addEventListener("submit", (event) => {
@@ -12923,14 +12965,14 @@ MEMBER_PAGE_JS = """
       target_price: optionalDecimal(values.get("target_price")),
       stop_price: optionalDecimal(values.get("stop_price")),
       memo: String(values.get("memo") || "") || null
-    }), { method: "PUT" });
+    }), { method: "PUT", successMessage: "목표/손절 메모를 저장했습니다. 주문 기능은 열리지 않습니다." });
   });
 
   watchlistForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     submitJson(watchlistForm, "/api/watchlists", (form) => ({
       name: String(form.get("name") || "")
-    }));
+    }), { successMessage: "관심목록을 만들었습니다. 이제 종목을 담아보세요." });
   });
 
   watchlistItemForm?.addEventListener("submit", (event) => {
@@ -12940,7 +12982,7 @@ MEMBER_PAGE_JS = """
     submitJson(watchlistItemForm, `/api/watchlists/${encodeURIComponent(watchlistId)}/items`, async () => ({
       ticker_code: await tickerFromForm(watchlistItemForm, "ticker_code"),
       memo: String(form.get("memo") || "") || null
-    }));
+    }), { successMessage: "관심종목을 담았습니다. 현재가와 메모를 함께 확인할 수 있습니다." });
   });
 
   analysisRequestForm?.addEventListener("submit", (event) => {
