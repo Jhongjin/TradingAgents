@@ -504,6 +504,8 @@ def test_render_feature_detail_pages_use_public_theme():
     methodology_html = render_feature_detail_page("methodology", site_base_url="https://example.com")
 
     assert "종목을 검색하면 가격·출처·AI 리포트가 한 화면에 모입니다" in html
+    assert 'class="public-home feature-page feature-detail-page"' in html
+    assert ".feature-detail-page .feature-shell" in html
     assert "feature-diagram" in html
     assert "feature-journey" in html
     assert "사용자 흐름" in html

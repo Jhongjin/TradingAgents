@@ -1342,7 +1342,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
   <meta property="og:url" content="{_h(canonical)}">
   <style>{PAGE_CSS}</style>
 </head>
-<body class="public-home feature-page">
+<body class="public-home feature-page feature-detail-page">
   <a class="skip-link" href="#main-content">본문 바로가기</a>
   <header class="topbar">
     <a class="brand" href="/" aria-label="TradingAgents Korea home">
@@ -5442,6 +5442,10 @@ h3 {
   padding: clamp(52px, 8vw, 96px) 0 80px;
 }
 
+.feature-detail-page .feature-shell {
+  padding-top: clamp(36px, 6vw, 72px);
+}
+
 .feature-hero,
 .admin-hero {
   display: grid;
@@ -5456,6 +5460,10 @@ h3 {
   gap: 22px;
 }
 
+.feature-detail-page .feature-copy {
+  gap: 18px;
+}
+
 .feature-copy h1,
 .admin-hero h1 {
   max-width: 780px;
@@ -5465,6 +5473,10 @@ h3 {
   line-height: 0.96;
   letter-spacing: 0;
   text-wrap: balance;
+}
+
+.feature-detail-page .feature-copy h1 {
+  font-size: clamp(44px, 5.8vw, 82px);
 }
 
 .feature-copy > p,
