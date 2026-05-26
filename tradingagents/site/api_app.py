@@ -1081,6 +1081,8 @@ def _admin_ops_summary(repo: StorageRepository) -> dict[str, object]:
         "outcomes": {
             "candidate_runs": [_admin_run_preview(row) for row in outcome_candidates],
             "recent_completed": [_admin_outcome_preview(row) for row in recent_outcomes],
+            "recent_pending": [_admin_outcome_preview(row) for row in pending_outcomes],
+            "recent_unavailable": [_admin_outcome_preview(row) for row in unavailable_outcomes],
             "pending_sample_count": len(pending_outcomes),
             "unavailable_sample_count": len(unavailable_outcomes),
         },
@@ -1139,8 +1141,10 @@ def _admin_outcome_preview(row: dict[str, Any]) -> dict[str, object]:
         "trade_date": row.get("trade_date"),
         "evaluated_at": row.get("evaluated_at"),
         "horizon_days": row.get("horizon_days"),
+        "actual_holding_days": row.get("actual_holding_days"),
         "status": row.get("status"),
         "alpha_return": row.get("alpha_return"),
+        "error": row.get("error"),
         "report_path": f"/analyses/{run_id}" if run_id else None,
     }
 

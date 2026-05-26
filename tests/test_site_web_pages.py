@@ -347,13 +347,14 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "공개 리포트 확인" in html
     assert "member-report-card" in html
     assert "member-admin-card" in html
+    assert "data-admin-token-visible hidden" in html
     assert "운영자 콘솔" in html
     assert "일반 회원 기능과 분리되어 있습니다." in html
     assert "adminTokenItems" in html
     assert "운영 콘솔 열기" in html
     assert 'class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>' in html
     assert 'storageGet("tradingagents.admin.worker_token")' in html
-    assert 'node.hidden = !(signedIn || storageGet("tradingagents.admin.worker_token")' in html
+    assert 'node.hidden = !(storageGet("tradingagents.admin.worker_token") || window.location.pathname === "/admin")' in html
     assert 'href="/analyses">분석 목록 열기</a>' in html
     assert 'data-member-jump="portfolio"' in html
     assert 'data-member-tab="portfolio"' in html
@@ -559,8 +560,13 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     assert "admin-ops-panel" in html
     assert "adminOpsSummary" in html
     assert "adminRecentPanel" in html
+    assert "adminRequestsPanel" in html
+    assert "adminOutcomesPanel" in html
+    assert "admin-action-panel" in html
     assert "data-admin-ops-summary" in html
     assert ".admin-ops-panel [data-admin-ops-summary]" in html
+    assert "renderAdminActionSummary" in html
+    assert "실패/보류 로그" in html
     assert "white-space: nowrap;" in html
     assert "/api/admin/ops-summary" in html
     assert "권장 운영 순서" in html
@@ -642,6 +648,33 @@ def test_api_app_serves_admin_ops_summary(monkeypatch):
             alpha_return=0.03,
         )
     )
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 8),
+            horizon_days=20,
+            actual_holding_days=3,
+            status="pending",
+            error="insufficient_holding_days",
+        )
+    )
+    repo.upsert_analysis_outcome(
+        AnalysisOutcomeInput(
+            analysis_run_id=run_id,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            evaluated_at=date(2026, 5, 12),
+            horizon_days=60,
+            status="unavailable",
+            error="return_data_unavailable",
+        )
+    )
     client = TestClient(create_app(repo=repo, load_repo_from_env=False))
 
     response = client.get("/api/admin/ops-summary", headers={"X-TradingAgents-Worker-Token": "worker-token"})
@@ -657,6 +690,11 @@ def test_api_app_serves_admin_ops_summary(monkeypatch):
     assert payload["analysis_requests"]["recent"]["failed"][0]["id"] == failed_id
     assert payload["outcomes"]["candidate_runs"][0]["id"] == run_id
     assert payload["outcomes"]["recent_completed"][0]["alpha_return"] == 0.03
+    assert payload["outcomes"]["recent_pending"][0]["actual_holding_days"] == 3
+    assert payload["outcomes"]["recent_pending"][0]["error"] == "insufficient_holding_days"
+    assert payload["outcomes"]["recent_unavailable"][0]["error"] == "return_data_unavailable"
+    assert payload["outcomes"]["pending_sample_count"] == 1
+    assert payload["outcomes"]["unavailable_sample_count"] == 1
     assert payload["inspect_paths"]["public_outcomes"] == "/api/analysis-outcomes"
 
 

@@ -1705,6 +1705,13 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
           <button type="button" data-admin-action="requests-dry-run">미리 보기</button>
           <button type="button" data-admin-action="requests-process">처리 실행</button>
         </div>
+        <div class="admin-action-panel" id="adminRequestsPanel" aria-live="polite">
+          <div class="action-cell is-waiting">
+            <span>분석 요청</span>
+            <strong>대기</strong>
+            <small>미리 보기 또는 처리 실행 결과를 카드로 요약합니다.</small>
+          </div>
+        </div>
         <pre id="adminRequestsOutput">대기 중</pre>
       </article>
 
@@ -1720,6 +1727,13 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
         <div class="button-row">
           <button type="button" data-admin-action="outcomes-dry-run">미리 보기</button>
           <button type="button" data-admin-action="outcomes-process">처리 실행</button>
+        </div>
+        <div class="admin-action-panel" id="adminOutcomesPanel" aria-live="polite">
+          <div class="action-cell is-waiting">
+            <span>사후 기록</span>
+            <strong>대기</strong>
+            <small>5일/20일 검증 결과와 실패 로그를 카드로 요약합니다.</small>
+          </div>
         </div>
         <pre id="adminOutcomesOutput">대기 중</pre>
       </article>
@@ -1928,7 +1942,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <small>매수·매도 내역, 수수료, 세금, 목표가를 주문 연결 없이 수동으로 남깁니다.</small>
               <button class="ghost-button" type="button" data-member-jump="portfolio">포트폴리오 열기</button>
             </article>
-            <article class="member-home-card member-admin-card">
+            <article class="member-home-card member-admin-card" data-admin-token-visible hidden>
               <span>05</span>
               <strong>운영자 콘솔</strong>
               <small>운영자는 worker token을 입력한 뒤 readiness와 처리 대기열을 점검합니다. 일반 회원 기능과 분리되어 있습니다.</small>
@@ -6095,6 +6109,64 @@ h3 {
 .admin-card .button-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-action-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.14);
+  border-radius: 6px;
+  background: rgba(246, 243, 232, 0.12);
+}
+
+.action-cell {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-height: 104px;
+  padding: 13px;
+  background: rgba(9, 13, 11, 0.7);
+}
+
+.action-cell:only-child {
+  grid-column: 1 / -1;
+}
+
+.action-cell span {
+  color: rgba(198, 221, 192, 0.86);
+  font-family: var(--app-font-stack);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.action-cell strong {
+  color: var(--home-ink);
+  font-size: 20px;
+  line-height: 1.12;
+  font-variant-numeric: tabular-nums;
+}
+
+.action-cell small {
+  color: rgba(246, 243, 232, 0.74);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.action-cell.is-ok strong {
+  color: var(--home-acid);
+}
+
+.action-cell.is-warn strong,
+.action-cell.is-error strong {
+  color: #ffb86b;
+}
+
+.action-cell.is-waiting strong {
+  color: var(--home-celadon);
 }
 
 .admin-card button[data-admin-action$="dry-run"] {
@@ -10284,7 +10356,7 @@ button:disabled {
 
 .admin-recent-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 12px;
 }
 
@@ -10409,6 +10481,7 @@ button:disabled {
   .stock-reading-guide,
   .stock-reading-nav,
   .admin-readiness-panel,
+  .admin-action-panel,
   .admin-ops-grid,
   .admin-recent-grid,
   .admin-health-strip,
@@ -10593,8 +10666,7 @@ PAGE_JS = """
       memberStorageGet(memberAccessTokenKey)
       || memberStorageGet(memberRefreshTokenKey)
     );
-    const adminVisible = signedIn
-      || Boolean(memberStorageGet("tradingagents.admin.worker_token"))
+    const adminVisible = Boolean(memberStorageGet("tradingagents.admin.worker_token"))
       || window.location.pathname === "/admin";
     document.querySelectorAll('[data-auth-visible="signed-out"]').forEach((node) => {
       node.hidden = signedIn;
@@ -11182,6 +11254,8 @@ ADMIN_PAGE_JS = """
   const recentPanel = document.getElementById("adminRecentPanel");
   const requestsOutput = document.getElementById("adminRequestsOutput");
   const outcomesOutput = document.getElementById("adminOutcomesOutput");
+  const requestsPanel = document.getElementById("adminRequestsPanel");
+  const outcomesPanel = document.getElementById("adminOutcomesPanel");
   const requestLimit = document.getElementById("adminRequestLimit");
   const outcomeLimit = document.getElementById("adminOutcomeLimit");
   const probeKrx = document.getElementById("adminProbeKrx");
@@ -11275,6 +11349,51 @@ ADMIN_PAGE_JS = """
     fragment.appendChild(cell);
   }
 
+  function appendActionCell(fragment, label, value, note, state = "is-waiting") {
+    const cell = document.createElement("div");
+    cell.className = `action-cell ${state}`;
+
+    const labelNode = document.createElement("span");
+    labelNode.textContent = label;
+    cell.appendChild(labelNode);
+
+    const valueNode = document.createElement("strong");
+    valueNode.textContent = value;
+    cell.appendChild(valueNode);
+
+    const noteNode = document.createElement("small");
+    noteNode.textContent = note;
+    cell.appendChild(noteNode);
+
+    fragment.appendChild(cell);
+  }
+
+  function percentLabel(value) {
+    if (value === null || value === undefined || value === "") return "-";
+    const number = Number(value);
+    return Number.isFinite(number) ? `${(number * 100).toFixed(2)}%` : "-";
+  }
+
+  function countByStatus(rows) {
+    return (Array.isArray(rows) ? rows : []).reduce((acc, row) => {
+      const status = row?.status || "unknown";
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+  }
+
+  function actionErrorNote(rows) {
+    const errors = (Array.isArray(rows) ? rows : [])
+      .filter((row) => row?.error && row.error !== "already_completed")
+      .slice(0, 2)
+      .map((row) => {
+        const ticker = row.ticker_code || row.request_id || row.analysis_run_id || "항목";
+        const horizon = row.horizon_days ? ` ${row.horizon_days}D` : "";
+        return `${ticker}${horizon}: ${row.error}`;
+      });
+    return errors.length ? errors.join(" · ") : "실패 로그 없음";
+  }
+
   function requestLabel(item) {
     if (!item) return "항목 없음";
     const ticker = [item.ticker_name, item.ticker_code].filter(Boolean).join(" ");
@@ -11290,6 +11409,15 @@ ADMIN_PAGE_JS = """
       ? "벤치마크 차이 -"
       : `벤치마크 차이 ${(Number(item.alpha_return) * 100).toFixed(2)}%`;
     return `${ticker || item.id || "outcome"} / ${horizon} / ${alpha}`;
+  }
+
+  function outcomeIssueLabel(item) {
+    if (!item) return "항목 없음";
+    const ticker = [item.ticker_name, item.ticker_code].filter(Boolean).join(" ");
+    const horizon = item.horizon_days ? `${item.horizon_days}D` : "run";
+    const status = item.status || "status";
+    const reason = item.error || item.evaluated_at || "다음 worker 실행에서 재확인";
+    return `${ticker || item.id || "outcome"} / ${horizon} / ${status} / ${reason}`;
   }
 
   function runLabel(item) {
@@ -11376,7 +11504,62 @@ ADMIN_PAGE_JS = """
       recentPanel.appendChild(renderRecentList("최근 실패", "실패", recent.failed || [], requestLabel));
       recentPanel.appendChild(renderRecentList("기록 후보", "사후 기록", outcomes.candidate_runs || [], runLabel));
       recentPanel.appendChild(renderRecentList("최근 완료 기록", "결과", outcomes.recent_completed || [], outcomeLabel));
+      recentPanel.appendChild(renderRecentList("보류/데이터 없음", "확인 필요", [...(outcomes.recent_pending || []), ...(outcomes.recent_unavailable || [])], outcomeIssueLabel));
     }
+  }
+
+  function renderActionSummaryPending(panel, label, message) {
+    if (!panel) return;
+    panel.textContent = "";
+    const fragment = document.createDocumentFragment();
+    appendActionCell(fragment, label, "확인 중", message, "is-waiting");
+    panel.appendChild(fragment);
+  }
+
+  function renderActionSummaryError(panel, label, message) {
+    if (!panel) return;
+    panel.textContent = "";
+    const fragment = document.createDocumentFragment();
+    appendActionCell(fragment, label, "오류", message, "is-error");
+    panel.appendChild(fragment);
+  }
+
+  function renderAdminActionSummary(panel, payload, isOutcome, isDryRun) {
+    if (!panel) return;
+    panel.textContent = "";
+    const fragment = document.createDocumentFragment();
+    if (isOutcome) {
+      const horizons = Array.isArray(payload?.horizons) && payload.horizons.length
+        ? payload.horizons.map((value) => `${value}D`).join(" / ")
+        : "5D / 20D";
+      if (isDryRun || payload?.status === "dry_run") {
+        const runCount = Number(payload?.run_count || payload?.item_count || 0);
+        const estimated = Number(payload?.estimated_outcome_count || 0);
+        appendActionCell(fragment, "대상 리포트", String(runCount), `검증 구간 ${horizons}`, runCount ? "is-warn" : "is-ok");
+        appendActionCell(fragment, "예상 작업", String(estimated), "이미 완료된 구간은 실행 시 건너뜁니다.", estimated ? "is-warn" : "is-ok");
+        appendActionCell(fragment, "확인 경로", payload?.inspect_path || "/api/analysis-outcomes", "공개 사후 기록 API로 결과를 재확인합니다.", "is-waiting");
+      } else {
+        const summary = payload?.summary || {};
+        const results = Array.isArray(payload?.results) ? payload.results : [];
+        const warningCount = Number(summary.pending_count || 0) + Number(summary.unavailable_count || 0);
+        appendActionCell(fragment, "처리 결과", String(payload?.item_count || results.length || 0), `검증 구간 ${horizons}`, "is-ok");
+        appendActionCell(fragment, "완료", String(summary.completed_count || 0), `평균 벤치마크 차이 ${percentLabel(summary.average_alpha_return)}`, "is-ok");
+        appendActionCell(fragment, "보류/데이터 없음", String(warningCount), `대기 ${summary.pending_count || 0} · 데이터 없음 ${summary.unavailable_count || 0}`, warningCount ? "is-warn" : "is-ok");
+        appendActionCell(fragment, "건너뜀", String(summary.skipped_count || 0), "이미 완료된 5일/20일 기록입니다.", summary.skipped_count ? "is-waiting" : "is-ok");
+        appendActionCell(fragment, "실패/보류 로그", String(results.filter((row) => row?.error && row.error !== "already_completed").length), actionErrorNote(results), warningCount ? "is-warn" : "is-ok");
+      }
+    } else if (isDryRun || payload?.status === "dry_run") {
+      const rows = Array.isArray(payload?.items) ? payload.items : [];
+      appendActionCell(fragment, "대기 요청", String(payload?.item_count || rows.length || 0), "실행 전 처리 대상입니다.", rows.length ? "is-warn" : "is-ok");
+      appendActionCell(fragment, "실행 경계", "읽기 전용", "분석 리포트 생성 대기열만 처리하고 주문 기능은 없습니다.", "is-ok");
+    } else {
+      const results = Array.isArray(payload?.results) ? payload.results : [];
+      const counts = countByStatus(results);
+      appendActionCell(fragment, "처리 결과", String(payload?.item_count || results.length || 0), "분석 요청 worker 실행 결과입니다.", "is-ok");
+      appendActionCell(fragment, "완료", String(counts.completed || 0), "완료 리포트는 공개 분석 목록에서 확인합니다.", "is-ok");
+      appendActionCell(fragment, "실패", String(counts.failed || 0), actionErrorNote(results), counts.failed ? "is-error" : "is-ok");
+    }
+    panel.appendChild(fragment);
   }
 
   function renderReadinessPending(message) {
@@ -11582,6 +11765,7 @@ ADMIN_PAGE_JS = """
     const isDryRun = action.endsWith("dry-run");
     const isOutcome = action.startsWith("outcomes");
     const output = isOutcome ? outcomesOutput : requestsOutput;
+    const summaryPanel = isOutcome ? outcomesPanel : requestsPanel;
     const originalLabel = button.dataset.originalLabel || button.textContent;
     button.dataset.originalLabel = originalLabel;
     const limit = Math.max(1, Number((isOutcome ? outcomeLimit : requestLimit)?.value || 1));
@@ -11604,12 +11788,17 @@ ADMIN_PAGE_JS = """
     try {
       setBusy(button, true);
       setOutput(output, isDryRun ? "미리 보기 확인 중" : "처리 요청 중");
-      setOutput(output, await fetchJson(path, { method: "POST", body: JSON.stringify(body) }, true));
+      renderActionSummaryPending(summaryPanel, isOutcome ? "사후 기록" : "분석 요청", isDryRun ? "처리 대상을 확인하고 있습니다." : "worker 실행 결과를 기다리고 있습니다.");
+      const payload = await fetchJson(path, { method: "POST", body: JSON.stringify(body) }, true);
+      renderAdminActionSummary(summaryPanel, payload, isOutcome, isDryRun);
+      setOutput(output, payload);
       button.dataset.confirmed = "false";
       button.textContent = originalLabel;
       if (opsButton && !opsButton.disabled) opsButton.click();
     } catch (error) {
-      setOutput(output, error.message || "관리 작업 실패");
+      const message = error.message || "관리 작업 실패";
+      renderActionSummaryError(summaryPanel, isOutcome ? "사후 기록" : "분석 요청", message);
+      setOutput(output, message);
     } finally {
       if (!isDryRun) {
         button.dataset.confirmed = "false";
@@ -11886,7 +12075,7 @@ MEMBER_PAGE_JS = """
       node.hidden = !signedIn;
     });
     adminNavItems.forEach((node) => {
-      node.hidden = !(signedIn || storageGet("tradingagents.admin.worker_token") || window.location.pathname === "/admin");
+      node.hidden = !(storageGet("tradingagents.admin.worker_token") || window.location.pathname === "/admin");
     });
     adminTokenItems.forEach((node) => {
       node.hidden = !storageGet("tradingagents.admin.worker_token");
