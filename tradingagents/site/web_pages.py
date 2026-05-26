@@ -660,7 +660,7 @@ def render_public_home_page(
       <div class="home-hero-copy home-hero-content">
         <p class="home-kicker">한국 주식 AI 리서치 / 주문 없는 읽기 전용 서비스</p>
         <h1 id="home-title">한국 주식 AI 리서치</h1>
-        <p class="home-lede">종목을 검색하면 KRX 시세, DART 공시, Naver 뉴스, AI 의견, 리포트 이후 기록을 한 화면에서 확인합니다. 가입하면 관심종목, 리서치 요청, 수동 기록을 내 작업공간에 저장합니다.</p>
+        <p class="home-lede">먼저 종목을 검색해 공개 리포트를 읽어보세요. 가입하면 관심종목 저장, 리서치 요청, 수동 매매 기록을 내 작업공간에서 이어갈 수 있습니다.</p>
         <form class="ticker-search home-search home-command-search" action="/stocks" method="get">
           <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
           <input id="ticker" name="ticker" list="tickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" autocomplete="off">
@@ -669,9 +669,7 @@ def render_public_home_page(
         </form>
         <div class="home-cta-row home-action-row" aria-label="첫 방문자 주요 행동">
           <a class="home-primary-link" href="/stocks/005930">샘플 분석 보기</a>
-          <a class="home-secondary-link" href="/member?mode=signup">가입하고 리서치 작업공간 만들기</a>
-          <a class="home-secondary-link" href="/analyses">최근 공개 분석</a>
-          <a class="home-secondary-link" href="/features">서비스 흐름 보기</a>
+          <a class="home-secondary-link" href="/member?mode=signup">가입하고 리서치 요청 저장하기</a>
         </div>
         <aside class="home-member-preview" aria-label="가입 후 제공 기능">
           <strong>가입하면 열리는 기능</strong>
@@ -1074,7 +1072,7 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
       <div class="feature-copy">
         <p class="home-kicker">서비스 안내 / 처음 방문자를 위한 흐름</p>
         <h1 id="feature-index-title">종목을 읽고, 필요한 기록만 내 공간에 남깁니다</h1>
-        <p>처음에는 종목을 검색해 공개 리포트를 읽고, 가입 후에는 관심종목과 리서치 요청, 수동 기록을 내 작업공간에 저장합니다. TradingAgents Korea는 투자 판단을 돕는 자료를 제공하지만 주문은 실행하지 않습니다.</p>
+        <p>먼저 종목을 검색해 공개 리포트를 읽어보세요. 가입 후에는 관심종목, 리서치 요청, 수동 기록을 내 작업공간에 저장합니다. TradingAgents Korea는 투자 판단을 돕는 자료를 제공하지만 주문은 실행하지 않습니다.</p>
         <dl class="home-proof-row feature-proof-row" aria-label="서비스 범위">
           {proof_html}
         </dl>
@@ -1775,7 +1773,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <div class="member-auth-copy">
         <p class="eyebrow">회원 전용 공간</p>
         <h1 id="member-auth-title">리서치 기록을 내 공간에 보관하세요</h1>
-        <p class="member-auth-lead">회원 작업공간은 로그인 후에만 열립니다. 가입하면 수동 포트폴리오와 관심종목을 저장하고, 더 살펴보고 싶은 종목의 리서치 요청을 남길 수 있습니다. TradingAgents Korea는 계좌 주문을 실행하지 않습니다.</p>
+        <p class="member-auth-lead">가입하면 관심종목을 저장하고, 보고 싶은 종목의 리서치 요청 상태를 마이페이지에서 확인할 수 있습니다. 매매 기록은 주문이 아닌 개인 메모로만 저장됩니다.</p>
         <div class="member-auth-points" aria-label="회원 영역 원칙">
           <article>
             <span>01</span>
@@ -1819,6 +1817,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <button type="button" data-auth-action="signin">로그인</button>
             <button type="button" data-auth-action="signup">가입하기</button>
           </div>
+          <p class="auth-form-note">처음이라면 가입하기를 선택하세요. 이메일 확인 후 마이페이지에서 관심종목과 리서치 요청을 이어갈 수 있습니다.</p>
           <div class="member-empty auth-status" id="authStatus" role="status" aria-live="polite">이메일과 비밀번호를 입력하세요.</div>
         </form>
       </section>
@@ -6349,6 +6348,13 @@ h3 {
 .auth-button-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.auth-form-note {
+  margin: -2px 0 0;
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .auth-status {

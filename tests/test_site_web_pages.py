@@ -255,9 +255,9 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "최근 공개 분석" in html
     assert "한국 주식 AI 리서치" in html
     assert "한국 주식 AI 리서치 / 주문 없는 읽기 전용 서비스" in html
+    assert "먼저 종목을 검색해 공개 리포트를 읽어보세요." in html
     assert "처음 방문해도 바로 쓸 수 있는 세 가지 흐름" in html
-    assert "가입하고 리서치 작업공간 만들기" in html
-    assert 'href="/features">서비스 흐름 보기</a>' in html
+    assert "가입하고 리서치 요청 저장하기" in html
     assert "가입하면 열리는 기능" in html
     assert "home-member-preview" in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청으로 시작하기</a>' in html
@@ -307,7 +307,9 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     html = render_member_dashboard_page(site_base_url="https://example.com")
 
     assert "리서치 기록을 내 공간에 보관하세요" in html
-    assert "회원 작업공간은 로그인 후에만 열립니다" in html
+    assert "보고 싶은 종목의 리서치 요청 상태를 마이페이지에서 확인할 수 있습니다" in html
+    assert "처음이라면 가입하기를 선택하세요." in html
+    assert "auth-form-note" in html
     assert "내 리서치 작업공간" in html
     assert "매매 기록은 주문이 아니라 개인 메모로만 남깁니다" in html
     assert "memberSessionGate" in html
@@ -463,7 +465,7 @@ def test_render_feature_index_page_guides_first_visit():
 
     assert "기능 안내 | TradingAgents Korea" in html
     assert "종목을 읽고, 필요한 기록만 내 공간에 남깁니다" in html
-    assert "처음에는 종목을 검색해 공개 리포트를 읽고" in html
+    assert "먼저 종목을 검색해 공개 리포트를 읽어보세요" in html
     assert "TradingAgents Korea는 투자 판단을 돕는 자료를 제공하지만 주문은 실행하지 않습니다." in html
     assert 'href="/features/research"' in html
     assert 'href="/features/member-workspace"' in html
