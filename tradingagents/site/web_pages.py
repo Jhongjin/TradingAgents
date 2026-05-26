@@ -2240,11 +2240,14 @@ def _stock_report_actions(model: dict[str, Any]) -> str:
     detail_href = f"/analyses/{run_id}" if run_id else (f"/analyses?ticker={code}" if code else "/analyses")
     api_href = f"/api/analyses/{run_id}" if run_id else (f"/api/stocks/{code}" if code else "/api/analyses")
     list_href = f"/analyses?ticker={code}" if code else "/analyses"
-    primary_label = "전체 리포트 읽기" if run_id else "공개 리서치 목록"
+    request_href = "/member?mode=signup&tab=analysis#analysis-request-section"
+    primary_label = "전체 리포트 읽기" if run_id else "이 종목 공개 리서치"
+    secondary_href = list_href if run_id else request_href
+    secondary_label = "같은 종목 리서치" if run_id else "리서치 요청"
     return f"""
     <div class="analysis-feed-actions stock-report-actions" aria-label="리포트 다음 이동">
       <a href="{_h(detail_href)}">{_h(primary_label)}</a>
-      <a href="{_h(list_href)}">같은 종목 리서치</a>
+      <a href="{_h(secondary_href)}">{_h(secondary_label)}</a>
       <a href="{_h(api_href)}">원문 데이터</a>
     </div>
     """

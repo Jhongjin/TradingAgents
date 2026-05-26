@@ -190,6 +190,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "AI analysis is for informational purposes" not in html
     assert "Live trading and broker order placement" not in html
     assert 'href="/analyses/00000000-0000-0000-0000-000000000010">전체 리포트 읽기</a>' in html
+    assert 'href="/analyses?ticker=005930">같은 종목 리서치</a>' in html
     assert 'href="/api/analyses/00000000-0000-0000-0000-000000000010">원문 데이터</a>' in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html
@@ -236,6 +237,8 @@ def test_render_public_stock_page_surfaces_missing_data_warnings(monkeypatch):
     assert "공개 분석이 아직 저장되지 않았습니다." in html
     assert "분석 업데이트 권장: no_completed_public_analysis" in html
     assert "차트 데이터를 불러오지 못했습니다: chart vendor offline" in html
+    assert 'href="/analyses?ticker=005930">이 종목 공개 리서치</a>' in html
+    assert 'href="/member?mode=signup&amp;tab=analysis#analysis-request-section">리서치 요청</a>' in html
 
 
 def test_api_app_serves_public_home_page(monkeypatch):
