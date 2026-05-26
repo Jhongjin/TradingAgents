@@ -838,6 +838,7 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "5일 기록 / +3.00%" in html
     assert "analysis-feed-actions" in html
     assert "is-positive-alpha" in html
+    assert "<dt>데이터 기준일</dt><dd>2026-05-05</dd>" in html
     assert "<dt>벤치마크 차이</dt><dd>+3.00%</dd>" in html
     assert "<dt>리포트</dt><dd>1개</dd>" in html
     assert f'href="/analyses/{run_id}">리포트 읽기</a>' in html

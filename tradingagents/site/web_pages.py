@@ -3125,6 +3125,7 @@ def _analysis_feed_cards(
                 <span>사후 기록 {_h(outcome_label)} / {_h(alpha if alpha != "-" else "벤치마크 차이 대기")}</span>
               </div>
               <dl>
+                <div><dt>데이터 기준일</dt><dd>{_h(str(trade_date))}</dd></div>
                 <div><dt>상태</dt><dd>{_h(status_label)}</dd></div>
                 <div><dt>모델</dt><dd>{_h(str(model_provider))}</dd></div>
                 <div><dt>리포트</dt><dd>{_h(reports)}</dd></div>
