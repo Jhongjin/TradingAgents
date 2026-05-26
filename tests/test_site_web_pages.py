@@ -325,6 +325,12 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "마이페이지 홈" in html
     assert "처음이라면 관심종목을 하나 담거나 궁금한 종목의 리서치를 요청하세요." in html
     assert "member-home-grid" in html
+    assert "member-primary-action" in html
+    assert 'data-member-primary-action="watchlist"' in html
+    assert "memberPrimaryActionButton" in html
+    assert "setMemberPrimaryAction" in html
+    assert "진행 중인 리서치를 확인하세요" in html
+    assert "매매 메모를 정리해보세요" in html
     assert "공개 리포트 확인" in html
     assert "member-report-card" in html
     assert "member-admin-card" in html

@@ -1883,6 +1883,14 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <small>완료 리포트</small>
             </article>
           </section>
+          <section class="member-primary-action" id="memberPrimaryAction" data-member-primary-action="watchlist" aria-live="polite">
+            <div>
+              <span>다음 추천 작업</span>
+              <strong id="memberPrimaryActionTitle">관심종목을 먼저 담아보세요</strong>
+              <small id="memberPrimaryActionCopy">자주 확인할 종목을 저장하면 이후 리서치 요청과 공개 리포트를 이어서 보기 쉽습니다.</small>
+            </div>
+            <button class="home-primary-link" type="button" id="memberPrimaryActionButton" data-member-jump="watchlist">관심종목 만들기</button>
+          </section>
           <div class="member-home-grid" aria-label="다음 작업">
             <article class="member-home-card">
               <span>01</span>
@@ -6447,6 +6455,49 @@ h3 {
   gap: 14px;
 }
 
+.member-primary-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-top: 1px solid rgba(246, 243, 232, 0.14);
+  border-bottom: 1px solid rgba(246, 243, 232, 0.14);
+}
+
+.member-primary-action div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.member-primary-action span {
+  color: var(--home-acid);
+  font-family: var(--app-font-stack);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.member-primary-action strong {
+  color: var(--ink);
+  font-size: clamp(20px, 2vw, 26px);
+  line-height: 1.15;
+}
+
+.member-primary-action small {
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
+  line-height: 1.55;
+}
+
+.member-primary-action .home-primary-link {
+  flex: 0 0 auto;
+  min-width: 164px;
+  border: 0;
+  cursor: pointer;
+}
+
 .member-home-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -7510,6 +7561,15 @@ h3 {
   .member-home-grid,
   .member-metric-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .member-primary-action {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .member-primary-action .home-primary-link {
+    width: 100%;
   }
 
   .analysis-request-header {
@@ -11427,6 +11487,10 @@ MEMBER_PAGE_JS = """
   const overviewWatchlists = document.getElementById("memberOverviewWatchlists");
   const overviewActiveRequests = document.getElementById("memberOverviewActiveRequests");
   const overviewCompletedReports = document.getElementById("memberOverviewCompletedReports");
+  const memberPrimaryAction = document.getElementById("memberPrimaryAction");
+  const memberPrimaryActionTitle = document.getElementById("memberPrimaryActionTitle");
+  const memberPrimaryActionCopy = document.getElementById("memberPrimaryActionCopy");
+  const memberPrimaryActionButton = document.getElementById("memberPrimaryActionButton");
   const portfolioSelect = tradeForm?.elements?.portfolio_id;
   const targetPortfolioSelect = targetForm?.elements?.portfolio_id;
   const watchlistSelect = watchlistItemForm?.elements?.watchlist_id;
@@ -12470,6 +12534,16 @@ MEMBER_PAGE_JS = """
     if (node) node.textContent = String(value);
   }
 
+  function setMemberPrimaryAction(tab, title, copy, label) {
+    if (memberPrimaryAction) memberPrimaryAction.dataset.memberPrimaryAction = tab;
+    setText(memberPrimaryActionTitle, title);
+    setText(memberPrimaryActionCopy, copy);
+    if (memberPrimaryActionButton) {
+      memberPrimaryActionButton.dataset.memberJump = tab;
+      memberPrimaryActionButton.textContent = label;
+    }
+  }
+
   function updateMemberOverview(portfoliosPayload = {}, watchlistsPayload = {}, requestsPayload = {}) {
     const portfolioCount = (portfoliosPayload.items || []).length;
     const watchlistCount = (watchlistsPayload.items || []).length;
@@ -12486,6 +12560,37 @@ MEMBER_PAGE_JS = """
     setText(overviewWatchlists, watchlistCount);
     setText(overviewActiveRequests, activeCount);
     setText(overviewCompletedReports, completedCount);
+    if (activeCount) {
+      setMemberPrimaryAction(
+        "analysis",
+        "진행 중인 리서치를 확인하세요",
+        "대기열 위치와 처리 상태를 확인하고, 완료되면 공개 리포트 연결을 따라가면 됩니다.",
+        "요청 상태 보기"
+      );
+    } else if (!watchlistCount) {
+      setMemberPrimaryAction(
+        "watchlist",
+        "관심종목을 먼저 담아보세요",
+        "자주 확인할 종목을 저장하면 이후 리서치 요청과 공개 리포트를 이어서 보기 쉽습니다.",
+        "관심종목 만들기"
+      );
+    } else if (!portfolioCount) {
+      setMemberPrimaryAction(
+        "portfolio",
+        "매매 메모를 정리해보세요",
+        "계좌 주문과 연결되지 않는 수동 기록으로 매수·매도 판단과 목표가를 남깁니다.",
+        "포트폴리오 기록하기"
+      );
+    } else {
+      setMemberPrimaryAction(
+        "analysis",
+        completedCount ? "완료 리포트를 이어서 확인하세요" : "새 리서치를 요청해보세요",
+        completedCount
+          ? "완료된 리포트가 있으면 공개 분석 목록과 종목 페이지에서 근거와 사후 기록을 이어서 읽습니다."
+          : "관심종목과 기록이 준비되면 궁금한 종목을 리서치 요청 대기열에 올려보세요.",
+        completedCount ? "리포트 연결 보기" : "리서치 요청하기"
+      );
+    }
   }
 
   function flattenErrorCount(errors) {
