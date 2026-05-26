@@ -142,9 +142,15 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "stock-flow-strip" in html
     assert "stock-reading-guide" in html
     assert "종목 페이지 읽는 순서" in html
+    assert "가격과 출처를 먼저 확인한 뒤 AI 의견, 리포트, 사후 기록을 이어서 읽어보세요" in html
     assert "가격과 출처" in html
     assert "AI 의견과 한계" in html
     assert "읽기 전용 종목 리서치입니다" in html
+    assert "stock-mobile-jumpbar" in html
+    assert 'aria-label="모바일 종목 상세 빠른 이동"' in html
+    assert 'href="#stock-chart-section">가격 보기</a>' in html
+    assert 'href="#stock-reports-section">리포트 보기</a>' in html
+    assert ".stock-mobile-jumpbar" in html
     assert '.stock-page .top-links a[href^="/features/"]' in html
     assert 'href="#stock-chart-section"' in html
     assert 'id="stock-chart-section"' in html

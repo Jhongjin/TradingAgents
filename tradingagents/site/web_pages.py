@@ -118,6 +118,11 @@ def render_public_stock_page(
           <a href="/analyses?ticker={_h(model["code"])}">공개 리서치 이력</a>
           <a href="/member?mode=signup&tab=analysis#analysis-request-section">리서치 요청</a>
         </div>
+        <nav class="stock-mobile-jumpbar" aria-label="모바일 종목 상세 빠른 이동">
+          <a href="#stock-chart-section">가격 보기</a>
+          <a href="#stock-reports-section">리포트 보기</a>
+          <a href="/member?mode=signup&tab=analysis#analysis-request-section">리서치 요청</a>
+        </nav>
       </div>
       <aside class="stock-hero-stack" aria-label="종목 리서치 요약">
         <div class="decision-box">
@@ -2215,7 +2220,7 @@ def _stock_reading_guide(model: dict[str, Any]) -> str:
       <div>
         <p class="eyebrow">읽기 안내</p>
         <h2 id="stock-reading-title">종목 페이지 읽는 순서</h2>
-        <p>이 화면은 주문 버튼 없이 가격 기준과 출처, AI 의견의 근거, 리포트 본문, 사후 기록을 이어 보여줍니다. 먼저 데이터가 언제 어디서 왔는지 확인하고, 의견은 판단 참고자료로만 읽어 주세요.</p>
+        <p>가격과 출처를 먼저 확인한 뒤 AI 의견, 리포트, 사후 기록을 이어서 읽어보세요. 이 화면은 주문 버튼 없이 공개 데이터와 판단 근거만 보여줍니다.</p>
       </div>
       <nav class="stock-reading-nav" aria-label="종목 페이지 섹션 바로가기">
         {link_html}
@@ -8822,6 +8827,10 @@ button:disabled {
   border-color: rgba(215, 255, 63, 0.42);
 }
 
+.stock-mobile-jumpbar {
+  display: none;
+}
+
 .stock-hero-stack {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -10322,6 +10331,27 @@ button:disabled {
 
   .stock-hero-actions a {
     width: 100%;
+  }
+
+  .stock-mobile-jumpbar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .stock-mobile-jumpbar a {
+    display: grid;
+    min-height: 40px;
+    place-items: center;
+    border: 1px solid rgba(215, 255, 63, 0.3);
+    border-radius: 6px;
+    background: rgba(215, 255, 63, 0.08);
+    color: var(--home-acid);
+    font-size: 13px;
+    font-weight: 900;
+    text-align: center;
+    text-decoration: none;
   }
 
   .stock-signal-card dl {
