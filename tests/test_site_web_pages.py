@@ -525,6 +525,8 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     assert "adminOpsSummary" in html
     assert "adminRecentPanel" in html
     assert "data-admin-ops-summary" in html
+    assert ".admin-ops-panel [data-admin-ops-summary]" in html
+    assert "white-space: nowrap;" in html
     assert "/api/admin/ops-summary" in html
     assert "권장 운영 순서" in html
     assert "readinessButton" in html

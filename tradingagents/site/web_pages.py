@@ -9999,6 +9999,16 @@ button:disabled {
   line-height: 1.55;
 }
 
+.admin-ops-panel .panel-heading > div {
+  min-width: 0;
+}
+
+.admin-ops-panel [data-admin-ops-summary] {
+  flex: 0 0 auto;
+  min-width: 132px;
+  white-space: nowrap;
+}
+
 .admin-ops-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -10188,6 +10198,15 @@ button:disabled {
 
   .admin-health-strip {
     gap: 1px;
+  }
+
+  .admin-ops-panel .panel-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-ops-panel [data-admin-ops-summary] {
+    width: 100%;
   }
 
   .member-tab-strip {
