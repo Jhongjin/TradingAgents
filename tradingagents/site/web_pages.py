@@ -90,7 +90,7 @@ def render_public_stock_page(
       <span>TradingAgents Korea</span>
     </a>
     <nav class="top-links" aria-label="서비스 페이지">
-      <a href="/features/research">기능</a>
+      <a href="/features">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a href="/outcomes">사후 기록</a>
@@ -267,7 +267,7 @@ def render_public_analysis_feed_page(
       <span>TradingAgents Korea</span>
     </a>
     <nav class="top-links" aria-label="공개 페이지">
-      <a href="/features/research">기능</a>
+      <a href="/features">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a href="/outcomes">사후 기록</a>
@@ -402,7 +402,7 @@ def render_public_outcomes_page(
       <span>TradingAgents Korea</span>
     </a>
     <nav class="top-links" aria-label="공개 페이지">
-      <a href="/features/research">기능</a>
+      <a href="/features">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a href="/outcomes" aria-current="page">사후 기록</a>
@@ -534,7 +534,7 @@ def render_public_analysis_detail_page(
       <span>TradingAgents Korea</span>
     </a>
     <nav class="top-links" aria-label="공개 페이지">
-      <a href="/features/research">기능</a>
+      <a href="/features">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a href="/outcomes">사후 기록</a>
@@ -649,7 +649,7 @@ def render_public_home_page(
       <span>TradingAgents Korea</span>
     </a>
     <nav class="top-links" aria-label="공개 페이지">
-      <a href="/features/research">기능</a>
+      <a href="/features">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a href="/outcomes">사후 기록</a>
@@ -1350,7 +1350,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
       <span>TradingAgents Korea</span>
     </a>
     <nav class="top-links" aria-label="공개 페이지">
-      <a href="/features/research">기능</a>
+      <a href="/features">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a href="/outcomes">사후 기록</a>
@@ -1477,7 +1477,7 @@ def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
       <span>TradingAgents Korea</span>
     </a>
     <nav class="top-links" aria-label="서비스 페이지">
-      <a href="/features/research">기능</a>
+      <a href="/features">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a href="/outcomes">사후 기록</a>
@@ -1567,7 +1567,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <span>TradingAgents Korea</span>
     </a>
     <nav class="top-links" aria-label="관리 페이지">
-      <a href="/features/research">기능</a>
+      <a href="/features">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a href="/outcomes">사후 기록</a>
@@ -1755,7 +1755,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <span>TradingAgents Korea</span>
     </a>
     <nav class="top-links" aria-label="서비스 페이지">
-      <a href="/features/research">기능</a>
+      <a href="/features">기능</a>
       <a href="/features/methodology">신뢰 기준</a>
       <a href="/analyses">분석 목록</a>
       <a href="/outcomes">사후 기록</a>
@@ -10423,7 +10423,7 @@ PAGE_JS = """
     if (path === "/mypage") return "/mypage";
     if (path === "/admin") return "/admin";
     if (path === "/features/methodology") return "/features/methodology";
-    if (path.startsWith("/features/")) return "/features/research";
+    if (path === "/features" || path.startsWith("/features/")) return "/features";
     if (path === "/analyses" || path.startsWith("/analyses/")) return "/analyses";
     if (path === "/outcomes") return "/outcomes";
     return "";
@@ -11684,7 +11684,7 @@ MEMBER_PAGE_JS = """
     if (path === "/member" && requestedAuthMode === "signup" && !isSignedIn) return "/member?mode=signup";
     if (path === "/member" || path === "/mypage") return isSignedIn ? "/mypage" : "/member";
     if (path === "/features/methodology") return "/features/methodology";
-    if (path.startsWith("/features/")) return "/features/research";
+    if (path === "/features" || path.startsWith("/features/")) return "/features";
     if (path === "/analyses" || path.startsWith("/analyses/")) return "/analyses";
     if (path === "/outcomes") return "/outcomes";
     return "";

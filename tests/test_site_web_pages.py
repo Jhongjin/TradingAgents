@@ -198,7 +198,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert '"additionalType":"KoreanStock"' in html
     assert 'href="/member"' in html
     assert 'href="/member?mode=signup"' in html
-    assert 'href="/features/research"' in html
+    assert 'href="/features">기능</a>' in html
     assert 'href="/features/methodology"' in html
     assert 'href="/mypage"' in html
     assert "top-join-link" in html
@@ -280,11 +280,13 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "prefers-reduced-motion" in html
     assert "syncTopAuthLinks" in html
     assert "currentNavKey" in html
+    assert 'path === "/features" || path.startsWith("/features/")' in html
     assert "syncTopNavigationState" in html
     assert '.top-links a[aria-current="page"]' in html
     assert "로그인" in html
     assert "가입하기" in html
     assert 'href="/member?mode=signup"' in html
+    assert 'href="/features">기능</a>' in html
     assert 'href="/features/research"' in html
     assert 'href="/outcomes">사후 기록</a>' in html
     assert 'href="/mypage"' in html
@@ -373,7 +375,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'class="member-page is-member-checking"' in html
     assert 'data-auth-visible="signed-out"' in html
     assert 'data-auth-visible="signed-in" hidden' in html
-    assert 'href="/features/research"' in html
+    assert 'href="/features">기능</a>' in html
     assert 'href="/outcomes">사후 기록</a>' in html
     assert 'href="/mypage"' in html
     assert 'href="/stocks/005930">삼성전자</a>' not in html
