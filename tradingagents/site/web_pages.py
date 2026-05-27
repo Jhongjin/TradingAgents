@@ -11902,6 +11902,12 @@ ADMIN_PAGE_JS = """
     return `${ticker || item.analysis_run_id || "run"} / ${item.trade_date || "-"} / ${decision || "AI"}`;
   }
 
+  function paperOpenLabel(item) {
+    if (!item) return "항목 없음";
+    const ticker = [item.ticker_name, item.ticker_code].filter(Boolean).join(" ");
+    return `${ticker || item.id || "position"} / 진입 ${item.entry_date || "-"} / ${percentLabel(item.unrealized_return)}`;
+  }
+
   function renderRecentList(title, label, items, formatter) {
     const section = document.createElement("section");
     section.className = "admin-recent-list";
@@ -11969,12 +11975,13 @@ ADMIN_PAGE_JS = """
     const candidates = Array.isArray(outcomes.candidate_runs) ? outcomes.candidate_runs.length : 0;
     const completedOutcomes = Array.isArray(outcomes.recent_completed) ? outcomes.recent_completed.length : 0;
     const paperCandidates = Array.isArray(paper.candidate_runs) ? paper.candidate_runs.length : 0;
+    const openPaperPositions = Array.isArray(paper.open_positions) ? paper.open_positions.length : 0;
     appendOpsCell(fragment, "처리 중 요청", String(active), `대기 ${counts.queued || 0} · 처리 중 ${counts.running || 0}`, active ? "is-warn" : "is-ok");
     appendOpsCell(fragment, "완료", String(counts.completed || 0), "완료된 분석 요청 누적", "is-ok");
     appendOpsCell(fragment, "실패", String(failed), "최근 실패 목록은 아래에서 확인", failed ? "is-error" : "is-ok");
     appendOpsCell(fragment, "기록 후보", String(candidates), `미리 보기 제한 ${limits.outcome_worker_max || "-"}`, candidates ? "is-warn" : "is-ok");
     appendOpsCell(fragment, "최근 기록", String(completedOutcomes), `대기 샘플 ${outcomes.pending_sample_count || 0} · 데이터 없음 샘플 ${outcomes.unavailable_sample_count || 0}`, "is-ok");
-    appendOpsCell(fragment, "AI 모의 후보", String(paperCandidates), `보유 ${paper.open_count || 0} · 청산 ${paper.closed_count || 0}`, paperCandidates ? "is-warn" : "is-ok");
+    appendOpsCell(fragment, "AI 가상매매", String(paperCandidates + openPaperPositions), `대기 ${paperCandidates} · 가상 보유 ${paper.open_count || 0} · 청산 ${paper.closed_count || 0}`, (paperCandidates + openPaperPositions) ? "is-warn" : "is-ok");
     opsSummary.appendChild(fragment);
 
     if (recentPanel) {
@@ -11984,7 +11991,8 @@ ADMIN_PAGE_JS = """
       recentPanel.appendChild(renderRecentList("기록 후보", "결과 기록", outcomes.candidate_runs || [], runLabel));
       recentPanel.appendChild(renderRecentList("최근 완료 기록", "결과", outcomes.recent_completed || [], outcomeLabel));
       recentPanel.appendChild(renderRecentList("보류/데이터 없음", "확인 필요", [...(outcomes.recent_pending || []), ...(outcomes.recent_unavailable || [])], outcomeIssueLabel));
-      recentPanel.appendChild(renderRecentList("AI 모의 후보", "모의투자", paper.candidate_runs || [], paperCandidateLabel));
+      recentPanel.appendChild(renderRecentList("AI 가상매매 대기", "가상 기록", paper.candidate_runs || [], paperCandidateLabel));
+      recentPanel.appendChild(renderRecentList("가상 보유 재평가", "보유 중", paper.open_positions || [], paperOpenLabel));
     }
   }
 
@@ -12011,13 +12019,16 @@ ADMIN_PAGE_JS = """
     if (isPaper) {
       if (isDryRun || payload?.status === "dry_run") {
         const rows = Array.isArray(payload?.items) ? payload.items : [];
-        appendActionCell(fragment, "모의 후보", String(payload?.item_count || rows.length || 0), "완료된 회원 분석 중 아직 기록되지 않은 항목입니다.", rows.length ? "is-warn" : "is-ok");
-        appendActionCell(fragment, "실행 경계", "가상", "일봉 종가 기준 모의 기록만 저장합니다.", "is-ok");
+        const openRows = Array.isArray(payload?.open_positions) ? payload.open_positions : [];
+        appendActionCell(fragment, "새 기록", String(payload?.candidate_count ?? rows.length), "완료된 분석 리포트 중 아직 가상 기록이 없는 항목입니다.", rows.length ? "is-warn" : "is-ok");
+        appendActionCell(fragment, "재평가", String(payload?.open_position_count ?? openRows.length), "가상 보유 중인 기록을 최신 가격으로 다시 확인합니다.", openRows.length ? "is-warn" : "is-ok");
+        appendActionCell(fragment, "실행 경계", "가상", "실제 주문 없이, 분석 리포트 기준의 가상 기록만 저장합니다.", "is-ok");
       } else {
         const summary = payload?.summary || {};
         const results = Array.isArray(payload?.results) ? payload.results : [];
-        appendActionCell(fragment, "처리 결과", String(payload?.item_count || results.length || 0), "AI 모의투자 worker 실행 결과입니다.", "is-ok");
-        appendActionCell(fragment, "생성", String(summary.created_count || 0), `평균 수익률 ${percentLabel(summary.average_realized_return)}`, "is-ok");
+        appendActionCell(fragment, "처리 결과", String(payload?.item_count || results.length || 0), "AI 가상매매 worker 실행 결과입니다.", "is-ok");
+        appendActionCell(fragment, "새 기록", String(summary.created_count || 0), `평균 실현 수익률 ${percentLabel(summary.average_realized_return)}`, "is-ok");
+        appendActionCell(fragment, "청산 완료", String(summary.closed_count || 0), `가상 보유 ${summary.still_open_count || 0}건 유지`, summary.closed_count ? "is-ok" : "is-waiting");
         appendActionCell(fragment, "보류", String(summary.unavailable_count || 0), "가격 데이터가 부족한 항목입니다.", summary.unavailable_count ? "is-warn" : "is-ok");
         appendActionCell(fragment, "실패", String(summary.failed_count || 0), actionErrorNote(results), summary.failed_count ? "is-error" : "is-ok");
       }

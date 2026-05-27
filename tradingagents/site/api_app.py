@@ -920,12 +920,16 @@ def create_app(
             raise HTTPException(status_code=400, detail=f"limit cannot exceed {max_limit}")
         if body.dry_run:
             candidates = repo.list_paper_simulation_candidates(limit=body.limit)
+            open_positions = repo.list_open_paper_simulation_positions(limit=body.limit)
             return {
                 "status": "dry_run",
-                "item_count": len(candidates),
+                "item_count": len(candidates) + len(open_positions),
+                "candidate_count": len(candidates),
+                "open_position_count": len(open_positions),
                 "mode": "paper_simulation",
                 "execution_boundary": "simulation_only_no_orders",
                 "items": [_admin_paper_candidate_preview(row) for row in candidates],
+                "open_positions": [_admin_paper_open_preview(row) for row in open_positions],
             }
         return _process_paper_simulations(repo, limit=body.limit, as_of_date=body.as_of_date)
 
@@ -1167,6 +1171,7 @@ def _admin_ops_summary(repo: StorageRepository) -> dict[str, object]:
     pending_outcomes = repo.list_analysis_outcomes(status="pending", limit=5, public_only=True)
     unavailable_outcomes = repo.list_analysis_outcomes(status="unavailable", limit=5, public_only=True)
     paper_candidates = repo.list_paper_simulation_candidates(limit=5)
+    open_paper_positions = repo.list_open_paper_simulation_positions(limit=5)
     open_paper_count = repo.count_paper_simulation_positions(statuses=("open",))
     closed_paper_count = repo.count_paper_simulation_positions(statuses=("closed",))
     return {
@@ -1187,9 +1192,11 @@ def _admin_ops_summary(repo: StorageRepository) -> dict[str, object]:
         },
         "paper_simulations": {
             "candidate_runs": [_admin_paper_candidate_preview(row) for row in paper_candidates],
+            "open_positions": [_admin_paper_open_preview(row) for row in open_paper_positions],
             "open_count": open_paper_count,
             "closed_count": closed_paper_count,
             "candidate_sample_count": len(paper_candidates),
+            "open_sample_count": len(open_paper_positions),
         },
         "limits": {
             "analysis_worker_max": _max_worker_limit(),
@@ -1274,6 +1281,27 @@ def _admin_paper_candidate_preview(row: dict[str, Any]) -> dict[str, object]:
     }
 
 
+def _admin_paper_open_preview(row: dict[str, Any]) -> dict[str, object]:
+    run_id = str(row.get("analysis_run_id") or "")
+    metadata = row.get("metadata_json") or {}
+    return {
+        "id": str(row.get("id") or ""),
+        "analysis_run_id": run_id or None,
+        "user_id": str(row.get("user_id") or "") or None,
+        "ticker_code": row.get("ticker_code"),
+        "ticker_name": row.get("ticker_name"),
+        "market": row.get("market"),
+        "status": row.get("status"),
+        "entry_date": row.get("entry_date"),
+        "entry_price": row.get("entry_price"),
+        "target_price": row.get("target_price"),
+        "stop_price": row.get("stop_price"),
+        "mark_date": metadata.get("mark_date"),
+        "unrealized_return": metadata.get("unrealized_return"),
+        "report_path": f"/analyses/{run_id}" if run_id else None,
+    }
+
+
 def _process_analysis_request_queue(repo: StorageRepository, *, limit: int) -> dict:
     from .analysis_runner import run_tradingagents_graph_for_request
     from .analysis_worker import process_queued_analysis_requests
@@ -1308,9 +1336,9 @@ def _process_analysis_outcomes(repo: StorageRepository, *, limit: int, horizons:
 
 
 def _process_paper_simulations(repo: StorageRepository, *, limit: int, as_of_date: str | None = None) -> dict:
-    from .paper_simulation_worker import process_paper_simulation_candidates, summarize_paper_simulation_results
+    from .paper_simulation_worker import process_paper_simulations, summarize_paper_simulation_results
 
-    results = process_paper_simulation_candidates(repo, limit=limit, as_of_date=as_of_date)
+    results = process_paper_simulations(repo, limit=limit, as_of_date=as_of_date)
     return {
         "status": "processed",
         "mode": "paper_simulation",

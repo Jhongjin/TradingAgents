@@ -928,6 +928,19 @@ class StorageRepository:
             rows = conn.execute(stmt).mappings().all()
         return [dict(row) for row in rows]
 
+    def list_open_paper_simulation_positions(self, *, limit: int = 20) -> list[dict[str, Any]]:
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        stmt = (
+            select(paper_simulation_positions)
+            .where(paper_simulation_positions.c.status == "open")
+            .order_by(paper_simulation_positions.c.entry_date, paper_simulation_positions.c.created_at)
+            .limit(limit)
+        )
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+
     def list_paper_simulation_events(
         self,
         *,

@@ -589,7 +589,8 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     assert "data-admin-action=\"paper-dry-run\"" in html
     assert "data-admin-action=\"paper-process\"" in html
     assert "/api/admin/paper-simulations/process" in html
-    assert "AI 모의 후보" in html
+    assert "AI 가상매매" in html
+    assert "가상 보유 재평가" in html
     assert "admin-action-panel" in html
     assert "data-admin-ops-summary" in html
     assert ".admin-ops-panel [data-admin-ops-summary]" in html

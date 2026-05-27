@@ -161,6 +161,30 @@ def test_single_position_simulator_enters_and_exits_on_take_profit():
     assert result.final_equity == pytest.approx(10_204_680)
 
 
+def test_single_position_simulator_keeps_position_open_until_exit_rule():
+    signal = signal_from_decision("005930", "Rating: Buy")
+    result = simulate_single_position(
+        signal,
+        [
+            {"date": "2026-05-05", "close": 70_000},
+            {"date": "2026-05-06", "close": 71_000},
+            {"date": "2026-05-07", "close": 72_000},
+        ],
+        config=PaperSimulationConfig(slippage_bps=0),
+    )
+
+    assert result.status == "open"
+    assert result.entry_date == "2026-05-05"
+    assert result.exit_date is None
+    assert result.exit_reason is None
+    assert result.holding_days == 2
+    assert result.mark_date == "2026-05-07"
+    assert result.mark_price == 72_000
+    assert result.unrealized_return == pytest.approx(72_000 / 70_000 - 1)
+    assert [event["side"] for event in result.events] == ["buy"]
+    assert result.message == "paper_position_open"
+
+
 def test_single_position_simulator_skips_hold_signal():
     result = simulate_single_position(
         signal_from_decision("005930", "Rating: Hold"),

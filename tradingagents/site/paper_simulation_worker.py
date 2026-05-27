@@ -30,7 +30,42 @@ class PaperSimulationWorkerResult:
     position_id: str | None = None
     simulation_status: str | None = None
     realized_return: float | None = None
+    unrealized_return: float | None = None
     error: str | None = None
+
+
+def process_paper_simulations(
+    repo: StorageRepository,
+    *,
+    limit: int = 20,
+    as_of_date: str | date | None = None,
+    chart_vendor: str | None = None,
+    config: PaperSimulationConfig | None = None,
+) -> list[PaperSimulationWorkerResult]:
+    """Create new paper records and refresh open virtual positions."""
+
+    if limit <= 0:
+        raise ValueError("limit must be positive")
+    simulation_config = config or PaperSimulationConfig()
+    results = process_open_paper_simulation_positions(
+        repo,
+        limit=limit,
+        as_of_date=as_of_date,
+        chart_vendor=chart_vendor,
+        config=simulation_config,
+    )
+    remaining = max(limit - len(results), 0)
+    if remaining:
+        results.extend(
+            process_paper_simulation_candidates(
+                repo,
+                limit=remaining,
+                as_of_date=as_of_date,
+                chart_vendor=chart_vendor,
+                config=simulation_config,
+            )
+        )
+    return results
 
 
 def process_paper_simulation_candidates(
@@ -71,11 +106,39 @@ def summarize_paper_simulation_results(results: Iterable[PaperSimulationWorkerRe
         "result_count": len(rows),
         "status_counts": status_counts,
         "created_count": status_counts.get("created", 0),
+        "updated_count": status_counts.get("updated", 0),
+        "closed_count": status_counts.get("closed", 0),
+        "still_open_count": status_counts.get("still_open", 0),
         "skipped_count": status_counts.get("skipped", 0),
         "unavailable_count": status_counts.get("unavailable", 0),
         "failed_count": status_counts.get("failed", 0),
         "average_realized_return": (sum(returns) / len(returns)) if returns else None,
     }
+
+
+def process_open_paper_simulation_positions(
+    repo: StorageRepository,
+    *,
+    limit: int = 20,
+    as_of_date: str | date | None = None,
+    chart_vendor: str | None = None,
+    config: PaperSimulationConfig | None = None,
+) -> list[PaperSimulationWorkerResult]:
+    """Refresh open paper positions until they meet a virtual exit rule."""
+
+    if limit <= 0:
+        raise ValueError("limit must be positive")
+    simulation_config = config or PaperSimulationConfig()
+    return [
+        _process_open_position(
+            repo,
+            position,
+            as_of_date=as_of_date,
+            chart_vendor=chart_vendor,
+            config=simulation_config,
+        )
+        for position in repo.list_open_paper_simulation_positions(limit=limit)
+    ]
 
 
 def _process_candidate(
@@ -186,6 +249,7 @@ def _process_candidate(
             position_id=position_id,
             simulation_status=simulation.status,
             realized_return=simulation.trade_return,
+            unrealized_return=simulation.unrealized_return,
         )
     except Exception as exc:
         return PaperSimulationWorkerResult(
@@ -193,6 +257,140 @@ def _process_candidate(
             ticker_code=ticker_code,
             status="failed",
             user_id=user_id,
+            error=f"{exc.__class__.__name__}: {exc}",
+        )
+
+
+def _process_open_position(
+    repo: StorageRepository,
+    position: dict[str, Any],
+    *,
+    as_of_date: str | date | None,
+    chart_vendor: str | None,
+    config: PaperSimulationConfig,
+) -> PaperSimulationWorkerResult:
+    position_id = str(position.get("id") or "")
+    analysis_run_id = str(position.get("analysis_run_id") or "")
+    ticker_code = str(position.get("ticker_code") or "")
+    user_id = str(position.get("user_id") or "")
+    account_id = str(position.get("account_id") or "")
+    if not position_id or not analysis_run_id or not ticker_code or not user_id or not account_id:
+        return PaperSimulationWorkerResult(
+            analysis_run_id=analysis_run_id,
+            ticker_code=ticker_code,
+            status="failed",
+            user_id=user_id or None,
+            position_id=position_id or None,
+            error="missing_open_position_identity",
+        )
+
+    try:
+        entry_date = _coerce_date(position.get("entry_date"))
+        end_date = _coerce_date(as_of_date) if as_of_date is not None else datetime.now(ZoneInfo("Asia/Seoul")).date()
+        if end_date <= entry_date:
+            return PaperSimulationWorkerResult(
+                analysis_run_id=analysis_run_id,
+                ticker_code=ticker_code,
+                status="still_open",
+                user_id=user_id,
+                account_id=account_id,
+                position_id=position_id,
+                simulation_status="open",
+                error="as_of_date_not_after_entry_date",
+            )
+
+        series = get_ohlcv_chart_series(
+            ticker_code,
+            entry_date.isoformat(),
+            end_date.isoformat(),
+            vendor=chart_vendor or "pykrx",
+        )
+        if len(series.points) < 2:
+            return PaperSimulationWorkerResult(
+                analysis_run_id=analysis_run_id,
+                ticker_code=ticker_code,
+                status="unavailable",
+                user_id=user_id,
+                account_id=account_id,
+                position_id=position_id,
+                error="insufficient_price_data",
+            )
+
+        decision = {
+            "rating": position.get("decision_rating"),
+            "action": position.get("decision_action"),
+            "target_weight": position.get("target_weight"),
+            "rationale": (position.get("metadata_json") or {}).get("rationale"),
+        }
+        simulation = simulate_single_position(
+            _signal_from_decision(ticker_code, decision),
+            [point.as_dict() for point in series.points],
+            config=_config_for_position(position, config),
+        )
+        if simulation.status == "skipped":
+            return PaperSimulationWorkerResult(
+                analysis_run_id=analysis_run_id,
+                ticker_code=ticker_code,
+                status="skipped",
+                user_id=user_id,
+                account_id=account_id,
+                position_id=position_id,
+                simulation_status=simulation.status,
+                error=simulation.message,
+            )
+
+        repo.record_paper_simulation_position(
+            _position_input(
+                position,
+                account_id=account_id,
+                user_id=user_id,
+                simulation=simulation.as_dict(),
+                config=_config_for_position(position, config),
+                chart_vendor=series.vendor,
+            )
+        )
+        if simulation.status == "closed":
+            for event in simulation.events:
+                if event.get("type") != "exit":
+                    continue
+                repo.add_paper_simulation_event(
+                    _event_input(
+                        event,
+                        account_id=account_id,
+                        position_id=position_id,
+                        user_id=user_id,
+                        analysis_run_id=analysis_run_id,
+                        ticker_code=ticker_code,
+                    )
+                )
+            return PaperSimulationWorkerResult(
+                analysis_run_id=analysis_run_id,
+                ticker_code=ticker_code,
+                status="closed",
+                user_id=user_id,
+                account_id=account_id,
+                position_id=position_id,
+                simulation_status=simulation.status,
+                realized_return=simulation.trade_return,
+            )
+        return PaperSimulationWorkerResult(
+            analysis_run_id=analysis_run_id,
+            ticker_code=ticker_code,
+            status="still_open",
+            user_id=user_id,
+            account_id=account_id,
+            position_id=position_id,
+            simulation_status=simulation.status,
+            unrealized_return=simulation.unrealized_return,
+        )
+    except Exception as exc:
+        return PaperSimulationWorkerResult(
+            analysis_run_id=analysis_run_id,
+            ticker_code=ticker_code,
+            status="failed",
+            user_id=user_id,
+            account_id=account_id or None,
+            position_id=position_id or None,
             error=f"{exc.__class__.__name__}: {exc}",
         )
 
@@ -242,10 +440,17 @@ def _position_input(
             "price_basis": "daily_close",
             "portfolio_return": simulation.get("portfolio_return"),
             "final_equity": simulation.get("final_equity"),
+            "mark_date": simulation.get("mark_date"),
+            "mark_price": simulation.get("mark_price"),
+            "unrealized_return": simulation.get("unrealized_return"),
+            "initial_cash": config.initial_cash,
+            "max_position_weight": config.max_position_weight,
             "max_holding_days": config.max_holding_days,
             "take_profit_pct": config.take_profit_pct,
             "stop_loss_pct": config.stop_loss_pct,
             "slippage_bps": config.slippage_bps,
+            "commission_per_trade": config.commission_per_trade,
+            "currency": config.currency,
         },
     )
 
@@ -291,6 +496,20 @@ def _realized_pnl(entry: dict[str, Any] | None, exit_event: dict[str, Any] | Non
     entry_cost = _money(entry.get("notional") or 0) + _money(entry.get("commission") or 0) + _money(entry.get("transaction_tax") or 0)
     exit_value = _money(exit_event.get("notional") or 0) - _money(exit_event.get("commission") or 0) - _money(exit_event.get("transaction_tax") or 0)
     return exit_value - entry_cost
+
+
+def _config_for_position(position: dict[str, Any], fallback: PaperSimulationConfig) -> PaperSimulationConfig:
+    metadata = position.get("metadata_json") or {}
+    return PaperSimulationConfig(
+        initial_cash=float(metadata.get("initial_cash") or fallback.initial_cash),
+        take_profit_pct=float(metadata.get("take_profit_pct") or fallback.take_profit_pct),
+        stop_loss_pct=float(metadata.get("stop_loss_pct") or fallback.stop_loss_pct),
+        max_holding_days=int(metadata.get("max_holding_days") or fallback.max_holding_days),
+        max_position_weight=float(metadata.get("max_position_weight") or fallback.max_position_weight),
+        slippage_bps=float(metadata.get("slippage_bps") or fallback.slippage_bps),
+        commission_per_trade=float(metadata.get("commission_per_trade") or fallback.commission_per_trade),
+        currency=str(metadata.get("currency") or fallback.currency),
+    )
 
 
 def _optional_money(value: Any) -> Decimal | None:

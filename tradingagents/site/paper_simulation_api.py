@@ -128,6 +128,11 @@ def _summary(positions: list[dict[str, Any]]) -> dict[str, Any]:
     closed = [position for position in positions if position.get("status") == "closed"]
     wins = [position for position in closed if _decimal(position.get("realized_pnl")) > Decimal("0")]
     realized_pnl = sum((_decimal(position.get("realized_pnl")) for position in closed), Decimal("0"))
+    unrealized_returns = [
+        float((position.get("metadata") or {}).get("unrealized_return"))
+        for position in positions
+        if position.get("status") == "open" and (position.get("metadata") or {}).get("unrealized_return") is not None
+    ]
     returns = [
         float(position["realized_return"])
         for position in closed
@@ -141,6 +146,7 @@ def _summary(positions: list[dict[str, Any]]) -> dict[str, Any]:
         "win_rate": (len(wins) / len(closed)) if closed else None,
         "total_realized_pnl": realized_pnl,
         "average_realized_return": (sum(returns) / len(returns)) if returns else None,
+        "average_unrealized_return": (sum(unrealized_returns) / len(unrealized_returns)) if unrealized_returns else None,
         "latest_position_status": positions[0].get("status") if positions else None,
     }
 
@@ -155,6 +161,6 @@ def _decimal(value: Any) -> Decimal:
 
 def _notices() -> list[str]:
     return [
-        "AI 모의투자는 저장된 분석을 기준으로 만든 가상 기록입니다.",
+        "AI 가상매매 기록은 저장된 분석 리포트를 기준으로 계산한 기록입니다.",
         "실제 주문, 계좌 연결, 투자 자문 기능은 포함하지 않습니다.",
     ]

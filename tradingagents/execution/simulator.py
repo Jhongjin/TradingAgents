@@ -54,6 +54,9 @@ class PaperSimulationResult:
     exit_reason: str | None = None
     holding_days: int = 0
     trade_return: float | None = None
+    mark_date: str | None = None
+    mark_price: float | None = None
+    unrealized_return: float | None = None
     target_weight: float | None = None
     message: str = ""
 
@@ -71,6 +74,9 @@ class PaperSimulationResult:
             "exit_reason": self.exit_reason,
             "holding_days": self.holding_days,
             "trade_return": self.trade_return,
+            "mark_date": self.mark_date,
+            "mark_price": self.mark_price,
+            "unrealized_return": self.unrealized_return,
             "events": self.events,
             "message": self.message,
         }
@@ -134,7 +140,8 @@ def simulate_single_position(
     events = [_event_from_fill("entry", entry_point["date"], entry_fill, reason=signal.action or signal.rating)]
     exit_point, exit_reason, holding_days = _select_exit_point(entry_fill.price, points[1:], config)
     if exit_point is None:
-        final_equity = broker.portfolio.total_equity({ticker: entry_point["close"]})
+        mark_point = points[-1]
+        final_equity = broker.portfolio.total_equity({ticker: mark_point["close"]})
         return PaperSimulationResult(
             status="open",
             ticker=ticker,
@@ -144,9 +151,12 @@ def simulate_single_position(
             portfolio_return=(final_equity / config.initial_cash) - 1,
             events=events,
             entry_date=entry_point["date"],
-            holding_days=0,
+            holding_days=len(points) - 1,
+            mark_date=mark_point["date"],
+            mark_price=mark_point["close"],
+            unrealized_return=(mark_point["close"] / entry_fill.price) - 1,
             target_weight=target_weight,
-            message="waiting_for_exit_price",
+            message="paper_position_open",
         )
 
     exit_signal = TradeSignal(
@@ -174,6 +184,8 @@ def simulate_single_position(
         exit_reason=exit_reason,
         holding_days=holding_days,
         trade_return=(exit_fill.price / entry_fill.price) - 1 if exit_fill else None,
+        mark_date=exit_point["date"],
+        mark_price=exit_point["close"],
         target_weight=target_weight,
         message="paper_position_closed",
     )
@@ -186,7 +198,6 @@ def _select_exit_point(
 ) -> tuple[dict[str, Any] | None, str | None, int]:
     if not candidates:
         return None, None, 0
-    last_index = len(candidates) - 1
     for index, point in enumerate(candidates, start=1):
         move = (point["close"] / entry_price) - 1
         if move >= config.take_profit_pct:
@@ -195,8 +206,6 @@ def _select_exit_point(
             return point, "stop_loss", index
         if index >= config.max_holding_days:
             return point, "max_holding_days", index
-        if index - 1 == last_index:
-            return point, "latest_close", index
     return None, None, 0
 
 
