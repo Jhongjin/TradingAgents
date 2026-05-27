@@ -1708,6 +1708,7 @@ def test_api_app_sets_public_and_private_cache_headers():
     assert stock_response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
     assert "camera=()" in stock_response.headers["permissions-policy"]
     assert "frame-ancestors 'none'" in stock_response.headers["content-security-policy"]
+    assert "https://unpkg.com" in stock_response.headers["content-security-policy"]
     assert "connect-src 'self' https://*.supabase.co" in stock_response.headers["content-security-policy"]
     assert portfolio_response.status_code == 200
     assert portfolio_response.headers["cache-control"] == "private, no-store"

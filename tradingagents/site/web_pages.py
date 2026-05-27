@@ -33,8 +33,9 @@ def render_public_stock_page(
 ) -> str:
     """Render the first public stock-analysis page.
 
-    The page intentionally stays dependency-free: it uses the same JSON payload
-    as the API and draws the price chart with a small inline canvas renderer.
+    The page uses the same JSON payload as the API and upgrades the price chart
+    with TradingView Lightweight Charts when available, while keeping the local
+    canvas renderer as a dependency-free fallback.
     """
 
     payload = build_public_stock_payload(
@@ -150,8 +151,9 @@ def render_public_stock_page(
         {chart_controls_html}
         <p class="chart-caption">{_h(model["chart_caption"])}</p>
         {chart_source_html}
-        <div class="chart-wrap">
-          <canvas id="priceChart" aria-label="{_h(model["name"])} 가격 차트"></canvas>
+        <div class="chart-wrap" data-chart-engine="tradingview-lightweight">
+          <div id="priceChart" class="tv-price-chart" role="img" aria-label="{_h(model["name"])} 가격 차트"></div>
+          <canvas id="priceChartCanvas" class="chart-canvas-fallback" aria-label="{_h(model["name"])} 가격 차트 예비 렌더러" hidden></canvas>
           <div class="chart-legend" id="chartLegend" aria-hidden="true"></div>
           <div class="chart-tooltip" id="chartTooltip" hidden></div>
           <p id="chartFallback" class="chart-fallback" hidden>{_h(model["chart_fallback"])}</p>
@@ -212,6 +214,7 @@ def render_public_stock_page(
   </main>
 
   <script id="stock-payload" type="application/json">{payload_json}</script>
+  <script src="https://unpkg.com/lightweight-charts@5.2.0/dist/lightweight-charts.standalone.production.js"></script>
   <script>{PAGE_JS}</script>
 </body>
 </html>"""
@@ -2158,11 +2161,23 @@ def _chart_controls(model: dict[str, Any]) -> str:
         f'<a class="chart-tab{" is-active" if vendor == "pykrx" else ""}" href="{_h(pykrx_href)}">pykrx</a>',
         f'<a class="chart-tab{" is-active" if vendor == "krx" else ""}" href="{_h(krx_href)}">KRX 14D</a>',
     ]
+    interval_tabs = [
+        '<span class="chart-tab is-active" aria-current="page">일봉</span>',
+        '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">1일</span>',
+        '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">1분</span>',
+        '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">5분</span>',
+        '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">15분</span>',
+        '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">30분</span>',
+        '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">60분</span>',
+    ]
 
     return (
         '<div class="chart-toolbar">'
         '<nav class="chart-tabs" aria-label="차트 기간">'
         + "".join(range_links)
+        + "</nav>"
+        '<nav class="chart-tabs chart-interval-tabs" aria-label="차트 주기">'
+        + "".join(interval_tabs)
         + "</nav>"
         '<nav class="chart-tabs chart-vendor-tabs" aria-label="차트 데이터 소스">'
         + "".join(vendor_links)
@@ -4752,6 +4767,11 @@ h3 {
   box-shadow: inset 0 0 0 1px rgba(20, 107, 99, 0.18);
 }
 
+.chart-tab.is-disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+}
+
 .chart-caption {
   margin: 0 0 10px;
   color: var(--muted);
@@ -4806,14 +4826,22 @@ h3 {
 
 .chart-wrap {
   position: relative;
-  min-height: 340px;
-  aspect-ratio: 16 / 9;
+  min-height: 420px;
+  aspect-ratio: 16 / 10;
 }
 
-#priceChart {
+.tv-price-chart,
+.chart-canvas-fallback {
   display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.tv-price-chart[hidden],
+.chart-canvas-fallback[hidden] {
+  display: none;
 }
 
 .chart-legend {
@@ -7725,8 +7753,8 @@ h3 {
   }
 
   .chart-wrap {
-    height: min(64vw, 260px);
-    min-height: 220px;
+    height: min(72vw, 340px);
+    min-height: 260px;
     aspect-ratio: auto;
   }
 
@@ -9419,6 +9447,13 @@ button:disabled {
   color: var(--home-acid);
 }
 
+.market-page .chart-tab.is-disabled,
+.market-page .chart-tab.is-disabled:hover {
+  border-color: rgba(246, 243, 232, 0.13);
+  background: rgba(246, 243, 232, 0.045);
+  color: rgba(246, 243, 232, 0.46);
+}
+
 .market-page .chart-tab.is-active {
   box-shadow: inset 0 0 0 1px rgba(215, 255, 63, 0.18);
 }
@@ -10988,25 +11023,33 @@ PAGE_JS = """
   }
 
   const node = document.getElementById("stock-payload");
-  const canvas = document.getElementById("priceChart");
+  const chartNode = document.getElementById("priceChart");
+  const canvas = document.getElementById("priceChartCanvas");
   const legend = document.getElementById("chartLegend");
   const fallback = document.getElementById("chartFallback");
   const tooltip = document.getElementById("chartTooltip");
-  if (!node || !canvas) return;
+  if (!node || !chartNode) return;
 
   const payload = JSON.parse(node.textContent || "{}");
   const chart = payload.chart || {};
   const points = (payload.chart?.points || []).filter((point) => Number.isFinite(point.close));
+  const money = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 });
+  const compact = new Intl.NumberFormat("ko-KR", { notation: "compact", maximumFractionDigits: 1 });
+
+  function showFallbackMessage(message) {
+    if (chartNode) chartNode.hidden = true;
+    if (canvas) canvas.hidden = true;
+    if (fallback) {
+      fallback.textContent = message;
+      fallback.hidden = false;
+    }
+  }
+
   if (points.length < 2) {
-    if (fallback && chart.error) fallback.textContent = `차트 데이터를 불러오지 못했습니다: ${chart.error}`;
-    if (fallback) fallback.hidden = false;
+    showFallbackMessage(chart.error ? `차트 데이터를 불러오지 못했습니다: ${chart.error}` : "차트 데이터가 부족합니다.");
     return;
   }
 
-  const ctx = canvas.getContext("2d");
-  const money = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 });
-  const compact = new Intl.NumberFormat("ko-KR", { notation: "compact", maximumFractionDigits: 1 });
-  const dates = points.map((point) => point.date);
   const bars = points.map((point) => ({
     date: point.date,
     open: Number.isFinite(point.open) ? Number(point.open) : Number(point.close),
@@ -11015,15 +11058,9 @@ PAGE_JS = """
     close: Number(point.close),
     volume: Number.isFinite(point.volume) ? Number(point.volume) : 0
   }));
+  const dates = bars.map((point) => point.date);
   const closes = bars.map((point) => point.close);
-  const priceValues = bars.flatMap((point) => [point.open, point.high, point.low, point.close]);
-  const min = Math.min(...priceValues);
-  const max = Math.max(...priceValues);
-  const maxVolume = Math.max(...bars.map((point) => point.volume), 1);
-  const pad = Math.max((max - min) * 0.12, max * 0.01, 1);
-  const yMin = min - pad;
-  const yMax = max + pad;
-  let hoverIndex = null;
+  const barByDate = new Map(bars.map((bar) => [bar.date, bar]));
 
   function movingAverage(values, windowSize) {
     return values.map((_, index) => {
@@ -11035,219 +11072,424 @@ PAGE_JS = """
 
   const ma5 = movingAverage(closes, 5);
   const ma20 = movingAverage(closes, 20);
+  const ma5ByDate = new Map(bars.map((bar, index) => [bar.date, ma5[index]]));
+  const ma20ByDate = new Map(bars.map((bar, index) => [bar.date, ma20[index]]));
 
-  function fitCanvas() {
-    const rect = canvas.getBoundingClientRect();
-    const ratio = window.devicePixelRatio || 1;
-    canvas.width = Math.max(1, Math.floor(rect.width * ratio));
-    canvas.height = Math.max(1, Math.floor(rect.height * ratio));
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    return rect;
+  function legendChip(label) {
+    const node = document.createElement("span");
+    node.textContent = label;
+    return node;
   }
 
-  function xAt(index, width, left, right) {
-    if (bars.length === 1) return left;
-    return left + (index / (bars.length - 1)) * (width - left - right);
-  }
-
-  function yAt(value, top, bottom) {
-    return top + ((yMax - value) / (yMax - yMin)) * (bottom - top);
-  }
-
-  function drawLine(values, width, left, right, top, bottom, color, dash = []) {
-    ctx.beginPath();
-    let started = false;
-    values.forEach((value, index) => {
-      if (!Number.isFinite(value)) return;
-      const x = xAt(index, width, left, right);
-      const y = yAt(value, top, bottom);
-      if (!started) {
-        ctx.moveTo(x, y);
-        started = true;
-      } else {
-        ctx.lineTo(x, y);
-      }
-    });
-    if (!started) return;
-    ctx.save();
-    ctx.setLineDash(dash);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.8;
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawLegend() {
-    if (!legend) return;
-    const latest = bars[bars.length - 1];
+  function drawLegend(bar = bars[bars.length - 1]) {
+    if (!legend || !bar) return;
+    const latestMa5 = ma5ByDate.get(bar.date);
+    const latestMa20 = ma20ByDate.get(bar.date);
     const chips = [
-      `종가 ${money.format(latest.close)}원`,
-      `거래량 ${compact.format(latest.volume)}`,
-      "상승 빨강",
-      "하락 파랑",
-      ma5[ma5.length - 1] ? `MA5 ${money.format(ma5[ma5.length - 1])}` : "MA5 대기",
-      ma20[ma20.length - 1] ? `MA20 ${money.format(ma20[ma20.length - 1])}` : "MA20 대기"
+      "TradingView",
+      `종가 ${money.format(bar.close)}원`,
+      `거래량 ${compact.format(bar.volume)}`,
+      latestMa5 ? `MA5 ${money.format(latestMa5)}` : "MA5 대기",
+      latestMa20 ? `MA20 ${money.format(latestMa20)}` : "MA20 대기"
     ];
-    legend.replaceChildren(...chips.map((label) => {
-      const node = document.createElement("span");
-      node.textContent = label;
-      return node;
-    }));
+    legend.replaceChildren(...chips.map(legendChip));
   }
 
-  function chartLayout(width, height) {
-    const left = width < 520 ? 48 : 62;
-    const right = width < 520 ? 12 : 24;
-    const top = 34;
-    const bottom = 42;
-    const volumeHeight = Math.min(92, Math.max(52, height * 0.22));
-    const priceBottom = height - bottom - volumeHeight - 18;
-    const volumeTop = priceBottom + 12;
-    const volumeBottom = height - bottom;
-    const slot = (width - left - right) / Math.max(bars.length - 1, 1);
-    const candleWidth = Math.max(3, Math.min(12, slot * 0.58));
-    return { left, right, top, bottom, volumeHeight, priceBottom, volumeTop, volumeBottom, slot, candleWidth };
+  function timeKey(value) {
+    if (typeof value === "string") return value;
+    if (value && typeof value === "object" && "year" in value) {
+      return `${value.year}-${String(value.month).padStart(2, "0")}-${String(value.day).padStart(2, "0")}`;
+    }
+    return String(value || "");
   }
 
-  function nearestIndex(mouseX, width, left, right) {
-    const span = Math.max(1, width - left - right);
-    const ratio = Math.min(1, Math.max(0, (mouseX - left) / span));
-    return Math.min(bars.length - 1, Math.max(0, Math.round(ratio * (bars.length - 1))));
-  }
-
-  function updateTooltip(index, rect, layout) {
-    if (!tooltip) return;
-    if (index === null || index === undefined) {
-      tooltip.hidden = true;
+  function updateHtmlTooltip(bar, point) {
+    if (!tooltip || !bar || !point) {
+      if (tooltip) tooltip.hidden = true;
       return;
     }
-    const bar = bars[index];
-    const x = xAt(index, rect.width, layout.left, layout.right);
+    const change = bar.open ? ((bar.close - bar.open) / bar.open) * 100 : 0;
     const title = document.createElement("strong");
     title.textContent = bar.date;
-    const close = document.createElement("span");
-    close.textContent = `종가 ${money.format(bar.close)}원`;
-    const range = document.createElement("span");
-    range.textContent = `고가 ${money.format(bar.high)} / 저가 ${money.format(bar.low)}`;
+    const ohlc = document.createElement("span");
+    ohlc.textContent = `시 ${money.format(bar.open)} / 고 ${money.format(bar.high)} / 저 ${money.format(bar.low)} / 종 ${money.format(bar.close)}`;
     const volume = document.createElement("span");
-    volume.textContent = `거래량 ${compact.format(bar.volume)}`;
-    tooltip.replaceChildren(title, close, range, volume);
+    volume.textContent = `거래량 ${compact.format(bar.volume)} / 당일 ${change >= 0 ? "+" : ""}${change.toFixed(2)}%`;
+    const averages = document.createElement("span");
+    const latestMa5 = ma5ByDate.get(bar.date);
+    const latestMa20 = ma20ByDate.get(bar.date);
+    averages.textContent = `MA5 ${latestMa5 ? money.format(latestMa5) : "-"} / MA20 ${latestMa20 ? money.format(latestMa20) : "-"}`;
+    tooltip.replaceChildren(title, ohlc, volume, averages);
     tooltip.hidden = false;
-    const tooltipWidth = Math.min(260, Math.max(190, tooltip.offsetWidth || 190));
-    const left = Math.min(rect.width - tooltipWidth - 12, Math.max(12, x - tooltipWidth / 2));
+
+    const rect = chartNode.getBoundingClientRect();
+    const tooltipWidth = Math.min(320, Math.max(220, tooltip.offsetWidth || 220));
+    const tooltipHeight = tooltip.offsetHeight || 92;
+    const left = Math.min(rect.width - tooltipWidth - 12, Math.max(12, point.x - tooltipWidth / 2));
+    const top = Math.min(rect.height - tooltipHeight - 12, Math.max(12, point.y + 12));
     tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
   }
 
-  function draw() {
-    const rect = fitCanvas();
-    const width = rect.width;
-    const height = rect.height;
-    const layout = chartLayout(width, height);
-    const { left, right, top, priceBottom, volumeTop, volumeBottom, candleWidth } = layout;
+  function renderTradingViewChart() {
+    const TV = window.LightweightCharts;
+    if (!TV || typeof TV.createChart !== "function") return false;
+    if (fallback) fallback.hidden = true;
+    if (canvas) canvas.hidden = true;
+    chartNode.hidden = false;
 
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#111711";
-    ctx.fillRect(0, 0, width, height);
-
-    ctx.strokeStyle = "rgba(246, 243, 232, 0.13)";
-    ctx.lineWidth = 1;
-    ctx.fillStyle = "rgba(246, 243, 232, 0.68)";
-    ctx.font = '12px Geist, "Geist Fallback", "Noto Sans KR", "Noto Sans KR Fallback", -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
-    ctx.textBaseline = "middle";
-
-    for (let i = 0; i <= 4; i += 1) {
-      const y = top + (i / 4) * (priceBottom - top);
-      const value = yMax - (i / 4) * (yMax - yMin);
-      ctx.beginPath();
-      ctx.moveTo(left, y);
-      ctx.lineTo(width - right, y);
-      ctx.stroke();
-      ctx.fillText(money.format(value), 0, y);
-    }
-
-    ctx.strokeStyle = "rgba(246, 243, 232, 0.16)";
-    ctx.beginPath();
-    ctx.moveTo(left, volumeTop);
-    ctx.lineTo(width - right, volumeTop);
-    ctx.stroke();
-
-    bars.forEach((bar, index) => {
-      const x = xAt(index, width, left, right);
-      const isUp = bar.close >= bar.open;
-      const color = isUp ? "#ff6b4d" : "#6da4ff";
-      const volumeY = volumeBottom - (bar.volume / maxVolume) * (volumeBottom - volumeTop);
-      ctx.fillStyle = isUp ? "rgba(255, 107, 77, 0.22)" : "rgba(109, 164, 255, 0.2)";
-      ctx.fillRect(x - candleWidth / 2, volumeY, candleWidth, Math.max(1, volumeBottom - volumeY));
-      ctx.strokeStyle = color;
-      ctx.fillStyle = color;
-      ctx.lineWidth = 1.2;
-      const highY = yAt(bar.high, top, priceBottom);
-      const lowY = yAt(bar.low, top, priceBottom);
-      const openY = yAt(bar.open, top, priceBottom);
-      const closeY = yAt(bar.close, top, priceBottom);
-      ctx.beginPath();
-      ctx.moveTo(x, highY);
-      ctx.lineTo(x, lowY);
-      ctx.stroke();
-      const bodyTop = Math.min(openY, closeY);
-      const bodyHeight = Math.max(1.5, Math.abs(closeY - openY));
-      ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+    const rect = chartNode.getBoundingClientRect();
+    const chartApi = TV.createChart(chartNode, {
+      width: Math.max(320, Math.floor(rect.width || chartNode.clientWidth || 720)),
+      height: Math.max(260, Math.floor(rect.height || chartNode.clientHeight || 420)),
+      layout: {
+        background: { type: TV.ColorType?.Solid || "solid", color: "transparent" },
+        textColor: "rgba(246, 243, 232, 0.72)",
+        fontFamily: 'Geist, "Geist Fallback", "Noto Sans KR", "Noto Sans KR Fallback", -apple-system, BlinkMacSystemFont, system-ui, sans-serif'
+      },
+      grid: {
+        vertLines: { color: "rgba(246, 243, 232, 0.06)" },
+        horzLines: { color: "rgba(246, 243, 232, 0.09)" }
+      },
+      crosshair: {
+        mode: TV.CrosshairMode?.Normal ?? 0,
+        vertLine: {
+          color: "rgba(215, 255, 63, 0.38)",
+          labelBackgroundColor: "#1f2a15"
+        },
+        horzLine: {
+          color: "rgba(143, 216, 189, 0.42)",
+          labelBackgroundColor: "#1a2a22"
+        }
+      },
+      localization: {
+        priceFormatter: (price) => `${money.format(price)}원`
+      },
+      rightPriceScale: {
+        borderColor: "rgba(246, 243, 232, 0.14)",
+        scaleMargins: { top: 0.08, bottom: 0.3 }
+      },
+      timeScale: {
+        borderColor: "rgba(246, 243, 232, 0.14)",
+        fixLeftEdge: true,
+        fixRightEdge: true,
+        timeVisible: false,
+        secondsVisible: false
+      }
     });
 
-    drawLine(closes, width, left, right, top, priceBottom, "rgba(143, 216, 189, 0.9)");
-    drawLine(ma5, width, left, right, top, priceBottom, "#d7ff3f");
-    drawLine(ma20, width, left, right, top, priceBottom, "#c79a3a", [4, 4]);
+    const candleSeries = chartApi.addSeries(TV.CandlestickSeries, {
+      upColor: "#ff6b4d",
+      downColor: "#6da4ff",
+      borderUpColor: "#ff6b4d",
+      borderDownColor: "#6da4ff",
+      wickUpColor: "#ff9b86",
+      wickDownColor: "#9cc3ff",
+      priceLineColor: "#d7ff3f"
+    });
+    candleSeries.setData(bars.map((bar) => ({
+      time: bar.date,
+      open: bar.open,
+      high: bar.high,
+      low: bar.low,
+      close: bar.close
+    })));
 
-    const lastClose = closes[closes.length - 1];
-    const lastX = xAt(bars.length - 1, width, left, right);
-    const lastY = yAt(lastClose, top, priceBottom);
-    ctx.fillStyle = "#d7ff3f";
-    ctx.beginPath();
-    ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
-    ctx.fill();
+    const volumeSeries = chartApi.addSeries(TV.HistogramSeries, {
+      priceFormat: { type: "volume" },
+      priceScaleId: "volume",
+      priceLineVisible: false,
+      lastValueVisible: false
+    });
+    volumeSeries.setData(bars.map((bar) => ({
+      time: bar.date,
+      value: bar.volume,
+      color: bar.close >= bar.open ? "rgba(255, 107, 77, 0.28)" : "rgba(109, 164, 255, 0.24)"
+    })));
 
-    if (hoverIndex !== null) {
-      const hovered = bars[hoverIndex];
-      const hoverX = xAt(hoverIndex, width, left, right);
-      const hoverY = yAt(hovered.close, top, priceBottom);
+    const ma5Series = chartApi.addSeries(TV.LineSeries, {
+      color: "#d7ff3f",
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false
+    });
+    ma5Series.setData(bars
+      .map((bar, index) => (ma5[index] ? { time: bar.date, value: ma5[index] } : null))
+      .filter(Boolean));
+
+    const ma20Series = chartApi.addSeries(TV.LineSeries, {
+      color: "#c79a3a",
+      lineWidth: 2,
+      lineStyle: TV.LineStyle?.Dashed ?? 2,
+      priceLineVisible: false,
+      lastValueVisible: false
+    });
+    ma20Series.setData(bars
+      .map((bar, index) => (ma20[index] ? { time: bar.date, value: ma20[index] } : null))
+      .filter(Boolean));
+
+    chartApi.priceScale("right").applyOptions({ scaleMargins: { top: 0.08, bottom: 0.3 } });
+    chartApi.priceScale("volume").applyOptions({ scaleMargins: { top: 0.76, bottom: 0 } });
+
+    const latest = bars[bars.length - 1];
+    candleSeries.createPriceLine({
+      price: latest.close,
+      color: "#d7ff3f",
+      lineWidth: 1,
+      lineStyle: TV.LineStyle?.Dashed ?? 2,
+      axisLabelVisible: true,
+      title: "최근"
+    });
+
+    const tradeDate = payload.analysis?.run?.trade_date;
+    if (tradeDate && barByDate.has(tradeDate) && typeof TV.createSeriesMarkers === "function") {
+      TV.createSeriesMarkers(candleSeries, [
+        {
+          time: tradeDate,
+          position: "aboveBar",
+          color: "#d7ff3f",
+          shape: "circle",
+          text: "분석"
+        }
+      ]);
+    }
+
+    chartApi.subscribeCrosshairMove((param) => {
+      if (!param?.point || !param.time) {
+        updateHtmlTooltip(null);
+        drawLegend();
+        return;
+      }
+      const key = timeKey(param.time);
+      const bar = barByDate.get(key);
+      updateHtmlTooltip(bar, param.point);
+      drawLegend(bar);
+    });
+
+    const resize = () => {
+      const nextRect = chartNode.getBoundingClientRect();
+      chartApi.applyOptions({
+        width: Math.max(320, Math.floor(nextRect.width || 720)),
+        height: Math.max(260, Math.floor(nextRect.height || 420))
+      });
+      chartApi.timeScale().fitContent();
+    };
+    if ("ResizeObserver" in window) {
+      new ResizeObserver(resize).observe(chartNode);
+    } else {
+      window.addEventListener("resize", resize);
+    }
+    resize();
+    drawLegend();
+    return true;
+  }
+
+  function renderCanvasFallback() {
+    if (!canvas) return false;
+    if (fallback) fallback.hidden = true;
+    chartNode.hidden = true;
+    canvas.hidden = false;
+    const ctx = canvas.getContext("2d");
+    const priceValues = bars.flatMap((point) => [point.open, point.high, point.low, point.close]);
+    const min = Math.min(...priceValues);
+    const max = Math.max(...priceValues);
+    const maxVolume = Math.max(...bars.map((point) => point.volume), 1);
+    const pad = Math.max((max - min) * 0.12, max * 0.01, 1);
+    const yMin = min - pad;
+    const yMax = max + pad;
+    let hoverIndex = null;
+
+    function fitCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(rect.width * ratio));
+      canvas.height = Math.max(1, Math.floor(rect.height * ratio));
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      return rect;
+    }
+
+    function xAt(index, width, left, right) {
+      if (bars.length === 1) return left;
+      return left + (index / (bars.length - 1)) * (width - left - right);
+    }
+
+    function yAt(value, top, bottom) {
+      return top + ((yMax - value) / (yMax - yMin)) * (bottom - top);
+    }
+
+    function drawLine(values, width, left, right, top, bottom, color, dash = []) {
+      ctx.beginPath();
+      let started = false;
+      values.forEach((value, index) => {
+        if (!Number.isFinite(value)) return;
+        const x = xAt(index, width, left, right);
+        const y = yAt(value, top, bottom);
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else {
+          ctx.lineTo(x, y);
+        }
+      });
+      if (!started) return;
       ctx.save();
-      ctx.strokeStyle = "rgba(246, 243, 232, 0.32)";
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(hoverX, top);
-      ctx.lineTo(hoverX, volumeBottom);
+      ctx.setLineDash(dash);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
       ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = "#f6f3e8";
-      ctx.beginPath();
-      ctx.arc(hoverX, hoverY, 4, 0, Math.PI * 2);
-      ctx.fill();
       ctx.restore();
     }
 
-    ctx.fillStyle = "rgba(246, 243, 232, 0.68)";
-    ctx.textBaseline = "alphabetic";
-    ctx.fillText(dates[0], left, height - 12);
-    ctx.textAlign = "right";
-    ctx.fillText(dates[dates.length - 1], width - right, height - 12);
-    ctx.textAlign = "left";
+    function chartLayout(width, height) {
+      const left = width < 520 ? 48 : 62;
+      const right = width < 520 ? 12 : 24;
+      const top = 34;
+      const bottom = 42;
+      const volumeHeight = Math.min(92, Math.max(52, height * 0.22));
+      const priceBottom = height - bottom - volumeHeight - 18;
+      const volumeTop = priceBottom + 12;
+      const volumeBottom = height - bottom;
+      const slot = (width - left - right) / Math.max(bars.length - 1, 1);
+      const candleWidth = Math.max(3, Math.min(12, slot * 0.58));
+      return { left, right, top, bottom, volumeHeight, priceBottom, volumeTop, volumeBottom, slot, candleWidth };
+    }
+
+    function nearestIndex(mouseX, width, left, right) {
+      const span = Math.max(1, width - left - right);
+      const ratio = Math.min(1, Math.max(0, (mouseX - left) / span));
+      return Math.min(bars.length - 1, Math.max(0, Math.round(ratio * (bars.length - 1))));
+    }
+
+    function updateCanvasTooltip(index, rect, layout) {
+      if (index === null || index === undefined) {
+        updateHtmlTooltip(null);
+        return;
+      }
+      const bar = bars[index];
+      const x = xAt(index, rect.width, layout.left, layout.right);
+      updateHtmlTooltip(bar, { x, y: 18 });
+    }
+
+    function draw() {
+      const rect = fitCanvas();
+      const width = rect.width;
+      const height = rect.height;
+      const layout = chartLayout(width, height);
+      const { left, right, top, priceBottom, volumeTop, volumeBottom, candleWidth } = layout;
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#111711";
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.strokeStyle = "rgba(246, 243, 232, 0.13)";
+      ctx.lineWidth = 1;
+      ctx.fillStyle = "rgba(246, 243, 232, 0.68)";
+      ctx.font = '12px Geist, "Geist Fallback", "Noto Sans KR", "Noto Sans KR Fallback", -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+      ctx.textBaseline = "middle";
+
+      for (let i = 0; i <= 4; i += 1) {
+        const y = top + (i / 4) * (priceBottom - top);
+        const value = yMax - (i / 4) * (yMax - yMin);
+        ctx.beginPath();
+        ctx.moveTo(left, y);
+        ctx.lineTo(width - right, y);
+        ctx.stroke();
+        ctx.fillText(money.format(value), 0, y);
+      }
+
+      ctx.strokeStyle = "rgba(246, 243, 232, 0.16)";
+      ctx.beginPath();
+      ctx.moveTo(left, volumeTop);
+      ctx.lineTo(width - right, volumeTop);
+      ctx.stroke();
+
+      bars.forEach((bar, index) => {
+        const x = xAt(index, width, left, right);
+        const isUp = bar.close >= bar.open;
+        const color = isUp ? "#ff6b4d" : "#6da4ff";
+        const volumeY = volumeBottom - (bar.volume / maxVolume) * (volumeBottom - volumeTop);
+        ctx.fillStyle = isUp ? "rgba(255, 107, 77, 0.22)" : "rgba(109, 164, 255, 0.2)";
+        ctx.fillRect(x - candleWidth / 2, volumeY, candleWidth, Math.max(1, volumeBottom - volumeY));
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 1.2;
+        const highY = yAt(bar.high, top, priceBottom);
+        const lowY = yAt(bar.low, top, priceBottom);
+        const openY = yAt(bar.open, top, priceBottom);
+        const closeY = yAt(bar.close, top, priceBottom);
+        ctx.beginPath();
+        ctx.moveTo(x, highY);
+        ctx.lineTo(x, lowY);
+        ctx.stroke();
+        const bodyTop = Math.min(openY, closeY);
+        const bodyHeight = Math.max(1.5, Math.abs(closeY - openY));
+        ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+      });
+
+      drawLine(closes, width, left, right, top, priceBottom, "rgba(143, 216, 189, 0.9)");
+      drawLine(ma5, width, left, right, top, priceBottom, "#d7ff3f");
+      drawLine(ma20, width, left, right, top, priceBottom, "#c79a3a", [4, 4]);
+
+      const lastClose = closes[closes.length - 1];
+      const lastX = xAt(bars.length - 1, width, left, right);
+      const lastY = yAt(lastClose, top, priceBottom);
+      ctx.fillStyle = "#d7ff3f";
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (hoverIndex !== null) {
+        const hovered = bars[hoverIndex];
+        const hoverX = xAt(hoverIndex, width, left, right);
+        const hoverY = yAt(hovered.close, top, priceBottom);
+        ctx.save();
+        ctx.strokeStyle = "rgba(246, 243, 232, 0.32)";
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(hoverX, top);
+        ctx.lineTo(hoverX, volumeBottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#f6f3e8";
+        ctx.beginPath();
+        ctx.arc(hoverX, hoverY, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      ctx.fillStyle = "rgba(246, 243, 232, 0.68)";
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(dates[0], left, height - 12);
+      ctx.textAlign = "right";
+      ctx.fillText(dates[dates.length - 1], width - right, height - 12);
+      ctx.textAlign = "left";
+      drawLegend();
+    }
+
+    draw();
+    window.addEventListener("resize", draw);
+    canvas.addEventListener("pointermove", (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const layout = chartLayout(rect.width, rect.height);
+      hoverIndex = nearestIndex(event.clientX - rect.left, rect.width, layout.left, layout.right);
+      updateCanvasTooltip(hoverIndex, rect, layout);
+      draw();
+    });
+    canvas.addEventListener("pointerleave", () => {
+      hoverIndex = null;
+      updateHtmlTooltip(null);
+      draw();
+    });
     drawLegend();
+    return true;
   }
 
-  draw();
-  window.addEventListener("resize", draw);
-  canvas.addEventListener("pointermove", (event) => {
-    const rect = canvas.getBoundingClientRect();
-    const layout = chartLayout(rect.width, rect.height);
-    hoverIndex = nearestIndex(event.clientX - rect.left, rect.width, layout.left, layout.right);
-    updateTooltip(hoverIndex, rect, layout);
-    draw();
-  });
-  canvas.addEventListener("pointerleave", () => {
-    hoverIndex = null;
-    updateTooltip(null);
-    draw();
-  });
+  try {
+    if (renderTradingViewChart()) return;
+  } catch (error) {
+    // Keep the public page usable if the external chart library is blocked.
+  }
+  renderCanvasFallback();
 })();
 """
 

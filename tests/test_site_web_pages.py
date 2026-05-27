@@ -134,9 +134,15 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "TradingAgents Korea" in html
     assert "삼성전자" in html
     assert "priceChart" in html
+    assert "priceChartCanvas" in html
     assert "chartLegend" in html
     assert "chartTooltip" in html
     assert "chart-tab" in html
+    assert "chart-interval-tabs" in html
+    assert "lightweight-charts@5.2.0" in html
+    assert "CandlestickSeries" in html
+    assert "HistogramSeries" in html
+    assert "createSeriesMarkers" in html
     assert "stock-hero-stack" in html
     assert "stock-signal-card" in html
     assert "stock-flow-strip" in html
@@ -157,6 +163,10 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "분석 요청" in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section"' in html
     assert "1개월" in html
+    assert "1일" in html
+    assert "1분" in html
+    assert "60분" in html
+    assert "분봉 데이터 소스 연결 후 제공" in html
     assert "KRX 14D" in html
     assert "pykrx / 2개 거래일 표시 / auto 요청에서 pykrx 사용" in html
     assert "차트 데이터 기준" in html
@@ -174,8 +184,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "<dt>기준일</dt>" in html
     assert "<dt>평가일</dt>" in html
     assert "movingAverage" in html
-    assert "상승 빨강" in html
-    assert "하락 파랑" in html
+    assert "TradingView" in html
     assert "한국형 투자 렌즈" in html
     assert "안전 가드레일" in html
     assert "리포트 이후 결과" in html
