@@ -6,8 +6,10 @@ from tradingagents.execution import (
     KISConfig,
     KoreaTradingRules,
     PaperBroker,
+    PaperSimulationConfig,
     RiskLimits,
     SignalPolicy,
+    simulate_single_position,
     signal_from_decision,
 )
 from tradingagents.execution.models import OrderSide
@@ -135,6 +137,41 @@ def test_krw_backtest_applies_sell_side_transaction_tax():
     assert len(result.fills) == 2
     assert result.fills[1].transaction_tax == pytest.approx(72_000 * 35 * 0.002)
     assert result.final_equity == pytest.approx(10_064_960)
+
+
+def test_single_position_simulator_enters_and_exits_on_take_profit():
+    signal = signal_from_decision("005930", "Rating: Buy")
+    result = simulate_single_position(
+        signal,
+        [
+            {"date": "2026-05-05", "close": 70_000},
+            {"date": "2026-05-06", "close": 73_000},
+            {"date": "2026-05-07", "close": 76_000},
+        ],
+        config=PaperSimulationConfig(slippage_bps=0),
+    )
+
+    assert result.status == "closed"
+    assert result.entry_date == "2026-05-05"
+    assert result.exit_date == "2026-05-07"
+    assert result.exit_reason == "take_profit"
+    assert [event["side"] for event in result.events] == ["buy", "sell"]
+    assert result.events[0]["quantity"] == 35
+    assert result.trade_return == pytest.approx(76_000 / 70_000 - 1)
+    assert result.final_equity == pytest.approx(10_204_680)
+
+
+def test_single_position_simulator_skips_hold_signal():
+    result = simulate_single_position(
+        signal_from_decision("005930", "Rating: Hold"),
+        [
+            {"date": "2026-05-05", "close": 70_000},
+            {"date": "2026-05-06", "close": 71_000},
+        ],
+    )
+
+    assert result.status == "skipped"
+    assert result.message == "signal_did_not_open_position"
 
 
 def test_korean_trading_rules_tick_and_limit_prices():

@@ -187,6 +187,14 @@ def render_public_stock_page(
           {analysis_source_html}
           {confidence_html}
         </section>
+
+        <section id="stock-simulation-section" class="simulation-panel" aria-labelledby="simulation-title">
+          <p class="eyebrow">AI 모의투자</p>
+          <h2 id="simulation-title">가상 매매</h2>
+          <div id="simulationPreview" class="simulation-preview" data-simulation-url="/api/simulations/preview/{_h(model["code"])}">
+            <span class="status-pill">확인 중</span>
+          </div>
+        </section>
       </aside>
     </section>
 
@@ -4689,6 +4697,7 @@ h3 {
 
 .chart-panel,
 .analysis-panel,
+.simulation-panel,
 .report-section,
 .notice-strip,
 .metric-grid article,
@@ -5188,7 +5197,8 @@ h3 {
   font-weight: 900;
 }
 
-.analysis-panel {
+.analysis-panel,
+.simulation-panel {
   padding: 18px;
 }
 
@@ -5246,6 +5256,61 @@ h3 {
   margin-bottom: 0;
   color: var(--muted);
   line-height: 1.6;
+}
+
+.simulation-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.simulation-panel h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.simulation-preview {
+  display: grid;
+  gap: 10px;
+  min-height: 92px;
+}
+
+.simulation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--line);
+}
+
+.simulation-grid div {
+  min-width: 0;
+  padding: 10px;
+  background: var(--surface);
+}
+
+.simulation-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.simulation-grid strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.simulation-preview p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .report-section {
@@ -7727,6 +7792,7 @@ h3 {
   }
 
   .metric-grid,
+  .simulation-grid,
   .lens-grid,
   .outcome-grid,
   .report-grid,
@@ -9234,6 +9300,7 @@ button:disabled {
 .market-page .asof,
 .market-page .chart-caption,
 .market-page .analysis-panel p,
+.market-page .simulation-preview p,
 .market-page .report-card p,
 .market-page .analysis-feed-card p,
 .market-page .analysis-feed-card small,
@@ -9251,6 +9318,7 @@ button:disabled {
 .market-page .decision-box,
 .market-page .chart-panel,
 .market-page .analysis-panel,
+.market-page .simulation-panel,
 .market-page .report-section,
 .market-page .metric-grid article,
 .market-page .report-card,
@@ -9438,6 +9506,23 @@ button:disabled {
 .market-page .analysis-confidence-panel p,
 .market-page .analysis-confidence-panel ul {
   color: var(--home-muted-readable, rgba(246, 243, 232, 0.74));
+}
+
+.market-page .simulation-grid {
+  border-color: rgba(246, 243, 232, 0.13);
+  background: rgba(246, 243, 232, 0.13);
+}
+
+.market-page .simulation-grid div {
+  background: rgba(9, 13, 11, 0.42);
+}
+
+.market-page .simulation-grid span {
+  color: rgba(198, 221, 192, 0.74);
+}
+
+.market-page .simulation-grid strong {
+  color: var(--home-ink);
 }
 
 .market-page .chart-tab:hover,
@@ -11484,12 +11569,90 @@ PAGE_JS = """
     return true;
   }
 
+  let chartRendered = false;
   try {
-    if (renderTradingViewChart()) return;
+    chartRendered = renderTradingViewChart();
   } catch (error) {
     // Keep the public page usable if the external chart library is blocked.
   }
-  renderCanvasFallback();
+  if (!chartRendered) renderCanvasFallback();
+
+  const simulationNode = document.getElementById("simulationPreview");
+  if (simulationNode) {
+    loadSimulationPreview(simulationNode);
+  }
+
+  function pct(value) {
+    if (!Number.isFinite(value)) return "-";
+    return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(2)}%`;
+  }
+
+  function simulationLabel(value) {
+    const labels = {
+      take_profit: "익절",
+      stop_loss: "손절",
+      max_holding_days: "기간 만료",
+      latest_close: "최근가",
+      no_completed_analysis: "리포트 필요",
+      no_decision: "의견 없음",
+      insufficient_price_data: "가격 부족",
+      not_configured: "준비 중",
+      skipped: "대기",
+      open: "보유 중",
+      closed: "청산"
+    };
+    return labels[value] || String(value || "-");
+  }
+
+  function renderSimulationState(node, payload) {
+    const status = payload?.status || "unavailable";
+    const simulation = payload?.simulation || {};
+    if (status !== "available") {
+      const pill = document.createElement("span");
+      pill.className = "status-pill";
+      pill.textContent = simulationLabel(status);
+      const copy = document.createElement("p");
+      copy.textContent = status === "no_completed_analysis"
+        ? "완료 리포트가 생기면 가상 매매 결과를 표시합니다."
+        : "모의투자 결과를 아직 만들 수 없습니다.";
+      node.replaceChildren(pill, copy);
+      return;
+    }
+
+    const pill = document.createElement("span");
+    pill.className = "status-pill";
+    pill.textContent = simulationLabel(simulation.status);
+    const grid = document.createElement("div");
+    grid.className = "simulation-grid";
+    const rows = [
+      ["매수", simulation.entry_date || "-"],
+      ["매도", simulation.exit_date || "-"],
+      ["수익률", pct(Number(simulation.portfolio_return))],
+      ["기준", simulationLabel(simulation.exit_reason || simulation.message)]
+    ];
+    rows.forEach(([label, value]) => {
+      const cell = document.createElement("div");
+      const name = document.createElement("span");
+      name.textContent = label;
+      const metric = document.createElement("strong");
+      metric.textContent = value;
+      cell.replaceChildren(name, metric);
+      grid.append(cell);
+    });
+    node.replaceChildren(pill, grid);
+  }
+
+  async function loadSimulationPreview(node) {
+    const url = node.dataset.simulationUrl;
+    if (!url) return;
+    try {
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error("simulation_preview_failed");
+      renderSimulationState(node, await response.json());
+    } catch (error) {
+      renderSimulationState(node, { status: "not_configured" });
+    }
+  }
 })();
 """
 

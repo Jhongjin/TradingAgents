@@ -146,6 +146,11 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "stock-hero-stack" in html
     assert "stock-signal-card" in html
     assert "stock-flow-strip" in html
+    assert "stock-simulation-section" in html
+    assert "simulationPreview" in html
+    assert 'data-simulation-url="/api/simulations/preview/005930"' in html
+    assert "loadSimulationPreview" in html
+    assert "AI 모의투자" in html
     assert "필요한 정보만 바로 보기" not in html
     assert "가격, AI, 리포트, 결과 기록으로 바로 이동합니다" not in html
     assert "주문 기능은 없습니다" in html

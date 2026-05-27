@@ -76,6 +76,35 @@ def _seed_public_analysis(repo: StorageRepository) -> None:
     repo.complete_analysis_run(run_id)
 
 
+def _seed_public_buy_analysis(repo: StorageRepository) -> str:
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+        )
+    )
+    repo.add_agent_report(
+        AgentReportInput(
+            analysis_run_id=run_id,
+            role="market",
+            content="market report",
+        )
+    )
+    repo.record_trade_decision(
+        TradeDecisionInput(
+            analysis_run_id=run_id,
+            rating="Buy",
+            action="buy",
+            raw_decision="Rating: Buy",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+    return run_id
+
+
 def test_api_app_serves_public_stock_payload(monkeypatch):
     repo = _repo()
     _seed_public_analysis(repo)
@@ -107,6 +136,51 @@ def test_api_app_serves_public_stock_payload(monkeypatch):
     assert body["ticker"]["code"] == "005930"
     assert body["analysis"]["status"] == "available"
     assert body["chart"]["points"][0]["close"] == 70500.0
+
+
+def test_api_app_serves_public_simulation_preview(monkeypatch):
+    repo = _repo()
+    run_id = _seed_public_buy_analysis(repo)
+    fake_stock = MagicMock()
+    fake_stock.get_market_ohlcv_by_date.return_value = pd.DataFrame(
+        {
+            "시가": [70_000, 73_000, 76_000],
+            "고가": [71_000, 74_000, 77_000],
+            "저가": [69_000, 72_000, 75_000],
+            "종가": [70_000, 73_000, 76_000],
+            "거래량": [1000, 1100, 1200],
+        },
+        index=[pd.Timestamp("2026-05-05"), pd.Timestamp("2026-05-06"), pd.Timestamp("2026-05-07")],
+    )
+    monkeypatch.setattr(pykrx_vendor, "_get_pykrx_stock_module", lambda: fake_stock)
+
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, public_cache_seconds=60))
+    response = client.get(
+        "/api/simulations/preview/005930",
+        params={"as_of_date": "2026-05-07", "slippage_bps": 0},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=120"
+    body = response.json()
+    assert body["status"] == "available"
+    assert body["execution_boundary"] == "simulation_only_no_orders"
+    assert body["analysis_run_id"] == run_id
+    assert body["decision"]["rating"] == "Buy"
+    assert body["simulation"]["status"] == "closed"
+    assert body["simulation"]["exit_reason"] == "take_profit"
+    assert body["simulation"]["events"][0]["side"] == "buy"
+    assert body["simulation"]["events"][1]["side"] == "sell"
+    assert "실제 주문" in body["notices"][0]
+
+
+def test_api_app_simulation_preview_degrades_without_analysis():
+    client = TestClient(create_app(repo=_repo(), load_repo_from_env=False))
+
+    response = client.get("/api/simulations/preview/005930")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "no_completed_analysis"
 
 
 def test_api_app_hides_operator_routes_from_openapi(monkeypatch):

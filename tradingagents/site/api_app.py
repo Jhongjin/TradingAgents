@@ -35,6 +35,7 @@ from .market_api import build_latest_prices_payload
 from .portfolio_api import build_manual_portfolio_list_payload, build_manual_portfolio_payload, normalize_portfolio_ticker
 from .public_api import build_public_stock_payload
 from .seo import build_ads_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
+from .simulation_api import build_public_simulation_preview_payload
 from .ticker_api import build_ticker_search_payload
 from .watchlist_api import build_watchlist_list_payload, build_watchlist_payload
 from .web_pages import (
@@ -181,6 +182,12 @@ def create_app(
             response.headers.setdefault("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
         elif request.url.path == "/api/tickers/search":
             response.headers.setdefault("Cache-Control", "public, max-age=300, stale-while-revalidate=600")
+        elif request.url.path.startswith("/api/simulations/"):
+            seconds = request.app.state.public_cache_seconds
+            response.headers.setdefault(
+                "Cache-Control",
+                f"public, max-age={seconds}, stale-while-revalidate={seconds * 2}",
+            )
         elif request.url.path == "/api/readiness":
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif request.url.path.startswith("/api/member/"):
@@ -455,6 +462,33 @@ def create_app(
                 include_chart=include_chart,
                 include_analysis=include_analysis,
                 max_analysis_age_days=max_analysis_age_days,
+            )
+        except (VendorUnavailableError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/simulations/preview/{ticker}")
+    def simulation_preview(
+        ticker: str,
+        request: Request,
+        as_of_date: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None,
+        chart_vendor: str | None = None,
+        initial_cash: Annotated[float, Query(gt=0, le=1_000_000_000)] = 10_000_000.0,
+        take_profit_pct: Annotated[float, Query(gt=0, le=1)] = 0.08,
+        stop_loss_pct: Annotated[float, Query(gt=0, le=1)] = 0.05,
+        max_holding_days: Annotated[int, Query(ge=1, le=120)] = 20,
+        slippage_bps: Annotated[float, Query(ge=0, le=100)] = 3.0,
+    ) -> dict:
+        try:
+            return build_public_simulation_preview_payload(
+                request.app.state.repository,
+                ticker=ticker,
+                as_of_date=as_of_date,
+                chart_vendor=chart_vendor,
+                initial_cash=initial_cash,
+                take_profit_pct=take_profit_pct,
+                stop_loss_pct=stop_loss_pct,
+                max_holding_days=max_holding_days,
+                slippage_bps=slippage_bps,
             )
         except (VendorUnavailableError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

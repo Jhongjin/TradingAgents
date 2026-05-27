@@ -12,6 +12,7 @@ from .models import Fill, OrderIntent, OrderSide, TradeSignal
 from .paper_broker import PaperBroker
 from .portfolio import Portfolio, Position
 from .risk import RiskLimits, RiskManager
+from .simulator import PaperSimulationConfig, PaperSimulationResult, simulate_single_position
 from .signals import SignalPolicy, signal_from_decision
 
 __all__ = [
@@ -23,6 +24,8 @@ __all__ = [
     "OrderIntent",
     "OrderSide",
     "PaperBroker",
+    "PaperSimulationConfig",
+    "PaperSimulationResult",
     "Portfolio",
     "Position",
     "RiskLimits",
@@ -30,4 +33,5 @@ __all__ = [
     "SignalPolicy",
     "TradeSignal",
     "signal_from_decision",
+    "simulate_single_position",
 ]
