@@ -365,14 +365,14 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "paperSimulationList" in html
     assert "/api/member/paper-simulations" in html
     assert "member-admin-card" in html
-    assert "data-admin-token-visible hidden" in html
+    assert "data-admin-token-visible hidden" not in html
     assert "운영자 콘솔" in html
-    assert "readiness와 처리 대기열을 점검합니다." in html
-    assert "adminTokenItems" in html
+    assert "토큰 입력 후 상태 점검, 분석 처리, AI 모의투자를 실행합니다." in html
+    assert "adminTokenItems" not in html
     assert "운영 열기" in html
-    assert 'class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영</a>' in html
+    assert 'class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>' in html
     assert 'storageGet("tradingagents.admin.worker_token")' in html
-    assert 'node.hidden = !(storageGet("tradingagents.admin.worker_token") || window.location.pathname === "/admin")' in html
+    assert 'node.hidden = !(signedIn || storageGet("tradingagents.admin.worker_token") || window.location.pathname === "/admin")' in html
     assert 'href="/analyses">리포트 열기</a>' in html
     assert 'data-member-jump="portfolio"' in html
     assert 'data-member-tab="portfolio"' in html
@@ -573,7 +573,7 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     html = render_admin_console_page(site_base_url="https://example.com")
 
     assert "관리자 콘솔" in html
-    assert 'aria-current="page">운영</a>' in html
+    assert 'aria-current="page">운영 콘솔</a>' in html
     assert 'href="/outcomes">결과 기록</a>' in html
     assert "admin-health-strip" in html
     assert "admin-workflow-strip" in html

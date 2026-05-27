@@ -97,7 +97,7 @@ def render_public_stock_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
     <form class="ticker-search" action="/stocks" method="get">
       <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
@@ -283,7 +283,7 @@ def render_public_analysis_feed_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -422,7 +422,7 @@ def render_public_outcomes_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -559,7 +559,7 @@ def render_public_analysis_detail_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -673,7 +673,7 @@ def render_public_home_page(
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -1085,7 +1085,7 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -1374,7 +1374,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -1501,7 +1501,7 @@ def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -1590,7 +1590,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <a href="/outcomes">결과 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden aria-current="page">운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden aria-current="page">운영 콘솔</a>
     </nav>
   </header>
 
@@ -1816,7 +1816,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
-      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영</a>
+      <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>
     </nav>
   </header>
 
@@ -1988,10 +1988,10 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <small>완료된 분석을 기준으로 가상 진입과 청산 기록을 확인합니다.</small>
               <button class="ghost-button" type="button" data-member-jump="paper">AI 모의 열기</button>
             </article>
-            <article class="member-home-card member-admin-card" data-admin-token-visible hidden>
+            <article class="member-home-card member-admin-card">
               <span>06</span>
               <strong>운영자 콘솔</strong>
-              <small>readiness와 처리 대기열을 점검합니다.</small>
+              <small>토큰 입력 후 상태 점검, 분석 처리, AI 모의투자를 실행합니다.</small>
               <a class="ghost-button member-admin-link" href="/admin">운영 열기</a>
             </article>
           </div>
@@ -10795,7 +10795,7 @@ PAGE_JS = """
     "/member": "로그인",
     "/member?mode=signup": "가입",
     "/mypage": "내 공간",
-    "/admin": "운영"
+    "/admin": "운영 콘솔"
   };
 
   function memberStorageGet(key) {
@@ -10846,7 +10846,8 @@ PAGE_JS = """
       memberStorageGet(memberAccessTokenKey)
       || memberStorageGet(memberRefreshTokenKey)
     );
-    const adminVisible = Boolean(memberStorageGet("tradingagents.admin.worker_token"))
+    const adminVisible = signedIn
+      || Boolean(memberStorageGet("tradingagents.admin.worker_token"))
       || window.location.pathname === "/admin";
     document.querySelectorAll('[data-auth-visible="signed-out"]').forEach((node) => {
       node.hidden = signedIn;
@@ -12385,7 +12386,7 @@ MEMBER_PAGE_JS = """
     "/member": "로그인",
     "/member?mode=signup": "가입",
     "/mypage": "내 공간",
-    "/admin": "운영"
+    "/admin": "운영 콘솔"
   };
   const memberSearchParams = new URLSearchParams(window.location.search);
   const requestedAuthMode = memberSearchParams.get("mode");
@@ -12399,7 +12400,6 @@ MEMBER_PAGE_JS = """
   const signedOutNavItems = Array.from(document.querySelectorAll('[data-auth-visible="signed-out"]'));
   const signedInNavItems = Array.from(document.querySelectorAll('[data-auth-visible="signed-in"]'));
   const adminNavItems = Array.from(document.querySelectorAll('[data-auth-visible="admin"]'));
-  const adminTokenItems = Array.from(document.querySelectorAll("[data-admin-token-visible]"));
   const sessionKeys = [accessTokenKey, refreshTokenKey, expiresAtKey, userEmailKey, userIdKey];
 
   function storageAreaGet(area, key) {
@@ -12590,10 +12590,7 @@ MEMBER_PAGE_JS = """
       node.hidden = !signedIn;
     });
     adminNavItems.forEach((node) => {
-      node.hidden = !(storageGet("tradingagents.admin.worker_token") || window.location.pathname === "/admin");
-    });
-    adminTokenItems.forEach((node) => {
-      node.hidden = !storageGet("tradingagents.admin.worker_token");
+      node.hidden = !(signedIn || storageGet("tradingagents.admin.worker_token") || window.location.pathname === "/admin");
     });
     syncMemberTopNavigationState(signedIn);
   }
