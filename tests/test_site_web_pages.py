@@ -340,7 +340,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "세션을 확인하고 있습니다" in html
     assert "세션 확인" in html
     assert "member-tab-strip" in html
-    assert "grid-template-columns: repeat(4, minmax(0, 1fr));" in html
+    assert "grid-template-columns: repeat(5, minmax(0, 1fr));" in html
     assert 'role="tablist"' in html
     assert 'data-member-tab="home"' in html
     assert 'id="member-home-section"' in html
@@ -357,6 +357,13 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "매매 메모를 정리해보세요" in html
     assert "공개 리포트 확인" in html
     assert "member-report-card" in html
+    assert "member-paper-card" in html
+    assert "AI 모의투자" in html
+    assert 'data-member-tab="paper"' in html
+    assert 'id="paper-simulation-section"' in html
+    assert "가상 매매 기록" in html
+    assert "paperSimulationList" in html
+    assert "/api/member/paper-simulations" in html
     assert "member-admin-card" in html
     assert "data-admin-token-visible hidden" in html
     assert "운영자 콘솔" in html
@@ -374,6 +381,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'data-member-panel="watchlist"' in html
     assert "memberOverview" in html
     assert "memberOverviewActiveRequests" in html
+    assert "memberOverviewPaperSimulations" in html
     assert "새 포트폴리오" in html
     assert "먼저 기록을 묶을 포트폴리오 이름을 만듭니다." in html
     assert 'aria-label="종목코드 또는 종목명"' in html
@@ -420,6 +428,9 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "setFormControlsDisabled" in html
     assert "dashboardStatusMeta" in html
     assert "빈 작업공간을 불러왔습니다" in html
+    assert "아직 AI 모의투자 기록이 없습니다" in html
+    assert "renderPaperSimulations" in html
+    assert "paperSimulationCard" in html
     assert "아직 포트폴리오 기록이 없습니다" in html
     assert "아직 관심목록이 없습니다" in html
     assert "완료 후 공개 리포트 링크를 보여줍니다." in html
@@ -573,6 +584,12 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     assert "adminRecentPanel" in html
     assert "adminRequestsPanel" in html
     assert "adminOutcomesPanel" in html
+    assert "adminPaperSimulationPanel" in html
+    assert "adminPaperSimulationOutput" in html
+    assert "data-admin-action=\"paper-dry-run\"" in html
+    assert "data-admin-action=\"paper-process\"" in html
+    assert "/api/admin/paper-simulations/process" in html
+    assert "AI 모의 후보" in html
     assert "admin-action-panel" in html
     assert "data-admin-ops-summary" in html
     assert ".admin-ops-panel [data-admin-ops-summary]" in html
@@ -706,6 +723,10 @@ def test_api_app_serves_admin_ops_summary(monkeypatch):
     assert payload["outcomes"]["recent_unavailable"][0]["error"] == "return_data_unavailable"
     assert payload["outcomes"]["pending_sample_count"] == 1
     assert payload["outcomes"]["unavailable_sample_count"] == 1
+    assert payload["paper_simulations"]["candidate_sample_count"] == 0
+    assert payload["paper_simulations"]["open_count"] == 0
+    assert payload["paper_simulations"]["closed_count"] == 0
+    assert payload["inspect_paths"]["paper_simulations"] == "/api/admin/paper-simulations/process"
     assert payload["inspect_paths"]["public_outcomes"] == "/api/analysis-outcomes"
 
 

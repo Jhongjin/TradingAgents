@@ -1748,6 +1748,29 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
         </div>
         <pre id="adminOutcomesOutput">대기 중</pre>
       </article>
+
+      <article class="admin-card">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">AI 모의투자</p>
+            <h2>모의 기록 처리</h2>
+          </div>
+          <span class="status-pill">가상 체결</span>
+        </div>
+        <label class="admin-number-field">처리 건수 <input id="adminPaperSimulationLimit" type="number" min="1" max="50" value="10"></label>
+        <div class="button-row">
+          <button type="button" data-admin-action="paper-dry-run">미리 보기</button>
+          <button type="button" data-admin-action="paper-process">처리 실행</button>
+        </div>
+        <div class="admin-action-panel" id="adminPaperSimulationPanel" aria-live="polite">
+          <div class="action-cell is-waiting">
+            <span>AI 모의</span>
+            <strong>대기</strong>
+            <small>완료 분석을 가상 진입·청산 기록으로 저장합니다.</small>
+          </div>
+        </div>
+        <pre id="adminPaperSimulationOutput">대기 중</pre>
+      </article>
     </section>
   </main>
 
@@ -1885,6 +1908,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <a id="portfolio-tab" href="#portfolio-section" role="tab" data-member-tab="portfolio" aria-controls="portfolio-section" aria-selected="false">포트폴리오 <span id="portfolioTabCount">0</span></a>
         <a id="watchlist-tab" href="#watchlist-section" role="tab" data-member-tab="watchlist" aria-controls="watchlist-section" aria-selected="false">관심종목 <span id="watchlistTabCount">0</span></a>
         <a id="analysis-tab" href="#analysis-request-section" role="tab" data-member-tab="analysis" aria-controls="analysis-request-section" aria-selected="false">분석 요청 <span id="analysisTabCount">0</span></a>
+        <a id="paper-simulation-tab" href="#paper-simulation-section" role="tab" data-member-tab="paper" aria-controls="paper-simulation-section" aria-selected="false">AI 모의 <span id="paperSimulationTabCount">0</span></a>
       </nav>
 
       <section class="member-grid" aria-label="회원 기능">
@@ -1917,6 +1941,11 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <span>리포트</span>
               <strong id="memberOverviewCompletedReports">0</strong>
               <small>완료 리포트</small>
+            </article>
+            <article>
+              <span>AI 모의</span>
+              <strong id="memberOverviewPaperSimulations">0</strong>
+              <small>가상 기록</small>
             </article>
           </section>
           <p class="member-home-state-note" id="memberHomeStateNote" aria-live="polite">로그인되면 빈 상태와 다음 행동을 이곳에 정리합니다.</p>
@@ -1953,8 +1982,14 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <small>매수·매도 내역, 수수료, 세금, 목표가를 주문 연결 없이 수동으로 남깁니다.</small>
               <button class="ghost-button" type="button" data-member-jump="portfolio">포트폴리오 열기</button>
             </article>
-            <article class="member-home-card member-admin-card" data-admin-token-visible hidden>
+            <article class="member-home-card member-paper-card">
               <span>05</span>
+              <strong>AI 모의투자</strong>
+              <small>완료된 분석을 기준으로 가상 진입과 청산 기록을 확인합니다.</small>
+              <button class="ghost-button" type="button" data-member-jump="paper">AI 모의 열기</button>
+            </article>
+            <article class="member-home-card member-admin-card" data-admin-token-visible hidden>
+              <span>06</span>
               <strong>운영자 콘솔</strong>
               <small>readiness와 처리 대기열을 점검합니다.</small>
               <a class="ghost-button member-admin-link" href="/admin">운영 열기</a>
@@ -2062,6 +2097,18 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <button type="submit">요청</button>
           </form>
           <div class="member-list" id="analysisRequestList"></div>
+        </section>
+
+        <section class="member-panel" id="paper-simulation-section" role="tabpanel" data-member-panel="paper" aria-labelledby="paper-simulation-tab" hidden>
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">AI 모의투자</p>
+              <h2>가상 매매 기록</h2>
+              <p class="panel-copy">AI 분석을 기준으로 만든 가상 진입·청산 기록입니다.</p>
+            </div>
+            <span class="status-pill">주문 없음</span>
+          </div>
+          <div class="member-list" id="paperSimulationList"></div>
         </section>
       </section>
     </section>
@@ -6660,7 +6707,7 @@ h3 {
 
 .member-overview-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 1px;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -6812,7 +6859,8 @@ h3 {
 }
 
 .member-admin-card,
-.member-report-card {
+.member-report-card,
+.member-paper-card {
   border-left-color: var(--home-celadon);
 }
 
@@ -10423,7 +10471,7 @@ button:disabled {
 
 .admin-ops-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1px;
   overflow: hidden;
   border: 1px solid rgba(246, 243, 232, 0.14);
@@ -10528,7 +10576,7 @@ button:disabled {
 
 .member-tab-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   margin: 0 0 16px;
   padding: 8px;
@@ -11671,10 +11719,13 @@ ADMIN_PAGE_JS = """
   const recentPanel = document.getElementById("adminRecentPanel");
   const requestsOutput = document.getElementById("adminRequestsOutput");
   const outcomesOutput = document.getElementById("adminOutcomesOutput");
+  const paperSimulationOutput = document.getElementById("adminPaperSimulationOutput");
   const requestsPanel = document.getElementById("adminRequestsPanel");
   const outcomesPanel = document.getElementById("adminOutcomesPanel");
+  const paperSimulationPanel = document.getElementById("adminPaperSimulationPanel");
   const requestLimit = document.getElementById("adminRequestLimit");
   const outcomeLimit = document.getElementById("adminOutcomeLimit");
+  const paperSimulationLimit = document.getElementById("adminPaperSimulationLimit");
   const probeKrx = document.getElementById("adminProbeKrx");
   const probeVendors = document.getElementById("adminProbeVendors");
 
@@ -11843,6 +11894,13 @@ ADMIN_PAGE_JS = """
     return `${ticker || item.id || "run"} / ${item.trade_date || "-"} / ${item.status || "-"}`;
   }
 
+  function paperCandidateLabel(item) {
+    if (!item) return "항목 없음";
+    const ticker = [item.ticker_name, item.ticker_code].filter(Boolean).join(" ");
+    const decision = [item.decision_rating, item.decision_action].filter(Boolean).join("/");
+    return `${ticker || item.analysis_run_id || "run"} / ${item.trade_date || "-"} / ${decision || "AI"}`;
+  }
+
   function renderRecentList(title, label, items, formatter) {
     const section = document.createElement("section");
     section.className = "admin-recent-list";
@@ -11900,6 +11958,7 @@ ADMIN_PAGE_JS = """
     const counts = requests.counts || {};
     const recent = requests.recent || {};
     const outcomes = payload?.outcomes || {};
+    const paper = payload?.paper_simulations || {};
     const limits = payload?.limits || {};
     const fragment = document.createDocumentFragment();
     opsSummary.textContent = "";
@@ -11908,11 +11967,13 @@ ADMIN_PAGE_JS = """
     const failed = Number(requests.failed_count || 0);
     const candidates = Array.isArray(outcomes.candidate_runs) ? outcomes.candidate_runs.length : 0;
     const completedOutcomes = Array.isArray(outcomes.recent_completed) ? outcomes.recent_completed.length : 0;
+    const paperCandidates = Array.isArray(paper.candidate_runs) ? paper.candidate_runs.length : 0;
     appendOpsCell(fragment, "처리 중 요청", String(active), `대기 ${counts.queued || 0} · 처리 중 ${counts.running || 0}`, active ? "is-warn" : "is-ok");
     appendOpsCell(fragment, "완료", String(counts.completed || 0), "완료된 분석 요청 누적", "is-ok");
     appendOpsCell(fragment, "실패", String(failed), "최근 실패 목록은 아래에서 확인", failed ? "is-error" : "is-ok");
     appendOpsCell(fragment, "기록 후보", String(candidates), `미리 보기 제한 ${limits.outcome_worker_max || "-"}`, candidates ? "is-warn" : "is-ok");
     appendOpsCell(fragment, "최근 기록", String(completedOutcomes), `대기 샘플 ${outcomes.pending_sample_count || 0} · 데이터 없음 샘플 ${outcomes.unavailable_sample_count || 0}`, "is-ok");
+    appendOpsCell(fragment, "AI 모의 후보", String(paperCandidates), `보유 ${paper.open_count || 0} · 청산 ${paper.closed_count || 0}`, paperCandidates ? "is-warn" : "is-ok");
     opsSummary.appendChild(fragment);
 
     if (recentPanel) {
@@ -11922,6 +11983,7 @@ ADMIN_PAGE_JS = """
       recentPanel.appendChild(renderRecentList("기록 후보", "결과 기록", outcomes.candidate_runs || [], runLabel));
       recentPanel.appendChild(renderRecentList("최근 완료 기록", "결과", outcomes.recent_completed || [], outcomeLabel));
       recentPanel.appendChild(renderRecentList("보류/데이터 없음", "확인 필요", [...(outcomes.recent_pending || []), ...(outcomes.recent_unavailable || [])], outcomeIssueLabel));
+      recentPanel.appendChild(renderRecentList("AI 모의 후보", "모의투자", paper.candidate_runs || [], paperCandidateLabel));
     }
   }
 
@@ -11941,11 +12003,24 @@ ADMIN_PAGE_JS = """
     panel.appendChild(fragment);
   }
 
-  function renderAdminActionSummary(panel, payload, isOutcome, isDryRun) {
+  function renderAdminActionSummary(panel, payload, isOutcome, isDryRun, isPaper = false) {
     if (!panel) return;
     panel.textContent = "";
     const fragment = document.createDocumentFragment();
-    if (isOutcome) {
+    if (isPaper) {
+      if (isDryRun || payload?.status === "dry_run") {
+        const rows = Array.isArray(payload?.items) ? payload.items : [];
+        appendActionCell(fragment, "모의 후보", String(payload?.item_count || rows.length || 0), "완료된 회원 분석 중 아직 기록되지 않은 항목입니다.", rows.length ? "is-warn" : "is-ok");
+        appendActionCell(fragment, "실행 경계", "가상", "일봉 종가 기준 모의 기록만 저장합니다.", "is-ok");
+      } else {
+        const summary = payload?.summary || {};
+        const results = Array.isArray(payload?.results) ? payload.results : [];
+        appendActionCell(fragment, "처리 결과", String(payload?.item_count || results.length || 0), "AI 모의투자 worker 실행 결과입니다.", "is-ok");
+        appendActionCell(fragment, "생성", String(summary.created_count || 0), `평균 수익률 ${percentLabel(summary.average_realized_return)}`, "is-ok");
+        appendActionCell(fragment, "보류", String(summary.unavailable_count || 0), "가격 데이터가 부족한 항목입니다.", summary.unavailable_count ? "is-warn" : "is-ok");
+        appendActionCell(fragment, "실패", String(summary.failed_count || 0), actionErrorNote(results), summary.failed_count ? "is-error" : "is-ok");
+      }
+    } else if (isOutcome) {
       const horizons = Array.isArray(payload?.horizons) && payload.horizons.length
         ? payload.horizons.map((value) => `${value}D`).join(" / ")
         : "5D / 20D";
@@ -12181,15 +12256,22 @@ ADMIN_PAGE_JS = """
   async function runAdminAction(action, button) {
     const isDryRun = action.endsWith("dry-run");
     const isOutcome = action.startsWith("outcomes");
-    const output = isOutcome ? outcomesOutput : requestsOutput;
-    const summaryPanel = isOutcome ? outcomesPanel : requestsPanel;
+    const isPaper = action.startsWith("paper");
+    const output = isPaper ? paperSimulationOutput : isOutcome ? outcomesOutput : requestsOutput;
+    const summaryPanel = isPaper ? paperSimulationPanel : isOutcome ? outcomesPanel : requestsPanel;
     const originalLabel = button.dataset.originalLabel || button.textContent;
     button.dataset.originalLabel = originalLabel;
-    const limit = Math.max(1, Number((isOutcome ? outcomeLimit : requestLimit)?.value || 1));
-    const path = isOutcome ? "/api/admin/analysis-outcomes/process" : "/api/admin/analysis-requests/process";
+    const limitControl = isPaper ? paperSimulationLimit : isOutcome ? outcomeLimit : requestLimit;
+    const limit = Math.max(1, Number(limitControl?.value || 1));
+    const path = isPaper
+      ? "/api/admin/paper-simulations/process"
+      : isOutcome
+        ? "/api/admin/analysis-outcomes/process"
+        : "/api/admin/analysis-requests/process";
     const body = isOutcome
       ? { limit, dry_run: isDryRun, horizons: [5, 20] }
       : { limit, dry_run: isDryRun };
+    const actionLabel = isPaper ? "AI 모의투자" : isOutcome ? "결과 기록" : "분석 요청";
     if (!isDryRun && button.dataset.confirmed !== "true") {
       button.dataset.confirmed = "true";
       button.textContent = "확인 후 실행";
@@ -12205,16 +12287,16 @@ ADMIN_PAGE_JS = """
     try {
       setBusy(button, true);
       setOutput(output, isDryRun ? "미리 보기 확인 중" : "처리 요청 중");
-      renderActionSummaryPending(summaryPanel, isOutcome ? "결과 기록" : "분석 요청", isDryRun ? "처리 대상을 확인하고 있습니다." : "worker 실행 결과를 기다리고 있습니다.");
+      renderActionSummaryPending(summaryPanel, actionLabel, isDryRun ? "처리 대상을 확인하고 있습니다." : "worker 실행 결과를 기다리고 있습니다.");
       const payload = await fetchJson(path, { method: "POST", body: JSON.stringify(body) }, true);
-      renderAdminActionSummary(summaryPanel, payload, isOutcome, isDryRun);
+      renderAdminActionSummary(summaryPanel, payload, isOutcome, isDryRun, isPaper);
       setOutput(output, payload);
       button.dataset.confirmed = "false";
       button.textContent = originalLabel;
       if (opsButton && !opsButton.disabled) opsButton.click();
     } catch (error) {
       const message = error.message || "관리 작업 실패";
-      renderActionSummaryError(summaryPanel, isOutcome ? "결과 기록" : "분석 요청", message);
+      renderActionSummaryError(summaryPanel, actionLabel, message);
       setOutput(output, message);
     } finally {
       if (!isDryRun) {
@@ -12257,6 +12339,7 @@ MEMBER_PAGE_JS = """
   const portfolioList = document.getElementById("portfolioList");
   const watchlistList = document.getElementById("watchlistList");
   const analysisRequestList = document.getElementById("analysisRequestList");
+  const paperSimulationList = document.getElementById("paperSimulationList");
   const memberTabLinks = Array.from(document.querySelectorAll("[data-member-tab]"));
   const memberPanels = Array.from(document.querySelectorAll("[data-member-panel]"));
   const memberJumpButtons = Array.from(document.querySelectorAll("[data-member-jump]"));
@@ -12264,10 +12347,12 @@ MEMBER_PAGE_JS = """
   const portfolioTabCount = document.getElementById("portfolioTabCount");
   const watchlistTabCount = document.getElementById("watchlistTabCount");
   const analysisTabCount = document.getElementById("analysisTabCount");
+  const paperSimulationTabCount = document.getElementById("paperSimulationTabCount");
   const overviewPortfolios = document.getElementById("memberOverviewPortfolios");
   const overviewWatchlists = document.getElementById("memberOverviewWatchlists");
   const overviewActiveRequests = document.getElementById("memberOverviewActiveRequests");
   const overviewCompletedReports = document.getElementById("memberOverviewCompletedReports");
+  const overviewPaperSimulations = document.getElementById("memberOverviewPaperSimulations");
   const memberHomeStateNote = document.getElementById("memberHomeStateNote");
   const memberPrimaryAction = document.getElementById("memberPrimaryAction");
   const memberPrimaryActionTitle = document.getElementById("memberPrimaryActionTitle");
@@ -12289,7 +12374,8 @@ MEMBER_PAGE_JS = """
     home: "#member-home-section",
     portfolio: "#portfolio-section",
     watchlist: "#watchlist-section",
-    analysis: "#analysis-request-section"
+    analysis: "#analysis-request-section",
+    paper: "#paper-simulation-section"
   };
   const memberTopNavLabels = {
     "/features": "서비스",
@@ -13228,6 +13314,61 @@ MEMBER_PAGE_JS = """
     return node;
   }
 
+  function paperStatusLabel(status) {
+    return {
+      open: "보유 중",
+      closed: "청산"
+    }[status] || status || "대기";
+  }
+
+  function exitReasonLabel(reason) {
+    return {
+      take_profit: "익절",
+      stop_loss: "손절",
+      max_holding_days: "기간 종료",
+      latest_close: "최근 종가"
+    }[reason] || reason || "-";
+  }
+
+  function decisionLabel(row) {
+    return [row.decision_rating, row.decision_action].filter(Boolean).join(" / ") || "AI";
+  }
+
+  function paperSimulationLines(row) {
+    const lines = [];
+    if (row.entry_date) lines.push(`진입 ${shortDate(row.entry_date)} @ ${money(row.entry_price)}`);
+    if (row.exit_date) lines.push(`청산 ${shortDate(row.exit_date)} @ ${money(row.exit_price)} / ${exitReasonLabel(row.exit_reason)}`);
+    if (row.target_price || row.stop_price) {
+      lines.push(`익절 ${money(row.target_price)} / 손절 ${money(row.stop_price)}`);
+    }
+    if (row.metadata?.price_basis) lines.push(`가격 기준 ${row.metadata.price_basis}`);
+    return lines;
+  }
+
+  function paperSimulationCard(row) {
+    const title = `${row.ticker_name || row.ticker_code || "한국 종목"} ${row.ticker_code || ""}`.trim();
+    const status = row.status || "open";
+    const node = document.createElement("article");
+    node.className = "member-item paper-simulation-card";
+    const meta = `${row.market || "KR"} / ${paperStatusLabel(status)} / ${decisionLabel(row)}`;
+    const actions = document.createElement("div");
+    actions.className = "analysis-request-actions";
+    if (row.stock_path) actions.append(inlineLink("종목", row.stock_path));
+    if (row.report_path) actions.append(inlineLink("리포트", row.report_path));
+    node.append(
+      cardHeader(title, meta, paperStatusLabel(status)),
+      metricGrid([
+        ["진입", money(row.entry_price), shortDate(row.entry_date)],
+        ["청산", row.exit_price ? money(row.exit_price) : "-", row.exit_date ? shortDate(row.exit_date) : "진행 중"],
+        ["손익", signedMoney(row.realized_pnl), signedPercent(row.realized_return)],
+        ["이유", exitReasonLabel(row.exit_reason), "가상 규칙"]
+      ]),
+      miniList(paperSimulationLines(row), "모의투자 상세 대기", "기록")
+    );
+    if (actions.childElementCount) node.append(actions);
+    return node;
+  }
+
   function fillSelect(select, rows, labelKey, emptyLabel = "항목을 먼저 추가하세요") {
     if (!select) return;
     if (!rows.length) {
@@ -13324,14 +13465,47 @@ MEMBER_PAGE_JS = """
     );
   }
 
+  function renderPaperSimulations(payload, error = "") {
+    if (!paperSimulationList) return;
+    if (error) {
+      paperSimulationList.replaceChildren(emptyNode(`AI 모의투자를 불러오지 못했습니다: ${error}`));
+      return;
+    }
+    const rows = payload.positions || [];
+    const summary = payload.summary || {};
+    const overview = metricGrid([
+      ["보유 중", `${summary.open_count || 0}건`, "가상 포지션"],
+      ["청산", `${summary.closed_count || 0}건`, "완료 기록"],
+      ["승률", summary.win_rate === null || summary.win_rate === undefined ? "-" : signedPercent(summary.win_rate).replace("+", ""), "청산 기준"],
+      ["누적 손익", signedMoney(summary.total_realized_pnl), "가상 손익"]
+    ]);
+    overview.classList.add("paper-simulation-overview");
+    paperSimulationList.replaceChildren(
+      overview,
+      ...(rows.length ? rows.map((row) => paperSimulationCard(row)) : [
+        emptyActionNode(
+          "아직 AI 모의투자 기록이 없습니다",
+          "분석 요청이 완료되면 가상 진입과 청산 기록이 이곳에 쌓입니다.",
+          "분석 요청 열기",
+          () => activateMemberTab("analysis")
+        )
+      ])
+    );
+  }
+
   function setText(node, value) {
     if (node) node.textContent = String(value);
   }
 
-  function dashboardStatusMeta(portfoliosPayload = {}, watchlistsPayload = {}, requestsPayload = {}) {
+  function paperPositionCount(paperPayload = {}) {
+    return (paperPayload.positions || []).length;
+  }
+
+  function dashboardStatusMeta(portfoliosPayload = {}, watchlistsPayload = {}, requestsPayload = {}, paperPayload = {}) {
     const portfolioCount = (portfoliosPayload.items || []).length;
     const watchlistCount = (watchlistsPayload.items || []).length;
     const requestRows = requestsPayload.items || [];
+    const paperCount = paperPositionCount(paperPayload);
     const summary = requestsPayload.summary || {};
     const activeCount = summary.active_count ?? requestRows.filter((row) => row.is_active).length;
     const completedCount = summary.completed_count ?? requestRows.filter((row) => row.status === "completed").length;
@@ -13340,6 +13514,7 @@ MEMBER_PAGE_JS = """
     if (watchlistCount) parts.push(`관심목록 ${watchlistCount}개`);
     if (activeCount) parts.push(`진행 중 요청 ${activeCount}건`);
     if (completedCount) parts.push(`완료 리포트 ${completedCount}건`);
+    if (paperCount) parts.push(`AI 모의 ${paperCount}건`);
     if (!parts.length) {
       return "빈 작업공간을 불러왔습니다. 관심목록, 수동 기록, 분석 요청 중 하나부터 시작할 수 있습니다.";
     }
@@ -13360,30 +13535,40 @@ MEMBER_PAGE_JS = """
     }
   }
 
-  function updateMemberOverview(portfoliosPayload = {}, watchlistsPayload = {}, requestsPayload = {}) {
+  function updateMemberOverview(portfoliosPayload = {}, watchlistsPayload = {}, requestsPayload = {}, paperPayload = {}) {
     const portfolioCount = (portfoliosPayload.items || []).length;
     const watchlistCount = (watchlistsPayload.items || []).length;
     const requestRows = requestsPayload.items || [];
+    const paperCount = paperPositionCount(paperPayload);
     const summary = requestsPayload.summary || {};
     const activeCount = summary.active_count ?? requestRows.filter((row) => row.is_active).length;
     const completedCount = summary.completed_count ?? requestRows.filter((row) => row.status === "completed").length;
-    const savedCount = portfolioCount + watchlistCount + requestRows.length;
+    const savedCount = portfolioCount + watchlistCount + requestRows.length + paperCount;
     const homeStatus = activeCount ? `진행 ${activeCount}` : completedCount ? `완료 ${completedCount}` : savedCount ? "정리됨" : "비어 있음";
     setText(memberHomeStatus, homeStatus);
     setText(portfolioTabCount, portfolioCount);
     setText(watchlistTabCount, watchlistCount);
     setText(analysisTabCount, activeCount);
+    setText(paperSimulationTabCount, paperCount);
     setText(overviewPortfolios, portfolioCount);
     setText(overviewWatchlists, watchlistCount);
     setText(overviewActiveRequests, activeCount);
     setText(overviewCompletedReports, completedCount);
-    setMemberHomeNote(dashboardStatusMeta(portfoliosPayload, watchlistsPayload, requestsPayload));
+    setText(overviewPaperSimulations, paperCount);
+    setMemberHomeNote(dashboardStatusMeta(portfoliosPayload, watchlistsPayload, requestsPayload, paperPayload));
     if (activeCount) {
       setMemberPrimaryAction(
         "analysis",
         "진행 중인 분석을 확인하세요",
         "대기열 위치와 처리 상태를 확인하세요.",
         "요청 상태 보기"
+      );
+    } else if (paperCount) {
+      setMemberPrimaryAction(
+        "paper",
+        "AI 모의투자 기록을 확인하세요",
+        "가상 진입과 청산 이유를 리포트와 이어서 볼 수 있습니다.",
+        "AI 모의 보기"
       );
     } else if (!watchlistCount) {
       setMemberPrimaryAction(
@@ -13449,10 +13634,12 @@ MEMBER_PAGE_JS = """
     const portfolios = payload?.portfolios || { items: [] };
     const watchlists = payload?.watchlists || { items: [] };
     const requests = payload?.analysis_requests || { items: [] };
+    const paperSimulations = payload?.paper_simulations || { positions: [] };
     updateMemberOverview(
       portfolios,
       watchlists,
-      requests
+      requests,
+      paperSimulations
     );
     renderPortfolios(
       portfolios,
@@ -13468,13 +13655,17 @@ MEMBER_PAGE_JS = """
       requests,
       errorText(errors, "analysis_requests")
     );
+    renderPaperSimulations(
+      paperSimulations,
+      errorText(errors, "paper_simulations")
+    );
     const errorCount = flattenErrorCount(errors);
     const status = payload?.status || (errorCount ? "partial" : "available");
     if (status === "available" && !errorCount) {
       setSignedInState(true, {
         label: "대시보드 준비 완료",
         user: userLabel,
-        meta: dashboardStatusMeta(portfolios, watchlists, requests)
+        meta: dashboardStatusMeta(portfolios, watchlists, requests, paperSimulations)
       });
       setStatus("대시보드 준비 완료");
       return;
@@ -13524,14 +13715,16 @@ MEMBER_PAGE_JS = """
   }
 
   async function loadLegacyMemberData(dashboardError = "") {
-    const [portfoliosResult, watchlistsResult, requestsResult] = await Promise.all([
+    const [portfoliosResult, watchlistsResult, requestsResult, paperResult] = await Promise.all([
       safeMemberApi("/api/portfolios"),
       safeMemberApi("/api/watchlists"),
-      safeMemberApi("/api/analysis-requests?limit=20")
+      safeMemberApi("/api/analysis-requests?limit=20"),
+      safeMemberApi("/api/member/paper-simulations?limit=20")
     ]);
     const portfolios = portfoliosResult.payload || { items: [] };
     const watchlists = watchlistsResult.payload || { items: [] };
     const requests = requestsResult.payload || { items: [] };
+    const paperSimulations = paperResult.payload || { positions: [] };
     const [portfolioDetails, watchlistDetails] = await Promise.all([
       portfoliosResult.ok
         ? detailMap((portfolios.items || []).slice(0, 6), (row) => `/api/portfolio/${encodeURIComponent(row.id)}?include_latest_prices=true`)
@@ -13543,8 +13736,9 @@ MEMBER_PAGE_JS = """
     renderPortfolios(portfolios, portfolioDetails, portfoliosResult.error);
     renderWatchlists(watchlists, watchlistDetails, watchlistsResult.error);
     renderAnalysisRequests(requests, requestsResult.error);
-    updateMemberOverview(portfolios, watchlists, requests);
-    const errors = [portfoliosResult, watchlistsResult, requestsResult].filter((result) => !result.ok).length
+    renderPaperSimulations(paperSimulations, paperResult.error);
+    updateMemberOverview(portfolios, watchlists, requests, paperSimulations);
+    const errors = [portfoliosResult, watchlistsResult, requestsResult, paperResult].filter((result) => !result.ok).length
       + (dashboardError ? 1 : 0);
     const userLabel = storageGet(userEmailKey) || storageGet(userIdKey) || "회원 세션";
     if (errors) {
@@ -13552,7 +13746,8 @@ MEMBER_PAGE_JS = """
         dashboardError ? `dashboard: ${dashboardError}` : "",
         portfoliosResult.ok ? "" : `portfolios: ${portfoliosResult.error}`,
         watchlistsResult.ok ? "" : `watchlists: ${watchlistsResult.error}`,
-        requestsResult.ok ? "" : `analysis_requests: ${requestsResult.error}`
+        requestsResult.ok ? "" : `analysis_requests: ${requestsResult.error}`,
+        paperResult.ok ? "" : `paper_simulations: ${paperResult.error}`
       ].filter(Boolean).join(" / ");
       setSignedInState(true, {
         label: "기본 화면으로 표시 중",
@@ -13566,7 +13761,7 @@ MEMBER_PAGE_JS = """
     setSignedInState(true, {
       label: "기본 화면 준비 완료",
       user: userLabel,
-      meta: dashboardStatusMeta(portfolios, watchlists, requests)
+      meta: dashboardStatusMeta(portfolios, watchlists, requests, paperSimulations)
     });
     setStatus("대시보드 준비 완료");
   }
@@ -13658,7 +13853,8 @@ MEMBER_PAGE_JS = """
     portfolioList?.replaceChildren(emptyNode("로그인 후 포트폴리오가 표시됩니다"));
     watchlistList?.replaceChildren(emptyNode("로그인 후 관심목록이 표시됩니다"));
     analysisRequestList?.replaceChildren(emptyNode("로그인 후 분석 요청이 표시됩니다"));
-    updateMemberOverview({ items: [] }, { items: [] }, { items: [] });
+    paperSimulationList?.replaceChildren(emptyNode("로그인 후 AI 모의투자가 표시됩니다"));
+    updateMemberOverview({ items: [] }, { items: [] }, { items: [] }, { positions: [] });
     setStatus("로그아웃됨");
   });
 

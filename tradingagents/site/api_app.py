@@ -32,6 +32,7 @@ from .analysis_api import (
 )
 from .auth import SUPABASE_API_KEY_ENV_NAMES, SUPABASE_URL_ENV_NAMES, resolve_member_user_id
 from .market_api import build_latest_prices_payload
+from .paper_simulation_api import build_member_paper_simulation_payload
 from .portfolio_api import build_manual_portfolio_list_payload, build_manual_portfolio_payload, normalize_portfolio_ticker
 from .public_api import build_public_stock_payload
 from .seo import build_ads_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
@@ -67,6 +68,12 @@ class OutcomeWorkerRequestBody(BaseModel):
     limit: int = Field(default=20, ge=1)
     horizons: list[int] = Field(default_factory=lambda: [5, 20])
     dry_run: bool = False
+
+
+class PaperSimulationWorkerRequestBody(BaseModel):
+    limit: int = Field(default=20, ge=1)
+    dry_run: bool = False
+    as_of_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
 class ManualPortfolioCreateBody(BaseModel):
@@ -617,6 +624,26 @@ def create_app(
             max_list_limit=request.app.state.max_analysis_feed_limit,
         )
 
+    @app.get("/api/member/paper-simulations")
+    def member_paper_simulations(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+        limit: int = 20,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        try:
+            return build_member_paper_simulation_payload(
+                repo,
+                user_id=user_id,
+                limit=limit,
+                max_limit=request.app.state.max_analysis_feed_limit,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.get("/api/portfolios")
     def member_manual_portfolios(
         request: Request,
@@ -878,6 +905,41 @@ def create_app(
         _require_worker_token(request, x_tradingagents_worker_token)
         return _process_analysis_outcomes(repo, limit=_outcome_cron_worker_limit(), horizons=[5, 20])
 
+    @app.post("/api/admin/paper-simulations/process", include_in_schema=False)
+    def process_paper_simulations_admin(
+        body: PaperSimulationWorkerRequestBody,
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        _require_worker_token(request, x_tradingagents_worker_token)
+        max_limit = _max_paper_simulation_worker_limit()
+        if body.limit > max_limit:
+            raise HTTPException(status_code=400, detail=f"limit cannot exceed {max_limit}")
+        if body.dry_run:
+            candidates = repo.list_paper_simulation_candidates(limit=body.limit)
+            return {
+                "status": "dry_run",
+                "item_count": len(candidates),
+                "mode": "paper_simulation",
+                "execution_boundary": "simulation_only_no_orders",
+                "items": [_admin_paper_candidate_preview(row) for row in candidates],
+            }
+        return _process_paper_simulations(repo, limit=body.limit, as_of_date=body.as_of_date)
+
+    @app.get("/api/cron/process-paper-simulations", include_in_schema=False)
+    def process_paper_simulations_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _process_paper_simulations(repo, limit=_paper_simulation_cron_worker_limit())
+
     @app.post("/api/watchlists")
     def create_manual_watchlist(
         body: WatchlistCreateBody,
@@ -1104,6 +1166,9 @@ def _admin_ops_summary(repo: StorageRepository) -> dict[str, object]:
     recent_outcomes = repo.list_analysis_outcomes(status="completed", limit=5, public_only=True)
     pending_outcomes = repo.list_analysis_outcomes(status="pending", limit=5, public_only=True)
     unavailable_outcomes = repo.list_analysis_outcomes(status="unavailable", limit=5, public_only=True)
+    paper_candidates = repo.list_paper_simulation_candidates(limit=5)
+    open_paper_count = repo.count_paper_simulation_positions(statuses=("open",))
+    closed_paper_count = repo.count_paper_simulation_positions(statuses=("closed",))
     return {
         "status": "available",
         "analysis_requests": {
@@ -1120,15 +1185,24 @@ def _admin_ops_summary(repo: StorageRepository) -> dict[str, object]:
             "pending_sample_count": len(pending_outcomes),
             "unavailable_sample_count": len(unavailable_outcomes),
         },
+        "paper_simulations": {
+            "candidate_runs": [_admin_paper_candidate_preview(row) for row in paper_candidates],
+            "open_count": open_paper_count,
+            "closed_count": closed_paper_count,
+            "candidate_sample_count": len(paper_candidates),
+        },
         "limits": {
             "analysis_worker_max": _max_worker_limit(),
             "outcome_worker_max": _max_outcome_worker_limit(),
+            "paper_simulation_worker_max": _max_paper_simulation_worker_limit(),
             "analysis_cron_limit": _cron_worker_limit(),
             "outcome_cron_limit": _outcome_cron_worker_limit(),
+            "paper_simulation_cron_limit": _paper_simulation_cron_worker_limit(),
         },
         "inspect_paths": {
             "analysis_requests": "/api/admin/analysis-requests/process",
             "outcomes": "/api/admin/analysis-outcomes/process",
+            "paper_simulations": "/api/admin/paper-simulations/process",
             "public_outcomes": "/api/analysis-outcomes",
         },
     }
@@ -1183,6 +1257,23 @@ def _admin_outcome_preview(row: dict[str, Any]) -> dict[str, object]:
     }
 
 
+def _admin_paper_candidate_preview(row: dict[str, Any]) -> dict[str, object]:
+    run_id = str(row.get("analysis_run_id") or "")
+    return {
+        "analysis_run_id": run_id,
+        "analysis_request_id": str(row.get("analysis_request_id") or "") or None,
+        "user_id": str(row.get("user_id") or "") or None,
+        "ticker_code": row.get("ticker_code"),
+        "ticker_name": row.get("ticker_name"),
+        "market": row.get("market"),
+        "trade_date": row.get("trade_date"),
+        "decision_rating": row.get("decision_rating"),
+        "decision_action": row.get("decision_action"),
+        "target_weight": row.get("target_weight"),
+        "report_path": f"/analyses/{run_id}" if run_id else None,
+    }
+
+
 def _process_analysis_request_queue(repo: StorageRepository, *, limit: int) -> dict:
     from .analysis_runner import run_tradingagents_graph_for_request
     from .analysis_worker import process_queued_analysis_requests
@@ -1212,6 +1303,21 @@ def _process_analysis_outcomes(repo: StorageRepository, *, limit: int, horizons:
         "horizons": horizons,
         "summary": summarize_analysis_outcome_results(results),
         "inspect_path": "/api/analysis-outcomes",
+        "results": [result.__dict__ for result in results],
+    }
+
+
+def _process_paper_simulations(repo: StorageRepository, *, limit: int, as_of_date: str | None = None) -> dict:
+    from .paper_simulation_worker import process_paper_simulation_candidates, summarize_paper_simulation_results
+
+    results = process_paper_simulation_candidates(repo, limit=limit, as_of_date=as_of_date)
+    return {
+        "status": "processed",
+        "mode": "paper_simulation",
+        "execution_boundary": "simulation_only_no_orders",
+        "item_count": len(results),
+        "summary": summarize_paper_simulation_results(results),
+        "inspect_path": "/api/member/paper-simulations",
         "results": [result.__dict__ for result in results],
     }
 
@@ -1758,6 +1864,7 @@ def _member_dashboard_payload(
     watchlists: dict = {"status": "unavailable", "limit": list_limit, "items": [], "item_count": 0}
     watchlist_details: dict[str, dict] = {}
     analysis_requests: dict = {"status": "unavailable", "limit": list_limit, "items": [], "item_count": 0}
+    paper_simulations: dict = {"status": "unavailable", "limit": list_limit, "positions": [], "item_count": 0}
 
     try:
         portfolios = build_manual_portfolio_list_payload(
@@ -1833,6 +1940,16 @@ def _member_dashboard_payload(
     except Exception as exc:
         errors["analysis_requests"] = _safe_error_name(exc)
 
+    try:
+        paper_simulations = build_member_paper_simulation_payload(
+            repo,
+            user_id=user_id,
+            limit=list_limit,
+            max_limit=max_list_limit,
+        )
+    except Exception as exc:
+        errors["paper_simulations"] = _safe_error_name(exc)
+
     return {
         "status": "partial" if errors else "available",
         "member": {"user_id": user_id},
@@ -1841,6 +1958,7 @@ def _member_dashboard_payload(
         "watchlists": watchlists,
         "watchlist_details": watchlist_details,
         "analysis_requests": analysis_requests,
+        "paper_simulations": paper_simulations,
         "errors": errors,
     }
 
@@ -1869,6 +1987,13 @@ def _max_outcome_worker_limit() -> int:
     return raw
 
 
+def _max_paper_simulation_worker_limit() -> int:
+    raw = int(os.getenv("TRADINGAGENTS_PAPER_SIMULATION_WORKER_MAX_RUNS", "20"))
+    if raw <= 0:
+        raise ValueError("TRADINGAGENTS_PAPER_SIMULATION_WORKER_MAX_RUNS must be positive")
+    return raw
+
+
 def _cron_worker_limit() -> int:
     raw = int(os.getenv("TRADINGAGENTS_WORKER_CRON_LIMIT", str(_max_worker_limit())))
     max_limit = _max_worker_limit()
@@ -1886,6 +2011,16 @@ def _outcome_cron_worker_limit() -> int:
         raise ValueError("TRADINGAGENTS_OUTCOME_WORKER_CRON_LIMIT must be positive")
     if raw > max_limit:
         raise HTTPException(status_code=400, detail=f"outcome cron limit cannot exceed {max_limit}")
+    return raw
+
+
+def _paper_simulation_cron_worker_limit() -> int:
+    max_limit = _max_paper_simulation_worker_limit()
+    raw = int(os.getenv("TRADINGAGENTS_PAPER_SIMULATION_WORKER_CRON_LIMIT", str(min(5, max_limit))))
+    if raw <= 0:
+        raise ValueError("TRADINGAGENTS_PAPER_SIMULATION_WORKER_CRON_LIMIT must be positive")
+    if raw > max_limit:
+        raise HTTPException(status_code=400, detail=f"paper simulation cron limit cannot exceed {max_limit}")
     return raw
 
 

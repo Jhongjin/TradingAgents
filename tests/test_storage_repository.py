@@ -9,6 +9,9 @@ from tradingagents.storage import (
     AnalysisRequestInput,
     AnalysisRunInput,
     ManualTradeInput,
+    PaperSimulationAccountInput,
+    PaperSimulationEventInput,
+    PaperSimulationPositionInput,
     StorageRepository,
     TradeDecisionInput,
     create_storage_engine,
@@ -544,6 +547,92 @@ def test_storage_repository_manages_manual_watchlists():
     assert items[0]["ticker_name"] == "삼성전자"
     assert items[0]["market"] == "KOSPI"
     assert items[0]["memo"] == "updated memo"
+
+
+def test_storage_repository_manages_paper_simulation_records():
+    repo = _repo()
+    request_id = repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="005930",
+            requested_trade_date=date(2026, 5, 5),
+        )
+    )
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            user_id=USER_ID,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+        )
+    )
+    repo.record_trade_decision(
+        TradeDecisionInput(
+            analysis_run_id=run_id,
+            rating="Buy",
+            action="buy",
+            target_weight=0.2,
+        )
+    )
+    repo.complete_analysis_run(run_id)
+    repo.update_analysis_request_status(request_id, status="completed", analysis_run_id=run_id)
+
+    candidates = repo.list_paper_simulation_candidates()
+    account = repo.ensure_paper_simulation_account(PaperSimulationAccountInput(user_id=USER_ID))
+    same_account = repo.ensure_paper_simulation_account(PaperSimulationAccountInput(user_id=USER_ID))
+    position_id = repo.record_paper_simulation_position(
+        PaperSimulationPositionInput(
+            account_id=account["id"],
+            user_id=USER_ID,
+            analysis_run_id=run_id,
+            analysis_request_id=request_id,
+            ticker_code="005930",
+            status="closed",
+            quantity=10,
+            entry_date=date(2026, 5, 5),
+            entry_price=Decimal("70000"),
+            average_price=Decimal("70000"),
+            exit_date=date(2026, 5, 7),
+            exit_price=Decimal("76000"),
+            realized_pnl=Decimal("60000"),
+            realized_return=0.0857,
+            decision_rating="Buy",
+            decision_action="buy",
+            target_weight=0.2,
+        )
+    )
+    event_id = repo.add_paper_simulation_event(
+        PaperSimulationEventInput(
+            account_id=account["id"],
+            position_id=position_id,
+            user_id=USER_ID,
+            analysis_run_id=run_id,
+            event_type="entry",
+            side="buy",
+            event_date=date(2026, 5, 5),
+            ticker_code="005930",
+            price=Decimal("70000"),
+            quantity=10,
+            notional=Decimal("700000"),
+            reason="buy",
+        )
+    )
+
+    positions = repo.list_paper_simulation_positions(user_id=USER_ID)
+    events = repo.list_paper_simulation_events(user_id=USER_ID)
+
+    assert candidates[0]["analysis_run_id"] == run_id
+    assert candidates[0]["analysis_request_id"] == request_id
+    assert same_account["id"] == account["id"]
+    assert positions[0]["id"] == position_id
+    assert positions[0]["ticker_name"] == "삼성전자"
+    assert positions[0]["status"] == "closed"
+    assert repo.count_paper_simulation_positions(user_id=USER_ID, statuses=("closed",)) == 1
+    assert repo.list_paper_simulation_candidates() == []
+    assert events[0]["id"] == event_id
+    assert events[0]["event_type"] == "entry"
 
 
 def test_storage_repository_rejects_invalid_manual_trade():

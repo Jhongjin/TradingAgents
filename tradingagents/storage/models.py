@@ -93,3 +93,60 @@ class ManualTradeInput:
     tax: Decimal = Decimal("0")
     memo: str | None = None
     created_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class PaperSimulationAccountInput:
+    user_id: str
+    name: str = "AI 모의투자"
+    base_currency: str = "KRW"
+    initial_cash: Decimal = Decimal("10000000")
+    cash_balance: Decimal | None = None
+    status: str = "active"
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class PaperSimulationPositionInput:
+    account_id: str
+    user_id: str
+    ticker_code: str
+    status: str
+    quantity: int
+    ticker_name: str | None = None
+    market: str = "KR"
+    analysis_run_id: str | None = None
+    analysis_request_id: str | None = None
+    entry_date: date | None = None
+    entry_price: Decimal | None = None
+    average_price: Decimal | None = None
+    target_price: Decimal | None = None
+    stop_price: Decimal | None = None
+    exit_date: date | None = None
+    exit_price: Decimal | None = None
+    exit_reason: str | None = None
+    realized_pnl: Decimal | None = None
+    realized_return: float | None = None
+    decision_rating: str | None = None
+    decision_action: str | None = None
+    target_weight: float | None = None
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class PaperSimulationEventInput:
+    account_id: str
+    user_id: str
+    event_type: str
+    event_date: date
+    ticker_code: str
+    position_id: str | None = None
+    analysis_run_id: str | None = None
+    side: str | None = None
+    price: Decimal | None = None
+    quantity: int | None = None
+    notional: Decimal | None = None
+    commission: Decimal = Decimal("0")
+    transaction_tax: Decimal = Decimal("0")
+    reason: str | None = None
+    metadata: Mapping[str, Any] = field(default_factory=dict)

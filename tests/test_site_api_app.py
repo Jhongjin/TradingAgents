@@ -183,6 +183,63 @@ def test_api_app_simulation_preview_degrades_without_analysis():
     assert response.json()["status"] == "no_completed_analysis"
 
 
+def test_api_app_serves_member_paper_simulations(monkeypatch):
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            user_id=USER_ID,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+        )
+    )
+    repo.record_trade_decision(
+        TradeDecisionInput(
+            analysis_run_id=run_id,
+            rating="Buy",
+            action="buy",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+    fake_stock = MagicMock()
+    fake_stock.get_market_ohlcv_by_date.return_value = pd.DataFrame(
+        {
+            "시가": [70_000, 73_000, 76_000],
+            "고가": [71_000, 74_000, 77_000],
+            "저가": [69_000, 72_000, 75_000],
+            "종가": [70_000, 73_000, 76_000],
+            "거래량": [1000, 1100, 1200],
+        },
+        index=[pd.Timestamp("2026-05-05"), pd.Timestamp("2026-05-06"), pd.Timestamp("2026-05-07")],
+    )
+    monkeypatch.setattr(pykrx_vendor, "_get_pykrx_stock_module", lambda: fake_stock)
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_TOKEN", "secret")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    worker_response = client.post(
+        "/api/admin/paper-simulations/process",
+        headers={"Authorization": "Bearer secret"},
+        json={"limit": 1, "as_of_date": "2026-05-07"},
+    )
+    member_response = client.get(
+        "/api/member/paper-simulations",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+    )
+
+    assert worker_response.status_code == 200
+    assert worker_response.json()["execution_boundary"] == "simulation_only_no_orders"
+    assert worker_response.json()["summary"]["created_count"] == 1
+    assert member_response.status_code == 200
+    assert member_response.headers["cache-control"] == "private, no-store"
+    body = member_response.json()
+    assert body["status"] == "available"
+    assert body["summary"]["closed_count"] == 1
+    assert body["positions"][0]["analysis_run_id"] == run_id
+    assert body["positions"][0]["stock_path"] == "/stocks/005930"
+
+
 def test_api_app_hides_operator_routes_from_openapi(monkeypatch):
     monkeypatch.setenv("TRADINGAGENTS_API_DOCS_ENABLED", "true")
     client = TestClient(create_app(repo=None, load_repo_from_env=False))

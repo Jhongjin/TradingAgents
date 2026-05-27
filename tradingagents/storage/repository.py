@@ -20,6 +20,9 @@ from .models import (
     AnalysisRequestInput,
     AnalysisRunInput,
     ManualTradeInput,
+    PaperSimulationAccountInput,
+    PaperSimulationEventInput,
+    PaperSimulationPositionInput,
     TradeDecisionInput,
 )
 from .portfolio import ManualPosition, calculate_manual_positions
@@ -34,6 +37,9 @@ from .tables import (
     manual_watchlist_items,
     manual_watchlists,
     metadata,
+    paper_simulation_accounts,
+    paper_simulation_events,
+    paper_simulation_positions,
     trade_decisions,
 )
 
@@ -779,6 +785,243 @@ class StorageRepository:
             ).mappings().all()
         return [dict(row) for row in rows]
 
+    def get_paper_simulation_account(self, *, user_id: str, name: str = "AI 모의투자") -> dict[str, Any] | None:
+        _validate_uuid(user_id, "paper simulation user_id")
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(paper_simulation_accounts)
+                .where(
+                    paper_simulation_accounts.c.user_id == user_id,
+                    paper_simulation_accounts.c.name == name,
+                )
+                .limit(1)
+            ).mappings().first()
+        return dict(row) if row else None
+
+    def ensure_paper_simulation_account(self, data: PaperSimulationAccountInput) -> dict[str, Any]:
+        _validate_paper_simulation_account(data)
+        existing = self.get_paper_simulation_account(user_id=data.user_id, name=data.name)
+        if existing:
+            return existing
+
+        account_id = _id()
+        cash_balance = data.cash_balance if data.cash_balance is not None else data.initial_cash
+        now = datetime.now(timezone.utc)
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(paper_simulation_accounts).values(
+                    id=account_id,
+                    user_id=data.user_id,
+                    name=data.name,
+                    base_currency=data.base_currency,
+                    initial_cash=data.initial_cash,
+                    cash_balance=cash_balance,
+                    status=data.status,
+                    metadata_json=dict(data.metadata),
+                    updated_at=now,
+                )
+            )
+            row = conn.execute(
+                select(paper_simulation_accounts).where(paper_simulation_accounts.c.id == account_id)
+            ).mappings().one()
+        return dict(row)
+
+    def record_paper_simulation_position(self, data: PaperSimulationPositionInput) -> str:
+        _validate_paper_simulation_position(data)
+        ticker_code, ticker_name, market = _ticker_fields(data.ticker_code, data.ticker_name, data.market)
+        values = {
+            "account_id": data.account_id,
+            "user_id": data.user_id,
+            "analysis_run_id": data.analysis_run_id,
+            "analysis_request_id": data.analysis_request_id,
+            "ticker_code": ticker_code,
+            "ticker_name": ticker_name,
+            "market": market,
+            "status": data.status,
+            "quantity": data.quantity,
+            "entry_date": data.entry_date,
+            "entry_price": data.entry_price,
+            "average_price": data.average_price,
+            "target_price": data.target_price,
+            "stop_price": data.stop_price,
+            "exit_date": data.exit_date,
+            "exit_price": data.exit_price,
+            "exit_reason": data.exit_reason,
+            "realized_pnl": data.realized_pnl,
+            "realized_return": data.realized_return,
+            "decision_rating": data.decision_rating,
+            "decision_action": data.decision_action,
+            "target_weight": data.target_weight,
+            "metadata_json": dict(data.metadata),
+            "updated_at": datetime.now(timezone.utc),
+        }
+        with self.engine.begin() as conn:
+            existing = None
+            if data.analysis_run_id is not None:
+                existing = conn.execute(
+                    select(paper_simulation_positions.c.id)
+                    .where(
+                        paper_simulation_positions.c.user_id == data.user_id,
+                        paper_simulation_positions.c.analysis_run_id == data.analysis_run_id,
+                    )
+                    .limit(1)
+                ).scalar_one_or_none()
+            if existing:
+                conn.execute(
+                    update(paper_simulation_positions)
+                    .where(paper_simulation_positions.c.id == existing)
+                    .values(**values)
+                )
+                return str(existing)
+
+            position_id = _id()
+            conn.execute(insert(paper_simulation_positions).values(id=position_id, **values))
+            return position_id
+
+    def add_paper_simulation_event(self, data: PaperSimulationEventInput) -> str:
+        _validate_paper_simulation_event(data)
+        event_id = _id()
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(paper_simulation_events).values(
+                    id=event_id,
+                    account_id=data.account_id,
+                    position_id=data.position_id,
+                    user_id=data.user_id,
+                    analysis_run_id=data.analysis_run_id,
+                    event_type=data.event_type,
+                    side=data.side,
+                    event_date=data.event_date,
+                    ticker_code=_normalize_ticker_code(data.ticker_code),
+                    price=data.price,
+                    quantity=data.quantity,
+                    notional=data.notional,
+                    commission=data.commission,
+                    transaction_tax=data.transaction_tax,
+                    reason=data.reason,
+                    metadata_json=dict(data.metadata),
+                )
+            )
+        return event_id
+
+    def list_paper_simulation_positions(
+        self,
+        *,
+        user_id: str,
+        status: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        _validate_uuid(user_id, "paper simulation user_id")
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        if status is not None:
+            _validate_paper_position_status(status)
+        stmt = (
+            select(paper_simulation_positions)
+            .where(paper_simulation_positions.c.user_id == user_id)
+            .order_by(desc(paper_simulation_positions.c.updated_at), desc(paper_simulation_positions.c.created_at))
+            .limit(limit)
+        )
+        if status is not None:
+            stmt = stmt.where(paper_simulation_positions.c.status == status)
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+
+    def list_paper_simulation_events(
+        self,
+        *,
+        user_id: str,
+        position_id: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        _validate_uuid(user_id, "paper simulation user_id")
+        if position_id is not None:
+            _validate_uuid(position_id, "paper simulation position_id")
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        stmt = (
+            select(paper_simulation_events)
+            .where(paper_simulation_events.c.user_id == user_id)
+            .order_by(desc(paper_simulation_events.c.event_date), desc(paper_simulation_events.c.created_at))
+            .limit(limit)
+        )
+        if position_id is not None:
+            stmt = stmt.where(paper_simulation_events.c.position_id == position_id)
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+
+    def count_paper_simulation_positions(
+        self,
+        *,
+        user_id: str | None = None,
+        statuses: tuple[str, ...] | None = None,
+    ) -> int:
+        _validate_optional_uuid(user_id, "paper simulation user_id")
+        if statuses is not None:
+            if not statuses:
+                return 0
+            for status in statuses:
+                _validate_paper_position_status(status)
+        stmt = select(func.count()).select_from(paper_simulation_positions)
+        if user_id is not None:
+            stmt = stmt.where(paper_simulation_positions.c.user_id == user_id)
+        if statuses is not None:
+            stmt = stmt.where(paper_simulation_positions.c.status.in_(statuses))
+        with self.engine.begin() as conn:
+            count = conn.execute(stmt).scalar_one()
+        return int(count)
+
+    def list_paper_simulation_candidates(self, *, limit: int = 20) -> list[dict[str, Any]]:
+        """List completed member analyses that do not yet have a paper position."""
+
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        effective_user_id = func.coalesce(
+            analysis_runs.c.user_id,
+            analysis_refresh_requests.c.user_id,
+        )
+        stmt = (
+            select(
+                analysis_runs.c.id.label("analysis_run_id"),
+                analysis_runs.c.user_id.label("run_user_id"),
+                analysis_refresh_requests.c.id.label("analysis_request_id"),
+                analysis_refresh_requests.c.user_id.label("request_user_id"),
+                effective_user_id.label("user_id"),
+                analysis_runs.c.ticker_code,
+                analysis_runs.c.ticker_name,
+                analysis_runs.c.market,
+                analysis_runs.c.trade_date,
+                analysis_runs.c.visibility,
+                analysis_runs.c.status,
+                trade_decisions.c.rating.label("decision_rating"),
+                trade_decisions.c.action.label("decision_action"),
+                trade_decisions.c.target_weight,
+                trade_decisions.c.rationale,
+                trade_decisions.c.raw_decision,
+            )
+            .select_from(
+                analysis_runs
+                .join(trade_decisions, trade_decisions.c.analysis_run_id == analysis_runs.c.id)
+                .outerjoin(analysis_refresh_requests, analysis_refresh_requests.c.analysis_run_id == analysis_runs.c.id)
+                .outerjoin(
+                    paper_simulation_positions,
+                    paper_simulation_positions.c.analysis_run_id == analysis_runs.c.id,
+                )
+            )
+            .where(
+                analysis_runs.c.status == "completed",
+                paper_simulation_positions.c.id.is_(None),
+                effective_user_id.is_not(None),
+            )
+            .order_by(desc(analysis_runs.c.completed_at), desc(analysis_runs.c.created_at))
+            .limit(limit)
+        )
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+
 
 def _validate_visibility(value: str) -> None:
     if value not in {"public", "private"}:
@@ -795,6 +1038,21 @@ def _validate_analysis_outcome_status(value: str) -> None:
         raise ValueError("analysis outcome status is invalid")
 
 
+def _validate_paper_account_status(value: str) -> None:
+    if value not in {"active", "paused", "archived"}:
+        raise ValueError("paper simulation account status is invalid")
+
+
+def _validate_paper_position_status(value: str) -> None:
+    if value not in {"open", "closed"}:
+        raise ValueError("paper simulation position status is invalid")
+
+
+def _validate_paper_event_type(value: str) -> None:
+    if value not in {"entry", "exit", "note"}:
+        raise ValueError("paper simulation event type is invalid")
+
+
 def _validate_manual_trade(data: ManualTradeInput) -> None:
     _validate_uuid(data.portfolio_id, "portfolio_id")
     if data.side.lower() not in {"buy", "sell"}:
@@ -805,6 +1063,53 @@ def _validate_manual_trade(data: ManualTradeInput) -> None:
         raise ValueError("manual trade price must be positive")
     if data.fee < 0 or data.tax < 0:
         raise ValueError("manual trade fee and tax cannot be negative")
+
+
+def _validate_paper_simulation_account(data: PaperSimulationAccountInput) -> None:
+    _validate_uuid(data.user_id, "paper simulation user_id")
+    _validate_paper_account_status(data.status)
+    if not data.name.strip():
+        raise ValueError("paper simulation account name cannot be empty")
+    if data.base_currency.upper() != data.base_currency or len(data.base_currency) > 8:
+        raise ValueError("paper simulation base_currency must be uppercase")
+    if data.initial_cash <= 0:
+        raise ValueError("paper simulation initial_cash must be positive")
+    if data.cash_balance is not None and data.cash_balance < 0:
+        raise ValueError("paper simulation cash_balance cannot be negative")
+
+
+def _validate_paper_simulation_position(data: PaperSimulationPositionInput) -> None:
+    _validate_uuid(data.account_id, "paper simulation account_id")
+    _validate_uuid(data.user_id, "paper simulation user_id")
+    _validate_optional_uuid(data.analysis_run_id, "paper simulation analysis_run_id")
+    _validate_optional_uuid(data.analysis_request_id, "paper simulation analysis_request_id")
+    _validate_paper_position_status(data.status)
+    if data.quantity < 0:
+        raise ValueError("paper simulation quantity cannot be negative")
+    for field_name in ("entry_price", "average_price", "target_price", "stop_price", "exit_price"):
+        value = getattr(data, field_name)
+        if value is not None and value <= 0:
+            raise ValueError(f"paper simulation {field_name} must be positive")
+    if data.realized_pnl is not None and data.status != "closed":
+        raise ValueError("paper simulation realized_pnl requires a closed position")
+
+
+def _validate_paper_simulation_event(data: PaperSimulationEventInput) -> None:
+    _validate_uuid(data.account_id, "paper simulation account_id")
+    _validate_uuid(data.user_id, "paper simulation user_id")
+    _validate_optional_uuid(data.position_id, "paper simulation position_id")
+    _validate_optional_uuid(data.analysis_run_id, "paper simulation analysis_run_id")
+    _validate_paper_event_type(data.event_type)
+    if data.side is not None and data.side not in {"buy", "sell"}:
+        raise ValueError("paper simulation event side must be buy or sell")
+    if data.quantity is not None and data.quantity <= 0:
+        raise ValueError("paper simulation event quantity must be positive")
+    for field_name in ("price", "notional"):
+        value = getattr(data, field_name)
+        if value is not None and value <= 0:
+            raise ValueError(f"paper simulation event {field_name} must be positive")
+    if data.commission < 0 or data.transaction_tax < 0:
+        raise ValueError("paper simulation event costs cannot be negative")
 
 
 def _validate_optional_uuid(value: str | None, field_name: str) -> None:

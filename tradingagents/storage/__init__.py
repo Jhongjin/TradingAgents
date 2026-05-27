@@ -6,6 +6,9 @@ from .models import (
     AnalysisRequestInput,
     AnalysisRunInput,
     ManualTradeInput,
+    PaperSimulationAccountInput,
+    PaperSimulationEventInput,
+    PaperSimulationPositionInput,
     TradeDecisionInput,
 )
 from .portfolio import ManualPosition, calculate_manual_positions
@@ -18,6 +21,9 @@ __all__ = [
     "AnalysisRunInput",
     "ManualPosition",
     "ManualTradeInput",
+    "PaperSimulationAccountInput",
+    "PaperSimulationEventInput",
+    "PaperSimulationPositionInput",
     "StorageRepository",
     "TradeDecisionInput",
     "calculate_manual_positions",
