@@ -91,9 +91,9 @@ def render_public_stock_page(
     </a>
     <nav class="top-links" aria-label="서비스 페이지">
       <a href="/features">서비스</a>
-      <a href="/features/methodology">검증 방식</a>
-      <a href="/analyses">리포트</a>
-      <a href="/outcomes">결과 기록</a>
+      <a href="/features/methodology">신뢰 기준</a>
+      <a href="/analyses">AI 리포트</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -113,9 +113,9 @@ def render_public_stock_page(
         <p class="eyebrow">{_h(model["market_line"])}</p>
         <h1 id="stock-title">{_h(model["name"])} <span>{_h(model["code"])}</span></h1>
         <p class="asof">{_h(model["generated_at"])} 기준</p>
-        <p class="stock-hero-copy">가격, 출처, 리포트와 결과 기록을 한 화면에서 봅니다. 주문 기능은 없습니다.</p>
+        <p class="stock-hero-copy">가격, 공시, 뉴스, 분석 리포트, 사후 기록을 한 화면에서 확인합니다.</p>
         <div class="stock-hero-actions" aria-label="종목 상세 주요 이동">
-          <a href="/analyses?ticker={_h(model["code"])}">리포트</a>
+          <a href="/analyses?ticker={_h(model["code"])}">AI 리포트</a>
           <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
         </div>
         <nav class="stock-mobile-jumpbar" aria-label="모바일 종목 상세 빠른 이동">
@@ -189,8 +189,8 @@ def render_public_stock_page(
         </section>
 
         <section id="stock-simulation-section" class="simulation-panel" aria-labelledby="simulation-title">
-          <p class="eyebrow">AI 모의투자</p>
-          <h2 id="simulation-title">가상 매매</h2>
+          <p class="eyebrow">AI 가상매매 기록</p>
+          <h2 id="simulation-title">가상 진입·청산</h2>
           <div id="simulationPreview" class="simulation-preview" data-simulation-url="/api/simulations/preview/{_h(model["code"])}">
             <span class="status-pill">확인 중</span>
           </div>
@@ -277,9 +277,9 @@ def render_public_analysis_feed_page(
     </a>
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/features">서비스</a>
-      <a href="/features/methodology">검증 방식</a>
-      <a href="/analyses">리포트</a>
-      <a href="/outcomes">결과 기록</a>
+      <a href="/features/methodology">신뢰 기준</a>
+      <a href="/analyses">AI 리포트</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -328,7 +328,7 @@ def render_public_analysis_feed_page(
       </article>
       <article>
         <span>03</span>
-        <strong>결과 기록</strong>
+        <strong>사후 기록</strong>
         <small>5일/20일 결과</small>
       </article>
     </section>
@@ -416,9 +416,9 @@ def render_public_outcomes_page(
     </a>
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/features">서비스</a>
-      <a href="/features/methodology">검증 방식</a>
-      <a href="/analyses">리포트</a>
-      <a href="/outcomes" aria-current="page">결과 기록</a>
+      <a href="/features/methodology">신뢰 기준</a>
+      <a href="/analyses">AI 리포트</a>
+      <a href="/outcomes" aria-current="page">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -429,7 +429,7 @@ def render_public_outcomes_page(
   <main id="main-content" class="shell market-shell">
     <section class="summary-band outcome-hero" aria-labelledby="outcomes-title">
       <div>
-        <p class="eyebrow">결과 기록</p>
+        <p class="eyebrow">사후 기록</p>
         <h1 id="outcomes-title"><span class="outcome-title-line">리포트 이후</span> <span class="outcome-title-line">결과</span></h1>
         <p class="asof">{_h(model["subtitle"])}</p>
         <p class="outcome-hero-copy">리포트 이후 5일/20일 결과를 시장 기준과 비교합니다.</p>
@@ -440,13 +440,13 @@ def render_public_outcomes_page(
         </div>
       </div>
       <div class="decision-box">
-        <span class="decision-label">결과 기록</span>
+        <span class="decision-label">사후 기록</span>
         <strong>{_h(model["item_count"])}</strong>
         <span>{_h(model["status_label"])}</span>
       </div>
     </section>
 
-    <section class="analysis-filter-panel outcome-filter-panel" aria-label="결과 기록 필터">
+    <section class="analysis-filter-panel outcome-filter-panel" aria-label="사후 기록 필터">
       <div class="analysis-filter-stack">
         <form class="analysis-filter-form outcome-filter-form" action="/outcomes" method="get">
           <label for="outcomeTicker">종목명 또는 코드</label>
@@ -471,7 +471,7 @@ def render_public_outcomes_page(
     <section class="report-section outcome-feed-section" aria-labelledby="outcome-feed-title">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">결과 기록</p>
+          <p class="eyebrow">사후 기록</p>
           <h2 id="outcome-feed-title">리포트 이후 결과</h2>
         </div>
         <span class="status-pill">{_h(model["filter_label"])}</span>
@@ -484,7 +484,7 @@ def render_public_outcomes_page(
 
     <section class="notice-strip" aria-label="투자 유의사항">
       <ul>
-        <li>결과 기록은 과거 리포트 점검 자료이며 미래 수익을 보장하지 않습니다.</li>
+        <li>사후 기록은 과거 리포트 점검 자료이며 미래 수익을 보장하지 않습니다.</li>
         <li>TradingAgents Korea는 실거래 주문이나 브로커 주문 실행 기능을 제공하지 않습니다.</li>
       </ul>
     </section>
@@ -552,9 +552,9 @@ def render_public_analysis_detail_page(
     </a>
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/features">서비스</a>
-      <a href="/features/methodology">검증 방식</a>
-      <a href="/analyses">리포트</a>
-      <a href="/outcomes">결과 기록</a>
+      <a href="/features/methodology">신뢰 기준</a>
+      <a href="/analyses">AI 리포트</a>
+      <a href="/outcomes">사후 기록</a>
       <a href="/stocks/{_h(model["ticker_code"])}">종목</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
@@ -569,7 +569,7 @@ def render_public_analysis_detail_page(
         <p class="eyebrow">공개 분석 리포트</p>
         <h1 id="analysis-detail-title">{_h(model["heading"])}</h1>
         <p class="asof">{_h(model["subtitle"])}</p>
-        <p class="analysis-detail-lede">공개 데이터와 AI 의견을 정리한 리포트입니다. 기준일, 출처, 본문, 결과 기록만 확인하세요.</p>
+        <p class="analysis-detail-lede">공개 데이터와 AI 의견을 정리한 리포트입니다. 기준일, 출처, 본문, 사후 기록만 확인하세요.</p>
         <div class="analysis-detail-meta-strip" aria-label="리포트 기준">
           <span>{_h(model["market"])}</span>
           <span>{_h(model["ticker_code"])}</span>
@@ -667,9 +667,9 @@ def render_public_home_page(
     </a>
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/features">서비스</a>
-      <a href="/features/methodology">검증 방식</a>
-      <a href="/analyses">리포트</a>
-      <a href="/outcomes">결과 기록</a>
+      <a href="/features/methodology">신뢰 기준</a>
+      <a href="/analyses">AI 리포트</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -680,9 +680,9 @@ def render_public_home_page(
   <main id="main-content" class="home-shell home-shell-art">
     <section class="home-hero home-hero-artboard" aria-labelledby="home-title">
       <div class="home-hero-copy home-hero-content">
-        <p class="home-kicker">한국 주식 AI 리서치 / 주문 없는 읽기 전용 서비스</p>
+        <p class="home-kicker">주문 없는 한국 주식 AI 리서치</p>
         <h1 id="home-title">한국 주식 AI 리서치</h1>
-        <p class="home-lede">먼저 종목을 검색해 공개 리포트를 읽어보세요. 가입하면 관심종목 저장, 분석 요청, 수동 매매 기록을 내 작업공간에서 이어갈 수 있습니다.</p>
+        <p class="home-lede">종목을 검색하면 차트, 공시, 뉴스, 분석 리포트, 사후 기록을 한 번에 확인합니다.</p>
         <form class="ticker-search home-search home-command-search" action="/stocks" method="get">
           <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
           <input id="ticker" name="ticker" list="tickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" autocomplete="off">
@@ -690,13 +690,13 @@ def render_public_home_page(
           <button type="submit">조회</button>
         </form>
         <div class="home-cta-row home-action-row" aria-label="첫 방문자 주요 행동">
-          <a class="home-primary-link" href="/stocks/005930">샘플 분석 보기</a>
-          <a class="home-secondary-link" href="/member?mode=signup">가입하고 분석 요청 저장하기</a>
+          <a class="home-primary-link" href="/stocks/005930">샘플 종목 보기</a>
+          <a class="home-secondary-link" href="/member?mode=signup">내 공간 만들기</a>
         </div>
         <aside class="home-member-preview" aria-label="가입 후 제공 기능">
           <strong>가입하면 열리는 기능</strong>
           <ul>
-            <li><span>포트폴리오</span><small>매수·매도 기록과 목표가 메모를 직접 남깁니다.</small></li>
+            <li><span>매매 메모</span><small>매수·매도 기록과 목표가 메모를 직접 남깁니다.</small></li>
             <li><span>관심종목</span><small>자주 보는 한국 종목을 목록으로 묶어 확인합니다.</small></li>
             <li><span>분석 요청</span><small>보고 싶은 종목을 요청하고 완료 리포트 연결을 확인합니다.</small></li>
           </ul>
@@ -733,7 +733,7 @@ def render_public_home_page(
             <div><span>가격</span><strong>OHLCV</strong></div>
             <div><span>공시</span><strong>DART</strong></div>
             <div><span>뉴스</span><strong>Naver</strong></div>
-            <div><span>결과 기록</span><strong>5일 / 20일</strong></div>
+            <div><span>사후 기록</span><strong>5일 / 20일</strong></div>
           </div>
         </div>
         <div class="home-pipeline signal-flow-row" aria-hidden="true">
@@ -763,8 +763,8 @@ def render_public_home_page(
           <strong>KRX / DART / Naver</strong>
         </div>
         <div>
-          <span>결과 기록</span>
-          <strong>5일/20일 결과 기록</strong>
+          <span>사후 기록</span>
+          <strong>5일/20일 사후 기록</strong>
         </div>
         <div>
           <span>투자자 보호</span>
@@ -793,7 +793,7 @@ def render_public_home_page(
           <p class="eyebrow">서비스 흐름</p>
           <h2 id="service-map-title">처음 방문해도 바로 쓸 수 있는 세 가지 흐름</h2>
         </div>
-        <p>공개 분석은 누구나 볼 수 있고, 회원 기능은 내 기록과 요청을 안전하게 분리해 관리합니다. 이 서비스는 매매를 대신하지 않고 판단에 필요한 근거를 정리합니다.</p>
+        <p>TradingAgents Korea는 한국 주식 분석 리포트와 개인 투자 메모, AI 가상매매 기록을 연결하는 주문 없는 리서치 서비스입니다.</p>
       </div>
       <div class="home-service-grid">
         <article>
@@ -804,9 +804,9 @@ def render_public_home_page(
         </article>
         <article>
           <span>02</span>
-          <strong>내 리서치 작업공간 만들기</strong>
-          <p>가입 후에는 수동 포트폴리오, 관심종목, 목표가·손절가 메모를 내 계정에 저장합니다.</p>
-          <a href="/member?mode=signup">회원으로 시작하기</a>
+          <strong>내 공간 만들기</strong>
+          <p>관심종목, 분석 요청, 매매 메모를 한곳에서 관리합니다. 실제 주문은 연결되지 않습니다.</p>
+          <a href="/member?mode=signup">내 공간 만들기</a>
         </article>
         <article>
           <span>03</span>
@@ -830,7 +830,7 @@ def render_public_home_page(
         <article><span>02</span><strong>공시</strong><p>DART 공시와 재무 이벤트를 분석 흐름에 반영합니다.</p></article>
         <article><span>03</span><strong>뉴스</strong><p>Naver 뉴스 신호로 단기 이슈와 시장 반응을 추적합니다.</p></article>
         <article><span>04</span><strong>AI 의견</strong><p>복수 에이전트의 근거와 의견을 공개 리포트 구조로 정리합니다.</p></article>
-        <article><span>05</span><strong>결과 기록</strong><p>5일/20일 기록으로 의견 이후의 흐름을 남깁니다.</p></article>
+        <article><span>05</span><strong>사후 기록</strong><p>5일/20일 흐름으로 분석 이후를 되돌아봅니다.</p></article>
       </div>
     </section>
 
@@ -862,11 +862,11 @@ def render_public_home_page(
     <section class="home-ops-strip" aria-label="서비스 원칙">
       <div>
         <p class="eyebrow">운영 원칙</p>
-        <h2>조회와 기록에 집중한 주문 없는 리서치</h2>
+        <h2>실제 주문·계좌 연결 없는 리서치</h2>
       </div>
       <ul>
-        <li>실거래 주문 기능은 의도적으로 지원하지 않습니다.</li>
-        <li>AI 분석은 정보 제공용이며 투자 조언이 아닙니다.</li>
+        <li>실제 주문, 계좌 연결, 투자 자문을 제공하지 않습니다.</li>
+        <li>AI 분석은 판단 근거를 정리하는 정보 제공용 자료입니다.</li>
         <li><a href="/features/methodology">데이터 출처와 한계</a>를 공개 방법론으로 분리해 설명합니다.</li>
         <li><a href="/disclaimer">투자 유의사항</a>, <a href="/terms">이용약관</a>, <a href="/privacy">개인정보처리방침</a>을 공개합니다.</li>
       </ul>
@@ -876,20 +876,20 @@ def render_public_home_page(
       <div class="home-section-heading">
         <div>
           <p class="eyebrow">회원 기능</p>
-          <h2 id="member-title">가입하면 내 리서치 작업공간이 열립니다</h2>
+          <h2 id="member-title">가입하면 내 공간이 열립니다</h2>
         </div>
         <a class="home-primary-link" href="/member?mode=signup">회원으로 시작하기</a>
       </div>
       <div class="home-flow-list">
         <article>
           <span>01</span>
-          <strong>수동 포트폴리오</strong>
-          <p>매수/매도 기록, 평균단가, 목표가, 손절가를 직접 입력합니다.</p>
+          <strong>매매 메모</strong>
+          <p>매수/매도 기록, 평균단가, 목표가, 손절가를 직접 남깁니다.</p>
         </article>
         <article>
           <span>02</span>
           <strong>관심종목</strong>
-          <p>한국 종목코드 기준으로 메모와 함께 관심목록을 관리합니다.</p>
+          <p>한국 종목코드 기준으로 메모와 함께 관심종목을 관리합니다.</p>
         </article>
         <article>
           <span>03</span>
@@ -912,7 +912,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "description": "KRX, DART, Naver 뉴스와 AI 리포트를 연결하는 한국 주식 AI 리서치 흐름입니다.",
         "eyebrow": "서비스 소개 / 리서치 흐름",
         "heading": "종목을 검색하면 가격·출처·AI 리포트가 한 화면에 모입니다",
-        "lead": "처음 방문자는 종목명이나 6자리 코드를 검색해 가격 흐름, 데이터 출처, 공개 리포트, 결과 기록을 바로 확인할 수 있습니다. 가입하면 관심종목을 저장하고 필요한 종목의 새 리서치를 요청할 수 있습니다.",
+        "lead": "처음 방문자는 종목명이나 6자리 코드를 검색해 가격 흐름, 데이터 출처, 공개 리포트, 사후 기록을 바로 확인할 수 있습니다. 가입하면 관심종목을 저장하고 필요한 종목의 새 리서치를 요청할 수 있습니다.",
         "proof": (("공개 페이지", "종목·분석 피드"), ("데이터", "KRX / DART / Naver"), ("주문", "실거래 차단")),
         "cards": (
             ("종목 조회", "6자리 한국 종목코드와 종목명 검색으로 KOSPI/KOSDAQ 종목을 찾습니다."),
@@ -920,12 +920,12 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
             ("공개 분석", "완료된 공개 리포트와 판단, 모델, 리포트 수를 공개 피드와 연결합니다."),
         ),
         "journey_heading": "처음 방문자도 바로 확인할 수 있습니다",
-        "journey_intro": "공개 화면에서 리서치 흐름을 먼저 읽고, 반복해서 볼 종목만 회원 작업공간에 담는 흐름입니다.",
+        "journey_intro": "공개 화면에서 리서치 흐름을 먼저 읽고, 반복해서 볼 종목만 내 공간에 담는 흐름입니다.",
         "journey": (
             ("01", "종목 검색", "삼성전자처럼 종목명으로 검색해도 6자리 코드 화면으로 이동합니다."),
             ("02", "출처 확인", "가격 기준일, 제공처, 대체 데이터 사용 여부를 먼저 봅니다."),
             ("03", "리포트 읽기", "AI 의견과 에이전트별 리포트를 투자 판단의 참고자료로 읽습니다."),
-            ("04", "가입 후 저장", "관심종목과 분석 요청은 로그인한 내 리서치 작업공간에만 저장됩니다."),
+            ("04", "가입 후 저장", "관심종목과 분석 요청은 로그인한 내 공간에만 저장됩니다."),
         ),
         "steps": ("종목 검색", "KRX 가격 데이터", "DART 공시", "Naver 뉴스", "AI 리포트"),
         "cta_label": "삼성전자 예시 보기",
@@ -936,46 +936,46 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
     },
     "member-workspace": {
         "path": "/features/member-workspace",
-        "title": "회원 작업공간 | TradingAgents Korea",
-        "description": "로그인한 사용자를 위한 수동 포트폴리오, 관심목록, 분석 요청 대기열의 구성 방식입니다.",
-        "eyebrow": "서비스 소개 / 회원 작업공간",
+        "title": "내 공간 | TradingAgents Korea",
+        "description": "로그인한 사용자를 위한 매매 메모, 관심종목, 분석 요청 대기열의 구성 방식입니다.",
+        "eyebrow": "서비스 소개 / 내 공간",
         "heading": "가입하면 관심종목, 기록, 분석 요청을 한 곳에서 관리합니다",
-        "lead": "회원 화면은 로그인 전에는 로그인/가입만 보여줍니다. 로그인 후에는 관심종목, 수동 포트폴리오, 분석 요청 대기열을 불러와 내 판단 근거를 따로 보관할 수 있습니다. 주문 기능은 열리지 않습니다.",
+        "lead": "회원 화면은 로그인 전에는 로그인/가입만 보여줍니다. 로그인 후에는 관심종목, 매매 메모, 분석 요청 대기열을 불러와 내 판단 근거를 따로 보관합니다. 실제 주문·계좌 연결은 없습니다.",
         "proof": (("인증", "이메일 로그인"), ("저장", "사용자별 개인 기록"), ("범위", "조회/기록 전용")),
         "cards": (
-            ("수동 포트폴리오", "매수·매도 기록, 평균단가, 비용, 목표가, 손절가를 직접 관리합니다."),
-            ("관심목록", "한국 종목코드 기준 관심목록과 메모를 사용자별로 분리합니다."),
+            ("매매 메모", "매수·매도 기록, 평균단가, 비용, 목표가, 손절가를 직접 관리합니다."),
+            ("관심종목", "한국 종목코드 기준 관심종목과 메모를 사용자별로 분리합니다."),
             ("분석 요청 대기열", "원하는 종목과 날짜를 대기열에 넣고 처리 상태를 확인합니다."),
         ),
         "journey_heading": "로그인 후에는 개인 기록만 따로 열립니다",
-        "journey_intro": "회원 작업공간은 공개 리포트를 읽은 뒤 내가 다시 볼 종목과 요청 상태를 보관하는 공간입니다.",
+        "journey_intro": "내 공간은 공개 리포트를 읽은 뒤 내가 다시 볼 종목과 요청 상태를 보관하는 공간입니다.",
         "journey": (
             ("01", "가입/로그인", "이메일 인증 세션을 확인한 뒤에만 개인 데이터를 불러옵니다."),
             ("02", "관심종목 저장", "다시 확인할 한국 종목을 메모와 함께 묶어 둡니다."),
-            ("03", "수동 기록", "매수·매도 내역과 목표가를 주문 연결 없이 직접 남깁니다."),
+            ("03", "매매 메모", "매수·매도 내역과 목표가를 주문 연결 없이 직접 남깁니다."),
             ("04", "분석 요청", "필요한 종목만 대기열에 넣고 완료 리포트 연결을 확인합니다."),
         ),
         "steps": ("로그인", "내 공간", "개인 기록", "분석 요청", "주문 차단"),
-        "cta_label": "가입하고 내 리서치 작업공간 열기",
+        "cta_label": "가입하고 내 공간 열기",
         "cta_href": "/member?mode=signup",
         "secondary_cta_label": "공개 리서치 먼저 보기",
         "secondary_cta_href": "/features/research",
-        "diagram_label": "회원 작업공간",
+        "diagram_label": "내 공간",
     },
     "outcomes": {
         "path": "/features/outcomes",
         "title": "리포트 이후 결과 | TradingAgents Korea",
         "description": "AI 분석 이후 5일/20일 기록과 시장 기준 대비 차이를 공개 리포트에 연결하는 구조입니다.",
-        "eyebrow": "서비스 소개 / 결과 기록",
+        "eyebrow": "서비스 소개 / 사후 기록",
         "heading": "리포트가 나온 뒤 5일/20일 결과를 다시 확인합니다",
-        "lead": "공개 리서치는 생성 시점에서 끝나지 않습니다. 결과 기록 작업이 5일/20일 뒤 종목 수익률과 벤치마크 차이를 남겨, AI 리포트를 이후 흐름과 함께 되돌아볼 수 있게 합니다.",
+        "lead": "공개 리서치는 생성 시점에서 끝나지 않습니다. 사후 기록 작업이 5일/20일 뒤 종목 수익률과 벤치마크 차이를 남겨, AI 리포트를 이후 흐름과 함께 되돌아볼 수 있게 합니다.",
         "proof": (("기록", "5일 / 20일"), ("지표", "수익률 / 벤치마크 차이"), ("노출", "공개 리포트")),
         "cards": (
             ("기록 저장", "분석 기준일과 확인 기간별 결과를 저장해 공개 리포트와 연결합니다."),
             ("시장 기준 비교", "KOSPI/KOSDAQ 흐름과 비교한 차이를 함께 보여줍니다."),
             ("운영 점검", "운영 작업이 기록 대상을 처리하고 실패 상태를 확인합니다."),
         ),
-        "journey_heading": "결과 기록은 추천 결과가 아니라 리포트 품질 기록입니다",
+        "journey_heading": "사후 기록은 추천 결과가 아니라 리포트 품질 기록입니다",
         "journey_intro": "기록 화면은 투자 결과를 보장하지 않고, 과거 공개 리서치가 이후 시장에서 어떻게 움직였는지 확인하는 자료입니다.",
         "journey": (
             ("01", "원 리포트 확인", "어떤 기준일의 AI 의견인지 먼저 확인합니다."),
@@ -983,26 +983,26 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
             ("03", "시장 비교", "종목 수익률과 시장 기준 수익률의 차이를 읽습니다."),
             ("04", "다음 판단", "결과를 매매 지시가 아니라 리포트 품질 점검 자료로 남깁니다."),
         ),
-        "steps": ("분석 완료", "결과 기록", "시장 기준", "차이 확인", "공개 리뷰"),
+        "steps": ("분석 완료", "사후 기록", "시장 기준", "차이 확인", "공개 리뷰"),
         "cta_label": "리포트 이후 결과 보기",
         "cta_href": "/outcomes",
         "secondary_cta_label": "신뢰 기준 보기",
         "secondary_cta_href": "/features/methodology",
-        "diagram_label": "결과 기록",
+        "diagram_label": "사후 기록",
     },
     "methodology": {
         "path": "/features/methodology",
         "title": "방법론과 신뢰 기준 | TradingAgents Korea",
-        "description": "TradingAgents Korea의 데이터 출처, AI 분석 한계, 결과 기록, 주문 없는 운영 원칙입니다.",
+        "description": "TradingAgents Korea의 데이터 출처, AI 분석 한계, 사후 기록, 주문 없는 운영 원칙입니다.",
         "eyebrow": "신뢰 기준 / 방법론",
         "heading": "어떤 데이터로 판단했는지 먼저 공개합니다",
-        "lead": "공개 리포트는 종목 판단의 근거를 보여주는 자료입니다. KRX, DART, Naver 뉴스, AI 리포트, 5일/20일 결과 기록을 한 흐름으로 묶되, 투자 실행 권한은 서비스가 갖지 않습니다.",
-        "proof": (("출처", "KRX / DART / Naver"), ("결과 기록", "5일 / 20일"), ("권한", "주문 차단")),
+        "lead": "공개 리포트는 종목 판단의 근거를 보여주는 자료입니다. KRX, DART, Naver 뉴스, AI 리포트, 5일/20일 사후 기록을 한 흐름으로 묶되, 투자 실행 권한은 서비스가 갖지 않습니다.",
+        "proof": (("출처", "KRX / DART / Naver"), ("사후 기록", "5일 / 20일"), ("권한", "주문 차단")),
         "cards": (
             ("데이터 기준", "공개 화면은 기준일, 데이터 제공처, 대체 경로 여부를 최대한 노출하고 원문 데이터로 확인할 수 있게 둡니다."),
             ("AI 한계", "리포트는 정보 제공용이며 누락 데이터, 시장 휴장, 제공처 장애, 모델 오류 가능성을 전제로 읽어야 합니다."),
-            ("결과 기록", "완료된 공개 분석은 결과 기록 작업이 5일/20일 뒤 종목 수익률과 시장 기준 차이를 추적합니다."),
-            ("회원 경계", "회원 포트폴리오와 관심종목은 개인 기록이며 공개 리포트 목록과 분리해 호출합니다."),
+            ("사후 기록", "완료된 공개 분석은 사후 기록 작업이 5일/20일 뒤 종목 수익률과 시장 기준 차이를 추적합니다."),
+            ("회원 경계", "회원 매매 메모와 관심종목은 개인 기록이며 공개 리포트 목록과 분리해 호출합니다."),
             ("운영 보안", "운영 키는 브라우저 세션 입력값으로만 사용하고 HTML, 문서, 커밋에 포함하지 않습니다."),
             ("실행 차단", "KIS 같은 브로커 연동은 읽기 전용 계좌조회 검토까지만 가능하며 주문 기능은 구현하지 않습니다."),
         ),
@@ -1012,12 +1012,12 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
             ("01", "출처", "가격, 공시, 뉴스, 리포트가 어디서 왔는지 확인합니다."),
             ("02", "기준일", "차트와 리포트가 같은 날짜 기준인지 점검합니다."),
             ("03", "한계", "누락, 지연, 모델 오류 가능성을 전제로 읽습니다."),
-            ("04", "결과 기록", "5일/20일 기록으로 리포트 품질을 계속 되돌아봅니다."),
+            ("04", "사후 기록", "5일/20일 기록으로 리포트 품질을 계속 되돌아봅니다."),
         ),
-        "steps": ("출처 표기", "분석 기준", "AI 리포트", "결과 기록", "주문 없음"),
+        "steps": ("출처 표기", "분석 기준", "AI 리포트", "사후 기록", "주문 없음"),
         "cta_label": "공개 분석 보기",
         "cta_href": "/analyses",
-        "secondary_cta_label": "결과 기록 보기",
+        "secondary_cta_label": "사후 기록 보기",
         "secondary_cta_href": "/features/outcomes",
         "diagram_label": "신뢰 기준",
     },
@@ -1046,8 +1046,8 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
     proof_html = "".join(
         f"""<div><dt>{_h(label)}</dt><dd>{_h(value)}</dd></div>"""
         for label, value in (
-            ("공개 리서치", "검색 / 분석 / 결과 기록"),
-            ("회원 공간", "관심종목 / 요청 / 수동 기록"),
+            ("공개 리서치", "검색 / 분석 / 사후 기록"),
+            ("회원 공간", "관심종목 / 요청 / 매매 메모"),
             ("투자 실행", "실거래 주문 차단"),
         )
     )
@@ -1059,14 +1059,14 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>기능 안내 | TradingAgents Korea</title>
-  <meta name="description" content="TradingAgents Korea의 공개 리서치, 회원 작업공간, 결과 기록, 신뢰 기준을 한 번에 확인합니다.">
+  <meta name="description" content="TradingAgents Korea의 공개 리서치, 내 공간, 사후 기록, 신뢰 기준을 한 번에 확인합니다.">
   <link rel="canonical" href="{_h(canonical)}">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ko_KR">
   <meta name="twitter:card" content="summary">
   <meta property="og:site_name" content="TradingAgents Korea">
   <meta property="og:title" content="기능 안내 | TradingAgents Korea">
-  <meta property="og:description" content="공개 리서치부터 회원 작업공간까지, TradingAgents Korea에서 무엇을 할 수 있는지 안내합니다.">
+  <meta property="og:description" content="공개 리서치부터 내 공간까지, TradingAgents Korea에서 무엇을 할 수 있는지 안내합니다.">
   <meta property="og:url" content="{_h(canonical)}">
   <style>{PAGE_CSS}</style>
 </head>
@@ -1079,9 +1079,9 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
     </a>
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/features" aria-current="page">기능</a>
-      <a href="/features/methodology">검증 방식</a>
-      <a href="/analyses">리포트</a>
-      <a href="/outcomes">결과 기록</a>
+      <a href="/features/methodology">신뢰 기준</a>
+      <a href="/analyses">AI 리포트</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -1094,13 +1094,13 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
       <div class="feature-copy">
         <p class="home-kicker">서비스 안내 / 처음 방문자를 위한 흐름</p>
         <h1 id="feature-index-title">종목을 읽고, 필요한 기록만 내 공간에 남깁니다</h1>
-        <p>먼저 종목을 검색해 공개 리포트를 읽어보세요. 가입 후에는 관심종목, 분석 요청, 수동 기록을 내 작업공간에 저장합니다. TradingAgents Korea는 투자 판단을 돕는 자료를 제공하지만 주문은 실행하지 않습니다.</p>
+        <p>먼저 종목을 검색해 공개 리포트를 읽어보세요. 가입 후에는 관심종목, 분석 요청, 매매 메모를 내 공간에 저장합니다. TradingAgents Korea는 투자 판단을 돕는 자료를 제공하지만 주문은 실행하지 않습니다.</p>
         <dl class="home-proof-row feature-proof-row" aria-label="서비스 범위">
           {proof_html}
         </dl>
         <div class="home-cta-row">
           <a class="home-primary-link" href="/stocks/005930">샘플 종목 보기</a>
-          <a class="home-secondary-link" href="/member?mode=signup">가입하고 작업공간 열기</a>
+          <a class="home-secondary-link" href="/member?mode=signup">가입하고 내 공간 열기</a>
           <a class="home-secondary-link" href="/analyses">공개 분석 보기</a>
         </div>
       </div>
@@ -1136,8 +1136,8 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
       </div>
       <div class="feature-journey-grid">
         <article><span>01</span><strong>종목 검색</strong><p>6자리 코드나 종목명으로 공개 가격, 뉴스, 공시, 리포트를 확인합니다.</p></article>
-        <article><span>02</span><strong>근거 확인</strong><p>데이터 기준일과 출처, AI 의견, 리포트 본문, 결과 기록을 차례로 읽습니다.</p></article>
-        <article><span>03</span><strong>회원 저장</strong><p>가입 후 관심종목, 수동 기록, 분석 요청을 개인 작업공간에 남깁니다.</p></article>
+        <article><span>02</span><strong>근거 확인</strong><p>데이터 기준일과 출처, AI 의견, 리포트 본문, 사후 기록을 차례로 읽습니다.</p></article>
+        <article><span>03</span><strong>회원 저장</strong><p>가입 후 관심종목, 매매 메모, 분석 요청을 내 공간에 남깁니다.</p></article>
         <article><span>04</span><strong>주문 없음</strong><p>서비스는 브로커 주문 권한을 갖지 않고 기록과 조회 흐름만 제공합니다.</p></article>
       </div>
     </section>
@@ -1152,14 +1152,14 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
     "privacy": {
         "path": "/privacy",
         "title": "개인정보처리방침 | TradingAgents Korea",
-        "description": "TradingAgents Korea가 회원 인증, 수동 기록, 분석 요청을 처리할 때 다루는 개인정보와 보관 원칙입니다.",
+        "description": "TradingAgents Korea가 회원 인증, 매매 메모, 분석 요청을 처리할 때 다루는 개인정보와 보관 원칙입니다.",
         "eyebrow": "정책 / 개인정보",
         "heading": "개인정보는 기록과 인증에 필요한 만큼만 다룹니다",
-        "lead": "TradingAgents Korea는 공개 리서치와 개인 기록을 분리합니다. 회원 기능은 로그인 세션을 확인한 뒤에만 열리고, 포트폴리오·관심종목·분석 요청은 사용자가 직접 남긴 기록을 다시 확인하고 관리하기 위한 목적으로만 사용합니다.",
-        "summary": (("범위", "인증·수동 기록"), ("보관", "사용자별 개인 기록"), ("권한", "주문 실행 없음")),
+        "lead": "TradingAgents Korea는 공개 리서치와 개인 기록을 분리합니다. 회원 기능은 로그인 세션을 확인한 뒤에만 열리고, 매매 메모·관심종목·분석 요청은 사용자가 직접 남긴 기록을 다시 확인하고 관리하기 위한 목적으로만 사용합니다.",
+        "summary": (("범위", "인증·매매 메모"), ("보관", "사용자별 개인 기록"), ("권한", "주문 실행 없음")),
         "callouts": (
             ("인증", "이메일 로그인과 세션 확인에 필요한 공개 설정만 브라우저에 노출합니다."),
-            ("개인 기록", "포트폴리오, 관심종목, 분석 요청은 로그인한 사용자 기록으로 분리합니다."),
+            ("개인 기록", "매매 메모, 관심종목, 분석 요청은 로그인한 사용자 기록으로 분리합니다."),
             ("외부 서비스", "서비스 운영에는 Vercel, Supabase, OpenAI 및 공개 데이터 제공처가 사용될 수 있습니다."),
         ),
         "sections": (
@@ -1167,7 +1167,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
                 "수집하는 정보",
                 (
                     "회원 가입과 로그인에 필요한 이메일 주소, 인증 세션 정보",
-                    "사용자가 직접 입력한 포트폴리오, 매매 기록, 목표가·손절가 메모",
+                    "사용자가 직접 입력한 매매 메모, 매매 기록, 목표가·손절가 메모",
                     "관심종목, 분석 요청 종목, 요청 메모, 처리 상태와 생성 시각",
                     "서비스 안정성 확인에 필요한 요청 로그, 오류 정보, 상태 점검 결과",
                 ),
@@ -1176,7 +1176,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
                 "이용 목적",
                 (
                     "회원 본인의 기록을 불러오고 수정할 수 있게 하기 위해 사용합니다.",
-                    "분석 요청 대기열을 처리하고 공개 리포트와 결과 기록을 연결하기 위해 사용합니다.",
+                    "분석 요청 대기열을 처리하고 공개 리포트와 사후 기록을 연결하기 위해 사용합니다.",
                     "보안, 장애 대응, 오남용 방지, 성능 개선을 위해 최소한의 운영 로그를 확인합니다.",
                 ),
             ),
@@ -1209,7 +1209,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
         "description": "TradingAgents Korea의 주문 없는 리서치 서비스 이용 조건과 회원 기능의 경계를 설명합니다.",
         "eyebrow": "정책 / 이용약관",
         "heading": "이 서비스는 투자 실행이 아닌 근거 확인을 돕습니다",
-        "lead": "TradingAgents Korea는 한국 주식 공개 데이터, AI 리포트, 결과 기록, 회원 수동 기록을 제공하는 리서치 플랫폼입니다. 사용자는 정보를 직접 검토하고 판단해야 하며, 서비스는 매매 주문 권한을 갖지 않습니다.",
+        "lead": "TradingAgents Korea는 한국 주식 공개 데이터, AI 리포트, 사후 기록, 회원 매매 메모를 제공하는 리서치 플랫폼입니다. 사용자는 정보를 직접 검토하고 판단해야 하며, 서비스는 매매 주문 권한을 갖지 않습니다.",
         "summary": (("서비스", "AI 리서치"), ("회원 기능", "기록·조회·요청"), ("거래", "실거래 차단")),
         "callouts": (
             ("주문 없음", "자동매매나 브로커 주문 실행 기능은 제공하지 않습니다."),
@@ -1220,8 +1220,8 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
             (
                 "서비스 범위",
                 (
-                    "공개 종목 상세, 공개 리포트, 결과 기록, 방법론 설명 페이지를 제공합니다.",
-                    "회원에게는 수동 포트폴리오, 관심종목, 분석 요청 대기열을 제공합니다.",
+                    "공개 종목 상세, 공개 리포트, 사후 기록, 방법론 설명 페이지를 제공합니다.",
+                    "회원에게는 매매 메모, 관심종목, 분석 요청 대기열을 제공합니다.",
                     "브로커 주문, 자동매매, 실거래 위임 기능은 제공하지 않습니다.",
                 ),
             ),
@@ -1251,23 +1251,23 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
             ),
         ),
         "next_actions": (
-            ("공개 분석 보기", "/analyses", "완료된 AI 리포트와 결과 기록 상태를 공개 화면에서 확인합니다."),
-            ("가입 후 기록 공간 보기", "/features/member-workspace", "내 관심종목과 수동 기록이 어떻게 분리되는지 봅니다."),
-            ("투자 유의사항 읽기", "/disclaimer", "AI 리포트와 결과 기록을 읽을 때의 한계를 확인합니다."),
+            ("공개 분석 보기", "/analyses", "완료된 AI 리포트와 사후 기록 상태를 공개 화면에서 확인합니다."),
+            ("가입 후 기록 공간 보기", "/features/member-workspace", "내 관심종목과 매매 메모가 어떻게 분리되는지 봅니다."),
+            ("투자 유의사항 읽기", "/disclaimer", "AI 리포트와 사후 기록을 읽을 때의 한계를 확인합니다."),
         ),
     },
     "disclaimer": {
         "path": "/disclaimer",
         "title": "투자 유의사항 | TradingAgents Korea",
-        "description": "TradingAgents Korea의 AI 분석, 공개 데이터, 결과 기록을 읽을 때 필요한 투자 유의사항입니다.",
+        "description": "TradingAgents Korea의 AI 분석, 공개 데이터, 사후 기록을 읽을 때 필요한 투자 유의사항입니다.",
         "eyebrow": "안내 / 투자 유의사항",
         "heading": "AI 리포트는 투자 조언이 아니라 검토 자료입니다",
-        "lead": "TradingAgents Korea의 화면, 리포트, 차트, 결과 기록은 한국 주식 투자 판단을 돕는 정보입니다. 특정 종목의 매수·매도·보유를 권유하지 않으며, 과거 기록 또는 AI 판단은 미래 수익을 보장하지 않습니다.",
+        "lead": "TradingAgents Korea의 화면, 리포트, 차트, 사후 기록은 한국 주식 투자 판단을 돕는 정보입니다. 특정 종목의 매수·매도·보유를 권유하지 않으며, 과거 기록 또는 AI 판단은 미래 수익을 보장하지 않습니다.",
         "summary": (("성격", "정보 제공"), ("한계", "오류·지연 가능"), ("성과", "미래 보장 아님")),
         "callouts": (
             ("투자 조언 아님", "리포트와 점수는 투자 자문, 일임, 중개, 주문 권유가 아닙니다."),
             ("데이터 위험", "가격, 공시, 뉴스, 재무 데이터는 지연·누락·정정될 수 있습니다."),
-            ("결과 기록", "5일/20일 기록은 리포트 품질 추적용이며 미래 결과를 약속하지 않습니다."),
+            ("사후 기록", "5일/20일 기록은 리포트 품질 추적용이며 미래 결과를 약속하지 않습니다."),
         ),
         "sections": (
             (
@@ -1295,17 +1295,17 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
                 ),
             ),
             (
-                "결과 기록 해석",
+                "사후 기록 해석",
                 (
                     "5일/20일 기록과 벤치마크 차이는 사후 측정값이며 거래 비용, 세금, 체결 가능성을 모두 반영하지 않을 수 있습니다.",
                     "과거 분석의 양호한 기록은 이후 분석 또는 동일 종목의 미래 흐름을 보장하지 않습니다.",
-                    "결과 기록 통계는 공개 리포트 품질을 추적하기 위한 운영 지표로 읽어야 합니다.",
+                    "사후 기록 통계는 공개 리포트 품질을 추적하기 위한 운영 지표로 읽어야 합니다.",
                 ),
             ),
         ),
         "next_actions": (
             ("방법론 확인", "/features/methodology", "데이터 출처, 기준일, 주문 차단 원칙을 함께 확인합니다."),
-            ("결과 기록 보기", "/outcomes", "과거 리포트 이후의 5일/20일 결과를 검토합니다."),
+            ("사후 기록 보기", "/outcomes", "과거 리포트 이후의 5일/20일 결과를 검토합니다."),
             ("공개 분석 보기", "/analyses", "실제 공개 리포트를 읽고 원문 데이터까지 확인합니다."),
         ),
     },
@@ -1368,9 +1368,9 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
     </a>
     <nav class="top-links" aria-label="공개 페이지">
       <a href="/features">서비스</a>
-      <a href="/features/methodology">검증 방식</a>
-      <a href="/analyses">리포트</a>
-      <a href="/outcomes">결과 기록</a>
+      <a href="/features/methodology">신뢰 기준</a>
+      <a href="/analyses">AI 리포트</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -1416,7 +1416,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
       <div class="feature-journey-heading">
         <p class="eyebrow">사용자 흐름</p>
         <h2 id="feature-journey-title">{_h(str(page.get("journey_heading", "처음 방문자도 바로 이어갈 수 있습니다")))}</h2>
-        <p>{_h(str(page.get("journey_intro", "공개 리서치를 먼저 확인하고 필요한 기록만 회원 작업공간에 저장합니다.")))}</p>
+        <p>{_h(str(page.get("journey_intro", "공개 리서치를 먼저 확인하고 필요한 기록만 내 공간에 저장합니다.")))}</p>
       </div>
       <div class="feature-journey-grid">
         {journey_html}
@@ -1495,9 +1495,9 @@ def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
     </a>
     <nav class="top-links" aria-label="서비스 페이지">
       <a href="/features">서비스</a>
-      <a href="/features/methodology">검증 방식</a>
-      <a href="/analyses">리포트</a>
-      <a href="/outcomes">결과 기록</a>
+      <a href="/features/methodology">신뢰 기준</a>
+      <a href="/analyses">AI 리포트</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -1536,7 +1536,7 @@ def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
       <div>
         <p class="eyebrow">다음으로 확인할 화면</p>
         <h2 id="policy-next-actions-title">정책을 읽은 뒤 실제 서비스 흐름으로 이어갑니다</h2>
-        <p>법적 안내에서 끝나지 않고, 공개 리서치와 회원 작업공간이 어떻게 분리되는지 바로 확인할 수 있습니다.</p>
+        <p>법적 안내에서 끝나지 않고, 공개 리서치와 내 공간이 어떻게 분리되는지 바로 확인할 수 있습니다.</p>
       </div>
       <div class="policy-next-action-grid">
         {next_actions_html}
@@ -1585,9 +1585,9 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
     </a>
     <nav class="top-links" aria-label="관리 페이지">
       <a href="/features">서비스</a>
-      <a href="/features/methodology">검증 방식</a>
-      <a href="/analyses">리포트</a>
-      <a href="/outcomes">결과 기록</a>
+      <a href="/features/methodology">신뢰 기준</a>
+      <a href="/analyses">AI 리포트</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
       <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden aria-current="page">운영 콘솔</a>
@@ -1598,8 +1598,8 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
     <section class="admin-hero" aria-labelledby="admin-title">
       <div>
         <p class="home-kicker">운영 콘솔 / 비밀값 저장 없음</p>
-        <h1 id="admin-title">운영 대기열과 상태 점검만 확인합니다</h1>
-        <p>관리자 화면은 작업자 토큰을 코드나 HTML에 포함하지 않습니다. 토큰은 브라우저 세션에만 보관되며 관리 API 호출 헤더로만 전송됩니다.</p>
+        <h1 id="admin-title">운영 상태와 작업 대상을 확인합니다</h1>
+        <p>작업자 토큰은 브라우저 세션에만 보관되고 관리 API 호출 헤더로만 전송됩니다.</p>
       </div>
       <form class="admin-token-panel" id="adminTokenForm">
         <label>
@@ -1610,7 +1610,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
           <button type="submit">세션에 저장</button>
           <button type="button" data-admin-token-clear>토큰 지우기</button>
         </div>
-        <small id="adminTokenState">토큰은 서버 렌더 HTML에 저장되지 않습니다.</small>
+        <small id="adminTokenState">토큰은 HTML에 저장되지 않습니다.</small>
       </form>
     </section>
 
@@ -1628,7 +1628,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <article>
         <span>대기열</span>
         <strong>미리 보기 우선</strong>
-        <small>분석 요청과 결과 기록 처리는 실행 전 대상을 먼저 확인합니다.</small>
+        <small>분석 요청과 사후 기록 처리는 실행 전 대상을 먼저 확인합니다.</small>
       </article>
       <article>
         <span>경계</span>
@@ -1651,7 +1651,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <article>
         <span>03</span>
         <strong>처리 실행</strong>
-        <small>분석 요청 또는 결과 기록 작업을 제한된 건수만큼 실행합니다.</small>
+        <small>분석 요청, 사후 기록, AI 가상매매 작업을 제한된 건수만큼 실행합니다.</small>
       </article>
       <article>
         <span>04</span>
@@ -1665,7 +1665,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
         <div>
           <p class="eyebrow">운영 요약</p>
           <h2 id="admin-ops-title">대기열 현황과 최근 결과</h2>
-          <p class="panel-copy">작업자 토큰으로만 조회합니다. 사용자별 개인 기록 대신 운영 대기열 상태와 공개 결과 기록 흐름만 요약합니다.</p>
+          <p class="panel-copy">운영 대기열, 사후 기록, AI 가상매매 처리 상태를 요약합니다.</p>
         </div>
         <button type="button" data-admin-ops-summary>운영 요약 조회</button>
       </div>
@@ -1729,8 +1729,8 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <article class="admin-card">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">결과 기록 작업</p>
-            <h2>결과 기록 처리</h2>
+            <p class="eyebrow">사후 기록 작업</p>
+            <h2>사후 기록 처리</h2>
           </div>
           <span class="status-pill">5일 / 20일</span>
         </div>
@@ -1741,7 +1741,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
         </div>
         <div class="admin-action-panel" id="adminOutcomesPanel" aria-live="polite">
           <div class="action-cell is-waiting">
-            <span>결과 기록</span>
+            <span>사후 기록</span>
             <strong>대기</strong>
             <small>5일/20일 검증 결과와 실패 로그를 카드로 요약합니다.</small>
           </div>
@@ -1752,21 +1752,21 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <article class="admin-card">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">AI 모의투자</p>
-            <h2>모의 기록 처리</h2>
+            <p class="eyebrow">AI 가상매매</p>
+            <h2>가상 기록 처리</h2>
           </div>
           <span class="status-pill">가상 체결</span>
         </div>
         <label class="admin-number-field">처리 건수 <input id="adminPaperSimulationLimit" type="number" min="1" max="50" value="10"></label>
         <div class="button-row">
-          <button type="button" data-admin-action="paper-dry-run">미리 보기</button>
-          <button type="button" data-admin-action="paper-process">처리 실행</button>
+          <button type="button" data-admin-action="paper-dry-run">대상 확인</button>
+          <button type="button" data-admin-action="paper-process">선택 건 처리</button>
         </div>
         <div class="admin-action-panel" id="adminPaperSimulationPanel" aria-live="polite">
           <div class="action-cell is-waiting">
-            <span>AI 모의</span>
+            <span>AI 가상매매</span>
             <strong>대기</strong>
-            <small>완료 분석을 가상 진입·청산 기록으로 저장합니다.</small>
+            <small>분석 리포트 기준의 가상 기록만 저장합니다.</small>
           </div>
         </div>
         <pre id="adminPaperSimulationOutput">대기 중</pre>
@@ -1785,7 +1785,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
 
     model = {
         "title": "회원 대시보드 | TradingAgents Korea",
-        "description": "수동 포트폴리오, 관심종목, 한국 주식 분석 요청을 관리합니다.",
+        "description": "매매 메모, 관심종목, 한국 주식 분석 요청, AI 가상매매 기록을 관리합니다.",
         "canonical_url": canonical_url(canonical_path, site_base_url=site_base_url),
     }
     config_json = _script_json(_public_supabase_config())
@@ -1810,9 +1810,9 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
     </a>
     <nav class="top-links" aria-label="서비스 페이지">
       <a href="/features">서비스</a>
-      <a href="/features/methodology">검증 방식</a>
-      <a href="/analyses">리포트</a>
-      <a href="/outcomes">결과 기록</a>
+      <a href="/features/methodology">신뢰 기준</a>
+      <a href="/analyses">AI 리포트</a>
+      <a href="/outcomes">사후 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -1831,8 +1831,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
     <section class="member-auth-landing" id="memberAuthLanding" aria-labelledby="member-auth-title">
       <div class="member-auth-copy">
         <p class="eyebrow">회원 전용 공간</p>
-        <h1 id="member-auth-title">내 종목 기록을 모아보세요</h1>
-        <p class="member-auth-lead">관심종목, 수동 기록, 분석 요청을 한곳에서 관리합니다. 매매 기록은 개인 메모입니다.</p>
+        <h1 id="member-auth-title">내 공간에서 종목을 관리하세요</h1>
+        <p class="member-auth-lead">관심종목, 분석 요청, 매매 메모를 한곳에서 관리합니다. 실제 주문은 연결되지 않습니다.</p>
         <div class="member-auth-points" aria-label="회원 영역 원칙">
           <article>
             <span>01</span>
@@ -1846,7 +1846,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           </article>
           <article>
             <span>03</span>
-            <strong>개인 작업공간</strong>
+            <strong>내 공간</strong>
             <small>로그인한 사용자에게만 저장 기록과 분석 요청 상태를 보여줍니다.</small>
           </article>
         </div>
@@ -1888,7 +1888,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <p class="eyebrow">회원 공간</p>
           <h1 id="member-title">내 공간</h1>
           <p class="asof" id="memberStatus">로그인 상태 확인 중</p>
-          <p class="member-workspace-lede">관심종목, 수동 기록, 분석 요청을 이어갑니다. 매매 기록은 주문이 아닌 메모입니다.</p>
+          <p class="member-workspace-lede">관심종목, 분석 요청, 매매 메모를 이어갑니다. 이 기록은 실제 주문·계좌와 연결되지 않습니다.</p>
         </div>
         <div class="member-signed-in" id="memberSignedIn" hidden>
           <span class="status-pill" id="memberSignedInState">대시보드 확인 중</span>
@@ -1905,10 +1905,10 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
 
       <nav class="member-tab-strip" role="tablist" aria-label="내 공간 섹션">
         <a id="home-tab" class="is-active" href="#member-home-section" role="tab" data-member-tab="home" aria-controls="member-home-section" aria-selected="true">홈 <span id="memberHomeStatus">준비됨</span></a>
-        <a id="portfolio-tab" href="#portfolio-section" role="tab" data-member-tab="portfolio" aria-controls="portfolio-section" aria-selected="false">포트폴리오 <span id="portfolioTabCount">0</span></a>
+        <a id="portfolio-tab" href="#portfolio-section" role="tab" data-member-tab="portfolio" aria-controls="portfolio-section" aria-selected="false">매매 메모 <span id="portfolioTabCount">0</span></a>
         <a id="watchlist-tab" href="#watchlist-section" role="tab" data-member-tab="watchlist" aria-controls="watchlist-section" aria-selected="false">관심종목 <span id="watchlistTabCount">0</span></a>
         <a id="analysis-tab" href="#analysis-request-section" role="tab" data-member-tab="analysis" aria-controls="analysis-request-section" aria-selected="false">분석 요청 <span id="analysisTabCount">0</span></a>
-        <a id="paper-simulation-tab" href="#paper-simulation-section" role="tab" data-member-tab="paper" aria-controls="paper-simulation-section" aria-selected="false">AI 모의 <span id="paperSimulationTabCount">0</span></a>
+        <a id="paper-simulation-tab" href="#paper-simulation-section" role="tab" data-member-tab="paper" aria-controls="paper-simulation-section" aria-selected="false">AI 가상매매 <span id="paperSimulationTabCount">0</span></a>
       </nav>
 
       <section class="member-grid" aria-label="회원 기능">
@@ -1921,14 +1921,14 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             </div>
             <span class="status-pill">읽기 전용</span>
           </div>
-          <section class="member-overview-strip" id="memberOverview" aria-label="작업공간 요약">
+          <section class="member-overview-strip" id="memberOverview" aria-label="내 공간 요약">
             <article>
-              <span>포트폴리오</span>
+              <span>매매 메모</span>
               <strong id="memberOverviewPortfolios">0</strong>
-              <small>수동 기록 묶음</small>
+              <small>매매 메모 묶음</small>
             </article>
             <article>
-              <span>관심목록</span>
+              <span>관심종목</span>
               <strong id="memberOverviewWatchlists">0</strong>
               <small>추적 목록</small>
             </article>
@@ -1943,7 +1943,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <small>완료 리포트</small>
             </article>
             <article>
-              <span>AI 모의</span>
+              <span>AI 가상매매</span>
               <strong id="memberOverviewPaperSimulations">0</strong>
               <small>가상 기록</small>
             </article>
@@ -1952,7 +1952,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <section class="member-primary-action" id="memberPrimaryAction" data-member-primary-action="watchlist" aria-live="polite">
             <div>
               <span>다음 추천 작업</span>
-              <strong id="memberPrimaryActionTitle">첫 관심목록을 만들어보세요</strong>
+              <strong id="memberPrimaryActionTitle">첫 관심종목을 만들어보세요</strong>
               <small id="memberPrimaryActionCopy">자주 보는 종목을 담아두면 분석 요청과 리포트를 이어서 보기 쉽습니다.</small>
             </div>
             <button class="home-primary-link" type="button" id="memberPrimaryActionButton" data-member-jump="watchlist">관심종목 만들기</button>
@@ -1978,20 +1978,20 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             </article>
             <article class="member-home-card">
               <span>04</span>
-              <strong>포트폴리오 기록</strong>
-              <small>매수·매도 내역, 수수료, 세금, 목표가를 주문 연결 없이 수동으로 남깁니다.</small>
-              <button class="ghost-button" type="button" data-member-jump="portfolio">포트폴리오 열기</button>
+              <strong>매매 메모</strong>
+              <small>실제 계좌가 아닌 기록입니다. 평단, 수수료, 목표가를 직접 남깁니다.</small>
+              <button class="ghost-button" type="button" data-member-jump="portfolio">매매 메모 열기</button>
             </article>
             <article class="member-home-card member-paper-card">
               <span>05</span>
-              <strong>AI 모의투자</strong>
-              <small>완료된 분석을 기준으로 가상 진입과 청산 기록을 확인합니다.</small>
-              <button class="ghost-button" type="button" data-member-jump="paper">AI 모의 열기</button>
+              <strong>AI 가상매매 기록</strong>
+              <small>분석 리포트가 완료되면 AI가 가상 진입·청산 시점을 기록합니다.</small>
+              <button class="ghost-button" type="button" data-member-jump="paper">AI 가상매매 열기</button>
             </article>
             <article class="member-home-card member-admin-card">
               <span>06</span>
               <strong>운영자 콘솔</strong>
-              <small>토큰 입력 후 상태 점검, 분석 처리, AI 모의투자를 실행합니다.</small>
+              <small>토큰 입력 후 상태 점검, 분석 처리, AI 가상매매를 실행합니다.</small>
               <a class="ghost-button member-admin-link" href="/admin">운영 열기</a>
             </article>
           </div>
@@ -2000,18 +2000,18 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <section class="member-panel" id="portfolio-section" role="tabpanel" data-member-panel="portfolio" aria-labelledby="portfolio-tab" hidden>
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">수동 포트폴리오</p>
-              <h2>포트폴리오 기록</h2>
-              <p class="panel-copy">거래소 주문과 연결되지 않는 개인 기록입니다. 매수·매도 내역과 목표가 메모를 직접 남깁니다.</p>
+              <p class="eyebrow">매매 메모</p>
+              <h2>매매 메모</h2>
+              <p class="panel-copy">실제 계좌가 아닌 매매 메모입니다. 종목, 평단, 목표가를 직접 남겨보세요.</p>
             </div>
             <button class="ghost-button" id="refreshMemberData" type="button">새로고침</button>
           </div>
           <div class="member-form-stack">
             <div class="member-form-block">
-              <strong>새 포트폴리오</strong>
-              <small class="member-form-hint">먼저 기록을 묶을 포트폴리오 이름을 만듭니다.</small>
+              <strong>새 메모 묶음</strong>
+              <small class="member-form-hint">먼저 매매 기록을 묶을 이름을 만듭니다.</small>
               <form class="member-form compact-form" id="portfolioForm">
-                <input name="name" maxlength="80" placeholder="포트폴리오 이름" aria-label="포트폴리오 이름" required>
+                <input name="name" maxlength="80" placeholder="예: 장기 관심주" aria-label="매매 메모 묶음 이름" required>
                 <button type="submit">추가</button>
               </form>
             </div>
@@ -2019,7 +2019,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <strong>매수/매도 기록</strong>
               <small class="member-form-hint">종목명이나 6자리 코드, 날짜, 단가, 수량을 입력하면 평균단가와 손익을 계산합니다.</small>
               <form class="member-form trade-form" id="tradeForm">
-                <select name="portfolio_id" aria-label="포트폴리오 선택" required></select>
+                <select name="portfolio_id" aria-label="매매 메모 묶음 선택" required></select>
                 <input name="ticker_code" list="memberTickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" aria-label="종목코드 또는 종목명" autocomplete="off" data-member-ticker-lookup required>
                 <select name="side" aria-label="매수 또는 매도" required>
                   <option value="buy">매수</option>
@@ -2037,7 +2037,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <strong>목표/손절 메모</strong>
               <small class="member-form-hint">목표가와 손절가는 주문으로 연결되지 않는 개인 메모입니다.</small>
               <form class="member-form target-form" id="targetForm">
-                <select name="portfolio_id" aria-label="포트폴리오 선택" required></select>
+                <select name="portfolio_id" aria-label="매매 메모 묶음 선택" required></select>
                 <input name="ticker_code" list="memberTickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" aria-label="종목코드 또는 종목명" autocomplete="off" data-member-ticker-lookup required>
                 <input name="target_price" type="number" min="1" step="1" placeholder="목표가" aria-label="목표가" inputmode="numeric">
                 <input name="stop_price" type="number" min="1" step="1" placeholder="손절가" aria-label="손절가" inputmode="numeric">
@@ -2059,10 +2059,10 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           </div>
           <div class="member-form-stack">
             <div class="member-form-block">
-              <strong>관심목록</strong>
-              <small class="member-form-hint">관심을 나눠 볼 주제나 전략 이름으로 목록을 만듭니다.</small>
+              <strong>새 목록</strong>
+              <small class="member-form-hint">자주 보는 종목을 묶을 목록을 만듭니다.</small>
               <form class="member-form compact-form" id="watchlistForm">
-                <input name="name" maxlength="80" placeholder="관심목록 이름" aria-label="관심목록 이름" required>
+                <input name="name" maxlength="80" placeholder="예: 반도체 체크" aria-label="관심종목 목록 이름" required>
                 <button type="submit">추가</button>
               </form>
             </div>
@@ -2070,7 +2070,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <strong>종목 담기</strong>
               <small class="member-form-hint">종목명이나 6자리 코드와 메모를 남기면 목록에서 현재가 상태를 함께 확인합니다.</small>
               <form class="member-form compact-form" id="watchlistItemForm">
-                <select name="watchlist_id" aria-label="관심목록 선택" required></select>
+                <select name="watchlist_id" aria-label="관심종목 목록 선택" required></select>
                 <input name="ticker_code" list="memberTickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" aria-label="종목코드 또는 종목명" autocomplete="off" data-member-ticker-lookup required>
                 <input name="memo" maxlength="500" placeholder="메모" aria-label="관심종목 메모">
                 <button type="submit">담기</button>
@@ -2089,7 +2089,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             </div>
             <span class="status-pill">요청 대기열</span>
           </div>
-          <p class="member-form-hint member-request-hint">종목명이나 6자리 코드만 입력하면 가장 최근 기준일로 요청합니다. 특정 날짜 기준으로 보고 싶을 때만 날짜를 선택하세요.</p>
+          <p class="member-form-hint member-request-hint">종목명이나 6자리 코드만 입력하면 최근 기준일로 요청합니다. 특정 날짜로 보고 싶을 때만 날짜를 선택하세요.</p>
           <form class="member-form compact-form" id="analysisRequestForm">
             <input name="ticker" list="memberTickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" aria-label="분석 요청 종목코드 또는 종목명" autocomplete="off" data-member-ticker-lookup required>
             <input name="requested_trade_date" type="date" aria-label="분석 기준일">
@@ -2102,9 +2102,9 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <section class="member-panel" id="paper-simulation-section" role="tabpanel" data-member-panel="paper" aria-labelledby="paper-simulation-tab" hidden>
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">AI 모의투자</p>
-              <h2>가상 매매 기록</h2>
-              <p class="panel-copy">AI 분석을 기준으로 만든 가상 진입·청산 기록입니다.</p>
+              <p class="eyebrow">AI 가상매매</p>
+              <h2>AI 가상매매 기록</h2>
+              <p class="panel-copy">분석 리포트가 완료되면 AI가 가상 진입·청산 시점을 기록합니다.</p>
             </div>
             <span class="status-pill">주문 없음</span>
           </div>
@@ -2150,7 +2150,7 @@ def _view_model(payload: dict[str, Any], *, site_base_url: str | None = None) ->
 
     return {
         "title": f"{name} ({code}) | TradingAgents Korea",
-        "description": f"{name} {code} 한국 주식 AI 리서치, KRW 차트, 공개 리포트, 결과 기록.",
+        "description": f"{name} {code} 한국 주식 AI 리서치, KRW 차트, 공개 리포트, 사후 기록.",
         "name": name,
         "code": code,
         "market_line": f"{market} / {benchmark}",
@@ -2450,7 +2450,7 @@ def _analysis_missing_data_warnings(
     if status == "available" and not has_decision:
         warnings.append("AI 의견 레코드가 저장되지 않았습니다.")
     if status == "available" and outcome_count == 0:
-        warnings.append("5일/20일 결과 기록이 아직 없습니다.")
+        warnings.append("5일/20일 사후 기록이 아직 없습니다.")
     if chart.get("status") != "available":
         warnings.append(_chart_fallback_message(chart))
     elif point_count == 0:
@@ -2626,7 +2626,7 @@ def _analysis_feed_view_model(payload: dict[str, Any], *, site_base_url: str | N
         "title": title,
         "description": description,
         "canonical_url": canonical_url("/analyses", site_base_url=site_base_url),
-        "subtitle": "공개 리포트를 종목별로 찾아보고 원문 데이터와 결과 기록을 이어서 확인하세요.",
+        "subtitle": "공개 리포트를 종목별로 찾아보고 원문 데이터와 사후 기록을 이어서 확인하세요.",
         "status": f"{_analysis_feed_status_label(payload.get('status'))} · {basis_label}",
         "ticker_code": ticker_code,
         "filter_label": f"{ticker_code} 필터" if ticker_code else "전체 종목",
@@ -2647,7 +2647,7 @@ def _analysis_filter_state(model: dict[str, Any]) -> str:
           <span>{_h(ticker)} 필터 적용</span>
           <span>결과 {_h(count)}건</span>
           <a href="/stocks/{_h(ticker)}">종목 페이지</a>
-          <a href="/outcomes?ticker={_h(ticker)}">결과 기록</a>
+          <a href="/outcomes?ticker={_h(ticker)}">사후 기록</a>
         </div>
         """
     return f"""
@@ -2655,7 +2655,7 @@ def _analysis_filter_state(model: dict[str, Any]) -> str:
       <span>전체 공개 리포트</span>
       <span>{_h(basis_label)}</span>
       <span>결과 {_h(count)}건</span>
-      <a href="/outcomes">결과 기록</a>
+      <a href="/outcomes">사후 기록</a>
     </div>
     """
 
@@ -2669,7 +2669,7 @@ def _analysis_feed_toolbar(model: dict[str, Any]) -> str:
       <span>결과 {_h(count)}건</span>
       <span>정렬: 최신 기준일순</span>
       <span>{_h(filter_label)}</span>
-      <small>{_h(basis_label)} 리포트 상세, 종목, 결과 기록, 원문 데이터로 이동합니다.</small>
+      <small>{_h(basis_label)} 리포트 상세, 종목, 사후 기록, 원문 데이터로 이동합니다.</small>
     </div>
     """
 
@@ -2678,7 +2678,7 @@ def _outcome_filter_state(model: dict[str, Any]) -> str:
     ticker = str(model.get("ticker_code") or "").strip()
     status = str(model.get("filter_status") or "").strip()
     count = str(model.get("item_count") or "0건")
-    filter_label = str(model.get("filter_label") or "전체 결과 기록")
+    filter_label = str(model.get("filter_label") or "전체 사후 기록")
     query: dict[str, str] = {"limit": "20"}
     if ticker:
         query["ticker"] = ticker
@@ -2689,20 +2689,20 @@ def _outcome_filter_state(model: dict[str, Any]) -> str:
         stock_link = f'<a href="/stocks/{_h(ticker)}">종목 페이지</a>' if ticker else ""
         analyses_href = f"/analyses?ticker={_h(ticker)}" if ticker else "/analyses"
         return f"""
-        <div class="analysis-filter-state outcome-filter-state" aria-label="현재 결과 기록 필터 상태">
+        <div class="analysis-filter-state outcome-filter-state" aria-label="현재 사후 기록 필터 상태">
           <span>{_h(filter_label)} 적용</span>
           <span>결과 {_h(count)}</span>
           {stock_link}
-          <a href="{analyses_href}">리포트</a>
+          <a href="{analyses_href}">AI 리포트</a>
           <a href="{_h(api_path)}">원문 데이터</a>
         </div>
         """
     return f"""
-    <div class="analysis-filter-state outcome-filter-state" aria-label="현재 결과 기록 필터 상태">
-      <span>전체 결과 기록</span>
+    <div class="analysis-filter-state outcome-filter-state" aria-label="현재 사후 기록 필터 상태">
+      <span>전체 사후 기록</span>
       <span>5일 / 20일</span>
       <span>결과 {_h(count)}</span>
-      <a href="/analyses">리포트</a>
+      <a href="/analyses">AI 리포트</a>
       <a href="{_h(api_path)}">원문 데이터</a>
     </div>
     """
@@ -2710,9 +2710,9 @@ def _outcome_filter_state(model: dict[str, Any]) -> str:
 
 def _outcome_feed_toolbar(model: dict[str, Any]) -> str:
     count = str(model.get("item_count") or "0건")
-    filter_label = str(model.get("filter_label") or "전체 결과 기록")
+    filter_label = str(model.get("filter_label") or "전체 사후 기록")
     return f"""
-    <div class="analysis-feed-toolbar outcome-feed-toolbar" aria-label="결과 기록 목록 상태">
+    <div class="analysis-feed-toolbar outcome-feed-toolbar" aria-label="사후 기록 목록 상태">
       <span>결과 {_h(count)}</span>
       <span>정렬: 최신 기준일순</span>
       <span>{_h(filter_label)}</span>
@@ -2730,7 +2730,7 @@ def _analysis_outcomes_view_model(payload: dict[str, Any], *, site_base_url: str
         filters.append(str(ticker_code))
     if filter_status:
         filters.append(_outcome_status_label(str(filter_status)))
-    filter_label = " / ".join(filters) if filters else "전체 결과 기록"
+    filter_label = " / ".join(filters) if filters else "전체 사후 기록"
     return {
         "title": "리포트 이후 결과 | TradingAgents Korea",
         "description": "TradingAgents Korea 공개 리서치의 5일/20일 이후 기록과 시장 기준 대비 차이를 확인합니다.",
@@ -2784,7 +2784,7 @@ def _analysis_detail_view_model(
     heading = f"{ticker_name} 공개 분석 리포트"
     description = (
         f"{trade_date} 기준 {ticker_name}({ticker_code}) 공개 AI 분석입니다. "
-        f"AI 의견 {rating}, 리포트 {len(reports)}개, 결과 기록 {summary.get('completed_outcome_count', 0)}건을 제공합니다."
+        f"AI 의견 {rating}, 리포트 {len(reports)}개, 사후 기록 {summary.get('completed_outcome_count', 0)}건을 제공합니다."
     )
     return {
         "title": f"{ticker_name} {ticker_code} 공개 분석 리포트 | TradingAgents Korea",
@@ -2925,14 +2925,14 @@ def _analysis_track_record_cards(summary: dict[str, Any], *, basis_label: str = 
     average_alpha = _percent(summary.get("average_alpha_return"), signed=True)
     positive_count = int(summary.get("positive_alpha_count") or 0)
     cards = [
-        ("결과 기록 완료", f"{completed_outcomes}건", f"결과 연결 리포트 {outcome_covered}개"),
+        ("사후 기록 완료", f"{completed_outcomes}건", f"결과 연결 리포트 {outcome_covered}개"),
         ("평균 벤치마크 차이", average_alpha, "종목 수익률 - 시장 기준"),
         ("벤치마크 우위 기록", positive_rate, f"양수 기록 {positive_count}건"),
         ("커버리지", coverage, basis_label),
     ]
     if completed_outcomes == 0:
         cards = [
-            ("결과 기록 대기", "0건", "결과가 완료되면 채워집니다."),
+            ("사후 기록 대기", "0건", "결과가 완료되면 채워집니다."),
             ("평균 벤치마크 차이", "-", "결과 데이터 대기"),
             ("벤치마크 우위 기록", "-", "결과 데이터 대기"),
             ("커버리지", "-", basis_label),
@@ -2952,7 +2952,7 @@ def _analysis_track_record_cards(summary: dict[str, Any], *, basis_label: str = 
     <section class="analysis-track-record" aria-labelledby="track-record-title">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">결과 기록</p>
+          <p class="eyebrow">사후 기록</p>
           <h2 id="track-record-title">리포트 이후 결과</h2>
         </div>
         <span class="status-pill">5일 / 20일</span>
@@ -2973,7 +2973,7 @@ def _analysis_outcome_summary_cards(summary: dict[str, Any]) -> str:
     average_raw = _percent(summary.get("average_raw_return"), signed=True)
     positive_rate = _percent(summary.get("positive_alpha_rate"))
     cards = [
-        ("결과 기록 완료", f"{completed}건", "결과 기록 완료"),
+        ("사후 기록 완료", f"{completed}건", "사후 기록 완료"),
         ("평균 벤치마크 차이", average_alpha, f"종목 평균 {average_raw}"),
         ("벤치마크 우위 기록", positive_rate, f"양수 차이 {positive_alpha}건"),
         ("대기/확인 필요", f"{pending}/{unavailable}", "대기 / 데이터 없음"),
@@ -2990,16 +2990,16 @@ def _analysis_outcome_summary_cards(summary: dict[str, Any]) -> str:
             """
         )
     return f"""
-    <section class="analysis-summary-grid outcome-summary-grid" aria-label="결과 기록 요약">
+    <section class="analysis-summary-grid outcome-summary-grid" aria-label="사후 기록 요약">
       {"".join(html_cards)}
     </section>
     """
 
 
 def _analysis_outcome_cadence_strip(model: dict[str, Any]) -> str:
-    filter_label = model.get("filter_label") or "전체 결과 기록"
+    filter_label = model.get("filter_label") or "전체 사후 기록"
     return f"""
-    <section class="analysis-pipeline-strip outcome-cadence-strip" aria-label="결과 기록 흐름">
+    <section class="analysis-pipeline-strip outcome-cadence-strip" aria-label="사후 기록 흐름">
       <article>
         <span>01</span>
         <strong>기준일</strong>
@@ -3029,7 +3029,7 @@ def _analysis_outcome_feed_cards(
     *,
     ticker_code: str | None = None,
     filter_status: str | None = None,
-    filter_label: str = "전체 결과 기록",
+    filter_label: str = "전체 사후 기록",
 ) -> str:
     if not items:
         if ticker_code or filter_status:
@@ -3044,14 +3044,14 @@ def _analysis_outcome_feed_cards(
               <span>필터 결과 없음</span>
               <h3>{_h(title)}</h3>
               <p>조건에 맞는 결과가 아직 없습니다. 기간이 부족하거나 가격 데이터가 비어 있을 수 있습니다.</p>
-              <div class="analysis-feed-signal-row" aria-label="결과 기록 필터 결과 없음">
+              <div class="analysis-feed-signal-row" aria-label="사후 기록 필터 결과 없음">
                 <span>{_h(str(filter_label))}</span>
                 <span>결과 0건</span>
                 <span>조건 변경 가능</span>
               </div>
               <div class="analysis-feed-actions">
                 <a href="/outcomes">필터 초기화</a>
-                <a href="{analyses_href}">리포트</a>
+                <a href="{analyses_href}">AI 리포트</a>
                 {stock_action}
                 <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
               </div>
@@ -3060,16 +3060,16 @@ def _analysis_outcome_feed_cards(
         return """
         <article class="analysis-feed-card outcome-feed-card empty">
           <span>대기</span>
-          <h3>결과 기록 대기</h3>
+          <h3>사후 기록 대기</h3>
           <p>아직 5일/20일 결과가 없거나 가격 데이터가 부족합니다.</p>
-          <div class="analysis-feed-signal-row" aria-label="결과 기록 대기 상태">
+          <div class="analysis-feed-signal-row" aria-label="사후 기록 대기 상태">
             <span>5일/20일 대기</span>
             <span>차이 대기</span>
             <span>주문 없음</span>
           </div>
           <div class="analysis-feed-actions">
             <a href="/stocks/005930">샘플 종목</a>
-            <a href="/analyses">리포트</a>
+            <a href="/analyses">AI 리포트</a>
             <a href="/features/outcomes">기준</a>
             <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
           </div>
@@ -3181,7 +3181,7 @@ def _analysis_feed_cards(
             <article class="analysis-feed-card empty">
               <span>아직 공개 기록 없음</span>
               <h3>{_h(ticker)} 공개 분석 없음</h3>
-              <p>아직 이 종목으로 공개된 리포트가 없습니다. 종목 페이지에서 가격·공시·뉴스 흐름을 먼저 보고, 필요하면 회원 작업공간에서 같은 종목의 리서치를 요청하세요.</p>
+              <p>아직 이 종목으로 공개된 리포트가 없습니다. 종목 페이지에서 가격·공시·뉴스 흐름을 먼저 보고, 필요하면 내 공간에서 같은 종목의 리서치를 요청하세요.</p>
               <div class="analysis-empty-plan" aria-label="다음 행동">
                 <div><strong>1</strong><span>종목 페이지에서 최신 데이터 흐름을 확인합니다.</span></div>
                 <div><strong>2</strong><span>로그인 후 분석 요청을 남기면 대기열에서 처리됩니다.</span></div>
@@ -3189,7 +3189,7 @@ def _analysis_feed_cards(
               <div class="analysis-feed-signal-row" aria-label="필터 결과 없음">
                 <span>{_h(str(filter_label))}</span>
                 <span>리포트 0개</span>
-                <span>결과 기록 대기</span>
+                <span>사후 기록 대기</span>
               </div>
               <div class="analysis-feed-actions">
                 <a href="/analyses">필터 초기화</a>
@@ -3206,12 +3206,12 @@ def _analysis_feed_cards(
           <div class="analysis-empty-plan" aria-label="처음 이용할 때 할 일">
             <div><strong>1</strong><span>샘플 종목에서 가격·공시·뉴스가 어떻게 묶이는지 확인합니다.</span></div>
             <div><strong>2</strong><span>리서치 흐름을 보고 AI 리포트가 어떤 기준으로 공개되는지 확인합니다.</span></div>
-            <div><strong>3</strong><span>가입 후 관심종목과 요청 대기열을 내 작업공간에서 관리합니다.</span></div>
+            <div><strong>3</strong><span>가입 후 관심종목과 요청 대기열을 내 공간에서 관리합니다.</span></div>
           </div>
           <div class="analysis-feed-signal-row" aria-label="공개 분석 대기 상태">
             <span>공개 기록 없음</span>
             <span>리포트 0개</span>
-            <span>결과 기록 대기</span>
+            <span>사후 기록 대기</span>
           </div>
           <div class="analysis-feed-actions">
             <a href="/stocks/005930">샘플 종목</a>
@@ -3287,7 +3287,7 @@ def _analysis_detail_map(model: dict[str, Any]) -> str:
         ("03", "AI 리포트", f"{len(reports)}개", model.get("analyst_label") or "리포트 확인"),
         (
             "04",
-            "결과 기록",
+            "사후 기록",
             f"{summary.get('completed_outcome_count', len(outcomes) or 0)}개 완료",
             f"평균 벤치마크 차이 {model.get('average_alpha_label') or '-'}",
         ),
@@ -3309,13 +3309,13 @@ def _analysis_detail_map(model: dict[str, Any]) -> str:
         <div>
           <p class="eyebrow">빠른 이동</p>
           <h2>리포트 핵심으로 이동</h2>
-          <p class="analysis-map-copy">출처, AI 의견, 본문, 결과 기록을 바로 확인합니다.</p>
+          <p class="analysis-map-copy">출처, AI 의견, 본문, 사후 기록을 바로 확인합니다.</p>
         </div>
         <nav aria-label="리포트 섹션 바로가기">
           <a href="#analysis-provenance">출처</a>
           <a href="#analysis-decision">의견</a>
-          <a href="#analysis-reports">리포트</a>
-          <a href="#analysis-outcomes">결과 기록</a>
+          <a href="#analysis-reports">AI 리포트</a>
+          <a href="#analysis-outcomes">사후 기록</a>
         </nav>
       </div>
       <div class="analysis-detail-map-grid">
@@ -3336,7 +3336,7 @@ def _analysis_detail_next_actions(model: dict[str, Any]) -> str:
       <div>
         <p class="eyebrow">다음 확인</p>
         <h2 id="analysis-next-actions-title">다음 이동</h2>
-        <p>종목, 결과 기록, 새 분석 요청, 원문 데이터로 이동합니다.</p>
+        <p>종목, 사후 기록, 새 분석 요청, 원문 데이터로 이동합니다.</p>
       </div>
       <div class="analysis-next-action-grid">
         <a href="{_h(stock_href)}">
@@ -3346,7 +3346,7 @@ def _analysis_detail_next_actions(model: dict[str, Any]) -> str:
         </a>
         <a href="{_h(outcomes_href)}">
           <span>02</span>
-          <strong>결과 기록</strong>
+          <strong>사후 기록</strong>
           <small>5일/20일 결과</small>
         </a>
         <a href="{_h(request_href)}">
@@ -3379,7 +3379,7 @@ def _analysis_detail_report_cards(
           <div class="analysis-empty-actions">
             <a href="/api/analyses/{_h(str(run_id))}">원문 데이터</a>
             <a href="/stocks/{_h(str(ticker_code))}">종목 페이지</a>
-            <a href="/analyses">리포트</a>
+            <a href="/analyses">AI 리포트</a>
             <a href="/member?mode=signup&tab=analysis#analysis-request-section">새 분석 요청</a>
           </div>
         </article>
@@ -3506,7 +3506,7 @@ def _analysis_detail_provenance(model: dict[str, Any]) -> str:
         ("데이터 출처", "KRX/DART/Naver", "시세, 공시, 뉴스 연결 기준입니다. 장애와 누락은 원문 데이터와 본문을 함께 확인합니다."),
         ("분석 역할", model["analyst_label"], "저장된 분석 설정 기준"),
         ("모델", model["model_label"], model["metadata_note"]),
-        ("결과 기록", model["completed_outcome_label"], f"평균 벤치마크 차이 {model['average_alpha_label']}"),
+        ("사후 기록", model["completed_outcome_label"], f"평균 벤치마크 차이 {model['average_alpha_label']}"),
         ("공개 분석 ID", model["run_id"], "화면 리포트와 원문 데이터가 같은 ID를 공유합니다."),
         ("표시 방식", "화면 요약 + 원문 데이터", "화면 요약은 저장된 리포트 묶음을 읽기 좋게 정리한 것입니다."),
         ("한계", "주문 없는 리서치", "투자 조언/주문 아님. 휴장, 제공처 장애, 누락 데이터, 모델 오류 가능성이 있습니다."),
@@ -3617,9 +3617,9 @@ def _analysis_feed_status_label(status: Any) -> str:
 
 def _analysis_outcomes_status_label(status: Any) -> str:
     return {
-        "available": "결과 기록 사용 가능",
-        "not_configured": "결과 기록 준비 중",
-        "unavailable": "결과 기록 확인 필요",
+        "available": "사후 기록 사용 가능",
+        "not_configured": "사후 기록 준비 중",
+        "unavailable": "사후 기록 확인 필요",
     }.get(str(status), "상태 확인")
 
 
@@ -3698,10 +3698,10 @@ def _outcome_cards(outcomes: list[dict[str, Any]]) -> str:
         cards = """
         <article class="outcome-card empty">
           <span>대기</span>
-          <h3>결과 기록 대기</h3>
+          <h3>사후 기록 대기</h3>
           <p>거래일이 충분히 쌓이면 5일/20일 결과가 표시됩니다.</p>
           <div class="analysis-feed-actions outcome-card-actions">
-            <a href="/analyses">리포트</a>
+            <a href="/analyses">AI 리포트</a>
             <a href="/features/outcomes">기준</a>
           </div>
         </article>
@@ -3712,7 +3712,7 @@ def _outcome_cards(outcomes: list[dict[str, Any]]) -> str:
     <section id="analysis-outcomes" class="outcome-section" aria-labelledby="outcome-title">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">결과 기록</p>
+          <p class="eyebrow">사후 기록</p>
           <h2 id="outcome-title">리포트 이후 결과</h2>
           <p class="outcome-section-copy">5일/20일 결과를 시장 기준과 비교합니다. 미래 수익을 보장하지 않습니다.</p>
         </div>
@@ -3735,7 +3735,7 @@ def _outcome_card(outcome: dict[str, Any]) -> str:
     if status == "completed":
         summary = f"종목 수익률 {raw_return}, 벤치마크 차이 {alpha_return}"
     elif status == "pending":
-        summary = f"현재 {actual_days or 0}거래일만 관측되어 결과 기록을 기다리는 중입니다."
+        summary = f"현재 {actual_days or 0}거래일만 관측되어 사후 기록을 기다리는 중입니다."
     else:
         summary = "결과 데이터를 아직 확보하지 못했습니다."
     return f"""
@@ -10789,9 +10789,9 @@ PAGE_JS = """
   let lastSearchController = null;
   const topNavLabels = {
     "/features": "서비스",
-    "/features/methodology": "검증 방식",
-    "/analyses": "리포트",
-    "/outcomes": "결과 기록",
+    "/features/methodology": "신뢰 기준",
+    "/analyses": "AI 리포트",
+    "/outcomes": "사후 기록",
     "/member": "로그인",
     "/member?mode=signup": "가입",
     "/mypage": "내 공간",
@@ -11641,14 +11641,15 @@ PAGE_JS = """
       take_profit: "익절",
       stop_loss: "손절",
       max_holding_days: "기간 만료",
-      latest_close: "최근가",
       no_completed_analysis: "리포트 필요",
       no_decision: "의견 없음",
       insufficient_price_data: "가격 부족",
       not_configured: "준비 중",
       skipped: "대기",
-      open: "보유 중",
-      closed: "청산"
+      open: "가상 보유",
+      closed: "청산 완료",
+      paper_position_open: "가상 보유",
+      paper_position_closed: "청산 완료"
     };
     return labels[value] || String(value || "-");
   }
@@ -11662,8 +11663,8 @@ PAGE_JS = """
       pill.textContent = simulationLabel(status);
       const copy = document.createElement("p");
       copy.textContent = status === "no_completed_analysis"
-        ? "완료 리포트가 생기면 가상 매매 결과를 표시합니다."
-        : "모의투자 결과를 아직 만들 수 없습니다.";
+        ? "분석 리포트가 완료되면 가상 진입·청산 기록을 계산합니다."
+        : "AI 가상매매 기록을 아직 만들 수 없습니다.";
       node.replaceChildren(pill, copy);
       return;
     }
@@ -11674,9 +11675,9 @@ PAGE_JS = """
     const grid = document.createElement("div");
     grid.className = "simulation-grid";
     const rows = [
-      ["매수", simulation.entry_date || "-"],
-      ["매도", simulation.exit_date || "-"],
-      ["수익률", pct(Number(simulation.portfolio_return))],
+      ["가상 진입", simulation.entry_date || "-"],
+      ["가상 청산", simulation.exit_date || "-"],
+      ["수익률", simulation.status === "open" ? pct(Number(simulation.unrealized_return)) : pct(Number(simulation.portfolio_return))],
       ["기준", simulationLabel(simulation.exit_reason || simulation.message)]
     ];
     rows.forEach(([label, value]) => {
@@ -11988,7 +11989,7 @@ ADMIN_PAGE_JS = """
       recentPanel.textContent = "";
       recentPanel.appendChild(renderRecentList("대기/처리 중", "대기열", [...(recent.queued || []), ...(recent.running || [])], requestLabel));
       recentPanel.appendChild(renderRecentList("최근 실패", "실패", recent.failed || [], requestLabel));
-      recentPanel.appendChild(renderRecentList("기록 후보", "결과 기록", outcomes.candidate_runs || [], runLabel));
+      recentPanel.appendChild(renderRecentList("기록 후보", "사후 기록", outcomes.candidate_runs || [], runLabel));
       recentPanel.appendChild(renderRecentList("최근 완료 기록", "결과", outcomes.recent_completed || [], outcomeLabel));
       recentPanel.appendChild(renderRecentList("보류/데이터 없음", "확인 필요", [...(outcomes.recent_pending || []), ...(outcomes.recent_unavailable || [])], outcomeIssueLabel));
       recentPanel.appendChild(renderRecentList("AI 가상매매 대기", "가상 기록", paper.candidate_runs || [], paperCandidateLabel));
@@ -12041,7 +12042,7 @@ ADMIN_PAGE_JS = """
         const estimated = Number(payload?.estimated_outcome_count || 0);
         appendActionCell(fragment, "대상 리포트", String(runCount), `검증 구간 ${horizons}`, runCount ? "is-warn" : "is-ok");
         appendActionCell(fragment, "예상 작업", String(estimated), "이미 완료된 구간은 실행 시 건너뜁니다.", estimated ? "is-warn" : "is-ok");
-        appendActionCell(fragment, "확인 경로", payload?.inspect_path || "/api/analysis-outcomes", "공개 결과 기록 API로 결과를 재확인합니다.", "is-waiting");
+        appendActionCell(fragment, "확인 경로", payload?.inspect_path || "/api/analysis-outcomes", "공개 사후 기록 API로 결과를 재확인합니다.", "is-waiting");
       } else {
         const summary = payload?.summary || {};
         const results = Array.isArray(payload?.results) ? payload.results : [];
@@ -12283,7 +12284,7 @@ ADMIN_PAGE_JS = """
     const body = isOutcome
       ? { limit, dry_run: isDryRun, horizons: [5, 20] }
       : { limit, dry_run: isDryRun };
-    const actionLabel = isPaper ? "AI 모의투자" : isOutcome ? "결과 기록" : "분석 요청";
+    const actionLabel = isPaper ? "AI 가상매매 기록" : isOutcome ? "사후 기록" : "분석 요청";
     if (!isDryRun && button.dataset.confirmed !== "true") {
       button.dataset.confirmed = "true";
       button.textContent = "확인 후 실행";
@@ -12391,9 +12392,9 @@ MEMBER_PAGE_JS = """
   };
   const memberTopNavLabels = {
     "/features": "서비스",
-    "/features/methodology": "검증 방식",
-    "/analyses": "리포트",
-    "/outcomes": "결과 기록",
+    "/features/methodology": "신뢰 기준",
+    "/analyses": "AI 리포트",
+    "/outcomes": "사후 기록",
     "/member": "로그인",
     "/member?mode=signup": "가입",
     "/mypage": "내 공간",
@@ -13324,8 +13325,8 @@ MEMBER_PAGE_JS = """
 
   function paperStatusLabel(status) {
     return {
-      open: "보유 중",
-      closed: "청산"
+      open: "가상 보유",
+      closed: "청산 완료"
     }[status] || status || "대기";
   }
 
@@ -13333,8 +13334,7 @@ MEMBER_PAGE_JS = """
     return {
       take_profit: "익절",
       stop_loss: "손절",
-      max_holding_days: "기간 종료",
-      latest_close: "최근 종가"
+      max_holding_days: "기간 종료"
     }[reason] || reason || "-";
   }
 
@@ -13344,8 +13344,9 @@ MEMBER_PAGE_JS = """
 
   function paperSimulationLines(row) {
     const lines = [];
-    if (row.entry_date) lines.push(`진입 ${shortDate(row.entry_date)} @ ${money(row.entry_price)}`);
-    if (row.exit_date) lines.push(`청산 ${shortDate(row.exit_date)} @ ${money(row.exit_price)} / ${exitReasonLabel(row.exit_reason)}`);
+    if (row.entry_date) lines.push(`가상 진입 ${shortDate(row.entry_date)} @ ${money(row.entry_price)}`);
+    if (row.exit_date) lines.push(`가상 청산 ${shortDate(row.exit_date)} @ ${money(row.exit_price)} / ${exitReasonLabel(row.exit_reason)}`);
+    if (!row.exit_date && row.metadata?.mark_date) lines.push(`최근 평가 ${shortDate(row.metadata.mark_date)} @ ${money(row.metadata.mark_price)} / ${signedPercent(row.metadata.unrealized_return)}`);
     if (row.target_price || row.stop_price) {
       lines.push(`익절 ${money(row.target_price)} / 손절 ${money(row.stop_price)}`);
     }
@@ -13366,12 +13367,12 @@ MEMBER_PAGE_JS = """
     node.append(
       cardHeader(title, meta, paperStatusLabel(status)),
       metricGrid([
-        ["진입", money(row.entry_price), shortDate(row.entry_date)],
-        ["청산", row.exit_price ? money(row.exit_price) : "-", row.exit_date ? shortDate(row.exit_date) : "진행 중"],
-        ["손익", signedMoney(row.realized_pnl), signedPercent(row.realized_return)],
-        ["이유", exitReasonLabel(row.exit_reason), "가상 규칙"]
+        ["가상 진입", money(row.entry_price), shortDate(row.entry_date)],
+        ["가상 청산", row.exit_price ? money(row.exit_price) : "-", row.exit_date ? shortDate(row.exit_date) : "가상 보유"],
+        ["손익", row.status === "open" ? signedPercent(row.metadata?.unrealized_return) : signedMoney(row.realized_pnl), row.status === "open" ? "평가 기준" : signedPercent(row.realized_return)],
+        ["판단 이유", exitReasonLabel(row.exit_reason), "가상 규칙"]
       ]),
-      miniList(paperSimulationLines(row), "모의투자 상세 대기", "기록")
+      miniList(paperSimulationLines(row), "AI 가상매매 상세 대기", "기록")
     );
     if (actions.childElementCount) node.append(actions);
     return node;
@@ -13404,8 +13405,8 @@ MEMBER_PAGE_JS = """
   }
 
   function fillPortfolioSelects(rows) {
-    fillSelect(portfolioSelect, rows, "name", "포트폴리오를 먼저 추가하세요");
-    fillSelect(targetPortfolioSelect, rows, "name", "포트폴리오를 먼저 추가하세요");
+    fillSelect(portfolioSelect, rows, "name", "매매 메모 묶음을 먼저 추가하세요");
+    fillSelect(targetPortfolioSelect, rows, "name", "매매 메모 묶음을 먼저 추가하세요");
   }
 
   function renderPortfolios(payload, details = {}, error = "") {
@@ -13413,7 +13414,7 @@ MEMBER_PAGE_JS = """
       fillPortfolioSelects([]);
       setFormControlsDisabled(tradeForm, true);
       setFormControlsDisabled(targetForm, true);
-      portfolioList.replaceChildren(emptyNode(`포트폴리오를 불러오지 못했습니다: ${error}`));
+      portfolioList.replaceChildren(emptyNode(`매매 메모를 불러오지 못했습니다: ${error}`));
       return;
     }
     const rows = payload.items || [];
@@ -13423,9 +13424,9 @@ MEMBER_PAGE_JS = """
     portfolioList.replaceChildren(
       ...(rows.length ? rows.map((row) => portfolioCard(row, details[row.id])) : [
         emptyActionNode(
-          "아직 포트폴리오 기록이 없습니다",
-          "주문이 연결되지 않는 기록 묶음입니다. 먼저 이름을 만들고, 이후 매수·매도 메모와 목표가를 추가하세요.",
-          "포트폴리오 이름 입력",
+          "아직 매매 메모가 없습니다",
+          "실제 계좌가 아닌 매매 메모입니다. 먼저 이름을 만들고 종목, 평단, 목표가를 직접 남겨보세요.",
+          "메모 묶음 이름 입력",
           () => focusField(portfolioForm, "name")
         )
       ])
@@ -13436,18 +13437,18 @@ MEMBER_PAGE_JS = """
     if (error) {
       fillSelect(watchlistSelect, [], "name");
       setFormControlsDisabled(watchlistItemForm, true);
-      watchlistList.replaceChildren(emptyNode(`관심목록을 불러오지 못했습니다: ${error}`));
+      watchlistList.replaceChildren(emptyNode(`관심종목을 불러오지 못했습니다: ${error}`));
       return;
     }
     const rows = payload.items || [];
-    fillSelect(watchlistSelect, rows, "name", "관심목록을 먼저 추가하세요");
+    fillSelect(watchlistSelect, rows, "name", "관심종목 목록을 먼저 만드세요");
     setFormControlsDisabled(watchlistItemForm, !rows.length);
     watchlistList.replaceChildren(
       ...(rows.length ? rows.map((row) => watchlistCard(row, details[row.id])) : [
         emptyActionNode(
-          "아직 관심목록이 없습니다",
+          "아직 관심종목이 없습니다",
           "자주 확인할 종목을 담을 목록을 먼저 만드세요. 목록을 만든 뒤 종목명 또는 6자리 코드와 메모를 저장할 수 있습니다.",
-          "관심목록 이름 입력",
+          "목록 이름 입력",
           () => focusField(watchlistForm, "name")
         )
       ])
@@ -13476,14 +13477,14 @@ MEMBER_PAGE_JS = """
   function renderPaperSimulations(payload, error = "") {
     if (!paperSimulationList) return;
     if (error) {
-      paperSimulationList.replaceChildren(emptyNode(`AI 모의투자를 불러오지 못했습니다: ${error}`));
+      paperSimulationList.replaceChildren(emptyNode(`AI 가상매매 기록을 불러오지 못했습니다: ${error}`));
       return;
     }
     const rows = payload.positions || [];
     const summary = payload.summary || {};
     const overview = metricGrid([
-      ["보유 중", `${summary.open_count || 0}건`, "가상 포지션"],
-      ["청산", `${summary.closed_count || 0}건`, "완료 기록"],
+      ["가상 보유", `${summary.open_count || 0}건`, "가상 포지션"],
+      ["청산 완료", `${summary.closed_count || 0}건`, "완료 기록"],
       ["승률", summary.win_rate === null || summary.win_rate === undefined ? "-" : signedPercent(summary.win_rate).replace("+", ""), "청산 기준"],
       ["누적 손익", signedMoney(summary.total_realized_pnl), "가상 손익"]
     ]);
@@ -13492,8 +13493,8 @@ MEMBER_PAGE_JS = """
       overview,
       ...(rows.length ? rows.map((row) => paperSimulationCard(row)) : [
         emptyActionNode(
-          "아직 AI 모의투자 기록이 없습니다",
-          "분석 요청이 완료되면 가상 진입과 청산 기록이 이곳에 쌓입니다.",
+          "아직 AI 가상매매 기록이 없습니다",
+          "분석 리포트가 완료되면 AI가 가상 진입·청산 시점을 기록합니다.",
           "분석 요청 열기",
           () => activateMemberTab("analysis")
         )
@@ -13518,15 +13519,15 @@ MEMBER_PAGE_JS = """
     const activeCount = summary.active_count ?? requestRows.filter((row) => row.is_active).length;
     const completedCount = summary.completed_count ?? requestRows.filter((row) => row.status === "completed").length;
     const parts = [];
-    if (portfolioCount) parts.push(`포트폴리오 ${portfolioCount}개`);
-    if (watchlistCount) parts.push(`관심목록 ${watchlistCount}개`);
+    if (portfolioCount) parts.push(`매매 메모 ${portfolioCount}개`);
+    if (watchlistCount) parts.push(`관심종목 ${watchlistCount}개`);
     if (activeCount) parts.push(`진행 중 요청 ${activeCount}건`);
     if (completedCount) parts.push(`완료 리포트 ${completedCount}건`);
-    if (paperCount) parts.push(`AI 모의 ${paperCount}건`);
+    if (paperCount) parts.push(`AI 가상매매 ${paperCount}건`);
     if (!parts.length) {
-      return "빈 작업공간을 불러왔습니다. 관심목록, 수동 기록, 분석 요청 중 하나부터 시작할 수 있습니다.";
+      return "빈 내 공간을 불러왔습니다. 관심종목, 매매 메모, 분석 요청 중 하나부터 시작할 수 있습니다.";
     }
-    return `작업공간을 불러왔습니다: ${parts.join(" / ")}. 기록은 주문과 연결되지 않습니다.`;
+    return `내 공간을 불러왔습니다: ${parts.join(" / ")}. 이 기록은 실제 주문·계좌와 연결되지 않습니다.`;
   }
 
   function setMemberHomeNote(text) {
@@ -13574,14 +13575,14 @@ MEMBER_PAGE_JS = """
     } else if (paperCount) {
       setMemberPrimaryAction(
         "paper",
-        "AI 모의투자 기록을 확인하세요",
+        "AI 가상매매 기록을 확인하세요",
         "가상 진입과 청산 이유를 리포트와 이어서 볼 수 있습니다.",
-        "AI 모의 보기"
+        "AI 가상매매 보기"
       );
     } else if (!watchlistCount) {
       setMemberPrimaryAction(
         "watchlist",
-        "첫 관심목록을 만들어보세요",
+        "첫 관심종목을 만들어보세요",
         "자주 보는 종목을 담아두면 분석 요청과 리포트를 이어서 보기 쉽습니다.",
         "관심종목 만들기"
       );
@@ -13589,8 +13590,8 @@ MEMBER_PAGE_JS = """
       setMemberPrimaryAction(
         "portfolio",
         "매매 메모를 정리해보세요",
-        "계좌 주문과 연결되지 않는 수동 기록으로 매수·매도 판단과 목표가를 남깁니다.",
-        "포트폴리오 기록하기"
+        "계좌 주문과 연결되지 않는 매매 메모로 매수·매도 판단과 목표가를 남깁니다.",
+        "매매 메모 기록하기"
       );
     } else {
       setMemberPrimaryAction(
@@ -13858,10 +13859,10 @@ MEMBER_PAGE_JS = """
     setFormControlsDisabled(tradeForm, true);
     setFormControlsDisabled(targetForm, true);
     setFormControlsDisabled(watchlistItemForm, true);
-    portfolioList?.replaceChildren(emptyNode("로그인 후 포트폴리오가 표시됩니다"));
-    watchlistList?.replaceChildren(emptyNode("로그인 후 관심목록이 표시됩니다"));
+    portfolioList?.replaceChildren(emptyNode("로그인 후 매매 메모가 표시됩니다"));
+    watchlistList?.replaceChildren(emptyNode("로그인 후 관심종목이 표시됩니다"));
     analysisRequestList?.replaceChildren(emptyNode("로그인 후 분석 요청이 표시됩니다"));
-    paperSimulationList?.replaceChildren(emptyNode("로그인 후 AI 모의투자가 표시됩니다"));
+    paperSimulationList?.replaceChildren(emptyNode("로그인 후 AI 가상매매 기록이 표시됩니다"));
     updateMemberOverview({ items: [] }, { items: [] }, { items: [] }, { positions: [] });
     setStatus("로그아웃됨");
   });
@@ -13875,7 +13876,7 @@ MEMBER_PAGE_JS = """
     submitJson(portfolioForm, "/api/portfolios", (form) => ({
       name: String(form.get("name") || ""),
       base_currency: "KRW"
-    }), { successMessage: "포트폴리오를 만들었습니다. 이제 매수·매도 기록이나 목표/손절 메모를 추가할 수 있습니다." });
+    }), { successMessage: "매매 메모 묶음을 만들었습니다. 이제 매수·매도 기록이나 목표/손절 메모를 추가할 수 있습니다." });
   });
 
   tradeForm?.addEventListener("submit", (event) => {
@@ -13911,7 +13912,7 @@ MEMBER_PAGE_JS = """
     event.preventDefault();
     submitJson(watchlistForm, "/api/watchlists", (form) => ({
       name: String(form.get("name") || "")
-    }), { successMessage: "관심목록을 만들었습니다. 이제 종목을 담아보세요." });
+    }), { successMessage: "관심종목 목록을 만들었습니다. 이제 종목을 담아보세요." });
   });
 
   watchlistItemForm?.addEventListener("submit", (event) => {
