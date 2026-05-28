@@ -643,7 +643,13 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied(monkeypat
     assert "probe_vendors" in html
     assert "vendor_probes" in html
     assert "요청 제한 헤더" in html
-    assert "미리 보기 우선" in html
+    assert "대상 확인 우선" in html
+    assert "분석 리포트 생성" in html
+    assert "5일/20일 결과 기록" in html
+    assert "AI 가상매매 기록" in html
+    assert "실제 주문은 없습니다." in html
+    assert "대상 확인 중" in html
+    assert "분석 리포트 생성 결과입니다." in html
     assert "확인 후 실행" in html
     assert 'data-admin-action$="process"][data-confirmed="true"]' in html
     assert '<meta name="robots" content="noindex,nofollow">' in html
