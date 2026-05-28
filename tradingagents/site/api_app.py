@@ -894,19 +894,26 @@ def create_app(
             raise HTTPException(status_code=503, detail="Storage repository is not configured")
         _require_worker_token(request, x_tradingagents_worker_token)
         max_limit = _max_outcome_worker_limit()
-        if body.limit > max_limit:
-            raise HTTPException(status_code=400, detail=f"limit cannot exceed {max_limit}")
         _validate_outcome_horizons(body.horizons)
         if body.dry_run:
-            runs = repo.list_public_analysis_runs(limit=body.limit)
-            return {
+            effective_limit = min(body.limit, max_limit)
+            runs = repo.list_public_analysis_runs(limit=effective_limit)
+            payload: dict[str, object] = {
                 "status": "dry_run",
                 "run_count": len(runs),
                 "horizons": body.horizons,
                 "estimated_outcome_count": len(runs) * len(body.horizons),
                 "inspect_path": "/api/analysis-outcomes",
                 "items": runs,
+                "limit": effective_limit,
+                "requested_limit": body.limit,
+                "max_limit": max_limit,
             }
+            if body.limit > max_limit:
+                payload["notice"] = f"처리 한도 {max_limit}건에 맞춰 대상 확인 범위를 조정했습니다."
+            return payload
+        if body.limit > max_limit:
+            raise HTTPException(status_code=400, detail=f"limit cannot exceed {max_limit}")
         return _process_analysis_outcomes(repo, limit=body.limit, horizons=body.horizons)
 
     @app.get("/api/cron/process-analysis-outcomes", include_in_schema=False)
@@ -931,12 +938,11 @@ def create_app(
             raise HTTPException(status_code=503, detail="Storage repository is not configured")
         _require_worker_token(request, x_tradingagents_worker_token)
         max_limit = _max_paper_simulation_worker_limit()
-        if body.limit > max_limit:
-            raise HTTPException(status_code=400, detail=f"limit cannot exceed {max_limit}")
         if body.dry_run:
-            candidates = repo.list_paper_simulation_candidates(limit=body.limit)
-            open_positions = repo.list_open_paper_simulation_positions(limit=body.limit)
-            return {
+            effective_limit = min(body.limit, max_limit)
+            candidates = repo.list_paper_simulation_candidates(limit=effective_limit)
+            open_positions = repo.list_open_paper_simulation_positions(limit=effective_limit)
+            payload: dict[str, object] = {
                 "status": "dry_run",
                 "item_count": len(candidates) + len(open_positions),
                 "candidate_count": len(candidates),
@@ -945,7 +951,15 @@ def create_app(
                 "execution_boundary": "simulation_only_no_orders",
                 "items": [_admin_paper_candidate_preview(row) for row in candidates],
                 "open_positions": [_admin_paper_open_preview(row) for row in open_positions],
+                "limit": effective_limit,
+                "requested_limit": body.limit,
+                "max_limit": max_limit,
             }
+            if body.limit > max_limit:
+                payload["notice"] = f"처리 한도 {max_limit}건에 맞춰 대상 확인 범위를 조정했습니다."
+            return payload
+        if body.limit > max_limit:
+            raise HTTPException(status_code=400, detail=f"limit cannot exceed {max_limit}")
         return _process_paper_simulations(repo, limit=body.limit, as_of_date=body.as_of_date)
 
     @app.get("/api/cron/process-paper-simulations", include_in_schema=False)

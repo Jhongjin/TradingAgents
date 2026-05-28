@@ -1651,12 +1651,12 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <article>
         <span>02</span>
         <strong>대상 확인</strong>
-        <small>실행 전 처리 대상과 제한값을 확인합니다. 데이터는 바꾸지 않습니다.</small>
+        <small>저장 없이 이번 실행 대상과 제한값만 확인합니다.</small>
       </article>
       <article>
         <span>03</span>
-        <strong>작업 실행</strong>
-        <small>분석 생성, 결과 기록, AI 가상매매 기록을 제한된 건수만큼 저장합니다.</small>
+        <strong>대기열 처리</strong>
+        <small>확인한 대상 중 제한된 건수만 실제로 저장합니다.</small>
       </article>
       <article>
         <span>04</span>
@@ -1712,7 +1712,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
         <div class="panel-heading">
           <div>
             <p class="eyebrow">분석 요청 대기열</p>
-            <h2>분석 리포트 생성</h2>
+            <h2>분석 요청 처리</h2>
           </div>
           <span class="status-pill">관리 API</span>
         </div>
@@ -1722,8 +1722,9 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
         </label>
         <div class="button-row">
           <button type="button" data-admin-action="requests-dry-run">대상 확인</button>
-          <button type="button" data-admin-action="requests-process">분석 시작</button>
+          <button type="button" data-admin-action="requests-process">대기열 처리</button>
         </div>
+        <small class="admin-action-help">대상 확인은 저장 없이 조회만 합니다. 대기열 처리는 요청 상태를 처리 중으로 바꾸고 공개 리포트를 생성합니다.</small>
         <div class="admin-action-panel" id="adminRequestsPanel" aria-live="polite">
           <div class="action-cell is-waiting">
             <span>분석 리포트</span>
@@ -1748,8 +1749,9 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
         </label>
         <div class="button-row">
           <button type="button" data-admin-action="outcomes-dry-run">대상 확인</button>
-          <button type="button" data-admin-action="outcomes-process">결과 기록</button>
+          <button type="button" data-admin-action="outcomes-process">결과 저장</button>
         </div>
+        <small class="admin-action-help">대상 확인은 후보만 보여줍니다. 결과 저장은 5일/20일 수익률과 벤치마크 차이를 저장합니다.</small>
         <div class="admin-action-panel" id="adminOutcomesPanel" aria-live="polite">
           <div class="action-cell is-waiting">
             <span>결과 기록</span>
@@ -1774,8 +1776,9 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
         </label>
         <div class="button-row">
           <button type="button" data-admin-action="paper-dry-run">대상 확인</button>
-          <button type="button" data-admin-action="paper-process">기록 생성</button>
+          <button type="button" data-admin-action="paper-process">가상 기록</button>
         </div>
+        <small class="admin-action-help">대상 확인은 후보와 가상 보유 건을 보여줍니다. 가상 기록은 실제 주문 없이 AI 모의매매 기록만 저장합니다.</small>
         <div class="admin-action-panel" id="adminPaperSimulationPanel" aria-live="polite">
           <div class="action-cell is-waiting">
             <span>AI 가상매매</span>
@@ -6358,6 +6361,13 @@ h3 {
 .admin-card button[data-admin-action$="dry-run"]:hover,
 .admin-card button[data-admin-action$="process"]:hover {
   transform: translateY(-1px);
+}
+
+.admin-action-help {
+  display: block;
+  color: rgba(246, 243, 232, 0.72);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .admin-card pre {
@@ -12174,7 +12184,8 @@ ADMIN_PAGE_JS = """
       if (isDryRun || payload?.status === "dry_run") {
         const rows = Array.isArray(payload?.items) ? payload.items : [];
         const openRows = Array.isArray(payload?.open_positions) ? payload.open_positions : [];
-        appendActionCell(fragment, "새 기록", String(payload?.candidate_count ?? rows.length), "완료된 분석 리포트 중 아직 가상 기록이 없는 항목입니다.", rows.length ? "is-warn" : "is-ok");
+        const limitNote = payload?.notice || "완료된 분석 리포트 중 아직 가상 기록이 없는 항목입니다.";
+        appendActionCell(fragment, "새 기록", String(payload?.candidate_count ?? rows.length), limitNote, rows.length ? "is-warn" : "is-ok");
         appendActionCell(fragment, "재평가", String(payload?.open_position_count ?? openRows.length), "가상 보유 중인 기록을 최신 가격으로 다시 확인합니다.", openRows.length ? "is-warn" : "is-ok");
         appendActionCell(fragment, "실행 경계", "가상", "실제 주문 없이, 분석 리포트 기준의 가상 기록만 저장합니다.", "is-ok");
       } else {
@@ -12193,7 +12204,8 @@ ADMIN_PAGE_JS = """
       if (isDryRun || payload?.status === "dry_run") {
         const runCount = Number(payload?.run_count || payload?.item_count || 0);
         const estimated = Number(payload?.estimated_outcome_count || 0);
-        appendActionCell(fragment, "대상 리포트", String(runCount), `검증 구간 ${horizons}`, runCount ? "is-warn" : "is-ok");
+        const limitNote = payload?.notice || `검증 구간 ${horizons}`;
+        appendActionCell(fragment, "대상 리포트", String(runCount), limitNote, runCount ? "is-warn" : "is-ok");
         appendActionCell(fragment, "예상 작업", String(estimated), "이미 완료된 구간은 실행 시 건너뜁니다.", estimated ? "is-warn" : "is-ok");
         appendActionCell(fragment, "확인 경로", payload?.inspect_path || "/api/analysis-outcomes", "공개 결과 기록 API로 결과를 재확인합니다.", "is-waiting");
       } else {
@@ -12438,11 +12450,11 @@ ADMIN_PAGE_JS = """
     const body = isOutcome
       ? { limit, dry_run: isDryRun, horizons: [5, 20] }
       : { limit, dry_run: isDryRun };
-    const actionLabel = isPaper ? "AI 가상매매 기록" : isOutcome ? "사후 결과 기록" : "분석 리포트";
+    const actionLabel = isPaper ? "AI 가상매매 기록" : isOutcome ? "결과 기록" : "분석 요청 처리";
     if (!isDryRun && button.dataset.confirmed !== "true") {
       button.dataset.confirmed = "true";
-      button.textContent = "확인 후 실행";
-      setOutput(output, "실행 전 대상 확인을 권장합니다. 실제 작업을 실행하려면 이 버튼을 한 번 더 누르세요.");
+      button.textContent = "한 번 더 눌러 실행";
+      setOutput(output, "먼저 대상 확인을 누르면 저장 없이 후보를 볼 수 있습니다. 바로 실행하려면 이 버튼을 한 번 더 누르세요.");
       window.setTimeout(() => {
         if (button.dataset.confirmed === "true") {
           button.dataset.confirmed = "false";
@@ -12453,8 +12465,8 @@ ADMIN_PAGE_JS = """
     }
     try {
       setBusy(button, true);
-      setOutput(output, isDryRun ? "대상 확인 중" : "작업 요청 중");
-      renderActionSummaryPending(summaryPanel, actionLabel, isDryRun ? "저장 없이 처리 대상을 확인하고 있습니다." : "작업 실행 결과를 기다리고 있습니다.");
+      setOutput(output, isDryRun ? "대상 확인 중" : "작업 실행 중");
+      renderActionSummaryPending(summaryPanel, actionLabel, isDryRun ? "저장 없이 처리 대상을 확인하고 있습니다." : "선택한 대기열 작업을 저장하고 있습니다.");
       const payload = await fetchJson(path, { method: "POST", body: JSON.stringify(body) }, true);
       renderAdminActionSummary(summaryPanel, payload, isOutcome, isDryRun, isPaper);
       setOutput(output, payload);

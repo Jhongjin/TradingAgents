@@ -249,6 +249,45 @@ def test_api_app_serves_member_paper_simulations(monkeypatch):
     assert body["positions"][0]["stock_path"] == "/stocks/005930"
 
 
+def test_api_app_admin_paper_simulation_dry_run_clamps_to_worker_limit(monkeypatch):
+    repo = _repo()
+    for ticker_code in ("005930", "000660"):
+        run_id = repo.create_analysis_run(
+            AnalysisRunInput(
+                user_id=USER_ID,
+                ticker_code=ticker_code,
+                trade_date=date(2026, 5, 5),
+                visibility="public",
+            )
+        )
+        repo.record_trade_decision(
+            TradeDecisionInput(
+                analysis_run_id=run_id,
+                rating="Buy",
+                action="buy",
+            )
+        )
+        repo.complete_analysis_run(run_id)
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_TOKEN", "secret")
+    monkeypatch.setenv("TRADINGAGENTS_PAPER_SIMULATION_WORKER_MAX_RUNS", "1")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.post(
+        "/api/admin/paper-simulations/process",
+        headers={"Authorization": "Bearer secret"},
+        json={"limit": 5, "dry_run": True},
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["status"] == "dry_run"
+    assert body["candidate_count"] == 1
+    assert body["limit"] == 1
+    assert body["requested_limit"] == 5
+    assert body["max_limit"] == 1
+    assert "처리 한도 1건" in body["notice"]
+
+
 def test_api_app_hides_operator_routes_from_openapi(monkeypatch):
     monkeypatch.setenv("TRADINGAGENTS_API_DOCS_ENABLED", "true")
     client = TestClient(create_app(repo=None, load_repo_from_env=False))
@@ -1535,6 +1574,38 @@ def test_api_app_admin_outcome_worker_dry_run_summarizes_candidate_work(monkeypa
     assert response.json()["horizons"] == [5, 20]
     assert response.json()["estimated_outcome_count"] == 2
     assert response.json()["inspect_path"] == "/api/analysis-outcomes"
+
+
+def test_api_app_admin_outcome_worker_dry_run_clamps_to_worker_limit(monkeypatch):
+    repo = _repo()
+    for ticker_code in ("005930", "000660"):
+        repo.complete_analysis_run(
+            repo.create_analysis_run(
+                AnalysisRunInput(
+                    ticker_code=ticker_code,
+                    trade_date=date(2026, 5, 1),
+                    visibility="public",
+                )
+            )
+        )
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_TOKEN", "secret")
+    monkeypatch.setenv("TRADINGAGENTS_OUTCOME_WORKER_MAX_RUNS", "1")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.post(
+        "/api/admin/analysis-outcomes/process",
+        headers={"Authorization": "Bearer secret"},
+        json={"limit": 5, "horizons": [5], "dry_run": True},
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["status"] == "dry_run"
+    assert body["run_count"] == 1
+    assert body["limit"] == 1
+    assert body["requested_limit"] == 5
+    assert body["max_limit"] == 1
+    assert "처리 한도 1건" in body["notice"]
 
 
 def test_api_app_outcome_worker_uses_separate_limit_from_analysis_worker(monkeypatch):
