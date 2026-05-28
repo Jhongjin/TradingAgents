@@ -6965,6 +6965,21 @@ h3 {
   color: var(--ink);
 }
 
+.member-page .member-form select {
+  color-scheme: dark;
+}
+
+.member-page .member-form select option,
+.member-page .member-form select optgroup {
+  background: #121812;
+  color: var(--ink);
+}
+
+.member-page .member-form select option:checked {
+  background: #d2ff2f;
+  color: #10140f;
+}
+
 .member-page .member-form input::placeholder,
 .member-page .member-action-item input::placeholder {
   color: rgba(246, 243, 232, 0.42);
