@@ -1888,7 +1888,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <p class="eyebrow">회원 공간</p>
           <h1 id="member-title">내 공간</h1>
           <p class="asof" id="memberStatus">로그인 상태 확인 중</p>
-          <p class="member-workspace-lede">관심종목, 분석 요청, 매매 메모를 이어갑니다. 이 기록은 실제 주문·계좌와 연결되지 않습니다.</p>
+          <p class="member-workspace-lede">관심종목, 분석 요청, 매매 메모를 이어갑니다. 실제 주문·계좌와 연결되지 않습니다.</p>
         </div>
         <div class="member-signed-in" id="memberSignedIn" hidden>
           <span class="status-pill" id="memberSignedInState">대시보드 확인 중</span>
@@ -1917,7 +1917,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <div>
               <p class="eyebrow">내 공간</p>
               <h2>홈</h2>
-              <p class="panel-copy">저장된 항목과 다음 행동을 보여줍니다.</p>
+              <p class="panel-copy">오늘 이어갈 항목입니다.</p>
             </div>
             <span class="status-pill">읽기 전용</span>
           </div>
@@ -1948,50 +1948,50 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <small>가상 기록</small>
             </article>
           </section>
-          <p class="member-home-state-note" id="memberHomeStateNote" aria-live="polite">로그인되면 빈 상태와 다음 행동을 이곳에 정리합니다.</p>
+          <p class="member-home-state-note" id="memberHomeStateNote" aria-live="polite">저장된 항목을 불러오고 있습니다.</p>
           <section class="member-primary-action" id="memberPrimaryAction" data-member-primary-action="watchlist" aria-live="polite">
             <div>
-              <span>다음 추천 작업</span>
-              <strong id="memberPrimaryActionTitle">첫 관심종목을 만들어보세요</strong>
+              <span>다음 작업</span>
+              <strong id="memberPrimaryActionTitle">관심종목부터 추가하세요</strong>
               <small id="memberPrimaryActionCopy">자주 보는 종목을 담아두면 분석 요청과 리포트를 이어서 보기 쉽습니다.</small>
             </div>
-            <button class="home-primary-link" type="button" id="memberPrimaryActionButton" data-member-jump="watchlist">관심종목 만들기</button>
+            <button class="home-primary-link" type="button" id="memberPrimaryActionButton" data-member-jump="watchlist">관심종목 추가</button>
           </section>
           <div class="member-home-grid" aria-label="다음 작업">
             <article class="member-home-card">
               <span>01</span>
-              <strong>관심종목 점검</strong>
-              <small>추적할 한국 종목을 묶고 메모와 현재가 상태를 같이 봅니다.</small>
+              <strong>관심종목</strong>
+              <small>자주 보는 종목을 묶고 현재가를 확인합니다.</small>
               <button class="ghost-button" type="button" data-member-jump="watchlist">관심종목 열기</button>
             </article>
             <article class="member-home-card">
               <span>02</span>
               <strong>분석 요청</strong>
-              <small>요청 가능 횟수와 처리 상태를 확인합니다.</small>
+              <small>요청 가능 횟수와 진행 상태를 확인합니다.</small>
               <button class="ghost-button" type="button" data-member-jump="analysis">분석 요청 열기</button>
             </article>
             <article class="member-home-card member-report-card">
               <span>03</span>
-              <strong>공개 리포트 확인</strong>
-              <small>완료된 리포트를 공개 목록과 종목 페이지에서 확인합니다.</small>
+              <strong>리포트</strong>
+              <small>완료된 공개 리포트를 확인합니다.</small>
               <a class="ghost-button member-report-link" href="/analyses">리포트 열기</a>
             </article>
             <article class="member-home-card">
               <span>04</span>
               <strong>매매 메모</strong>
-              <small>실제 계좌가 아닌 기록입니다. 평단, 수수료, 목표가를 직접 남깁니다.</small>
+              <small>평단, 수수료, 목표가를 직접 남깁니다.</small>
               <button class="ghost-button" type="button" data-member-jump="portfolio">매매 메모 열기</button>
             </article>
             <article class="member-home-card member-paper-card">
               <span>05</span>
-              <strong>AI 가상매매 기록</strong>
-              <small>분석 리포트가 완료되면 AI가 가상 진입·청산 시점을 기록합니다.</small>
+              <strong>AI 가상매매</strong>
+              <small>AI의 가상 진입·청산 기록을 봅니다.</small>
               <button class="ghost-button" type="button" data-member-jump="paper">AI 가상매매 열기</button>
             </article>
             <article class="member-home-card member-admin-card">
               <span>06</span>
               <strong>운영자 콘솔</strong>
-              <small>토큰 입력 후 상태 점검, 분석 처리, AI 가상매매를 실행합니다.</small>
+              <small>상태 점검과 작업 처리를 실행합니다.</small>
               <a class="ghost-button member-admin-link" href="/admin">운영 열기</a>
             </article>
           </div>
@@ -6758,10 +6758,10 @@ h3 {
 
 .member-home-state-note {
   margin: 0;
-  padding: 12px 14px;
+  padding: 11px 14px;
   border: 1px solid rgba(246, 243, 232, 0.12);
   border-radius: 8px;
-  background: rgba(246, 243, 232, 0.045);
+  background: rgba(246, 243, 232, 0.04);
   color: var(--home-muted-readable, rgba(246, 243, 232, 0.82));
   font-size: 13px;
   line-height: 1.55;
@@ -6773,13 +6773,15 @@ h3 {
 }
 
 .member-primary-action {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 0;
-  border-top: 1px solid rgba(246, 243, 232, 0.14);
-  border-bottom: 1px solid rgba(246, 243, 232, 0.14);
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid rgba(215, 255, 63, 0.22);
+  border-left: 3px solid var(--home-acid);
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(215, 255, 63, 0.1), rgba(246, 243, 232, 0.035));
 }
 
 .member-primary-action div {
@@ -6793,13 +6795,12 @@ h3 {
   font-family: var(--app-font-stack);
   font-size: 12px;
   font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
 }
 
 .member-primary-action strong {
   color: var(--ink);
-  font-size: clamp(20px, 2vw, 26px);
+  font-size: clamp(22px, 2vw, 28px);
   line-height: 1.15;
 }
 
@@ -6809,10 +6810,20 @@ h3 {
 }
 
 .member-primary-action .home-primary-link {
-  flex: 0 0 auto;
-  min-width: 164px;
-  border: 0;
+  min-width: 154px;
+  border: 1px solid rgba(215, 255, 63, 0.92);
+  background: var(--home-acid);
+  color: #10130f;
   cursor: pointer;
+  font-weight: 950;
+  text-shadow: none;
+  box-shadow: 0 12px 30px rgba(215, 255, 63, 0.14);
+}
+
+.member-primary-action .home-primary-link:hover {
+  border-color: #e7ff66;
+  background: #e7ff66;
+  color: #10130f;
 }
 
 .member-home-grid {
@@ -6823,9 +6834,9 @@ h3 {
 
 .member-home-card {
   display: grid;
-  align-content: space-between;
+  grid-template-rows: auto auto minmax(44px, 1fr) auto;
   gap: 10px;
-  min-height: 178px;
+  min-height: 168px;
   padding: 16px;
   border: 1px solid rgba(246, 243, 232, 0.12);
   border-left: 3px solid rgba(215, 255, 63, 0.68);
@@ -6855,6 +6866,8 @@ h3 {
   align-items: center;
   justify-content: center;
   justify-self: start;
+  align-self: end;
+  min-height: 38px;
   text-decoration: none;
 }
 
@@ -7884,7 +7897,7 @@ h3 {
 
   .member-primary-action {
     align-items: stretch;
-    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .member-primary-action .home-primary-link {
@@ -13525,9 +13538,9 @@ MEMBER_PAGE_JS = """
     if (completedCount) parts.push(`완료 리포트 ${completedCount}건`);
     if (paperCount) parts.push(`AI 가상매매 ${paperCount}건`);
     if (!parts.length) {
-      return "빈 내 공간을 불러왔습니다. 관심종목, 매매 메모, 분석 요청 중 하나부터 시작할 수 있습니다.";
+      return "아직 저장된 항목이 없습니다. 관심종목부터 시작해 보세요.";
     }
-    return `내 공간을 불러왔습니다: ${parts.join(" / ")}. 이 기록은 실제 주문·계좌와 연결되지 않습니다.`;
+    return `저장된 항목: ${parts.join(" / ")}`;
   }
 
   function setMemberHomeNote(text) {
@@ -13582,9 +13595,9 @@ MEMBER_PAGE_JS = """
     } else if (!watchlistCount) {
       setMemberPrimaryAction(
         "watchlist",
-        "첫 관심종목을 만들어보세요",
+        "관심종목부터 추가하세요",
         "자주 보는 종목을 담아두면 분석 요청과 리포트를 이어서 보기 쉽습니다.",
-        "관심종목 만들기"
+        "관심종목 추가"
       );
     } else if (!portfolioCount) {
       setMemberPrimaryAction(

@@ -345,29 +345,34 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'data-member-tab="home"' in html
     assert 'id="member-home-section"' in html
     assert "<h2>홈</h2>" in html
-    assert "저장된 항목과 다음 행동을 보여줍니다." in html
+    assert "오늘 이어갈 항목입니다." in html
     assert "memberHomeStateNote" in html
-    assert "빈 상태와 다음 행동" in html
+    assert "저장된 항목을 불러오고 있습니다." in html
+    assert "아직 저장된 항목이 없습니다. 관심종목부터 시작해 보세요." in html
     assert "member-home-grid" in html
     assert "member-primary-action" in html
+    assert "background: var(--home-acid);" in html
+    assert "color: #10130f;" in html
+    assert "관심종목부터 추가하세요" in html
+    assert "관심종목 추가" in html
     assert 'data-member-primary-action="watchlist"' in html
     assert "memberPrimaryActionButton" in html
     assert "setMemberPrimaryAction" in html
     assert "진행 중인 분석을 확인하세요" in html
     assert "매매 메모를 정리해보세요" in html
-    assert "공개 리포트 확인" in html
+    assert "완료된 공개 리포트를 확인합니다." in html
     assert "member-report-card" in html
     assert "member-paper-card" in html
     assert "AI 가상매매" in html
     assert 'data-member-tab="paper"' in html
     assert 'id="paper-simulation-section"' in html
-    assert "AI 가상매매 기록" in html
+    assert "AI의 가상 진입·청산 기록을 봅니다." in html
     assert "paperSimulationList" in html
     assert "/api/member/paper-simulations" in html
     assert "member-admin-card" in html
     assert "data-admin-token-visible hidden" not in html
     assert "운영자 콘솔" in html
-    assert "토큰 입력 후 상태 점검, 분석 처리, AI 가상매매를 실행합니다." in html
+    assert "상태 점검과 작업 처리를 실행합니다." in html
     assert "adminTokenItems" not in html
     assert "운영 열기" in html
     assert 'class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>' in html
@@ -427,7 +432,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "emptyActionNode" in html
     assert "setFormControlsDisabled" in html
     assert "dashboardStatusMeta" in html
-    assert "빈 내 공간을 불러왔습니다" in html
+    assert "아직 저장된 항목이 없습니다" in html
     assert "아직 AI 가상매매 기록이 없습니다" in html
     assert "renderPaperSimulations" in html
     assert "paperSimulationCard" in html
