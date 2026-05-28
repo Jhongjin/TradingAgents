@@ -701,6 +701,22 @@ class StorageRepository:
             ).mappings().first()
         return dict(row) if row else None
 
+    def update_watchlist(self, *, watchlist_id: str, name: str) -> dict[str, Any] | None:
+        _validate_uuid(watchlist_id, "watchlist_id")
+        next_name = name.strip()
+        if not next_name:
+            raise ValueError("watchlist name cannot be empty")
+        with self.engine.begin() as conn:
+            conn.execute(
+                update(manual_watchlists)
+                .where(manual_watchlists.c.id == watchlist_id)
+                .values(name=next_name, updated_at=datetime.now(timezone.utc))
+            )
+            row = conn.execute(
+                select(manual_watchlists).where(manual_watchlists.c.id == watchlist_id)
+            ).mappings().first()
+        return dict(row) if row else None
+
     def list_watchlists(self, *, user_id: str, limit: int = 20) -> list[dict[str, Any]]:
         _validate_uuid(user_id, "watchlist user_id")
         if limit <= 0:

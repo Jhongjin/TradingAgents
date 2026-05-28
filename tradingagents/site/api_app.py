@@ -102,6 +102,10 @@ class WatchlistCreateBody(BaseModel):
     name: str = Field(min_length=1, max_length=80)
 
 
+class WatchlistUpdateBody(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
 class WatchlistItemBody(BaseModel):
     ticker_code: str
     memo: str | None = Field(default=None, max_length=500)
@@ -962,6 +966,29 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"status": "created", "watchlist_id": watchlist_id}
+
+    @app.patch("/api/watchlists/{watchlist_id}")
+    def update_manual_watchlist(
+        watchlist_id: str,
+        body: WatchlistUpdateBody,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        _require_watchlist_owner(repo, watchlist_id, user_id)
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="watchlist name cannot be empty")
+        try:
+            watchlist = repo.update_watchlist(watchlist_id=watchlist_id, name=name)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if watchlist is None:
+            raise HTTPException(status_code=404, detail="Watchlist not found")
+        return {"status": "updated", "watchlist": watchlist}
 
     @app.get("/api/watchlists")
     def member_manual_watchlists(

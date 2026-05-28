@@ -923,6 +923,11 @@ def test_api_app_creates_updates_and_deletes_watchlist_items():
         headers={"X-TradingAgents-User-Id": USER_ID},
         json={"ticker_code": "005930", "memo": "memory leader"},
     )
+    rename_response = client.patch(
+        f"/api/watchlists/{watchlist_id}",
+        headers={"X-TradingAgents-User-Id": USER_ID},
+        json={"name": "반도체 관심그룹"},
+    )
     delete_response = client.delete(
         f"/api/watchlists/{watchlist_id}/items/005930",
         headers={"X-TradingAgents-User-Id": USER_ID},
@@ -934,6 +939,9 @@ def test_api_app_creates_updates_and_deletes_watchlist_items():
     assert add_response.status_code == 200
     assert add_response.json()["watchlist"]["item_count"] == 1
     assert add_response.json()["watchlist"]["items"][0]["ticker_code"] == "005930"
+    assert rename_response.status_code == 200
+    assert rename_response.json()["status"] == "updated"
+    assert rename_response.json()["watchlist"]["name"] == "반도체 관심그룹"
     assert delete_response.status_code == 200
     assert delete_response.json()["watchlist"]["item_count"] == 0
 
@@ -979,8 +987,14 @@ def test_api_app_watchlist_writes_enforce_owner():
         headers={"X-TradingAgents-User-Id": OTHER_USER_ID},
         json={"ticker_code": "005930"},
     )
+    rename_response = client.patch(
+        f"/api/watchlists/{watchlist_id}",
+        headers={"X-TradingAgents-User-Id": OTHER_USER_ID},
+        json={"name": "Other name"},
+    )
 
     assert response.status_code == 403
+    assert rename_response.status_code == 403
 
 
 def test_api_app_portfolio_requires_storage_repo():

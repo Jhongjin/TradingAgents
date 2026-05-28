@@ -348,13 +348,13 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "오늘 이어갈 항목입니다." in html
     assert "memberHomeStateNote" in html
     assert "저장된 항목을 불러오고 있습니다." in html
-    assert "아직 저장된 항목이 없습니다. 관심종목부터 시작해 보세요." in html
+    assert "아직 저장된 항목이 없습니다. 관심그룹부터 시작해 보세요." in html
     assert "member-home-grid" in html
     assert "member-primary-action" in html
     assert "background: var(--home-acid);" in html
     assert "color: #10130f;" in html
-    assert "관심종목부터 추가하세요" in html
-    assert "관심종목 추가" in html
+    assert "관심그룹부터 추가하세요" in html
+    assert "관심그룹 추가" in html
     assert 'data-member-primary-action="watchlist"' in html
     assert "memberPrimaryActionButton" in html
     assert "setMemberPrimaryAction" in html
@@ -400,6 +400,15 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "목표/손절 메모" in html
     assert 'href="#portfolio-section"' in html
     assert 'id="watchlist-section"' in html
+    assert "관심그룹 생성" in html
+    assert "그룹 만들기" in html
+    assert "종목 담기" in html
+    assert "그룹 이름 수정" in html
+    assert "이름 저장" in html
+    assert "종목 삭제" in html
+    assert "그룹 만드는 중" in html
+    assert "종목 담는 중" in html
+    assert 'method: "PATCH"' in html
     assert 'id="memberAuthLanding"' in html
     assert 'id="memberWorkspace" hidden' in html
     assert 'class="member-page is-member-checking"' in html
@@ -437,10 +446,10 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "renderPaperSimulations" in html
     assert "paperSimulationCard" in html
     assert "아직 매매 메모가 없습니다" in html
-    assert "아직 관심종목이 없습니다" in html
+    assert "아직 관심그룹이 없습니다" in html
     assert "완료 후 공개 리포트 링크를 보여줍니다." in html
     assert "매매 메모 묶음을 만들었습니다." in html
-    assert "관심종목을 담았습니다." in html
+    assert "관심그룹에 종목을 담았습니다." in html
     assert "member-metric-grid" in html
     assert "member-action-item" in html
     assert "public_stock_path" in html

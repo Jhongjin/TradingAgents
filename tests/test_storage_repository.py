@@ -533,13 +533,16 @@ def test_storage_repository_manages_manual_watchlists():
     )
     repo.add_watchlist_item(watchlist_id=watchlist_id, ticker_code="000660")
     repo.remove_watchlist_item(watchlist_id=watchlist_id, ticker_code="000660")
+    renamed = repo.update_watchlist(watchlist_id=watchlist_id, name="반도체 관심그룹")
 
     watchlist = repo.get_watchlist(watchlist_id)
     watchlists = repo.list_watchlists(user_id=USER_ID)
     items = repo.watchlist_items(watchlist_id)
 
+    assert renamed is not None
+    assert renamed["name"] == "반도체 관심그룹"
     assert watchlist is not None
-    assert watchlist["name"] == "관심종목"
+    assert watchlist["name"] == "반도체 관심그룹"
     assert [watchlist["id"] for watchlist in watchlists] == [watchlist_id]
     assert updated_id == samsung_id
     assert len(items) == 1

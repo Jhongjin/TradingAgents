@@ -1906,7 +1906,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <nav class="member-tab-strip" role="tablist" aria-label="내 공간 섹션">
         <a id="home-tab" class="is-active" href="#member-home-section" role="tab" data-member-tab="home" aria-controls="member-home-section" aria-selected="true">홈 <span id="memberHomeStatus">준비됨</span></a>
         <a id="portfolio-tab" href="#portfolio-section" role="tab" data-member-tab="portfolio" aria-controls="portfolio-section" aria-selected="false">매매 메모 <span id="portfolioTabCount">0</span></a>
-        <a id="watchlist-tab" href="#watchlist-section" role="tab" data-member-tab="watchlist" aria-controls="watchlist-section" aria-selected="false">관심종목 <span id="watchlistTabCount">0</span></a>
+        <a id="watchlist-tab" href="#watchlist-section" role="tab" data-member-tab="watchlist" aria-controls="watchlist-section" aria-selected="false">관심그룹 <span id="watchlistTabCount">0</span></a>
         <a id="analysis-tab" href="#analysis-request-section" role="tab" data-member-tab="analysis" aria-controls="analysis-request-section" aria-selected="false">분석 요청 <span id="analysisTabCount">0</span></a>
         <a id="paper-simulation-tab" href="#paper-simulation-section" role="tab" data-member-tab="paper" aria-controls="paper-simulation-section" aria-selected="false">AI 가상매매 <span id="paperSimulationTabCount">0</span></a>
       </nav>
@@ -1928,9 +1928,9 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <small>매매 메모 묶음</small>
             </article>
             <article>
-              <span>관심종목</span>
+              <span>관심그룹</span>
               <strong id="memberOverviewWatchlists">0</strong>
-              <small>추적 목록</small>
+              <small>종목 목록</small>
             </article>
             <article>
               <span>대기 중 요청</span>
@@ -1952,17 +1952,17 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <section class="member-primary-action" id="memberPrimaryAction" data-member-primary-action="watchlist" aria-live="polite">
             <div>
               <span>다음 작업</span>
-              <strong id="memberPrimaryActionTitle">관심종목부터 추가하세요</strong>
-              <small id="memberPrimaryActionCopy">자주 보는 종목을 담아두면 분석 요청과 리포트를 이어서 보기 쉽습니다.</small>
+              <strong id="memberPrimaryActionTitle">관심그룹부터 추가하세요</strong>
+              <small id="memberPrimaryActionCopy">자주 보는 종목을 묶어두면 분석 요청과 리포트를 이어서 보기 쉽습니다.</small>
             </div>
-            <button class="home-primary-link" type="button" id="memberPrimaryActionButton" data-member-jump="watchlist">관심종목 추가</button>
+            <button class="home-primary-link" type="button" id="memberPrimaryActionButton" data-member-jump="watchlist">관심그룹 추가</button>
           </section>
           <div class="member-home-grid" aria-label="다음 작업">
             <article class="member-home-card">
               <span>01</span>
-              <strong>관심종목</strong>
-              <small>자주 보는 종목을 묶고 현재가를 확인합니다.</small>
-              <button class="ghost-button" type="button" data-member-jump="watchlist">관심종목 열기</button>
+              <strong>관심그룹</strong>
+              <small>자주 보는 종목을 그룹으로 묶습니다.</small>
+              <button class="ghost-button" type="button" data-member-jump="watchlist">관심그룹 열기</button>
             </article>
             <article class="member-home-card">
               <span>02</span>
@@ -2052,28 +2052,28 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <section class="member-panel" id="watchlist-section" role="tabpanel" data-member-panel="watchlist" aria-labelledby="watchlist-tab" hidden>
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">관심종목</p>
-              <h2>관심종목</h2>
+              <p class="eyebrow">관심그룹</p>
+              <h2>관심그룹</h2>
             </div>
             <span class="status-pill">KR</span>
           </div>
           <div class="member-form-stack">
             <div class="member-form-block">
-              <strong>새 목록</strong>
-              <small class="member-form-hint">자주 보는 종목을 묶을 목록을 만듭니다.</small>
+              <strong>관심그룹 생성</strong>
+              <small class="member-form-hint">예: 반도체, 2차전지처럼 자주 보는 종목을 묶습니다.</small>
               <form class="member-form compact-form" id="watchlistForm">
-                <input name="name" maxlength="80" placeholder="예: 반도체 체크" aria-label="관심종목 목록 이름" required>
-                <button type="submit">추가</button>
+                <input name="name" maxlength="80" placeholder="예: 반도체 관심그룹" aria-label="관심그룹 이름" required>
+                <button type="submit">그룹 만들기</button>
               </form>
             </div>
             <div class="member-form-block">
               <strong>종목 담기</strong>
               <small class="member-form-hint">종목명이나 6자리 코드와 메모를 남기면 목록에서 현재가 상태를 함께 확인합니다.</small>
               <form class="member-form compact-form" id="watchlistItemForm">
-                <select name="watchlist_id" aria-label="관심종목 목록 선택" required></select>
+                <select name="watchlist_id" aria-label="관심그룹 선택" required></select>
                 <input name="ticker_code" list="memberTickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" aria-label="종목코드 또는 종목명" autocomplete="off" data-member-ticker-lookup required>
-                <input name="memo" maxlength="500" placeholder="메모" aria-label="관심종목 메모">
-                <button type="submit">담기</button>
+                <input name="memo" maxlength="500" placeholder="메모" aria-label="관심그룹 종목 메모">
+                <button type="submit">종목 담기</button>
               </form>
             </div>
           </div>
@@ -6973,9 +6973,17 @@ h3 {
 .member-form select:disabled,
 .member-form button:disabled,
 .member-action-item input:disabled,
-.member-action-item button:disabled {
+.member-action-item button:disabled,
+.watchlist-rename-form input:disabled,
+.watchlist-rename-form button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+.member-form.is-busy button[type="submit"],
+.member-action-item button[aria-busy="true"],
+.watchlist-rename-form button[aria-busy="true"] {
+  opacity: 0.78;
 }
 
 .password-row {
@@ -7316,6 +7324,39 @@ h3 {
   margin: 10px 0 0;
   padding: 10px 0 0;
   border-top: 1px solid var(--line);
+}
+
+.watchlist-rename-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.watchlist-rename-form label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.watchlist-rename-form input {
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(246, 243, 232, 0.06);
+  color: var(--ink);
+  font: inherit;
+}
+
+.watchlist-rename-form button {
+  height: 36px;
+  padding: 0 12px;
 }
 
 .member-action-item {
@@ -7886,6 +7927,10 @@ h3 {
   }
 
   .member-action-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .watchlist-rename-form {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -12705,6 +12750,25 @@ MEMBER_PAGE_JS = """
     });
   }
 
+  function setButtonBusy(button, isBusy, pendingLabel = "처리 중") {
+    if (!button) return;
+    if (isBusy) {
+      button.dataset.originalLabel = button.dataset.originalLabel || button.textContent;
+      button.textContent = pendingLabel;
+    } else if (button.dataset.originalLabel) {
+      button.textContent = button.dataset.originalLabel;
+    }
+    button.disabled = Boolean(isBusy);
+    button.setAttribute("aria-busy", isBusy ? "true" : "false");
+  }
+
+  function setFormBusy(form, isBusy, pendingLabel = "저장 중") {
+    if (!form) return;
+    form.classList.toggle("is-busy", Boolean(isBusy));
+    const submitButton = form.querySelector('button[type="submit"]');
+    setButtonBusy(submitButton, isBusy, pendingLabel);
+  }
+
   function applyRequestedAuthMode() {
     if (requestedAuthMode !== "signup") return;
     const signupButton = authButtons.find((button) => button.dataset.authAction === "signup");
@@ -13133,7 +13197,7 @@ MEMBER_PAGE_JS = """
     list.className = "member-action-list";
     const items = detail?.items || [];
     if (!items.length) {
-      list.append(emptyNode("이 목록에 담긴 종목이 없습니다. 위 입력란에 6자리 코드나 종목명을 넣어 저장하세요."));
+      list.append(emptyNode("이 그룹에 담긴 종목이 없습니다. 위 입력란에서 종목명이나 6자리 코드를 넣어 저장하세요."));
       return list;
     }
     items.forEach((item) => {
@@ -13151,33 +13215,98 @@ MEMBER_PAGE_JS = """
       memo.value = item.memo || "";
       memo.placeholder = "메모";
       memo.setAttribute("aria-label", `${item.ticker_code} 메모`);
-      const save = smallButton("수정");
+      const save = smallButton("메모 저장");
       save.addEventListener("click", async () => {
         try {
+          setButtonBusy(save, true, "저장 중");
+          setStatus("관심그룹 메모를 저장하는 중입니다.");
+          memo.disabled = true;
           await memberApi(`/api/watchlists/${encodeURIComponent(detail.watchlist.id)}/items`, {
             method: "POST",
             body: JSON.stringify({ ticker_code: item.ticker_code, memo: memo.value || null })
           });
           await loadMemberData();
+          setStatus("관심그룹 메모를 저장했습니다.");
         } catch (error) {
           setStatus(error.message, true);
+        } finally {
+          memo.disabled = false;
+          setButtonBusy(save, false);
         }
       });
-      const remove = smallButton("삭제", "ghost-button danger-button");
+      const remove = smallButton("종목 삭제", "ghost-button danger-button");
       remove.addEventListener("click", async () => {
         try {
+          setButtonBusy(remove, true, "삭제 중");
+          setStatus("관심그룹에서 종목을 삭제하는 중입니다.");
+          save.disabled = true;
+          memo.disabled = true;
           await memberApi(`/api/watchlists/${encodeURIComponent(detail.watchlist.id)}/items/${encodeURIComponent(item.ticker_code)}`, {
             method: "DELETE"
           });
           await loadMemberData();
+          setStatus("관심그룹에서 종목을 삭제했습니다.");
         } catch (error) {
           setStatus(error.message, true);
+        } finally {
+          save.disabled = false;
+          memo.disabled = false;
+          setButtonBusy(remove, false);
         }
       });
       row.append(title, meta, memo, save, remove);
       list.append(row);
     });
     return list;
+  }
+
+  function watchlistRenameForm(row) {
+    const form = document.createElement("form");
+    form.className = "watchlist-rename-form";
+    const label = document.createElement("label");
+    const labelText = document.createElement("span");
+    const input = document.createElement("input");
+    const button = smallButton("이름 저장");
+    labelText.textContent = "그룹 이름 수정";
+    input.type = "text";
+    input.maxLength = 80;
+    input.value = row.name || "";
+    input.placeholder = "관심그룹 이름";
+    input.setAttribute("aria-label", `${row.name || "관심그룹"} 이름 수정`);
+    button.type = "submit";
+    label.append(labelText, input);
+    form.append(label, button);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const name = input.value.trim();
+      if (!name) {
+        input.setCustomValidity("관심그룹 이름을 입력해 주세요.");
+        input.reportValidity();
+        return;
+      }
+      input.setCustomValidity("");
+      if (name === row.name) {
+        setStatus("변경할 이름이 없습니다.");
+        return;
+      }
+      try {
+        setButtonBusy(button, true, "저장 중");
+        setStatus("관심그룹 이름을 저장하는 중입니다.");
+        input.disabled = true;
+        await memberApi(`/api/watchlists/${encodeURIComponent(row.id)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ name })
+        });
+        await loadMemberData();
+        setStatus("관심그룹 이름을 바꿨습니다.");
+      } catch (error) {
+        setStatus(error.message, true);
+      } finally {
+        input.disabled = false;
+        setButtonBusy(button, false);
+      }
+    });
+    return form;
   }
 
   function portfolioCard(row, detail) {
@@ -13210,7 +13339,8 @@ MEMBER_PAGE_JS = """
     const node = document.createElement("article");
     node.className = "member-item watchlist-card";
     node.append(
-      cardHeader(row.name, detail ? `${detail.pricing_status || "가격 확인"} / ${row.id}` : row.id, `${itemCount}종목`),
+      cardHeader(row.name, detail ? `${detail.pricing_status || "가격 확인"} / 가격 ${pricedCount}/${itemCount}` : "가격 확인 대기", `종목 ${itemCount}개`),
+      watchlistRenameForm(row),
       metricGrid([
         ["종목", `${itemCount}개`, "담긴 항목"],
         ["가격", `${pricedCount}개`, "현재가 확인"],
@@ -13448,20 +13578,20 @@ MEMBER_PAGE_JS = """
 
   function renderWatchlists(payload, details = {}, error = "") {
     if (error) {
-      fillSelect(watchlistSelect, [], "name");
+      fillSelect(watchlistSelect, [], "name", "관심그룹을 먼저 만드세요");
       setFormControlsDisabled(watchlistItemForm, true);
-      watchlistList.replaceChildren(emptyNode(`관심종목을 불러오지 못했습니다: ${error}`));
+      watchlistList.replaceChildren(emptyNode(`관심그룹을 불러오지 못했습니다: ${error}`));
       return;
     }
     const rows = payload.items || [];
-    fillSelect(watchlistSelect, rows, "name", "관심종목 목록을 먼저 만드세요");
+    fillSelect(watchlistSelect, rows, "name", "관심그룹을 먼저 만드세요");
     setFormControlsDisabled(watchlistItemForm, !rows.length);
     watchlistList.replaceChildren(
       ...(rows.length ? rows.map((row) => watchlistCard(row, details[row.id])) : [
         emptyActionNode(
-          "아직 관심종목이 없습니다",
-          "자주 확인할 종목을 담을 목록을 먼저 만드세요. 목록을 만든 뒤 종목명 또는 6자리 코드와 메모를 저장할 수 있습니다.",
-          "목록 이름 입력",
+          "아직 관심그룹이 없습니다",
+          "자주 확인할 종목을 담을 그룹을 먼저 만드세요.",
+          "그룹 이름 입력",
           () => focusField(watchlistForm, "name")
         )
       ])
@@ -13533,12 +13663,12 @@ MEMBER_PAGE_JS = """
     const completedCount = summary.completed_count ?? requestRows.filter((row) => row.status === "completed").length;
     const parts = [];
     if (portfolioCount) parts.push(`매매 메모 ${portfolioCount}개`);
-    if (watchlistCount) parts.push(`관심종목 ${watchlistCount}개`);
+    if (watchlistCount) parts.push(`관심그룹 ${watchlistCount}개`);
     if (activeCount) parts.push(`진행 중 요청 ${activeCount}건`);
     if (completedCount) parts.push(`완료 리포트 ${completedCount}건`);
     if (paperCount) parts.push(`AI 가상매매 ${paperCount}건`);
     if (!parts.length) {
-      return "아직 저장된 항목이 없습니다. 관심종목부터 시작해 보세요.";
+      return "아직 저장된 항목이 없습니다. 관심그룹부터 시작해 보세요.";
     }
     return `저장된 항목: ${parts.join(" / ")}`;
   }
@@ -13595,9 +13725,9 @@ MEMBER_PAGE_JS = """
     } else if (!watchlistCount) {
       setMemberPrimaryAction(
         "watchlist",
-        "관심종목부터 추가하세요",
-        "자주 보는 종목을 담아두면 분석 요청과 리포트를 이어서 보기 쉽습니다.",
-        "관심종목 추가"
+        "관심그룹부터 추가하세요",
+        "자주 보는 종목을 묶어두면 분석 요청과 리포트를 이어서 보기 쉽습니다.",
+        "관심그룹 추가"
       );
     } else if (!portfolioCount) {
       setMemberPrimaryAction(
@@ -13825,10 +13955,14 @@ MEMBER_PAGE_JS = """
   async function submitJson(form, path, buildBody, options = {}) {
     try {
       const formValues = new FormData(form);
+      const pendingMessage = options.pendingMessage || "저장 중";
+      setFormBusy(form, true, pendingMessage);
+      setStatus(`${pendingMessage}입니다.`);
       const resolvedPath = typeof path === "function" ? await path(formValues) : path;
       const body = await buildBody(formValues);
       const payload = await memberApi(resolvedPath, { method: options.method || "POST", body: JSON.stringify(body) });
       form.reset();
+      setFormBusy(form, false);
       await loadMemberData();
       if (payload?.status === "already_queued") {
         setStatus("이미 대기 중인 분석 요청이 있어 기존 대기열 항목을 유지했습니다.");
@@ -13841,6 +13975,8 @@ MEMBER_PAGE_JS = """
       }
     } catch (error) {
       setStatus(error.message, true);
+    } finally {
+      setFormBusy(form, false);
     }
   }
 
@@ -13868,12 +14004,12 @@ MEMBER_PAGE_JS = """
     await supabaseLogout();
     clearSession();
     fillPortfolioSelects([]);
-    fillSelect(watchlistSelect, [], "name");
+    fillSelect(watchlistSelect, [], "name", "관심그룹을 먼저 만드세요");
     setFormControlsDisabled(tradeForm, true);
     setFormControlsDisabled(targetForm, true);
     setFormControlsDisabled(watchlistItemForm, true);
     portfolioList?.replaceChildren(emptyNode("로그인 후 매매 메모가 표시됩니다"));
-    watchlistList?.replaceChildren(emptyNode("로그인 후 관심종목이 표시됩니다"));
+    watchlistList?.replaceChildren(emptyNode("로그인 후 관심그룹이 표시됩니다"));
     analysisRequestList?.replaceChildren(emptyNode("로그인 후 분석 요청이 표시됩니다"));
     paperSimulationList?.replaceChildren(emptyNode("로그인 후 AI 가상매매 기록이 표시됩니다"));
     updateMemberOverview({ items: [] }, { items: [] }, { items: [] }, { positions: [] });
@@ -13925,7 +14061,7 @@ MEMBER_PAGE_JS = """
     event.preventDefault();
     submitJson(watchlistForm, "/api/watchlists", (form) => ({
       name: String(form.get("name") || "")
-    }), { successMessage: "관심종목 목록을 만들었습니다. 이제 종목을 담아보세요." });
+    }), { pendingMessage: "그룹 만드는 중", successMessage: "관심그룹을 만들었습니다. 이제 종목을 담아보세요." });
   });
 
   watchlistItemForm?.addEventListener("submit", (event) => {
@@ -13935,7 +14071,7 @@ MEMBER_PAGE_JS = """
     submitJson(watchlistItemForm, `/api/watchlists/${encodeURIComponent(watchlistId)}/items`, async () => ({
       ticker_code: await tickerFromForm(watchlistItemForm, "ticker_code"),
       memo: String(form.get("memo") || "") || null
-    }), { successMessage: "관심종목을 담았습니다. 현재가와 메모를 함께 확인할 수 있습니다." });
+    }), { pendingMessage: "종목 담는 중", successMessage: "관심그룹에 종목을 담았습니다." });
   });
 
   analysisRequestForm?.addEventListener("submit", (event) => {
