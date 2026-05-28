@@ -2090,7 +2090,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <span class="status-pill">요청 대기열</span>
           </div>
           <p class="member-form-hint member-request-hint">종목명이나 6자리 코드만 입력하면 최근 기준일로 요청합니다. 특정 날짜로 보고 싶을 때만 날짜를 선택하세요.</p>
-          <form class="member-form compact-form" id="analysisRequestForm">
+          <form class="member-form analysis-request-form" id="analysisRequestForm">
+            <select name="watchlist_ticker" id="analysisWatchlistTickerSelect" aria-label="관심그룹 종목 선택"></select>
             <input name="ticker" list="memberTickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" aria-label="분석 요청 종목코드 또는 종목명" autocomplete="off" data-member-ticker-lookup required>
             <input name="requested_trade_date" type="date" aria-label="분석 기준일">
             <input name="reason" maxlength="500" placeholder="궁금한 점 메모" aria-label="요청 메모">
@@ -7030,6 +7031,19 @@ h3 {
   width: 100%;
 }
 
+.analysis-request-form {
+  grid-template-columns: minmax(180px, 0.58fr) minmax(220px, 1fr) minmax(150px, auto) auto;
+  align-items: end;
+}
+
+.analysis-request-form input[name="reason"] {
+  grid-column: 1 / span 3;
+}
+
+.analysis-request-form button {
+  width: 100%;
+}
+
 .button-row {
   display: flex;
   gap: 8px;
@@ -7916,7 +7930,8 @@ h3 {
   .member-grid,
   .compact-form,
   .trade-form,
-  .target-form {
+  .target-form,
+  .analysis-request-form {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -7961,6 +7976,10 @@ h3 {
   .member-action-item a,
   .member-action-item small,
   .member-action-item input {
+    grid-column: auto;
+  }
+
+  .analysis-request-form input[name="reason"] {
     grid-column: auto;
   }
 }
@@ -12432,6 +12451,7 @@ MEMBER_PAGE_JS = """
   const portfolioSelect = tradeForm?.elements?.portfolio_id;
   const targetPortfolioSelect = targetForm?.elements?.portfolio_id;
   const watchlistSelect = watchlistItemForm?.elements?.watchlist_id;
+  const analysisWatchlistTickerSelect = document.getElementById("analysisWatchlistTickerSelect");
   const memberTickerInputs = Array.from(document.querySelectorAll("[data-member-ticker-lookup]"));
   const memberTickerSuggestions = document.getElementById("memberTickerSuggestions");
   let memberTickerSearchController = null;
@@ -13552,6 +13572,50 @@ MEMBER_PAGE_JS = """
     fillSelect(targetPortfolioSelect, rows, "name", "매매 메모 묶음을 먼저 추가하세요");
   }
 
+  function watchlistTickerOptions(rows = [], details = {}) {
+    const options = [];
+    rows.forEach((row) => {
+      const groupName = row.name || "관심그룹";
+      const items = details?.[row.id]?.items || [];
+      items.forEach((item) => {
+        const tickerCode = String(item.ticker_code || "").trim();
+        if (!tickerCode) return;
+        const tickerName = item.ticker_name || tickerCode;
+        options.push({
+          code: tickerCode,
+          label: `${groupName} · ${tickerName} ${tickerCode}`
+        });
+      });
+    });
+    return options;
+  }
+
+  function fillAnalysisWatchlistTickerSelect(rows = [], details = {}) {
+    if (!analysisWatchlistTickerSelect) return;
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    const options = watchlistTickerOptions(rows, details);
+    if (!options.length) {
+      placeholder.textContent = "관심그룹에 종목을 먼저 담으세요";
+      placeholder.selected = true;
+      analysisWatchlistTickerSelect.replaceChildren(placeholder);
+      analysisWatchlistTickerSelect.disabled = true;
+      return;
+    }
+    placeholder.textContent = "관심그룹 종목 선택";
+    placeholder.selected = true;
+    analysisWatchlistTickerSelect.disabled = false;
+    analysisWatchlistTickerSelect.replaceChildren(
+      placeholder,
+      ...options.map((item) => {
+        const option = document.createElement("option");
+        option.value = item.code;
+        option.textContent = item.label;
+        return option;
+      })
+    );
+  }
+
   function renderPortfolios(payload, details = {}, error = "") {
     if (error) {
       fillPortfolioSelects([]);
@@ -13579,12 +13643,14 @@ MEMBER_PAGE_JS = """
   function renderWatchlists(payload, details = {}, error = "") {
     if (error) {
       fillSelect(watchlistSelect, [], "name", "관심그룹을 먼저 만드세요");
+      fillAnalysisWatchlistTickerSelect([], {});
       setFormControlsDisabled(watchlistItemForm, true);
       watchlistList.replaceChildren(emptyNode(`관심그룹을 불러오지 못했습니다: ${error}`));
       return;
     }
     const rows = payload.items || [];
     fillSelect(watchlistSelect, rows, "name", "관심그룹을 먼저 만드세요");
+    fillAnalysisWatchlistTickerSelect(rows, details);
     setFormControlsDisabled(watchlistItemForm, !rows.length);
     watchlistList.replaceChildren(
       ...(rows.length ? rows.map((row) => watchlistCard(row, details[row.id])) : [
@@ -14005,6 +14071,7 @@ MEMBER_PAGE_JS = """
     clearSession();
     fillPortfolioSelects([]);
     fillSelect(watchlistSelect, [], "name", "관심그룹을 먼저 만드세요");
+    fillAnalysisWatchlistTickerSelect([], {});
     setFormControlsDisabled(tradeForm, true);
     setFormControlsDisabled(targetForm, true);
     setFormControlsDisabled(watchlistItemForm, true);
@@ -14018,6 +14085,15 @@ MEMBER_PAGE_JS = """
 
   refreshButton?.addEventListener("click", () => {
     loadMemberData().catch((error) => setStatus(error.message, true));
+  });
+
+  analysisWatchlistTickerSelect?.addEventListener("change", () => {
+    const ticker = analysisWatchlistTickerSelect.value || "";
+    const input = analysisRequestForm?.elements?.ticker;
+    if (!ticker || !input) return;
+    input.value = ticker;
+    input.setCustomValidity("");
+    setStatus("관심그룹 종목을 분석 요청에 넣었습니다.");
   });
 
   portfolioForm?.addEventListener("submit", (event) => {

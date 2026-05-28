@@ -384,6 +384,12 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'aria-selected="true"' in html
     assert 'aria-controls="analysis-request-section"' in html
     assert 'data-member-panel="watchlist"' in html
+    assert 'id="analysisWatchlistTickerSelect"' in html
+    assert 'aria-label="관심그룹 종목 선택"' in html
+    assert "watchlistTickerOptions" in html
+    assert "fillAnalysisWatchlistTickerSelect" in html
+    assert "관심그룹 종목 선택" in html
+    assert "관심그룹 종목을 분석 요청에 넣었습니다." in html
     assert "memberOverview" in html
     assert "memberOverviewActiveRequests" in html
     assert "memberOverviewPaperSimulations" in html
