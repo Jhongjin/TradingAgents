@@ -152,6 +152,18 @@ def test_public_stock_payload_handles_missing_optional_sources(monkeypatch):
     assert payload["chart"]["error"] == "chart vendor is offline"
 
 
+def test_public_stock_payload_uses_company_name_for_rokit_healthcare():
+    payload = build_public_stock_payload("376900", include_chart=False, include_analysis=False)
+
+    assert payload["ticker"] == {
+        "code": "376900",
+        "name": "로킷헬스케어",
+        "market": "KOSDAQ",
+        "currency": "KRW",
+        "benchmark_symbol": "^KQ11",
+    }
+
+
 def test_public_stock_payload_uses_configured_chart_vendor(monkeypatch):
     repo = _repo()
     _seed_public_analysis(repo)

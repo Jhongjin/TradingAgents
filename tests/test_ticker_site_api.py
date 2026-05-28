@@ -16,6 +16,15 @@ def test_ticker_search_payload_returns_korean_ticker_matches():
     assert payload["items"][0]["yfinance_symbol"] == "005930.KS"
 
 
+def test_ticker_search_payload_accepts_rokit_healthcare_common_typo():
+    payload = build_ticker_search_payload("로켓헬스케어", lookup_pykrx=False)
+
+    assert payload["items"][0]["code"] == "376900"
+    assert payload["items"][0]["name"] == "로킷헬스케어"
+    assert payload["items"][0]["market"] == "KOSDAQ"
+    assert payload["items"][0]["yfinance_symbol"] == "376900.KQ"
+
+
 def test_ticker_search_payload_validates_limit():
     with pytest.raises(ValueError, match="cannot exceed 50"):
         build_ticker_search_payload("삼성", limit=51, lookup_pykrx=False)

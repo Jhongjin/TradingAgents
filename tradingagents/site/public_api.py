@@ -43,7 +43,7 @@ def build_public_stock_payload(
     if not is_kr_ticker(ticker):
         raise VendorUnavailableError(f"public stock pages currently support Korean 6-digit tickers only: {ticker!r}")
 
-    resolved = resolve_kr_ticker(ticker, lookup_pykrx=False)
+    resolved = resolve_kr_ticker(ticker)
     selected_chart_vendor = chart_vendor or os.getenv("TRADINGAGENTS_CHART_DATA_VENDOR", "pykrx")
     end = _parse_or_default_end(chart_end)
     start = _parse_or_default_start(chart_start, end, selected_chart_vendor)

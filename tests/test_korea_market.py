@@ -1,3 +1,5 @@
+import sys
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -44,12 +46,42 @@ def test_search_kr_tickers_matches_code_and_name_without_network():
     assert any(item.code == "000660" for item in by_code)
 
 
+def test_search_kr_tickers_matches_rokit_healthcare_aliases_without_network():
+    by_name = search_kr_tickers("로킷헬스케어", lookup_pykrx=False)
+    by_typo = search_kr_tickers("로켓헬스케어", lookup_pykrx=False)
+
+    assert by_name[0].code == "376900"
+    assert by_name[0].name == "로킷헬스케어"
+    assert by_name[0].market == "KOSDAQ"
+    assert by_typo[0].code == "376900"
+    assert by_typo[0].name == "로킷헬스케어"
+
+
 def test_kr_ticker_resolver_kosdaq_suffix():
     resolved = resolve_kr_ticker("123456.KQ", lookup_pykrx=False)
 
     assert resolved.code == "123456"
     assert resolved.market == "KOSDAQ"
     assert to_yfinance_symbol("123456.KQ") == "123456.KQ"
+
+
+def test_kr_ticker_resolver_uses_pykrx_for_unseeded_stock(monkeypatch):
+    class FakeStock:
+        @staticmethod
+        def get_market_ticker_name(code):
+            return "테스트헬스"
+
+        @staticmethod
+        def get_market_ticker_list(*, market):
+            return ["123456"] if market == "KOSDAQ" else []
+
+    monkeypatch.setitem(sys.modules, "pykrx", SimpleNamespace(stock=FakeStock))
+
+    resolved = resolve_kr_ticker("123456")
+
+    assert resolved.code == "123456"
+    assert resolved.name == "테스트헬스"
+    assert resolved.market == "KOSDAQ"
 
 
 def test_build_instrument_context_for_korean_market():

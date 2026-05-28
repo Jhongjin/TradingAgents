@@ -36,6 +36,15 @@ _COMMON_TICKERS = {
     "035420": ("NAVER", "KOSPI"),
     "373220": ("LG에너지솔루션", "KOSPI"),
     "086520": ("에코프로", "KOSDAQ"),
+    "376900": ("로킷헬스케어", "KOSDAQ"),
+}
+
+_TICKER_ALIASES = {
+    "로켓": "376900",
+    "로켓헬스케어": "376900",
+    "ROKIT": "376900",
+    "ROKIT HEALTHCARE": "376900",
+    "ROKITHEALTHCARE": "376900",
 }
 
 
@@ -156,6 +165,9 @@ def search_kr_tickers(
         if candidate.code.startswith(query_upper) or normalized_query.casefold() in candidate.name.casefold():
             add(candidate)
 
+    for candidate in _alias_matches(normalized_query):
+        add(candidate)
+
     if lookup_pykrx and len(matches) < limit:
         for candidate in _search_with_pykrx(normalized_query, limit - len(matches)):
             add(candidate)
@@ -174,6 +186,22 @@ def _resolve_with_pykrx(code: str, preferred_market: str | None) -> KoreanTicker
         from pykrx import stock
     except Exception:
         return None
+
+    try:
+        name = stock.get_market_ticker_name(code) or code
+    except Exception:
+        name = code
+
+    if preferred_market:
+        return KoreanTicker(code=code, name=name, market=preferred_market)
+
+    for market in ("KOSPI", "KOSDAQ", "KONEX"):
+        try:
+            if code in set(stock.get_market_ticker_list(market=market)):
+                return KoreanTicker(code=code, name=name, market=market)
+        except Exception:
+            continue
+    return KoreanTicker(code=code, name=name, market="UNKNOWN")
 
 
 def _search_with_pykrx(query: str, remaining: int) -> list[KoreanTicker]:
@@ -200,16 +228,21 @@ def _search_with_pykrx(query: str, remaining: int) -> list[KoreanTicker]:
                 matches.append(KoreanTicker(code=code, name=name, market=market))
     return matches
 
-    try:
-        name = stock.get_market_ticker_name(code) or code
-        if preferred_market:
-            return KoreanTicker(code=code, name=name, market=preferred_market)
-        for market in ("KOSPI", "KOSDAQ", "KONEX"):
-            try:
-                if code in set(stock.get_market_ticker_list(market=market)):
-                    return KoreanTicker(code=code, name=name, market=market)
-            except Exception:
-                continue
-        return KoreanTicker(code=code, name=name, market="UNKNOWN")
-    except Exception:
-        return None
+
+def _alias_matches(query: str) -> list[KoreanTicker]:
+    normalized_query = _normalize_lookup_text(query)
+    if not normalized_query:
+        return []
+    matches: list[KoreanTicker] = []
+    seen: set[str] = set()
+    for alias, code in _TICKER_ALIASES.items():
+        normalized_alias = _normalize_lookup_text(alias)
+        if normalized_query in normalized_alias or normalized_alias in normalized_query:
+            if code not in seen:
+                seen.add(code)
+                matches.append(resolve_kr_ticker(code, lookup_pykrx=False))
+    return matches
+
+
+def _normalize_lookup_text(value: str) -> str:
+    return re.sub(r"[\s\-_/().]+", "", value).casefold()

@@ -138,6 +138,15 @@ def test_api_app_serves_public_stock_payload(monkeypatch):
     assert body["chart"]["points"][0]["close"] == 70500.0
 
 
+def test_api_app_stock_lookup_redirects_company_name_to_code():
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    response = client.get("/stocks", params={"ticker": "로켓헬스케어"}, follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/stocks/376900"
+
+
 def test_api_app_serves_public_simulation_preview(monkeypatch):
     repo = _repo()
     run_id = _seed_public_buy_analysis(repo)
