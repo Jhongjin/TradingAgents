@@ -853,11 +853,22 @@ def create_app(
             raise HTTPException(status_code=503, detail="Storage repository is not configured")
         _require_worker_token(request, x_tradingagents_worker_token)
         max_limit = _max_worker_limit()
+        if body.dry_run:
+            effective_limit = min(body.limit, max_limit)
+            queued = repo.list_analysis_requests(status="queued", limit=effective_limit)
+            payload: dict[str, object] = {
+                "status": "dry_run",
+                "item_count": len(queued),
+                "items": queued,
+                "limit": effective_limit,
+                "requested_limit": body.limit,
+                "max_limit": max_limit,
+            }
+            if body.limit > max_limit:
+                payload["notice"] = f"처리 한도 {max_limit}건에 맞춰 미리보기 범위를 조정했습니다."
+            return payload
         if body.limit > max_limit:
             raise HTTPException(status_code=400, detail=f"limit cannot exceed {max_limit}")
-        if body.dry_run:
-            queued = repo.list_analysis_requests(status="queued", limit=body.limit)
-            return {"status": "dry_run", "item_count": len(queued), "items": queued}
 
         return _process_analysis_request_queue(repo, limit=body.limit)
 

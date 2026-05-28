@@ -1362,6 +1362,42 @@ def test_api_app_admin_worker_dry_run_requires_matching_token(monkeypatch):
     assert accepted.json()["item_count"] == 1
 
 
+def test_api_app_admin_worker_dry_run_clamps_to_worker_limit(monkeypatch):
+    repo = _repo()
+    repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="005930",
+            requested_trade_date=date(2026, 5, 5),
+        )
+    )
+    repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="000660",
+            requested_trade_date=date(2026, 5, 5),
+        )
+    )
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_TOKEN", "secret")
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_MAX_REQUESTS", "1")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.post(
+        "/api/admin/analysis-requests/process",
+        headers={"Authorization": "Bearer secret"},
+        json={"limit": 5, "dry_run": True},
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["status"] == "dry_run"
+    assert body["item_count"] == 1
+    assert body["limit"] == 1
+    assert body["requested_limit"] == 5
+    assert body["max_limit"] == 1
+    assert "처리 한도 1건" in body["notice"]
+
+
 def test_api_app_admin_worker_processes_one_request(monkeypatch):
     repo = _repo()
     repo.create_analysis_request(

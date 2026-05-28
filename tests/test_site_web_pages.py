@@ -591,7 +591,11 @@ def test_render_feature_detail_pages_use_public_theme():
     assert "/api/member/dashboard" not in methodology_html
 
 
-def test_render_admin_console_page_keeps_worker_secret_client_supplied():
+def test_render_admin_console_page_keeps_worker_secret_client_supplied(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_MAX_REQUESTS", "1")
+    monkeypatch.setenv("TRADINGAGENTS_OUTCOME_WORKER_MAX_RUNS", "20")
+    monkeypatch.setenv("TRADINGAGENTS_PAPER_SIMULATION_WORKER_MAX_RUNS", "20")
+
     html = render_admin_console_page(site_base_url="https://example.com")
 
     assert "관리자 콘솔" in html
@@ -608,6 +612,11 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied():
     assert "adminOutcomesPanel" in html
     assert "adminPaperSimulationPanel" in html
     assert "adminPaperSimulationOutput" in html
+    assert 'id="adminRequestLimit" type="number" min="1" max="1" value="1"' in html
+    assert "adminRequestLimitHint" in html
+    assert "현재 최대 1건" in html
+    assert "syncWorkerLimits" in html
+    assert "limitFromControl" in html
     assert "data-admin-action=\"paper-dry-run\"" in html
     assert "data-admin-action=\"paper-process\"" in html
     assert "/api/admin/paper-simulations/process" in html

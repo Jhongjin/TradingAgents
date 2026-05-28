@@ -1565,6 +1565,11 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
     """Render a noindex operator console that never embeds worker secrets."""
 
     canonical = canonical_url("/admin", site_base_url=site_base_url)
+    analysis_worker_max = _positive_env_int("TRADINGAGENTS_WORKER_MAX_REQUESTS", 1)
+    outcome_worker_max = _positive_env_int("TRADINGAGENTS_OUTCOME_WORKER_MAX_RUNS", 20)
+    paper_worker_max = _positive_env_int("TRADINGAGENTS_PAPER_SIMULATION_WORKER_MAX_RUNS", 20)
+    outcome_default = min(10, outcome_worker_max)
+    paper_default = min(10, paper_worker_max)
     return f"""<!doctype html>
 <html lang="ko">
 <head>
@@ -1711,7 +1716,10 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
           </div>
           <span class="status-pill">관리 API</span>
         </div>
-        <label class="admin-number-field">처리 건수 <input id="adminRequestLimit" type="number" min="1" max="20" value="5"></label>
+        <label class="admin-number-field">처리 건수
+          <input id="adminRequestLimit" type="number" min="1" max="{analysis_worker_max}" value="{analysis_worker_max}">
+          <small id="adminRequestLimitHint">현재 최대 {analysis_worker_max}건</small>
+        </label>
         <div class="button-row">
           <button type="button" data-admin-action="requests-dry-run">미리 보기</button>
           <button type="button" data-admin-action="requests-process">처리 실행</button>
@@ -1734,7 +1742,10 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
           </div>
           <span class="status-pill">5일 / 20일</span>
         </div>
-        <label class="admin-number-field">처리 건수 <input id="adminOutcomeLimit" type="number" min="1" max="50" value="10"></label>
+        <label class="admin-number-field">처리 건수
+          <input id="adminOutcomeLimit" type="number" min="1" max="{outcome_worker_max}" value="{outcome_default}">
+          <small id="adminOutcomeLimitHint">현재 최대 {outcome_worker_max}건</small>
+        </label>
         <div class="button-row">
           <button type="button" data-admin-action="outcomes-dry-run">미리 보기</button>
           <button type="button" data-admin-action="outcomes-process">처리 실행</button>
@@ -1757,7 +1768,10 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
           </div>
           <span class="status-pill">가상 체결</span>
         </div>
-        <label class="admin-number-field">처리 건수 <input id="adminPaperSimulationLimit" type="number" min="1" max="50" value="10"></label>
+        <label class="admin-number-field">처리 건수
+          <input id="adminPaperSimulationLimit" type="number" min="1" max="{paper_worker_max}" value="{paper_default}">
+          <small id="adminPaperSimulationLimitHint">현재 최대 {paper_worker_max}건</small>
+        </label>
         <div class="button-row">
           <button type="button" data-admin-action="paper-dry-run">대상 확인</button>
           <button type="button" data-admin-action="paper-process">선택 건 처리</button>
@@ -1778,6 +1792,14 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
   <script>{ADMIN_PAGE_JS}</script>
 </body>
 </html>"""
+
+
+def _positive_env_int(name: str, default: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
 
 
 def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_path: str = "/member") -> str:
@@ -6219,6 +6241,12 @@ h3 {
   display: grid;
   gap: 8px;
   font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-number-field small {
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.78));
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -11820,6 +11848,9 @@ ADMIN_PAGE_JS = """
   const requestLimit = document.getElementById("adminRequestLimit");
   const outcomeLimit = document.getElementById("adminOutcomeLimit");
   const paperSimulationLimit = document.getElementById("adminPaperSimulationLimit");
+  const requestLimitHint = document.getElementById("adminRequestLimitHint");
+  const outcomeLimitHint = document.getElementById("adminOutcomeLimitHint");
+  const paperSimulationLimitHint = document.getElementById("adminPaperSimulationLimitHint");
   const probeKrx = document.getElementById("adminProbeKrx");
   const probeVendors = document.getElementById("adminProbeVendors");
 
@@ -11847,6 +11878,35 @@ ADMIN_PAGE_JS = """
     if (!button) return;
     button.disabled = isBusy;
     button.setAttribute("aria-busy", isBusy ? "true" : "false");
+  }
+
+  function positiveInt(value, fallback = 1) {
+    const number = Math.floor(Number(value));
+    return Number.isFinite(number) && number > 0 ? number : fallback;
+  }
+
+  function syncLimitControl(control, hint, maxValue) {
+    if (!control) return;
+    const max = positiveInt(maxValue, positiveInt(control.max, 1));
+    control.max = String(max);
+    const current = positiveInt(control.value, max);
+    if (current > max) control.value = String(max);
+    if (hint) hint.textContent = `현재 최대 ${max}건`;
+  }
+
+  function syncWorkerLimits(limits = {}) {
+    syncLimitControl(requestLimit, requestLimitHint, limits.analysis_worker_max);
+    syncLimitControl(outcomeLimit, outcomeLimitHint, limits.outcome_worker_max);
+    syncLimitControl(paperSimulationLimit, paperSimulationLimitHint, limits.paper_simulation_worker_max);
+  }
+
+  function limitFromControl(control) {
+    if (!control) return 1;
+    const max = positiveInt(control.max, 1);
+    const requested = positiveInt(control.value, 1);
+    const limit = Math.min(requested, max);
+    if (String(limit) !== String(control.value)) control.value = String(limit);
+    return limit;
   }
 
   function readinessText(value) {
@@ -12062,6 +12122,7 @@ ADMIN_PAGE_JS = """
     const limits = payload?.limits || {};
     const fragment = document.createDocumentFragment();
     opsSummary.textContent = "";
+    syncWorkerLimits(limits);
 
     const active = Number(requests.active_count || 0);
     const failed = Number(requests.failed_count || 0);
@@ -12147,7 +12208,8 @@ ADMIN_PAGE_JS = """
       }
     } else if (isDryRun || payload?.status === "dry_run") {
       const rows = Array.isArray(payload?.items) ? payload.items : [];
-      appendActionCell(fragment, "대기 요청", String(payload?.item_count || rows.length || 0), "실행 전 처리 대상입니다.", rows.length ? "is-warn" : "is-ok");
+      const limitNote = payload?.notice || "실행 전 처리 대상입니다.";
+      appendActionCell(fragment, "대기 요청", String(payload?.item_count || rows.length || 0), limitNote, rows.length ? "is-warn" : "is-ok");
       appendActionCell(fragment, "실행 경계", "읽기 전용", "분석 리포트 생성 대기열만 처리하고 주문 기능은 없습니다.", "is-ok");
     } else {
       const results = Array.isArray(payload?.results) ? payload.results : [];
@@ -12367,7 +12429,7 @@ ADMIN_PAGE_JS = """
     const originalLabel = button.dataset.originalLabel || button.textContent;
     button.dataset.originalLabel = originalLabel;
     const limitControl = isPaper ? paperSimulationLimit : isOutcome ? outcomeLimit : requestLimit;
-    const limit = Math.max(1, Number(limitControl?.value || 1));
+    const limit = limitFromControl(limitControl);
     const path = isPaper
       ? "/api/admin/paper-simulations/process"
       : isOutcome
