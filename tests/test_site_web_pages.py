@@ -695,10 +695,10 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied(monkeypat
     assert "결과 기록 계산은 5일/20일 수익률과 벤치마크 차이를 저장합니다." in html
     assert "기록 생성은 실제 주문 없이 모의 진입·청산 기록만 저장합니다." in html
     assert "대상 보는 중" not in html
-    assert "대상 확인을 누르면 저장 없이 후보를 볼 수 있습니다." in html
+    assert "확인 후 10분 동안 실행할 수 있습니다." in html
+    assert "lastDryRunAt" in html
     assert "분석 리포트 생성 결과입니다." in html
-    assert "한 번 더 눌러 실행" in html
-    assert 'data-admin-action$="process"][data-confirmed="true"]' in html
+    assert "한 번 더 눌러 실행" not in html
     assert '<meta name="robots" content="noindex,nofollow">' in html
     assert "adminWorkerToken" in html
     assert "data-admin-token-clear" in html

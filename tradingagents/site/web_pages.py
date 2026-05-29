@@ -6561,11 +6561,6 @@ h3 {
   color: #ffe1bd;
 }
 
-.admin-card button[data-admin-action$="process"][data-confirmed="true"] {
-  border-color: #ffb86b;
-  background: rgba(255, 184, 107, 0.22);
-}
-
 .admin-card button[data-admin-action$="dry-run"]:hover,
 .admin-card button[data-admin-action$="process"]:hover {
   transform: translateY(-1px);
@@ -12440,6 +12435,12 @@ ADMIN_PAGE_JS = """
   const paperSimulationLimitHint = document.getElementById("adminPaperSimulationLimitHint");
   const probeKrx = document.getElementById("adminProbeKrx");
   const probeVendors = document.getElementById("adminProbeVendors");
+  const dryRunReadyMs = 10 * 60 * 1000;
+  const lastDryRunAt = {
+    requests: 0,
+    outcomes: 0,
+    paper: 0
+  };
 
   function savedToken() {
     return sessionStorage.getItem(tokenKey) || "";
@@ -13013,6 +13014,7 @@ ADMIN_PAGE_JS = """
     const isDryRun = action.endsWith("dry-run");
     const isOutcome = action.startsWith("outcomes");
     const isPaper = action.startsWith("paper");
+    const actionGroup = isPaper ? "paper" : isOutcome ? "outcomes" : "requests";
     const output = isPaper ? paperSimulationOutput : isOutcome ? outcomesOutput : requestsOutput;
     const summaryPanel = isPaper ? paperSimulationPanel : isOutcome ? outcomesPanel : requestsPanel;
     const originalLabel = button.dataset.originalLabel || button.textContent;
@@ -13028,16 +13030,10 @@ ADMIN_PAGE_JS = """
       ? { limit, dry_run: isDryRun, horizons: [5, 20] }
       : { limit, dry_run: isDryRun };
     const actionLabel = isPaper ? "AI 모의투자 기록" : isOutcome ? "결과 기록 계산" : "AI 리포트 생성";
-    if (!isDryRun && button.dataset.confirmed !== "true") {
-      button.dataset.confirmed = "true";
-      button.textContent = "한 번 더 눌러 실행";
-      setOutput(output, "먼저 대상 확인을 누르면 저장 없이 후보를 볼 수 있습니다. 바로 실행하려면 이 버튼을 한 번 더 누르세요.");
-      window.setTimeout(() => {
-        if (button.dataset.confirmed === "true") {
-          button.dataset.confirmed = "false";
-          button.textContent = button.dataset.originalLabel || originalLabel;
-        }
-      }, 5000);
+    if (!isDryRun && Date.now() - (lastDryRunAt[actionGroup] || 0) > dryRunReadyMs) {
+      const message = "먼저 대상 확인을 눌러 이번 실행 후보를 확인하세요. 확인 후 10분 동안 실행할 수 있습니다.";
+      setOutput(output, message);
+      renderActionSummaryPending(summaryPanel, actionLabel, message);
       return;
     }
     try {
@@ -13047,7 +13043,7 @@ ADMIN_PAGE_JS = """
       const payload = await fetchJson(path, { method: "POST", body: JSON.stringify(body) }, true);
       renderAdminActionSummary(summaryPanel, payload, isOutcome, isDryRun, isPaper);
       setOutput(output, payload);
-      button.dataset.confirmed = "false";
+      if (isDryRun) lastDryRunAt[actionGroup] = Date.now();
       button.textContent = originalLabel;
       if (opsButton && !opsButton.disabled) opsButton.click();
     } catch (error) {
@@ -13056,7 +13052,6 @@ ADMIN_PAGE_JS = """
       setOutput(output, message);
     } finally {
       if (!isDryRun) {
-        button.dataset.confirmed = "false";
         button.textContent = originalLabel;
       }
       setBusy(button, false);
