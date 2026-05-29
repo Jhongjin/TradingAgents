@@ -148,7 +148,78 @@ def _summary(positions: list[dict[str, Any]]) -> dict[str, Any]:
         "average_realized_return": (sum(returns) / len(returns)) if returns else None,
         "average_unrealized_return": (sum(unrealized_returns) / len(unrealized_returns)) if unrealized_returns else None,
         "latest_position_status": positions[0].get("status") if positions else None,
+        "learning": _learning_summary(closed),
     }
+
+
+def _learning_summary(closed_positions: list[dict[str, Any]]) -> dict[str, Any]:
+    buckets: dict[str, dict[str, Any]] = {}
+    for position in closed_positions:
+        label = _learning_bucket_label(position)
+        bucket = buckets.setdefault(
+            label,
+            {
+                "label": label,
+                "trade_count": 0,
+                "win_count": 0,
+                "loss_count": 0,
+                "total_realized_pnl": Decimal("0"),
+                "returns": [],
+            },
+        )
+        realized_pnl = _decimal(position.get("realized_pnl"))
+        realized_return = position.get("realized_return")
+        bucket["trade_count"] += 1
+        bucket["total_realized_pnl"] += realized_pnl
+        if realized_pnl > Decimal("0"):
+            bucket["win_count"] += 1
+        else:
+            bucket["loss_count"] += 1
+        if realized_return is not None:
+            bucket["returns"].append(float(realized_return))
+
+    rows = []
+    for bucket in buckets.values():
+        trade_count = int(bucket["trade_count"])
+        returns = bucket["returns"]
+        rows.append(
+            {
+                "label": bucket["label"],
+                "trade_count": trade_count,
+                "win_count": int(bucket["win_count"]),
+                "loss_count": int(bucket["loss_count"]),
+                "win_rate": (int(bucket["win_count"]) / trade_count) if trade_count else None,
+                "average_return": (sum(returns) / len(returns)) if returns else None,
+                "total_realized_pnl": bucket["total_realized_pnl"],
+            }
+        )
+    rows.sort(
+        key=lambda item: (
+            item.get("win_rate") if item.get("win_rate") is not None else -1,
+            item.get("average_return") if item.get("average_return") is not None else -1,
+            item.get("trade_count") or 0,
+        ),
+        reverse=True,
+    )
+    return {
+        "closed_count": len(closed_positions),
+        "bucket_count": len(rows),
+        "best_bucket": rows[0] if rows else None,
+        "buckets": rows[:6],
+    }
+
+
+def _learning_bucket_label(position: dict[str, Any]) -> str:
+    metadata = position.get("metadata") or {}
+    pattern_label = str(metadata.get("pattern_label") or "").strip()
+    if pattern_label:
+        return pattern_label
+    decision = " / ".join(
+        str(value).strip()
+        for value in (position.get("decision_rating"), position.get("decision_action"))
+        if str(value or "").strip()
+    )
+    return decision or "AI 의견"
 
 
 def _decimal(value: Any) -> Decimal:

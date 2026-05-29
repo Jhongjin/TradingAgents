@@ -75,6 +75,8 @@ def test_paper_simulation_worker_persists_member_position(monkeypatch):
     assert payload["execution_boundary"] == "simulation_only_no_orders"
     assert payload["summary"]["closed_count"] == 1
     assert payload["summary"]["win_count"] == 1
+    assert payload["summary"]["learning"]["best_bucket"]["label"] == "Buy / buy"
+    assert payload["summary"]["learning"]["best_bucket"]["win_rate"] == 1
     assert payload["positions"][0]["analysis_run_id"] == run_id
     assert payload["positions"][0]["ticker_code"] == "005930"
     assert payload["events"][0]["event_type"] == "exit"

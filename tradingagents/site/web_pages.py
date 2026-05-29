@@ -7155,6 +7155,32 @@ h3 {
   line-height: 1.4;
 }
 
+.paper-learning-note {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid rgba(143, 216, 189, 0.22);
+  border-left: 3px solid var(--home-celadon);
+  border-radius: 8px;
+  background: rgba(143, 216, 189, 0.07);
+}
+
+.paper-learning-note span {
+  color: var(--home-celadon);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.paper-learning-note strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.paper-learning-note small {
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
+  line-height: 1.45;
+}
+
 .member-home-links {
   display: flex;
   flex-wrap: wrap;
@@ -14217,6 +14243,26 @@ MEMBER_PAGE_JS = """
     return node;
   }
 
+  function paperLearningNote(summary = {}) {
+    const learning = summary.learning || {};
+    const best = learning.best_bucket || null;
+    const node = document.createElement("div");
+    node.className = "paper-learning-note";
+    const label = document.createElement("span");
+    label.textContent = "복기 요약";
+    const title = document.createElement("strong");
+    const copy = document.createElement("small");
+    if (best) {
+      title.textContent = `${best.label} · 승률 ${signedPercent(best.win_rate).replace("+", "")}`;
+      copy.textContent = `청산 ${best.trade_count || 0}건 · 평균 수익률 ${signedPercent(best.average_return)} · 누적 손익 ${signedMoney(best.total_realized_pnl)}`;
+    } else {
+      title.textContent = "청산 기록 대기";
+      copy.textContent = "모의 청산이 쌓이면 AI 의견별 승률과 평균 수익률을 보여줍니다.";
+    }
+    node.replaceChildren(label, title, copy);
+    return node;
+  }
+
   function fillSelect(select, rows, labelKey, emptyLabel = "항목을 먼저 추가하세요") {
     if (!select) return;
     if (!rows.length) {
@@ -14376,6 +14422,7 @@ MEMBER_PAGE_JS = """
     overview.classList.add("paper-simulation-overview");
     paperSimulationList.replaceChildren(
       overview,
+      paperLearningNote(summary),
       ...(rows.length ? rows.map((row) => paperSimulationCard(row)) : [
         emptyActionNode(
           "아직 AI 모의투자 기록이 없습니다",

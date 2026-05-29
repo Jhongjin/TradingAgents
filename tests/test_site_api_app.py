@@ -259,6 +259,7 @@ def test_api_app_serves_member_paper_simulations(monkeypatch):
     body = member_response.json()
     assert body["status"] == "available"
     assert body["summary"]["closed_count"] == 1
+    assert body["summary"]["learning"]["best_bucket"]["label"] == "Buy / buy"
     assert body["positions"][0]["analysis_run_id"] == run_id
     assert body["positions"][0]["stock_path"] == "/stocks/005930"
 
