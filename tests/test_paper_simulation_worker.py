@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from types import SimpleNamespace
 
 from tradingagents.storage import AnalysisRunInput, TradeDecisionInput, StorageRepository, create_storage_engine
@@ -10,9 +10,10 @@ USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
 class _Point:
-    def __init__(self, day: str, close: float):
+    def __init__(self, day: str, close: float, *, volume: int = 1000):
         self.day = day
         self.close = close
+        self.volume = volume
 
     def as_dict(self):
         return {
@@ -21,7 +22,7 @@ class _Point:
             "high": self.close,
             "low": self.close,
             "close": self.close,
-            "volume": 1000,
+            "volume": self.volume,
         }
 
 
@@ -80,6 +81,51 @@ def test_paper_simulation_worker_persists_member_position(monkeypatch):
     assert payload["positions"][0]["analysis_run_id"] == run_id
     assert payload["positions"][0]["ticker_code"] == "005930"
     assert payload["events"][0]["event_type"] == "exit"
+
+
+def test_paper_simulation_worker_groups_learning_by_entry_pattern(monkeypatch):
+    repo = _repo()
+    run_id = repo.create_analysis_run(
+        AnalysisRunInput(
+            user_id=USER_ID,
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            trade_date=date(2026, 5, 5),
+            visibility="public",
+        )
+    )
+    repo.record_trade_decision(
+        TradeDecisionInput(
+            analysis_run_id=run_id,
+            rating="Buy",
+            action="buy",
+        )
+    )
+    repo.complete_analysis_run(run_id)
+    start = date(2026, 4, 11)
+    history = [
+        _Point((start + timedelta(days=index)).isoformat(), 50_000 + (index * 1_000))
+        for index in range(25)
+    ]
+    history[-1] = _Point("2026-05-05", 74_000, volume=3_000)
+    points = history + [
+        _Point("2026-05-06", 81_000),
+        _Point("2026-05-07", 82_000),
+    ]
+    monkeypatch.setattr(
+        "tradingagents.site.paper_simulation_worker.get_ohlcv_chart_series",
+        lambda *args, **kwargs: SimpleNamespace(vendor="fixture", points=points),
+    )
+
+    results = process_paper_simulation_candidates(repo, limit=5, as_of_date="2026-05-07")
+    payload = build_member_paper_simulation_payload(repo, user_id=USER_ID)
+    metadata = payload["positions"][0]["metadata"]
+
+    assert results[0].status == "created"
+    assert metadata["entry_pattern"]["status"] == "available"
+    assert metadata["pattern_label"] == "20일선 위 / 단기 강세 / 거래량 증가"
+    assert payload["summary"]["learning"]["best_bucket"]["label"] == metadata["pattern_label"]
 
 
 def test_paper_simulation_worker_refreshes_open_positions_until_virtual_exit(monkeypatch):

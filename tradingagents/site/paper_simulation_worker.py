@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Iterable
 from zoneinfo import ZoneInfo
@@ -175,11 +175,13 @@ def _process_candidate(
 
         series = get_ohlcv_chart_series(
             ticker_code,
-            trade_date.isoformat(),
+            (trade_date - timedelta(days=90)).isoformat(),
             end_date.isoformat(),
             vendor=chart_vendor or "pykrx",
         )
-        if len(series.points) < 2:
+        price_points = [point.as_dict() for point in series.points]
+        simulation_points = _points_on_or_after(price_points, trade_date)
+        if len(simulation_points) < 2:
             return PaperSimulationWorkerResult(
                 analysis_run_id=analysis_run_id,
                 ticker_code=ticker_code,
@@ -187,6 +189,7 @@ def _process_candidate(
                 user_id=user_id,
                 error="insufficient_price_data",
             )
+        entry_pattern = _entry_pattern_metadata(price_points, trade_date)
 
         decision = {
             "rating": candidate.get("decision_rating"),
@@ -197,7 +200,7 @@ def _process_candidate(
         }
         simulation = simulate_single_position(
             _signal_from_decision(ticker_code, decision),
-            [point.as_dict() for point in series.points],
+            simulation_points,
             config=config,
         )
         if simulation.status == "skipped":
@@ -227,6 +230,7 @@ def _process_candidate(
                 simulation=simulation.as_dict(),
                 config=config,
                 chart_vendor=series.vendor,
+                entry_pattern=entry_pattern,
             )
         )
         for event in simulation.events:
@@ -403,6 +407,7 @@ def _position_input(
     simulation: dict[str, Any],
     config: PaperSimulationConfig,
     chart_vendor: str,
+    entry_pattern: dict[str, Any] | None = None,
 ) -> PaperSimulationPositionInput:
     events = simulation.get("events") or []
     entry = _event_by_type(events, "entry")
@@ -411,6 +416,13 @@ def _position_input(
     exit_price = _money(exit_event.get("price")) if exit_event else None
     realized_pnl = _realized_pnl(entry, exit_event)
     status = "closed" if simulation.get("status") == "closed" else "open"
+    metadata = _position_metadata(
+        candidate,
+        simulation=simulation,
+        config=config,
+        chart_vendor=chart_vendor,
+        entry_pattern=entry_pattern,
+    )
     return PaperSimulationPositionInput(
         account_id=account_id,
         user_id=user_id,
@@ -434,25 +446,147 @@ def _position_input(
         decision_rating=candidate.get("decision_rating"),
         decision_action=candidate.get("decision_action"),
         target_weight=simulation.get("target_weight"),
-        metadata={
-            "source": "paper_simulation_worker",
-            "chart_vendor": chart_vendor,
-            "price_basis": "daily_close",
-            "portfolio_return": simulation.get("portfolio_return"),
-            "final_equity": simulation.get("final_equity"),
-            "mark_date": simulation.get("mark_date"),
-            "mark_price": simulation.get("mark_price"),
-            "unrealized_return": simulation.get("unrealized_return"),
-            "initial_cash": config.initial_cash,
-            "max_position_weight": config.max_position_weight,
-            "max_holding_days": config.max_holding_days,
-            "take_profit_pct": config.take_profit_pct,
-            "stop_loss_pct": config.stop_loss_pct,
-            "slippage_bps": config.slippage_bps,
-            "commission_per_trade": config.commission_per_trade,
-            "currency": config.currency,
-        },
+        metadata=metadata,
     )
+
+
+def _position_metadata(
+    candidate: dict[str, Any],
+    *,
+    simulation: dict[str, Any],
+    config: PaperSimulationConfig,
+    chart_vendor: str,
+    entry_pattern: dict[str, Any] | None,
+) -> dict[str, Any]:
+    existing = candidate.get("metadata_json") if isinstance(candidate.get("metadata_json"), dict) else {}
+    metadata = {
+        **existing,
+        "source": "paper_simulation_worker",
+        "chart_vendor": chart_vendor,
+        "price_basis": "daily_close",
+        "portfolio_return": simulation.get("portfolio_return"),
+        "final_equity": simulation.get("final_equity"),
+        "mark_date": simulation.get("mark_date"),
+        "mark_price": simulation.get("mark_price"),
+        "unrealized_return": simulation.get("unrealized_return"),
+        "initial_cash": config.initial_cash,
+        "max_position_weight": config.max_position_weight,
+        "max_holding_days": config.max_holding_days,
+        "take_profit_pct": config.take_profit_pct,
+        "stop_loss_pct": config.stop_loss_pct,
+        "slippage_bps": config.slippage_bps,
+        "commission_per_trade": config.commission_per_trade,
+        "currency": config.currency,
+    }
+    if entry_pattern:
+        metadata["entry_pattern"] = entry_pattern
+        label = str(entry_pattern.get("label") or "").strip()
+        if label:
+            metadata["pattern_label"] = label
+    return metadata
+
+
+def _points_on_or_after(points: list[dict[str, Any]], start_date: date) -> list[dict[str, Any]]:
+    return [
+        point
+        for point in points
+        if point.get("close") is not None and _coerce_date(point.get("date")) >= start_date
+    ]
+
+
+def _entry_pattern_metadata(points: list[dict[str, Any]], entry_date: date) -> dict[str, Any]:
+    history = [
+        point
+        for point in points
+        if point.get("close") is not None and _coerce_date(point.get("date")) <= entry_date
+    ]
+    if len(history) < 20:
+        return {"status": "insufficient_history", "lookback_points": len(history)}
+
+    closes = [float(point["close"]) for point in history]
+    volumes = [
+        float(point.get("volume") or 0)
+        for point in history
+        if point.get("volume") is not None
+    ]
+    entry_close = closes[-1]
+    ma5 = sum(closes[-5:]) / 5
+    ma20 = sum(closes[-20:]) / 20
+    ma60 = (sum(closes[-60:]) / 60) if len(closes) >= 60 else None
+    return_5d = (entry_close / closes[-6] - 1) if len(closes) >= 6 and closes[-6] else None
+    avg_volume20 = (sum(volumes[-20:]) / 20) if len(volumes) >= 20 else None
+    entry_volume = volumes[-1] if volumes else None
+
+    trend = _trend_state(entry_close=entry_close, ma5=ma5, ma20=ma20, ma60=ma60)
+    momentum = _momentum_state(return_5d)
+    volume = _volume_state(entry_volume=entry_volume, average_volume=avg_volume20)
+    label = _pattern_label(trend=trend, momentum=momentum, volume=volume)
+    return {
+        "status": "available",
+        "label": label,
+        "trend": trend,
+        "momentum": momentum,
+        "volume": volume,
+        "entry_close": entry_close,
+        "ma5": ma5,
+        "ma20": ma20,
+        "ma60": ma60,
+        "return_5d": return_5d,
+        "volume_ratio": (entry_volume / avg_volume20) if entry_volume and avg_volume20 else None,
+        "lookback_points": len(history),
+    }
+
+
+def _trend_state(*, entry_close: float, ma5: float, ma20: float, ma60: float | None) -> str:
+    if ma60 is not None and entry_close >= ma5 >= ma20 >= ma60:
+        return "stacked_uptrend"
+    if entry_close >= ma20 and ma5 >= ma20:
+        return "above_ma20"
+    if entry_close < ma20 and ma5 < ma20:
+        return "below_ma20"
+    return "mixed"
+
+
+def _momentum_state(return_5d: float | None) -> str:
+    if return_5d is None:
+        return "unknown"
+    if return_5d >= 0.05:
+        return "short_momentum"
+    if return_5d <= -0.05:
+        return "pullback"
+    return "range"
+
+
+def _volume_state(*, entry_volume: float | None, average_volume: float | None) -> str:
+    if not entry_volume or not average_volume:
+        return "unknown"
+    ratio = entry_volume / average_volume
+    if ratio >= 1.5:
+        return "volume_spike"
+    if ratio <= 0.7:
+        return "thin_volume"
+    return "normal_volume"
+
+
+def _pattern_label(*, trend: str, momentum: str, volume: str) -> str:
+    trend_labels = {
+        "stacked_uptrend": "정배열 상승추세",
+        "above_ma20": "20일선 위",
+        "below_ma20": "20일선 아래",
+        "mixed": "혼조 구간",
+    }
+    momentum_labels = {
+        "short_momentum": "단기 강세",
+        "pullback": "단기 약세",
+        "range": "횡보",
+        "unknown": "모멘텀 부족",
+    }
+    label = f"{trend_labels.get(trend, '혼조 구간')} / {momentum_labels.get(momentum, '확인 필요')}"
+    if volume == "volume_spike":
+        return f"{label} / 거래량 증가"
+    if volume == "thin_volume":
+        return f"{label} / 거래량 감소"
+    return label
 
 
 def _event_input(
