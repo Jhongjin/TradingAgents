@@ -168,7 +168,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert 'id="stock-chart-section"' in html
     assert 'id="stock-analysis-section"' in html
     assert 'id="stock-reports-section"' in html
-    assert 'href="/analyses?ticker=005930">공개 리포트</a>' in html
+    assert 'href="/analyses?ticker=005930">AI 리포트</a>' in html
     assert "분석 요청" in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section"' in html
     assert "1개월" in html
@@ -201,7 +201,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "사후 기록" in html
     assert "5일/20일 결과를 시장 기준과 비교합니다" in html
     assert "벤치마크 차이 +3.00%" in html
-    assert "공개 리포트 본문" in html
+    assert "AI 리포트 본문" in html
     assert "AI 분석은 정보 제공용이며 투자 조언이 아닙니다" in html
     assert "실거래와 브로커 주문 실행은 의도적으로 지원하지 않습니다" in html
     assert "AI analysis is for informational purposes" not in html
@@ -281,7 +281,7 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "최근 공개 분석" in html
     assert "한국 주식 AI 리서치" in html
     assert "주문 없는 한국 주식 AI 리서치" in html
-    assert "종목을 검색하면 차트, 공시, 뉴스, 공개 리포트, 사후 기록을 한 번에 확인합니다." in html
+    assert "종목을 검색하면 차트, 공시, 뉴스, AI 리포트, 사후 기록을 한 번에 확인합니다." in html
     assert "처음 방문해도 바로 쓸 수 있는 세 가지 흐름" in html
     assert "내 공간 만들기" in html
     assert "가입하면 열리는 기능" in html
@@ -368,7 +368,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "관심그룹을 추가하세요" in html
     assert html.index('data-member-tab="portfolio"') < html.index('data-member-tab="watchlist"')
     assert "member-home-links" in html
-    assert 'href="/analyses">공개 리포트 보기</a>' in html
+    assert 'href="/analyses">AI 리포트 보기</a>' in html
     assert 'href="/outcomes">사후 기록 보기</a>' in html
     assert "member-paper-card" in html
     assert "AI 가상매매" in html
@@ -463,7 +463,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "paperSimulationCard" in html
     assert "아직 매매 일지가 없습니다" in html
     assert "아직 관심그룹이 없습니다" in html
-    assert "완료 후 공개 리포트 링크를 보여줍니다." in html
+    assert "완료 후 AI 리포트 링크를 보여줍니다." in html
     assert "매매 일지 묶음을 만들었습니다." in html
     assert "관심그룹에 종목을 담았습니다." in html
     assert "member-metric-grid" in html
@@ -555,7 +555,7 @@ def test_render_feature_index_page_guides_first_visit():
 
     assert "기능 안내 | TradingAgents Korea" in html
     assert "종목을 읽고, 필요한 기록만 내 공간에 남깁니다" in html
-    assert "먼저 종목을 검색해 공개 리포트를 읽어보세요" in html
+    assert "먼저 종목을 검색해 AI 리포트를 읽어보세요" in html
     assert "TradingAgents Korea는 투자 판단을 돕는 자료를 제공하지만 주문은 실행하지 않습니다." in html
     assert 'href="/features/research"' in html
     assert 'href="/features/member-workspace"' in html
@@ -573,7 +573,7 @@ def test_render_feature_detail_pages_use_public_theme():
     outcomes_html = render_feature_detail_page("outcomes", site_base_url="https://example.com")
     methodology_html = render_feature_detail_page("methodology", site_base_url="https://example.com")
 
-    assert "종목을 검색하면 가격·출처·공개 리포트가 한 화면에 모입니다" in html
+    assert "종목을 검색하면 가격·출처·AI 리포트가 한 화면에 모입니다" in html
     assert 'class="public-home feature-page feature-detail-page"' in html
     assert ".feature-detail-page .feature-shell" in html
     assert "feature-diagram" in html
@@ -669,7 +669,7 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied(monkeypat
     assert "AI 가상매매 기록" in html
     assert "실제 주문은 없습니다." in html
     assert "실행 전 확인은 저장하지 않습니다." in html
-    assert "대기열 처리는 요청 상태를 처리 중으로 바꾸고 공개 리포트를 만듭니다." in html
+    assert "대기열 처리는 요청 상태를 처리 중으로 바꾸고 AI 리포트를 만듭니다." in html
     assert "사후 기록 계산은 5일/20일 수익률과 벤치마크 차이를 남깁니다." in html
     assert "가상매매 기록은 실제 주문 없이 AI의 가상 진입·청산 기록만 남깁니다." in html
     assert "대상 보는 중" not in html
@@ -871,7 +871,7 @@ def test_render_policy_pages_use_public_theme():
     expected = {
         "privacy": ("개인정보는 기록과 인증에 필요한 만큼만 다룹니다", "/privacy"),
         "terms": ("이 서비스는 투자 실행이 아닌 근거 확인을 돕습니다", "/terms"),
-        "disclaimer": ("공개 리포트는 투자 조언이 아니라 검토 자료입니다", "/disclaimer"),
+        "disclaimer": ("AI 리포트는 투자 조언이 아니라 검토 자료입니다", "/disclaimer"),
     }
 
     for slug, (heading, path) in expected.items():
@@ -954,20 +954,20 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "analysis-pipeline-strip" in html
     assert "완료 리포트만 표시" in html
     assert "본문과 원문 분리" in html
-    assert "공개 리포트" in html
+    assert "AI 리포트" in html
     assert 'id="analysisTicker"' in html
     assert 'id="analysisTickerSuggestions"' in html
     assert "005930 또는 삼성전자" in html
     assert "data-ticker-lookup" in html
     assert "data-ticker-submit" in html
-    assert "종목명이나 6자리 코드로 공개 리포트를 찾습니다" in html
-    assert "전체 공개 리포트" in html
+    assert "종목명이나 6자리 코드로 AI 리포트를 찾습니다" in html
+    assert "전체 AI 리포트" in html
     assert "정렬: 최신 기준일순" in html
     assert "상세, 종목, 사후 기록으로 바로 이동합니다." in html
     assert "resolveTickerInput" in html
     assert "renderTickerOptions" in html
-    assert "공개 리포트" in html
-    assert "최근 공개된 리포트" in html
+    assert "AI 리포트" in html
+    assert "최근 AI 리포트" in html
     assert "삼성전자" in html
     assert "공개 분석 커버리지 요약" in html
     assert "사후 기록" in html
@@ -1003,7 +1003,7 @@ def test_render_public_analysis_feed_empty_state_has_next_actions():
     assert "아직 공개된 리포트가 없습니다" in html
     assert "공개 기록 없음" in html
     assert 'class="analysis-empty-plan"' not in html
-    assert "완료된 공개 리포트가 쌓이면 이곳에 표시됩니다" in html
+    assert "완료된 AI 리포트가 쌓이면 이곳에 표시됩니다" in html
     assert 'class="analysis-pipeline-strip"' not in html
     assert "공개 분석 커버리지 요약" not in html
     assert 'href="/stocks/005930">샘플 종목</a>' in html
@@ -1017,7 +1017,7 @@ def test_render_public_analysis_feed_filtered_empty_state_guides_recovery():
     assert "005930 공개 분석 없음" in html
     assert "아직 공개 기록 없음" in html
     assert 'class="analysis-empty-plan"' not in html
-    assert "조건에 맞는 공개 리포트가 아직 없습니다" in html
+    assert "조건에 맞는 AI 리포트가 아직 없습니다" in html
     assert 'class="analysis-pipeline-strip"' not in html
     assert "005930 필터 결과" in html
     assert "005930 필터 적용" in html
@@ -1110,7 +1110,7 @@ def test_render_public_outcomes_page_empty_state_has_next_actions():
     assert "차이 대기" in html
     assert "아직 5일/20일 결과가 없거나 가격 데이터가 부족합니다" in html
     assert 'href="/stocks/005930">샘플 종목</a>' in html
-    assert 'href="/analyses">공개 리포트</a>' in html
+    assert 'href="/analyses">AI 리포트</a>' in html
     assert 'href="/features/outcomes">기준</a>' in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
 
@@ -1124,7 +1124,7 @@ def test_render_public_outcomes_page_filtered_empty_state_guides_recovery():
     assert "005930 / 완료" in html
     assert "005930 / 완료 적용" in html
     assert 'href="/outcomes">필터 초기화</a>' in html
-    assert 'href="/analyses?ticker=005930">공개 리포트</a>' in html
+    assert 'href="/analyses?ticker=005930">AI 리포트</a>' in html
     assert 'href="/stocks/005930">종목 페이지</a>' in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
 
