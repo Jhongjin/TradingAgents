@@ -139,6 +139,8 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "chartTooltip" in html
     assert "chart-tab" in html
     assert "chart-interval-tabs" in html
+    assert "chart-attribution" in html
+    assert "TradingView" in html
     assert "lightweight-charts@5.2.0" in html
     assert "CandlestickSeries" in html
     assert "HistogramSeries" in html

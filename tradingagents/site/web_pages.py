@@ -155,6 +155,7 @@ def render_public_stock_page(
           <div class="chart-tooltip" id="chartTooltip" hidden></div>
           <p id="chartFallback" class="chart-fallback" hidden>{_h(model["chart_fallback"])}</p>
         </div>
+        <p class="chart-attribution"><a href="https://www.tradingview.com/" rel="noopener noreferrer" target="_blank">TradingView</a> Lightweight Charts 기반 차트입니다.</p>
       </section>
 
       <aside class="side-rail" aria-label="핵심 지표">
@@ -4884,6 +4885,19 @@ h3 {
   position: relative;
   min-height: 420px;
   aspect-ratio: 16 / 10;
+}
+
+.chart-attribution {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.chart-attribution a {
+  color: inherit;
+  font-weight: 700;
+  text-underline-offset: 3px;
 }
 
 .tv-price-chart,
