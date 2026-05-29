@@ -60,6 +60,8 @@ TRADINGAGENTS_ANALYSIS_REQUEST_ACTIVE_LIMIT=5
 TRADINGAGENTS_ANALYSIS_REQUEST_DAILY_LIMIT=20
 TRADINGAGENTS_OUTCOME_WORKER_MAX_RUNS=20
 TRADINGAGENTS_OUTCOME_WORKER_CRON_LIMIT=5
+TRADINGAGENTS_PAPER_SIMULATION_WORKER_MAX_RUNS=20
+TRADINGAGENTS_PAPER_SIMULATION_WORKER_CRON_LIMIT=5
 # Optional Vercel Cron secret. If set, Vercel sends it as Authorization: Bearer <CRON_SECRET>.
 CRON_SECRET=
 TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER=false
@@ -210,6 +212,12 @@ Vercel Cron invokes endpoints with GET requests. The repo therefore includes
 or Vercel's `CRON_SECRET` bearer header. `vercel.json` schedules this endpoint
 for 18:10 KST on weekdays (`10 9 * * 1-5` in UTC). Keep the cron active only
 when you are ready to pay for scheduled LLM runs.
+
+AI paper simulations are a separate read-only follow-up. They read completed
+analysis runs, create or refresh simulated positions, and never place orders.
+`vercel.json` schedules `GET /api/cron/process-paper-simulations` for 18:25 KST
+on weekdays (`25 9 * * 1-5` in UTC), after the analysis-request worker has had
+time to persist fresh runs.
 
 Public analysis outcomes are a separate post-analysis verification pass. They
 look at completed public analysis runs, fetch later Korean-market returns, and
