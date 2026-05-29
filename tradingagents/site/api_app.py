@@ -7,6 +7,7 @@ import hmac
 import time
 from datetime import datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import quote, urlparse
 from zoneinfo import ZoneInfo
@@ -14,7 +15,7 @@ from zoneinfo import ZoneInfo
 import requests
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from starlette.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
+from starlette.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.middleware.cors import CORSMiddleware
 
 from tradingagents.dataflows import dart, krx_openapi, naver_news
@@ -39,6 +40,13 @@ from .public_api import build_public_stock_payload
 from .seo import build_ads_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
 from .simulation_api import build_public_simulation_preview_payload
 from .ticker_api import build_ticker_search_payload
+from .tradingview_datafeed_api import (
+    build_tradingview_config_payload,
+    build_tradingview_history_payload,
+    build_tradingview_search_payload,
+    build_tradingview_symbol_payload,
+    build_tradingview_time_payload,
+)
 from .watchlist_api import build_watchlist_list_payload, build_watchlist_payload
 from .web_pages import (
     render_admin_console_page,
@@ -202,6 +210,10 @@ def create_app(
             response.headers.setdefault("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
         elif request.url.path == "/api/tickers/search":
             response.headers.setdefault("Cache-Control", "public, max-age=300, stale-while-revalidate=600")
+        elif request.url.path == "/api/tradingview/time":
+            response.headers.setdefault("Cache-Control", "no-store")
+        elif request.url.path.startswith("/api/tradingview/"):
+            response.headers.setdefault("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
         elif request.url.path.startswith("/api/simulations/"):
             seconds = request.app.state.public_cache_seconds
             response.headers.setdefault(
@@ -318,6 +330,19 @@ def create_app(
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon() -> Response:
         return Response(status_code=204)
+
+    @app.get("/charting_library/{asset_path:path}", include_in_schema=False)
+    def charting_library_asset(asset_path: str) -> Response:
+        file_path = _resolve_charting_library_asset(asset_path)
+        if file_path is not None:
+            return FileResponse(file_path)
+        if asset_path == "charting_library.js":
+            return PlainTextResponse(
+                "",
+                media_type="application/javascript",
+                headers={"Cache-Control": "no-store"},
+            )
+        raise HTTPException(status_code=404, detail="Charting library asset was not found")
 
     @app.get("/sitemap.xml", include_in_schema=False)
     def sitemap_xml(request: Request) -> Response:
@@ -547,6 +572,65 @@ def create_app(
             return build_ticker_search_payload(q, limit=limit, lookup_pykrx=lookup_pykrx)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/tradingview/config")
+    def tradingview_config() -> dict[str, object]:
+        return build_tradingview_config_payload()
+
+    @app.get("/api/tradingview/search")
+    def tradingview_search(
+        query: Annotated[str | None, Query(alias="query", max_length=80)] = None,
+        q: Annotated[str | None, Query(max_length=80)] = None,
+        exchange: str = "",
+        type: Annotated[str, Query(alias="type")] = "",
+        limit: Annotated[int, Query(ge=1, le=50)] = 30,
+    ) -> list[dict[str, object]]:
+        search_query = (query or q or "").strip()
+        if not search_query:
+            return []
+        try:
+            return build_tradingview_search_payload(
+                search_query,
+                exchange=exchange,
+                symbol_type=type,
+                limit=limit,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/tradingview/symbols")
+    def tradingview_symbols(
+        symbol: Annotated[str, Query(min_length=1, max_length=80)],
+    ) -> dict[str, object]:
+        try:
+            return build_tradingview_symbol_payload(symbol)
+        except VendorUnavailableError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/tradingview/history")
+    def tradingview_history(
+        symbol: Annotated[str, Query(min_length=1, max_length=80)],
+        resolution: Annotated[str, Query(min_length=1, max_length=8)] = "D",
+        from_: Annotated[int, Query(alias="from", ge=0)] = 0,
+        to: Annotated[int, Query(ge=0)] = 0,
+        countback: Annotated[int | None, Query(ge=1, le=5000)] = None,
+        vendor: str | None = None,
+    ) -> dict[str, object]:
+        try:
+            return build_tradingview_history_payload(
+                symbol,
+                resolution=resolution,
+                from_timestamp=from_,
+                to_timestamp=to,
+                countback=countback,
+                vendor=vendor,
+            )
+        except (ValueError, VendorUnavailableError) as exc:
+            return {"s": "error", "errmsg": str(exc)}
+
+    @app.get("/api/tradingview/time")
+    def tradingview_time() -> PlainTextResponse:
+        return PlainTextResponse(str(build_tradingview_time_payload()["time"]))
 
     @app.get("/api/analyses")
     def public_analysis_feed(
@@ -1167,6 +1251,40 @@ def _resolve_stock_lookup(value: str) -> str:
     if not results:
         raise ValueError("matching Korean ticker was not found")
     return str(results[0]["code"])
+
+
+def _resolve_charting_library_asset(asset_path: str) -> Path | None:
+    if not asset_path or asset_path.startswith(("/", "\\")):
+        return None
+    relative = Path(asset_path)
+    if relative.is_absolute() or any(part in {"", ".", ".."} for part in relative.parts):
+        return None
+
+    for root in _charting_library_roots():
+        candidate = (root / relative).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            continue
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _charting_library_roots() -> list[Path]:
+    roots: list[Path] = []
+    configured = os.getenv("TRADINGAGENTS_CHARTING_LIBRARY_DIR")
+    if configured and configured.strip():
+        roots.append(Path(configured).expanduser().resolve())
+
+    repo_root = Path(__file__).resolve().parents[2]
+    roots.extend(
+        [
+            (repo_root / "charting_library").resolve(),
+            (repo_root / "static" / "charting_library").resolve(),
+        ]
+    )
+    return roots
 
 
 def _resolve_public_stock_api_ticker(value: str) -> str:
