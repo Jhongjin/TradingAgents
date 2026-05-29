@@ -184,22 +184,20 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "setupTrendDrawing" in html
     assert "볼린저" in html
     assert "KRX 14D" in html
-    assert "일봉 / pykrx / 2개 봉 표시 / auto 요청에서 pykrx 사용" in html
+    assert "일봉 · pykrx · 2개 봉 · 2026-05-04~2026-05-05 · 자동 전환: pykrx" in html
     assert "차트 데이터 기준" in html
-    assert "2026-05-05 기준" in html
-    assert "<dt>차트 주기</dt>" in html
-    assert "<dd>일봉</dd>" in html
-    assert "<dt>표시 봉</dt>" in html
-    assert "<dt>제공처 선택</dt>" in html
-    assert "요청 auto / 실제 표시 pykrx" in html
-    assert "<dt>대체 제공처</dt>" in html
-    assert "<dd>auto 요청에서 pykrx 사용</dd>" in html
+    assert "<dt>기간</dt>" in html
+    assert "<dd>2026-05-04~2026-05-05</dd>" in html
+    assert "<dt>봉</dt>" in html
+    assert "<dd>일봉 · 2개</dd>" in html
+    assert "<dt>표시</dt>" in html
+    assert "<dd>자동 전환: pykrx</dd>" in html
     assert "AI 리서치 출처" in html
     assert "공개 분석 00000000" in html
     assert "최신 (fresh / 0일 경과)" in html
-    assert "분석 신뢰도" in html
+    assert "근거 상태" in html
     assert "근거 충분" in html
-    assert "즉시 드러난 누락 경고는 없습니다" in html
+    assert "표시된 근거에서 큰 누락은 보이지 않습니다" in html
     assert "<dt>기준일</dt>" in html
     assert "<dt>평가일</dt>" in html
     assert "movingAverage" in html
@@ -207,12 +205,12 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "bollinger" in html
     assert "고저" in html
     assert "TradingView" in html
-    assert "한국형 투자 렌즈" in html
+    assert "투자 체크포인트" in html
     assert "안전 가드레일" in html
     assert "사후 기록" in html
-    assert "5일/20일 결과를 시장 기준과 비교합니다" in html
+    assert "리포트 작성 뒤 5일/20일 흐름을 시장과 비교합니다" in html
     assert "벤치마크 차이 +3.00%" in html
-    assert "AI 리포트 본문" in html
+    assert "AI 리포트" in html
     assert "AI 분석은 정보 제공용이며 투자 조언이 아닙니다" in html
     assert "실거래와 브로커 주문 실행은 의도적으로 지원하지 않습니다" in html
     assert "AI analysis is for informational purposes" not in html
@@ -382,10 +380,12 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'href="/analyses">AI 리포트 보기</a>' in html
     assert 'href="/outcomes">사후 기록 보기</a>' in html
     assert "member-paper-card" in html
-    assert "AI 가상매매" in html
+    assert "AI 모의투자" in html
     assert 'data-member-tab="paper"' in html
     assert 'id="paper-simulation-section"' in html
-    assert "AI의 가상 진입·청산 기록을 봅니다." in html
+    assert "AI의 모의 진입·청산 기록을 봅니다." in html
+    assert "paper-simulation-flow" in html
+    assert "모의 진입·청산 기록이 쌓입니다" in html
     assert "paperSimulationList" in html
     assert "/api/member/paper-simulations" in html
     assert "member-admin-link" in html
@@ -469,7 +469,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "setFormControlsDisabled" in html
     assert "dashboardStatusMeta" in html
     assert "아직 저장된 항목이 없습니다" in html
-    assert "아직 AI 가상매매 기록이 없습니다" in html
+    assert "아직 AI 모의투자 기록이 없습니다" in html
     assert "renderPaperSimulations" in html
     assert "paperSimulationCard" in html
     assert "아직 매매 일지가 없습니다" in html

@@ -115,7 +115,7 @@ def render_public_stock_page(
         <p class="eyebrow">{_h(model["market_line"])}</p>
         <h1 id="stock-title">{_h(model["name"])} <span>{_h(model["code"])}</span></h1>
         <p class="asof">{_h(model["generated_at"])} 기준</p>
-        <p class="stock-hero-copy">가격, 공시, 뉴스, AI 리포트, 사후 기록을 한 화면에서 확인합니다.</p>
+        <p class="stock-hero-copy">차트, AI 리포트, 결과 기록을 한 화면에서 봅니다.</p>
         <div class="stock-hero-actions" aria-label="종목 상세 주요 이동">
           <a href="/analyses?ticker={_h(model["code"])}">AI 리포트</a>
           <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
@@ -140,8 +140,8 @@ def render_public_stock_page(
       <section id="stock-chart-section" class="chart-panel" aria-labelledby="chart-title">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">KRW 가격 데이터</p>
-            <h2 id="chart-title">가격 흐름과 출처</h2>
+            <p class="eyebrow">가격</p>
+            <h2 id="chart-title">가격 차트</h2>
           </div>
           <div class="chart-heading-meta">
             <span class="status-pill">{_h(model["chart_status"])}</span>
@@ -207,7 +207,7 @@ def render_public_stock_page(
       <div class="panel-heading">
         <div>
           <p class="eyebrow">저장된 리포트</p>
-          <h2 id="reports-title">AI 리포트 본문</h2>
+          <h2 id="reports-title">AI 리포트</h2>
         </div>
         <span class="status-pill">{_h(model["refresh_state"])}</span>
       </div>
@@ -1822,7 +1822,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
 
     model = {
         "title": "회원 대시보드 | TradingAgents Korea",
-        "description": "매매 일지, 관심그룹, 한국 주식 분석 요청, AI 가상매매 기록을 관리합니다.",
+        "description": "매매 일지, 관심그룹, 한국 주식 분석 요청, AI 모의투자 기록을 관리합니다.",
         "canonical_url": canonical_url(canonical_path, site_base_url=site_base_url),
     }
     config_json = _script_json(_public_supabase_config())
@@ -1945,7 +1945,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <a id="portfolio-tab" href="#portfolio-section" role="tab" data-member-tab="portfolio" aria-controls="portfolio-section" aria-selected="false">매매 일지 <span id="portfolioTabCount">0</span></a>
         <a id="watchlist-tab" href="#watchlist-section" role="tab" data-member-tab="watchlist" aria-controls="watchlist-section" aria-selected="false">관심그룹 <span id="watchlistTabCount">0</span></a>
         <a id="analysis-tab" href="#analysis-request-section" role="tab" data-member-tab="analysis" aria-controls="analysis-request-section" aria-selected="false">분석 요청 <span id="analysisTabCount">0</span></a>
-        <a id="paper-simulation-tab" href="#paper-simulation-section" role="tab" data-member-tab="paper" aria-controls="paper-simulation-section" aria-selected="false">AI 가상매매 <span id="paperSimulationTabCount">0</span></a>
+        <a id="paper-simulation-tab" href="#paper-simulation-section" role="tab" data-member-tab="paper" aria-controls="paper-simulation-section" aria-selected="false">AI 모의투자 <span id="paperSimulationTabCount">0</span></a>
       </nav>
 
       <section class="member-grid" aria-label="회원 기능">
@@ -1980,9 +1980,9 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <small>완료 리포트</small>
             </article>
             <article>
-              <span>AI 가상매매</span>
+              <span>AI 모의투자</span>
               <strong id="memberOverviewPaperSimulations">0</strong>
-              <small>가상매매</small>
+              <small>모의 기록</small>
             </article>
           </section>
           <p class="member-home-state-note" id="memberHomeStateNote" aria-live="polite">저장된 항목을 불러오고 있습니다.</p>
@@ -2015,9 +2015,9 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             </article>
             <article class="member-home-card member-paper-card">
               <span>04</span>
-              <strong>AI 가상매매</strong>
-              <small>AI의 가상 진입·청산 기록을 봅니다.</small>
-              <button class="ghost-button" type="button" data-member-jump="paper">가상매매 보기</button>
+              <strong>AI 모의투자</strong>
+              <small>AI의 모의 진입·청산 기록을 봅니다.</small>
+              <button class="ghost-button" type="button" data-member-jump="paper">모의투자 보기</button>
             </article>
           </div>
           <div class="member-home-links" aria-label="보조 이동">
@@ -2133,12 +2133,18 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <section class="member-panel" id="paper-simulation-section" role="tabpanel" data-member-panel="paper" aria-labelledby="paper-simulation-tab" hidden>
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">AI 가상매매</p>
-              <h2>AI 가상매매 기록</h2>
-              <p class="panel-copy">분석 리포트가 완료되면 AI가 가상 진입·청산 시점을 기록합니다.</p>
+              <p class="eyebrow">AI 모의투자</p>
+              <h2>모의투자 기록</h2>
+              <p class="panel-copy">완료된 AI 리포트를 바탕으로 모의 진입·청산을 기록합니다.</p>
             </div>
             <span class="status-pill">주문 없음</span>
           </div>
+          <ol class="paper-simulation-flow" aria-label="AI 모의투자 흐름">
+            <li><span>01</span><strong>리포트</strong><small>AI 의견 저장</small></li>
+            <li><span>02</span><strong>진입</strong><small>모의 매수가 기록</small></li>
+            <li><span>03</span><strong>평가</strong><small>보유·청산 추적</small></li>
+            <li><span>04</span><strong>복기</strong><small>승률과 손익 확인</small></li>
+          </ol>
           <div class="member-list" id="paperSimulationList"></div>
         </section>
       </section>
@@ -2287,16 +2293,19 @@ def _chart_controls(model: dict[str, Any]) -> str:
         ]
 
     return (
-        '<div class="chart-toolbar">'
+        '<div class="chart-toolbar" aria-label="차트 설정">'
+        '<div class="chart-control-block"><span>기간</span>'
         '<nav class="chart-tabs" aria-label="차트 기간">'
         + "".join(range_links)
-        + "</nav>"
+        + "</nav></div>"
+        '<div class="chart-control-block"><span>봉</span>'
         '<nav class="chart-tabs chart-interval-tabs" aria-label="차트 주기">'
         + "".join(interval_tabs)
-        + "</nav>"
+        + "</nav></div>"
+        '<div class="chart-control-block"><span>데이터</span>'
         '<nav class="chart-tabs chart-vendor-tabs" aria-label="차트 데이터 소스">'
         + "".join(vendor_links)
-        + "</nav>"
+        + "</nav></div>"
         "</div>"
     )
 
@@ -2317,7 +2326,7 @@ def _chart_tools() -> str:
     return f"""
     <div class="chart-tools" aria-label="차트 도구">
       <div class="chart-tool-group">
-        <span>보조지표</span>
+        <span>지표</span>
         {buttons}
       </div>
       <div class="chart-tool-group">
@@ -2325,7 +2334,7 @@ def _chart_tools() -> str:
         <button type="button" class="chart-tool-button" data-chart-draw-trend aria-pressed="false">추세선</button>
         <button type="button" class="chart-tool-button" data-chart-clear-trends>선 지우기</button>
       </div>
-      <small id="chartToolState">추세선은 시작점과 끝점을 차례로 클릭해 그립니다.</small>
+      <small id="chartToolState">추세선: 차트 위 두 지점을 클릭</small>
     </div>
     """
 
@@ -2334,16 +2343,16 @@ def _stock_signal_card(model: dict[str, Any]) -> str:
     confidence = model.get("analysis_confidence") or {}
     return f"""
     <div class="stock-signal-card">
-      <span>읽기 전용 리서치 요약</span>
+      <span>현재가 요약</span>
       <strong>{_h(model.get("close") or "-")}</strong>
-      <small>{_h(model.get("change") or "-")} / {_h(model.get("chart_vendor_label") or "데이터 확인")} 기준 가격</small>
+      <small>{_h(model.get("change") or "-")} · {_h(model.get("chart_vendor_label") or "데이터 확인")} 기준</small>
       <dl>
         <div>
-          <dt>리서치 상태</dt>
+          <dt>AI 상태</dt>
           <dd>{_h(model.get("analysis_state") or "-")}</dd>
         </div>
         <div>
-          <dt>근거 상태</dt>
+          <dt>근거</dt>
           <dd>{_h(confidence.get("label") or "확인 필요")}</dd>
         </div>
       </dl>
@@ -2400,13 +2409,15 @@ def _chart_source_rows(chart: dict[str, Any], points: list[dict[str, Any]]) -> l
         point_count = len(points)
     requested = chart.get("requested_vendor") or chart.get("vendor") or "-"
     resolved = chart.get("resolved_vendor") or chart.get("vendor") or "-"
+    start = str(chart.get("start_date") or "-")
+    end = str(chart.get("end_date") or "-")
+    range_label = f"{start}~{end}" if start != "-" or end != "-" else "-"
+    source_note = f"자동 전환: {resolved}" if chart.get("fallback_used") else f"{resolved} 사용"
     return [
-        ("표시 데이터", str(chart.get("data_source_label") or _chart_vendor_label(chart.get("vendor")))),
-        ("기준일", f"{chart.get('end_date') or '-'} 기준"),
-        ("차트 주기", _chart_interval_label(chart.get("interval"))),
-        ("표시 봉", f"{point_count}개"),
-        ("제공처 선택", f"요청 {requested} / 실제 표시 {resolved}"),
-        ("대체 제공처", f"auto 요청에서 {resolved} 사용" if chart.get("fallback_used") else "사용 안 함"),
+        ("데이터", str(chart.get("data_source_label") or _chart_vendor_label(chart.get("vendor")))),
+        ("기간", range_label),
+        ("봉", f"{_chart_interval_label(chart.get('interval'))} · {point_count}개"),
+        ("표시", source_note if requested == "auto" else f"{requested} → {resolved}"),
     ]
 
 
@@ -2525,20 +2536,20 @@ def _analysis_missing_data_warnings(
 
 def _analysis_confidence_summary(*, status: str, score: int, warnings: list[str]) -> str:
     if status != "available":
-        return "저장된 공개 분석이 없거나 불완전해 리포트 근거를 제한적으로만 볼 수 있습니다."
+        return "아직 공개 분석이 없어 일부 근거만 표시합니다."
     if warnings:
-        return "분석은 표시되지만 일부 근거가 비어 있어 원문 데이터와 기준일을 함께 확인해야 합니다."
-    return f"분석, 판단, 차트 근거가 함께 있어 현재 공개 화면 기준 신뢰 점수 {score}/7입니다."
+        return "일부 근거가 비어 있습니다. 기준일과 원문을 확인하세요."
+    return f"분석, 판단, 차트가 함께 저장되어 있습니다. 근거 점수 {score}/7."
 
 
 def _analysis_confidence_panel(confidence: dict[str, Any]) -> str:
     warnings = confidence.get("warnings") or []
     warning_items = "".join(f"<li>{_h(warning)}</li>" for warning in warnings)
-    warning_html = f"<ul>{warning_items}</ul>" if warning_items else "<p>현재 표시된 공개 데이터 블록에서 즉시 드러난 누락 경고는 없습니다.</p>"
+    warning_html = f"<ul>{warning_items}</ul>" if warning_items else "<p>표시된 근거에서 큰 누락은 보이지 않습니다.</p>"
     level = str(confidence.get("level") or "low")
     return f"""
-    <div class="analysis-confidence-panel confidence-{_h(level)}" aria-label="분석 신뢰도와 누락 데이터 경고">
-      <span>분석 신뢰도</span>
+    <div class="analysis-confidence-panel confidence-{_h(level)}" aria-label="분석 근거 상태">
+      <span>근거 상태</span>
       <strong>{_h(confidence.get("label") or "확인 필요")}</strong>
       <p>{_h(confidence.get("summary") or "")}</p>
       {warning_html}
@@ -2668,10 +2679,10 @@ def _chart_caption(chart: dict[str, Any], points: list[dict[str, Any]]) -> str:
     end = chart.get("end_date") or "-"
     vendor = _chart_vendor_label(chart.get("vendor"))
     interval = _chart_interval_label(chart.get("interval"))
-    point_label = f"{len(points):,}개 봉 표시" if points else "차트 데이터 없음"
+    point_label = f"{len(points):,}개 봉" if points else "차트 데이터 없음"
     resolved = chart.get("resolved_vendor") or chart.get("vendor") or "데이터 제공처"
-    fallback_note = f" / auto 요청에서 {resolved} 사용" if chart.get("fallback_used") else ""
-    return f"{start}~{end} / {interval} / {vendor} / {point_label}{fallback_note}"
+    fallback_note = f" · 자동 전환: {resolved}" if chart.get("fallback_used") else ""
+    return f"{interval} · {vendor} · {point_label} · {start}~{end}{fallback_note}"
 
 
 def _chart_fallback_message(chart: dict[str, Any]) -> str:
@@ -3797,8 +3808,8 @@ def _strategy_lens_cards(lenses: list[dict[str, Any]]) -> str:
     <section class="lens-section" aria-labelledby="lens-title">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">전략 렌즈</p>
-          <h2 id="lens-title">한국형 투자 렌즈</h2>
+          <p class="eyebrow">체크포인트</p>
+          <h2 id="lens-title">투자 체크포인트</h2>
         </div>
         <span class="status-pill">주문 없음</span>
       </div>
@@ -3829,8 +3840,8 @@ def _outcome_cards(outcomes: list[dict[str, Any]]) -> str:
       <div class="panel-heading">
         <div>
           <p class="eyebrow">사후 기록</p>
-          <h2 id="outcome-title">사후 기록</h2>
-          <p class="outcome-section-copy">5일/20일 결과를 시장 기준과 비교합니다. 미래 수익을 보장하지 않습니다.</p>
+          <h2 id="outcome-title">결과 기록</h2>
+          <p class="outcome-section-copy">리포트 작성 뒤 5일/20일 흐름을 시장과 비교합니다.</p>
         </div>
         <span class="status-pill">벤치마크 차이</span>
       </div>
@@ -4888,6 +4899,7 @@ h3 {
 
 .chart-heading-meta,
 .chart-toolbar,
+.chart-control-block,
 .chart-tabs {
   display: flex;
   align-items: center;
@@ -4900,10 +4912,25 @@ h3 {
 }
 
 .chart-toolbar {
+  align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 10px;
   min-width: 0;
+}
+
+.chart-control-block {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chart-control-block > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .chart-tools,
@@ -7091,6 +7118,43 @@ h3 {
   border-left-color: var(--home-celadon);
 }
 
+.paper-simulation-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 0 12px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(246, 243, 232, 0.12);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.12);
+  list-style: none;
+}
+
+.paper-simulation-flow li {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  background: rgba(15, 22, 18, 0.78);
+}
+
+.paper-simulation-flow span {
+  color: var(--home-celadon);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.paper-simulation-flow strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.paper-simulation-flow small {
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.78));
+  line-height: 1.4;
+}
+
 .member-home-links {
   display: flex;
   flex-wrap: wrap;
@@ -7870,6 +7934,10 @@ h3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .paper-simulation-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .member-metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -8210,6 +8278,7 @@ h3 {
 
   .member-overview-strip,
   .member-home-grid,
+  .paper-simulation-flow,
   .member-metric-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -9809,7 +9878,8 @@ button:disabled {
 }
 
 .market-page .chart-tool-group > span,
-.market-page .chart-tools small {
+.market-page .chart-tools small,
+.market-page .chart-control-block > span {
   color: rgba(198, 221, 192, 0.78);
 }
 
@@ -14092,7 +14162,7 @@ MEMBER_PAGE_JS = """
 
   function paperStatusLabel(status) {
     return {
-      open: "가상 보유",
+      open: "모의 보유",
       closed: "청산 완료"
     }[status] || status || "대기";
   }
@@ -14111,11 +14181,11 @@ MEMBER_PAGE_JS = """
 
   function paperSimulationLines(row) {
     const lines = [];
-    if (row.entry_date) lines.push(`가상 진입 ${shortDate(row.entry_date)} @ ${money(row.entry_price)}`);
-    if (row.exit_date) lines.push(`가상 청산 ${shortDate(row.exit_date)} @ ${money(row.exit_price)} / ${exitReasonLabel(row.exit_reason)}`);
+    if (row.entry_date) lines.push(`모의 진입 ${shortDate(row.entry_date)} @ ${money(row.entry_price)}`);
+    if (row.exit_date) lines.push(`모의 청산 ${shortDate(row.exit_date)} @ ${money(row.exit_price)} / ${exitReasonLabel(row.exit_reason)}`);
     if (!row.exit_date && row.metadata?.mark_date) lines.push(`최근 평가 ${shortDate(row.metadata.mark_date)} @ ${money(row.metadata.mark_price)} / ${signedPercent(row.metadata.unrealized_return)}`);
     if (row.target_price || row.stop_price) {
-      lines.push(`익절 ${money(row.target_price)} / 손절 ${money(row.stop_price)}`);
+      lines.push(`목표 ${money(row.target_price)} / 손절 ${money(row.stop_price)}`);
     }
     if (row.metadata?.price_basis) lines.push(`가격 기준 ${row.metadata.price_basis}`);
     return lines;
@@ -14131,15 +14201,17 @@ MEMBER_PAGE_JS = """
     actions.className = "analysis-request-actions";
     if (row.stock_path) actions.append(inlineLink("종목", row.stock_path));
     if (row.report_path) actions.append(inlineLink("리포트", row.report_path));
+    const currentPrice = row.exit_price || row.metadata?.mark_price;
+    const currentDate = row.exit_date || row.metadata?.mark_date;
     node.append(
       cardHeader(title, meta, paperStatusLabel(status)),
       metricGrid([
-        ["가상 진입", money(row.entry_price), shortDate(row.entry_date)],
-        ["가상 청산", row.exit_price ? money(row.exit_price) : "-", row.exit_date ? shortDate(row.exit_date) : "가상 보유"],
+        ["진입가", money(row.entry_price), shortDate(row.entry_date)],
+        ["청산/평가", currentPrice ? money(currentPrice) : "-", currentDate ? shortDate(currentDate) : "보유 중"],
         ["손익", row.status === "open" ? signedPercent(row.metadata?.unrealized_return) : signedMoney(row.realized_pnl), row.status === "open" ? "평가 기준" : signedPercent(row.realized_return)],
-        ["판단 이유", exitReasonLabel(row.exit_reason), "가상 규칙"]
+        ["규칙", exitReasonLabel(row.exit_reason), "모의 기준"]
       ]),
-      miniList(paperSimulationLines(row), "AI 가상매매 상세 대기", "기록")
+      miniList(paperSimulationLines(row), "AI 모의투자 상세 대기", "기록")
     );
     if (actions.childElementCount) node.append(actions);
     return node;
@@ -14290,14 +14362,14 @@ MEMBER_PAGE_JS = """
   function renderPaperSimulations(payload, error = "") {
     if (!paperSimulationList) return;
     if (error) {
-      paperSimulationList.replaceChildren(emptyNode(`AI 가상매매 기록을 불러오지 못했습니다: ${error}`));
+      paperSimulationList.replaceChildren(emptyNode(`AI 모의투자 기록을 불러오지 못했습니다: ${error}`));
       return;
     }
     const rows = payload.positions || [];
     const summary = payload.summary || {};
     const overview = metricGrid([
-      ["가상 보유", `${summary.open_count || 0}건`, "가상 포지션"],
-      ["청산 완료", `${summary.closed_count || 0}건`, "완료 기록"],
+      ["모의 보유", `${summary.open_count || 0}건`, "보유 중"],
+      ["청산", `${summary.closed_count || 0}건`, "완료 기록"],
       ["승률", summary.win_rate === null || summary.win_rate === undefined ? "-" : signedPercent(summary.win_rate).replace("+", ""), "청산 기준"],
       ["누적 손익", signedMoney(summary.total_realized_pnl), "가상 손익"]
     ]);
@@ -14306,8 +14378,8 @@ MEMBER_PAGE_JS = """
       overview,
       ...(rows.length ? rows.map((row) => paperSimulationCard(row)) : [
         emptyActionNode(
-          "아직 AI 가상매매 기록이 없습니다",
-          "분석 리포트가 완료되면 AI가 가상 진입·청산 시점을 기록합니다.",
+          "아직 AI 모의투자 기록이 없습니다",
+          "완료된 AI 리포트를 바탕으로 모의 진입·청산 기록이 쌓입니다.",
           "분석 요청 열기",
           () => activateMemberTab("analysis")
         )
@@ -14336,7 +14408,7 @@ MEMBER_PAGE_JS = """
     if (watchlistCount) parts.push(`관심그룹 ${watchlistCount}개`);
     if (activeCount) parts.push(`진행 중 요청 ${activeCount}건`);
     if (completedCount) parts.push(`완료 리포트 ${completedCount}건`);
-    if (paperCount) parts.push(`AI 가상매매 ${paperCount}건`);
+    if (paperCount) parts.push(`AI 모의투자 ${paperCount}건`);
     if (!parts.length) {
       return "아직 저장된 항목이 없습니다. 매매 일지나 관심그룹부터 시작해 보세요.";
     }
@@ -14388,9 +14460,9 @@ MEMBER_PAGE_JS = """
     } else if (paperCount) {
       setMemberPrimaryAction(
         "paper",
-        "AI 가상매매 기록을 확인하세요",
-        "가상 진입과 청산 이유를 리포트와 이어서 볼 수 있습니다.",
-        "AI 가상매매 보기"
+        "AI 모의투자 기록을 확인하세요",
+        "모의 진입과 청산 이유를 리포트와 이어서 볼 수 있습니다.",
+        "AI 모의투자 보기"
       );
     } else if (!portfolioCount) {
       setMemberPrimaryAction(
@@ -14687,7 +14759,7 @@ MEMBER_PAGE_JS = """
     portfolioList?.replaceChildren(emptyNode("로그인 후 매매 일지가 표시됩니다"));
     watchlistList?.replaceChildren(emptyNode("로그인 후 관심그룹이 표시됩니다"));
     analysisRequestList?.replaceChildren(emptyNode("로그인 후 분석 요청이 표시됩니다"));
-    paperSimulationList?.replaceChildren(emptyNode("로그인 후 AI 가상매매 기록이 표시됩니다"));
+    paperSimulationList?.replaceChildren(emptyNode("로그인 후 AI 모의투자 기록이 표시됩니다"));
     updateMemberOverview({ items: [] }, { items: [] }, { items: [] }, { positions: [] });
     setStatus("로그아웃됨");
   });
