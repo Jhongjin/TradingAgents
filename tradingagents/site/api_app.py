@@ -19,6 +19,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from tradingagents.dataflows import dart, krx_openapi, naver_news
 from tradingagents.dataflows.errors import VendorUnavailableError
+from tradingagents.dataflows.kr_tickers import is_kr_ticker
 from tradingagents.storage import ManualTradeInput, StorageRepository, create_storage_engine
 
 from .analysis_api import (
@@ -471,8 +472,9 @@ def create_app(
         max_analysis_age_days: int = 1,
     ) -> dict:
         try:
+            resolved_ticker = _resolve_public_stock_api_ticker(ticker)
             return build_public_stock_payload(
-                ticker,
+                resolved_ticker,
                 repo=request.app.state.repository,
                 chart_start=chart_start,
                 chart_end=chart_end,
@@ -1159,6 +1161,18 @@ def _resolve_stock_lookup(value: str) -> str:
     if not results:
         raise ValueError("matching Korean ticker was not found")
     return str(results[0]["code"])
+
+
+def _resolve_public_stock_api_ticker(value: str) -> str:
+    query = value.strip()
+    if is_kr_ticker(query):
+        return query
+    try:
+        return _resolve_stock_lookup(query)
+    except ValueError as exc:
+        raise VendorUnavailableError(
+            "public stock API supports Korean 6-digit ticker codes or Korean company names"
+        ) from exc
 
 
 def _request_site_base_url(request: Request) -> str:

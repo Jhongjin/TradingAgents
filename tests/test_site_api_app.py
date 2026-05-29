@@ -147,6 +147,20 @@ def test_api_app_stock_lookup_redirects_company_name_to_code():
     assert response.headers["location"] == "/stocks/376900"
 
 
+def test_api_app_public_stock_api_resolves_company_name():
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    response = client.get(
+        "/api/stocks/로켓헬스케어",
+        params={"include_chart": "false", "include_analysis": "false"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ticker"]["code"] == "376900"
+    assert body["ticker"]["name"] == "로킷헬스케어"
+
+
 def test_api_app_serves_public_simulation_preview(monkeypatch):
     repo = _repo()
     run_id = _seed_public_buy_analysis(repo)
@@ -710,7 +724,7 @@ def test_api_app_rejects_non_korean_public_stock_ticker():
     response = client.get("/api/stocks/AAPL", params={"include_chart": "false"})
 
     assert response.status_code == 400
-    assert "Korean 6-digit" in response.json()["detail"]
+    assert "Korean 6-digit ticker codes or Korean company names" in response.json()["detail"]
 
 
 def test_api_app_serves_manual_portfolio_payload():
