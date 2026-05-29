@@ -240,8 +240,32 @@ def render_public_analysis_feed_page(
 
     payload = _analysis_feed_payload(repo, ticker=ticker, limit=limit, max_limit=max_limit)
     model = _analysis_feed_view_model(payload, site_base_url=site_base_url)
-    summary_html = _analysis_summary_cards(model["summary"], basis_label=model["basis_label"])
-    track_record_html = _analysis_track_record_cards(model["summary"], basis_label=model["basis_label"])
+    has_items = bool(model["items"])
+    summary_html = _analysis_summary_cards(model["summary"], basis_label=model["basis_label"]) if has_items else ""
+    track_record_html = _analysis_track_record_cards(model["summary"], basis_label=model["basis_label"]) if has_items else ""
+    pipeline_html = (
+        """
+    <section class="analysis-pipeline-strip" aria-label="공개 분석 공개 기준">
+      <article>
+        <span>01</span>
+        <strong>공개 리포트</strong>
+        <small>완료 리포트만 표시</small>
+      </article>
+      <article>
+        <span>02</span>
+        <strong>AI 의견과 근거</strong>
+        <small>본문과 원문 분리</small>
+      </article>
+      <article>
+        <span>03</span>
+        <strong>결과 기록</strong>
+        <small>5일/20일 결과</small>
+      </article>
+    </section>
+    """
+        if has_items
+        else ""
+    )
     filter_state_html = _analysis_filter_state(model)
     feed_toolbar_html = _analysis_feed_toolbar(model)
     cards_html = _analysis_feed_cards(
@@ -315,23 +339,7 @@ def render_public_analysis_feed_page(
       <p>종목명이나 6자리 코드로 공개 리포트를 찾습니다. 개인 기록은 불러오지 않습니다.</p>
     </section>
 
-    <section class="analysis-pipeline-strip" aria-label="공개 분석 공개 기준">
-      <article>
-        <span>01</span>
-        <strong>공개 리포트</strong>
-        <small>완료 리포트만 표시</small>
-      </article>
-      <article>
-        <span>02</span>
-        <strong>AI 의견과 근거</strong>
-        <small>본문과 원문 분리</small>
-      </article>
-      <article>
-        <span>03</span>
-        <strong>결과 기록</strong>
-        <small>5일/20일 결과</small>
-      </article>
-    </section>
+    {pipeline_html}
 
     {summary_html}
 
@@ -378,8 +386,9 @@ def render_public_outcomes_page(
 
     payload = _analysis_outcomes_payload(repo, ticker=ticker, status=status, limit=limit, max_limit=max_limit)
     model = _analysis_outcomes_view_model(payload, site_base_url=site_base_url)
-    summary_html = _analysis_outcome_summary_cards(model["summary"])
-    cadence_html = _analysis_outcome_cadence_strip(model)
+    has_items = bool(model["items"])
+    summary_html = _analysis_outcome_summary_cards(model["summary"]) if has_items else ""
+    cadence_html = _analysis_outcome_cadence_strip(model) if has_items else ""
     filter_state_html = _outcome_filter_state(model)
     feed_toolbar_html = _outcome_feed_toolbar(model)
     cards_html = _analysis_outcome_feed_cards(
@@ -3209,11 +3218,7 @@ def _analysis_feed_cards(
             <article class="analysis-feed-card empty">
               <span>아직 공개 기록 없음</span>
               <h3>{_h(ticker)} 공개 분석 없음</h3>
-              <p>아직 이 종목으로 공개된 리포트가 없습니다. 종목 페이지에서 가격·공시·뉴스 흐름을 먼저 보고, 필요하면 내 공간에서 같은 종목의 리서치를 요청하세요.</p>
-              <div class="analysis-empty-plan" aria-label="다음 행동">
-                <div><strong>1</strong><span>종목 페이지에서 최신 데이터 흐름을 확인합니다.</span></div>
-                <div><strong>2</strong><span>로그인 후 분석 요청을 남기면 대기열에서 처리됩니다.</span></div>
-              </div>
+              <p>조건에 맞는 공개 리포트가 아직 없습니다. 종목 페이지를 먼저 확인하거나 내 공간에서 분석을 요청하세요.</p>
               <div class="analysis-feed-signal-row" aria-label="필터 결과 없음">
                 <span>{_h(str(filter_label))}</span>
                 <span>리포트 0개</span>
@@ -3230,12 +3235,7 @@ def _analysis_feed_cards(
         <article class="analysis-feed-card empty">
           <span>아직 공개 기록 없음</span>
           <h3>아직 공개된 리포트가 없습니다</h3>
-          <p>지금은 공개 피드가 비어 있습니다. 서비스 구조를 먼저 둘러본 뒤, 가입하면 관심그룹을 저장하고 보고 싶은 종목의 리서치를 요청할 수 있습니다.</p>
-          <div class="analysis-empty-plan" aria-label="처음 이용할 때 할 일">
-            <div><strong>1</strong><span>샘플 종목에서 가격·공시·뉴스가 어떻게 묶이는지 확인합니다.</span></div>
-            <div><strong>2</strong><span>리서치 흐름을 보고 공개 리포트가 어떤 기준으로 공개되는지 확인합니다.</span></div>
-            <div><strong>3</strong><span>가입 후 관심그룹과 요청 대기열을 내 공간에서 관리합니다.</span></div>
-          </div>
+          <p>완료된 공개 리포트가 쌓이면 이곳에 표시됩니다. 지금은 샘플 종목을 보거나 내 공간에서 새 분석을 요청하세요.</p>
           <div class="analysis-feed-signal-row" aria-label="공개 분석 대기 상태">
             <span>공개 기록 없음</span>
             <span>리포트 0개</span>

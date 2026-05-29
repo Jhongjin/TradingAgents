@@ -990,8 +990,10 @@ def test_render_public_analysis_feed_empty_state_has_next_actions():
 
     assert "아직 공개된 리포트가 없습니다" in html
     assert "공개 기록 없음" in html
-    assert "analysis-empty-plan" in html
-    assert "가입하면 관심그룹을 저장하고 보고 싶은 종목의 리서치를 요청할 수 있습니다" in html
+    assert 'class="analysis-empty-plan"' not in html
+    assert "완료된 공개 리포트가 쌓이면 이곳에 표시됩니다" in html
+    assert 'class="analysis-pipeline-strip"' not in html
+    assert "공개 분석 커버리지 요약" not in html
     assert 'href="/stocks/005930">샘플 종목</a>' in html
     assert 'href="/features/research">리서치 흐름</a>' in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
@@ -1002,8 +1004,9 @@ def test_render_public_analysis_feed_filtered_empty_state_guides_recovery():
 
     assert "005930 공개 분석 없음" in html
     assert "아직 공개 기록 없음" in html
-    assert "analysis-empty-plan" in html
-    assert "종목 페이지에서 최신 데이터 흐름을 확인합니다" in html
+    assert 'class="analysis-empty-plan"' not in html
+    assert "조건에 맞는 공개 리포트가 아직 없습니다" in html
+    assert 'class="analysis-pipeline-strip"' not in html
     assert "005930 필터 결과" in html
     assert "005930 필터 적용" in html
     assert 'href="/analyses">필터 초기화</a>' in html
@@ -1090,6 +1093,7 @@ def test_render_public_outcomes_page_empty_state_has_next_actions():
 
     assert "결과 기록 대기" in html
     assert "outcome-filter-state" in html
+    assert 'class="analysis-pipeline-strip outcome-cadence-strip"' not in html
     assert "전체 결과 기록" in html
     assert "5일/20일 대기" in html
     assert "차이 대기" in html
