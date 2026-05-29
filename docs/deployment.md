@@ -54,6 +54,9 @@ TRADINGAGENTS_ADSENSE_PUBLISHER_ID=pub-0000000000000000
 # Or set a full custom ads.txt body with \n between lines:
 TRADINGAGENTS_ADS_TXT=
 TRADINGAGENTS_WORKER_TOKEN=
+# Optional admin-token aliases accepted by the operations console.
+DASHBOARD_ADMIN_TOKEN=
+OPERATOR_ACCESS_CODE=
 TRADINGAGENTS_WORKER_MAX_REQUESTS=1
 TRADINGAGENTS_WORKER_CRON_LIMIT=1
 TRADINGAGENTS_ANALYSIS_REQUEST_ACTIVE_LIMIT=5
@@ -194,8 +197,10 @@ tradingagents process-analysis-requests --limit 1
 The worker requires `DATABASE_URL` and processes queued rows one at a time by
 default.
 
-The protected API worker endpoint requires `TRADINGAGENTS_WORKER_TOKEN` and
-accepts either `Authorization: Bearer <token>` or
+The protected API worker endpoint requires an operation token. Prefer
+`TRADINGAGENTS_WORKER_TOKEN`; the admin console also accepts
+`DASHBOARD_ADMIN_TOKEN` or `OPERATOR_ACCESS_CODE` when those variables are set.
+Requests can send the token as either `Authorization: Bearer <token>` or
 `X-TradingAgents-Worker-Token: <token>`. Keep `TRADINGAGENTS_WORKER_MAX_REQUESTS`
 small on Vercel because a full TradingAgents run can be expensive and may hit
 serverless duration limits.

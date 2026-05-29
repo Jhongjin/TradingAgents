@@ -1363,12 +1363,15 @@ def test_api_app_limits_member_analysis_request_list():
 def test_api_app_admin_worker_requires_token(monkeypatch):
     repo = _repo()
     monkeypatch.delenv("TRADINGAGENTS_WORKER_TOKEN", raising=False)
+    monkeypatch.delenv("DASHBOARD_ADMIN_TOKEN", raising=False)
+    monkeypatch.delenv("OPERATOR_ACCESS_CODE", raising=False)
+    monkeypatch.delenv("CRON_SECRET", raising=False)
     client = TestClient(create_app(repo=repo, load_repo_from_env=False))
 
     response = client.post("/api/admin/analysis-requests/process", json={"dry_run": True})
 
     assert response.status_code == 503
-    assert "worker token" in response.json()["detail"]
+    assert "Operation token" in response.json()["detail"]
 
 
 def test_api_app_admin_worker_dry_run_requires_matching_token(monkeypatch):
@@ -1399,6 +1402,31 @@ def test_api_app_admin_worker_dry_run_requires_matching_token(monkeypatch):
     assert accepted.headers["cache-control"] == "private, no-store"
     assert accepted.json()["status"] == "dry_run"
     assert accepted.json()["item_count"] == 1
+
+
+def test_api_app_admin_worker_accepts_dashboard_admin_token(monkeypatch):
+    repo = _repo()
+    repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="005930",
+            requested_trade_date=date(2026, 5, 5),
+        )
+    )
+    monkeypatch.delenv("TRADINGAGENTS_WORKER_TOKEN", raising=False)
+    monkeypatch.delenv("CRON_SECRET", raising=False)
+    monkeypatch.setenv("DASHBOARD_ADMIN_TOKEN", "dashboard-secret")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.post(
+        "/api/admin/analysis-requests/process",
+        headers={"X-TradingAgents-Worker-Token": "dashboard-secret"},
+        json={"dry_run": True},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "dry_run"
+    assert response.json()["item_count"] == 1
 
 
 def test_api_app_admin_worker_dry_run_clamps_to_worker_limit(monkeypatch):

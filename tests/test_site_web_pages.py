@@ -603,7 +603,10 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied(monkeypat
 
     html = render_admin_console_page(site_base_url="https://example.com")
 
-    assert "관리자 콘솔" in html
+    assert "운영 콘솔" in html
+    assert "운영 토큰" in html
+    assert "DASHBOARD_ADMIN_TOKEN" in html
+    assert "OPERATOR_ACCESS_CODE" in html
     assert 'aria-current="page">운영 콘솔</a>' in html
     assert 'href="/outcomes">결과 기록</a>' in html
     assert "admin-health-strip" in html
@@ -668,7 +671,7 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied(monkeypat
     assert "adminWorkerToken" in html
     assert "data-admin-token-clear" in html
     assert "tokenClearButton" in html
-    assert "세션에 저장된 작업자 토큰을 지웠습니다." in html
+    assert "세션에 저장된 운영 토큰을 지웠습니다." in html
     assert "tradingagents:admin-token" in html
     assert "X-TradingAgents-Worker-Token" in html
     assert "/api/admin/analysis-requests/process" in html

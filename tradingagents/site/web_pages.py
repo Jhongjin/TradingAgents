@@ -1584,8 +1584,8 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>관리자 콘솔 | TradingAgents Korea</title>
-  <meta name="description" content="TradingAgents Korea 운영 대기열과 상태를 점검하는 관리자 콘솔입니다.">
+  <title>운영 콘솔 | TradingAgents Korea</title>
+  <meta name="description" content="TradingAgents Korea 운영 대기열과 상태를 점검하는 운영 콘솔입니다.">
   <meta name="robots" content="noindex,nofollow">
   <link rel="canonical" href="{_h(canonical)}">
   <style>{PAGE_CSS}</style>
@@ -1613,18 +1613,18 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <div>
         <p class="home-kicker">운영 콘솔 / 비밀값 저장 없음</p>
         <h1 id="admin-title">운영 상태와 작업 대상을 확인합니다</h1>
-        <p>작업자 토큰은 브라우저 세션에만 보관되고 관리 API 호출 헤더로만 전송됩니다.</p>
+        <p>운영 토큰은 브라우저 세션에만 보관되고 관리 API 호출 헤더로만 전송됩니다.</p>
       </div>
       <form class="admin-token-panel" id="adminTokenForm">
         <label>
-          <span>작업자 토큰</span>
-          <input id="adminWorkerToken" name="worker_token" type="password" autocomplete="off" placeholder="TRADINGAGENTS_WORKER_TOKEN">
+          <span>운영 토큰</span>
+          <input id="adminWorkerToken" name="worker_token" type="password" autocomplete="off" placeholder="Vercel 운영 토큰 값">
         </label>
         <div class="admin-token-actions">
           <button type="submit">세션에 저장</button>
           <button type="button" data-admin-token-clear>토큰 지우기</button>
         </div>
-        <small id="adminTokenState">토큰은 HTML에 저장되지 않습니다.</small>
+        <small id="adminTokenState">Vercel 환경변수 TRADINGAGENTS_WORKER_TOKEN, DASHBOARD_ADMIN_TOKEN, OPERATOR_ACCESS_CODE 중 설정된 값을 입력하세요.</small>
       </form>
     </section>
 
@@ -1636,7 +1636,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       </article>
       <article>
         <span>작업자</span>
-        <strong>토큰 입력형</strong>
+        <strong>운영 토큰 입력</strong>
         <small>HTML에는 secret을 싣지 않고 세션 스토리지에만 둡니다.</small>
       </article>
       <article>
@@ -1687,7 +1687,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
         <div class="ops-cell is-waiting">
           <span>대기열</span>
           <strong>대기</strong>
-          <small>작업자 토큰 저장 후 운영 요약을 조회하세요.</small>
+          <small>운영 토큰 저장 후 운영 요약을 조회하세요.</small>
         </div>
       </div>
       <div class="admin-recent-grid" id="adminRecentPanel" aria-label="최근 운영 항목"></div>
@@ -11927,7 +11927,7 @@ ADMIN_PAGE_JS = """
     return (tokenInput?.value || "").trim() || savedToken();
   }
 
-  function clearSavedToken(message = "저장된 작업자 토큰을 지웠습니다.") {
+  function clearSavedToken(message = "저장된 운영 토큰을 지웠습니다.") {
     sessionStorage.removeItem(tokenKey);
     if (tokenInput) tokenInput.value = "";
     if (tokenState) tokenState.textContent = message;
@@ -12410,7 +12410,7 @@ ADMIN_PAGE_JS = """
     };
     if (requireToken) {
       const token = currentToken();
-      if (!token) throw new Error("작업자 토큰을 입력하세요.");
+      if (!token) throw new Error("운영 토큰을 입력하세요.");
       headers["X-TradingAgents-Worker-Token"] = token;
     }
     const response = await fetch(path, { ...options, headers });
@@ -12422,7 +12422,7 @@ ADMIN_PAGE_JS = """
   }
 
   if (tokenInput) tokenInput.value = savedToken();
-  if (savedToken() && tokenState) tokenState.textContent = "세션에 저장된 작업자 토큰을 사용합니다.";
+  if (savedToken() && tokenState) tokenState.textContent = "세션에 저장된 운영 토큰을 사용합니다.";
 
   tokenForm?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -12432,12 +12432,12 @@ ADMIN_PAGE_JS = """
       return;
     }
     sessionStorage.setItem(tokenKey, token);
-    if (tokenState) tokenState.textContent = "작업자 토큰을 이 브라우저 세션에 저장했습니다.";
+    if (tokenState) tokenState.textContent = "운영 토큰을 이 브라우저 세션에 저장했습니다.";
     window.dispatchEvent(new Event("tradingagents:admin-token"));
   });
 
   tokenClearButton?.addEventListener("click", () => {
-    clearSavedToken("세션에 저장된 작업자 토큰을 지웠습니다.");
+    clearSavedToken("세션에 저장된 운영 토큰을 지웠습니다.");
   });
 
   const readinessButton = document.querySelector("[data-admin-readiness]");
@@ -12470,7 +12470,7 @@ ADMIN_PAGE_JS = """
     try {
       setBusy(button, true);
       setOutput(opsOutput, "운영 요약 확인 중");
-      renderOpsSummaryPending("작업자 토큰으로 대기열 현황과 최근 처리 결과를 조회합니다.");
+      renderOpsSummaryPending("운영 토큰으로 대기열 현황과 최근 처리 결과를 조회합니다.");
       const payload = await fetchJson("/api/admin/ops-summary", { method: "GET" }, true);
       renderOpsSummary(payload);
       setOutput(opsOutput, payload);

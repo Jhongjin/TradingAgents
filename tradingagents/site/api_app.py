@@ -76,6 +76,14 @@ class PaperSimulationWorkerRequestBody(BaseModel):
     as_of_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
+WORKER_TOKEN_ENV_NAMES = (
+    "TRADINGAGENTS_WORKER_TOKEN",
+    "DASHBOARD_ADMIN_TOKEN",
+    "OPERATOR_ACCESS_CODE",
+    "CRON_SECRET",
+)
+
+
 class ManualPortfolioCreateBody(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     base_currency: str = Field(default="KRW", pattern=r"^[A-Z]{3}$")
@@ -1506,7 +1514,9 @@ def _missing_readiness_environment(checks: dict[str, bool]) -> dict[str, list[st
             names.append("SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY")
         missing["supabase_auth_configured"] = names
     if not checks["worker_token_configured"]:
-        missing["worker_token_configured"] = ["TRADINGAGENTS_WORKER_TOKEN or CRON_SECRET"]
+        missing["worker_token_configured"] = [
+            "TRADINGAGENTS_WORKER_TOKEN or DASHBOARD_ADMIN_TOKEN or OPERATOR_ACCESS_CODE or CRON_SECRET"
+        ]
     if not checks["site_base_url_configured"]:
         missing["site_base_url_configured"] = ["TRADINGAGENTS_SITE_BASE_URL"]
     if not checks["ads_configured"]:
@@ -2105,18 +2115,30 @@ def _paper_simulation_cron_worker_limit() -> int:
 
 
 def _require_worker_token(request: Request, header_token: str | None) -> None:
-    expected = _expected_worker_token()
-    if not expected:
-        raise HTTPException(status_code=503, detail="Analysis worker token is not configured")
+    expected_tokens = _expected_worker_tokens()
+    if not expected_tokens:
+        raise HTTPException(status_code=503, detail="Operation token is not configured")
     token = header_token or _bearer_token(request.headers.get("Authorization"))
     if not token:
-        raise HTTPException(status_code=401, detail="Missing analysis worker token")
-    if not hmac.compare_digest(token, expected):
-        raise HTTPException(status_code=403, detail="Invalid analysis worker token")
+        raise HTTPException(status_code=401, detail="Missing operation token")
+    if not any(hmac.compare_digest(token, expected) for expected in expected_tokens):
+        raise HTTPException(status_code=403, detail="Invalid operation token")
 
 
 def _expected_worker_token() -> str:
-    return (os.getenv("TRADINGAGENTS_WORKER_TOKEN") or os.getenv("CRON_SECRET") or "").strip()
+    tokens = _expected_worker_tokens()
+    return tokens[0] if tokens else ""
+
+
+def _expected_worker_tokens() -> tuple[str, ...]:
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for name in WORKER_TOKEN_ENV_NAMES:
+        value = (os.getenv(name) or "").strip()
+        if value and value not in seen:
+            tokens.append(value)
+            seen.add(value)
+    return tuple(tokens)
 
 
 def _bearer_token(value: str | None) -> str | None:
