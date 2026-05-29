@@ -1970,7 +1970,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <article>
               <span>AI 가상매매</span>
               <strong id="memberOverviewPaperSimulations">0</strong>
-              <small>가상 기록</small>
+              <small>모의매매</small>
             </article>
           </section>
           <p class="member-home-state-note" id="memberHomeStateNote" aria-live="polite">저장된 항목을 불러오고 있습니다.</p>
@@ -12210,7 +12210,7 @@ ADMIN_PAGE_JS = """
       recentPanel.appendChild(renderRecentList("기록 후보", "결과 기록", outcomes.candidate_runs || [], runLabel));
       recentPanel.appendChild(renderRecentList("최근 완료 기록", "결과", outcomes.recent_completed || [], outcomeLabel));
       recentPanel.appendChild(renderRecentList("보류/데이터 없음", "확인 필요", [...(outcomes.recent_pending || []), ...(outcomes.recent_unavailable || [])], outcomeIssueLabel));
-      recentPanel.appendChild(renderRecentList("AI 가상매매 대기", "가상 기록", paper.candidate_runs || [], paperCandidateLabel));
+      recentPanel.appendChild(renderRecentList("AI 가상매매 대기", "모의매매", paper.candidate_runs || [], paperCandidateLabel));
       recentPanel.appendChild(renderRecentList("가상 보유 재평가", "보유 중", paper.open_positions || [], paperOpenLabel));
     }
   }
@@ -12239,10 +12239,10 @@ ADMIN_PAGE_JS = """
       if (isDryRun || payload?.status === "dry_run") {
         const rows = Array.isArray(payload?.items) ? payload.items : [];
         const openRows = Array.isArray(payload?.open_positions) ? payload.open_positions : [];
-        const limitNote = payload?.notice || "완료된 분석 리포트 중 아직 가상 기록이 없는 항목입니다.";
+        const limitNote = payload?.notice || "완료된 분석 리포트 중 아직 모의매매 기록이 없는 항목입니다.";
         appendActionCell(fragment, "새 기록", String(payload?.candidate_count ?? rows.length), limitNote, rows.length ? "is-warn" : "is-ok");
         appendActionCell(fragment, "재평가", String(payload?.open_position_count ?? openRows.length), "가상 보유 중인 기록을 최신 가격으로 다시 확인합니다.", openRows.length ? "is-warn" : "is-ok");
-        appendActionCell(fragment, "실행 경계", "가상", "실제 주문 없이, 분석 리포트 기준의 가상 기록만 저장합니다.", "is-ok");
+        appendActionCell(fragment, "실행 경계", "가상", "실제 주문 없이, 분석 리포트 기준의 모의매매 기록만 저장합니다.", "is-ok");
       } else {
         const summary = payload?.summary || {};
         const results = Array.isArray(payload?.results) ? payload.results : [];
@@ -13804,7 +13804,7 @@ MEMBER_PAGE_JS = """
         emptyActionNode(
           "아직 매매 일지가 없습니다",
           "실제 계좌가 아닌 매매 일지입니다. 먼저 이름을 만들고 종목, 평단, 목표가를 직접 남겨보세요.",
-          "메모 묶음 이름 입력",
+          "매매 일지 이름 입력",
           () => focusField(portfolioForm, "name")
         )
       ])
