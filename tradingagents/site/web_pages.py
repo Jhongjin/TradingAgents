@@ -11340,6 +11340,7 @@ PAGE_JS = """
   const ma20 = movingAverage(closes, 20);
   const ma5ByDate = new Map(bars.map((bar, index) => [bar.date, ma5[index]]));
   const ma20ByDate = new Map(bars.map((bar, index) => [bar.date, ma20[index]]));
+  let applySimulationMarkers = () => {};
 
   function legendChip(label) {
     const node = document.createElement("span");
@@ -11367,6 +11368,54 @@ PAGE_JS = """
       return `${value.year}-${String(value.month).padStart(2, "0")}-${String(value.day).padStart(2, "0")}`;
     }
     return String(value || "");
+  }
+
+  function markerDate(value) {
+    const key = String(value || "").slice(0, 10);
+    return barByDate.has(key) ? key : "";
+  }
+
+  function baseAnalysisMarkers() {
+    const tradeDate = markerDate(payload.analysis?.run?.trade_date);
+    if (!tradeDate) return [];
+    return [{
+      time: tradeDate,
+      position: "aboveBar",
+      color: "#d7ff3f",
+      shape: "circle",
+      text: "분석"
+    }];
+  }
+
+  function chartSimulationMarkers(simulationPayload) {
+    const status = simulationPayload?.status || "";
+    const simulation = simulationPayload?.simulation || {};
+    if (status !== "available" || !simulation) return [];
+
+    const entryDate = markerDate(simulation.entry_date);
+    const exitDate = markerDate(simulation.exit_date);
+    const markers = [];
+    if (entryDate) {
+      markers.push({
+        time: entryDate,
+        position: "belowBar",
+        color: "#8fd8bd",
+        shape: "arrowUp",
+        text: "가상 진입"
+      });
+    }
+    if (exitDate) {
+      const reason = simulation.exit_reason || simulation.status;
+      const isStop = reason === "stop_loss";
+      markers.push({
+        time: exitDate,
+        position: "aboveBar",
+        color: isStop ? "#ff6b4d" : "#d7ff3f",
+        shape: "arrowDown",
+        text: `가상 ${simulationLabel(reason)}`
+      });
+    }
+    return markers.sort((left, right) => String(left.time).localeCompare(String(right.time)));
   }
 
   function updateHtmlTooltip(bar, point) {
@@ -11507,18 +11556,21 @@ PAGE_JS = """
       title: "최근"
     });
 
-    const tradeDate = payload.analysis?.run?.trade_date;
-    if (tradeDate && barByDate.has(tradeDate) && typeof TV.createSeriesMarkers === "function") {
-      TV.createSeriesMarkers(candleSeries, [
-        {
-          time: tradeDate,
-          position: "aboveBar",
-          color: "#d7ff3f",
-          shape: "circle",
-          text: "분석"
-        }
-      ]);
+    let markerApi = null;
+    function setChartMarkers(markers) {
+      if (typeof TV.createSeriesMarkers !== "function") return;
+      if (markerApi && typeof markerApi.setMarkers === "function") {
+        markerApi.setMarkers(markers);
+        return;
+      }
+      markerApi = TV.createSeriesMarkers(candleSeries, markers);
     }
+    applySimulationMarkers = (simulationPayload) => {
+      const markers = [...baseAnalysisMarkers(), ...chartSimulationMarkers(simulationPayload)]
+        .sort((left, right) => String(left.time).localeCompare(String(right.time)));
+      setChartMarkers(markers);
+    };
+    applySimulationMarkers(null);
 
     chartApi.subscribeCrosshairMove((param) => {
       if (!param?.point || !param.time) {
@@ -11787,6 +11839,7 @@ PAGE_JS = """
   }
 
   function renderSimulationState(node, payload) {
+    applySimulationMarkers(payload);
     const status = payload?.status || "unavailable";
     const simulation = payload?.simulation || {};
     if (status !== "available") {

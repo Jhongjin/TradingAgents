@@ -143,6 +143,8 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "CandlestickSeries" in html
     assert "HistogramSeries" in html
     assert "createSeriesMarkers" in html
+    assert "chartSimulationMarkers" in html
+    assert "가상 진입" in html
     assert "stock-hero-stack" in html
     assert "stock-signal-card" in html
     assert "stock-flow-strip" in html
