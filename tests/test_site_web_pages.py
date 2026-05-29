@@ -173,7 +173,11 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section"' in html
     assert "1개월" in html
     assert "1일" in html
-    assert "1분" in html
+    assert "1시간봉" in html
+    assert "30분봉" in html
+    assert "15분봉" in html
+    assert "5분봉" in html
+    assert "1분봉" in html
     assert "60분" in html
     assert "주봉" in html
     assert "월봉" in html
