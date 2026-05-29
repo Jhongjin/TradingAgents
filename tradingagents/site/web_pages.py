@@ -696,8 +696,8 @@ def render_public_home_page(
         <aside class="home-member-preview" aria-label="가입 후 제공 기능">
           <strong>가입하면 열리는 기능</strong>
           <ul>
-            <li><span>관심그룹</span><small>자주 보는 한국 종목을 목록으로 묶어 확인합니다.</small></li>
             <li><span>매매 일지</span><small>매수·매도 기록과 목표가 메모를 직접 남깁니다.</small></li>
+            <li><span>관심그룹</span><small>자주 보는 한국 종목을 목록으로 묶어 확인합니다.</small></li>
             <li><span>분석 요청</span><small>보고 싶은 종목을 요청하고 완료 리포트 연결을 확인합니다.</small></li>
           </ul>
         </aside>
@@ -805,7 +805,7 @@ def render_public_home_page(
         <article>
           <span>02</span>
           <strong>내 공간 만들기</strong>
-          <p>관심그룹, 매매 일지, 분석 요청을 한곳에서 관리합니다. 실제 주문은 연결되지 않습니다.</p>
+          <p>매매 일지, 관심그룹, 분석 요청을 한곳에서 관리합니다. 실제 주문은 연결되지 않습니다.</p>
           <a href="/member?mode=signup">내 공간 만들기</a>
         </article>
         <article>
@@ -883,13 +883,13 @@ def render_public_home_page(
       <div class="home-flow-list">
         <article>
           <span>01</span>
-          <strong>관심그룹</strong>
-          <p>한국 종목코드 기준으로 메모와 함께 관심그룹을 관리합니다.</p>
+          <strong>매매 일지</strong>
+          <p>매수/매도 기록, 평균단가, 목표가, 손절가를 직접 남깁니다.</p>
         </article>
         <article>
           <span>02</span>
-          <strong>매매 일지</strong>
-          <p>매수/매도 기록, 평균단가, 목표가, 손절가를 직접 남깁니다.</p>
+          <strong>관심그룹</strong>
+          <p>한국 종목코드 기준으로 메모와 함께 관심그룹을 관리합니다.</p>
         </article>
         <article>
           <span>03</span>
@@ -937,22 +937,22 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
     "member-workspace": {
         "path": "/features/member-workspace",
         "title": "내 공간 | TradingAgents Korea",
-        "description": "로그인한 사용자를 위한 관심그룹, 매매 일지, 분석 요청 대기열의 구성 방식입니다.",
+        "description": "로그인한 사용자를 위한 매매 일지, 관심그룹, 분석 요청 대기열의 구성 방식입니다.",
         "eyebrow": "서비스 소개 / 내 공간",
-        "heading": "가입하면 관심그룹, 기록, 분석 요청을 한 곳에서 관리합니다",
-        "lead": "회원 화면은 로그인 전에는 로그인/가입만 보여줍니다. 로그인 후에는 관심그룹, 매매 일지, 분석 요청 대기열을 불러와 내 판단 근거를 따로 보관합니다. 실제 주문·계좌 연결은 없습니다.",
+        "heading": "가입하면 매매 일지, 관심그룹, 분석 요청을 한 곳에서 관리합니다",
+        "lead": "회원 화면은 로그인 전에는 로그인/가입만 보여줍니다. 로그인 후에는 매매 일지, 관심그룹, 분석 요청 대기열을 불러와 내 판단 근거를 따로 보관합니다. 실제 주문·계좌 연결은 없습니다.",
         "proof": (("인증", "이메일 로그인"), ("저장", "사용자별 개인 기록"), ("범위", "조회/기록 전용")),
         "cards": (
-            ("관심그룹", "한국 종목코드 기준 관심그룹과 메모를 사용자별로 분리합니다."),
             ("매매 일지", "매수·매도 기록, 평균단가, 비용, 목표가, 손절가를 직접 관리합니다."),
+            ("관심그룹", "한국 종목코드 기준 관심그룹과 메모를 사용자별로 분리합니다."),
             ("분석 요청 대기열", "원하는 종목과 날짜를 대기열에 넣고 처리 상태를 확인합니다."),
         ),
         "journey_heading": "로그인 후에는 개인 기록만 따로 열립니다",
         "journey_intro": "내 공간은 공개 리포트를 읽은 뒤 내가 다시 볼 종목과 요청 상태를 보관하는 공간입니다.",
         "journey": (
             ("01", "가입/로그인", "이메일 인증 세션을 확인한 뒤에만 개인 데이터를 불러옵니다."),
-            ("02", "관심그룹 저장", "다시 확인할 한국 종목을 메모와 함께 묶어 둡니다."),
-            ("03", "매매 일지", "매수·매도 내역과 목표가를 주문 연결 없이 직접 남깁니다."),
+            ("02", "매매 일지", "매수·매도 내역과 목표가를 주문 연결 없이 직접 남깁니다."),
+            ("03", "관심그룹 저장", "다시 확인할 한국 종목을 메모와 함께 묶어 둡니다."),
             ("04", "분석 요청", "필요한 종목만 대기열에 넣고 완료 리포트 연결을 확인합니다."),
         ),
         "steps": ("로그인", "내 공간", "개인 기록", "분석 요청", "주문 차단"),
@@ -1137,7 +1137,7 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
       <div class="feature-journey-grid">
         <article><span>01</span><strong>종목 검색</strong><p>6자리 코드나 종목명으로 공개 가격, 뉴스, 공시, 리포트를 확인합니다.</p></article>
         <article><span>02</span><strong>근거 확인</strong><p>데이터 기준일과 출처, AI 의견, 리포트 본문, 결과 기록을 차례로 읽습니다.</p></article>
-        <article><span>03</span><strong>회원 저장</strong><p>가입 후 관심그룹, 매매 일지, 분석 요청을 내 공간에 남깁니다.</p></article>
+        <article><span>03</span><strong>회원 저장</strong><p>가입 후 매매 일지, 관심그룹, 분석 요청을 내 공간에 남깁니다.</p></article>
         <article><span>04</span><strong>주문 없음</strong><p>서비스는 브로커 주문 권한을 갖지 않고 기록과 조회 흐름만 제공합니다.</p></article>
       </div>
     </section>
@@ -1810,7 +1810,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
 
     model = {
         "title": "회원 대시보드 | TradingAgents Korea",
-        "description": "관심그룹, 매매 일지, 한국 주식 분석 요청, AI 가상매매 기록을 관리합니다.",
+        "description": "매매 일지, 관심그룹, 한국 주식 분석 요청, AI 가상매매 기록을 관리합니다.",
         "canonical_url": canonical_url(canonical_path, site_base_url=site_base_url),
     }
     config_json = _script_json(_public_supabase_config())
@@ -1857,7 +1857,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <div class="member-auth-copy">
         <p class="eyebrow">회원 전용 공간</p>
         <h1 id="member-auth-title">내 공간에서 종목을 관리하세요</h1>
-        <p class="member-auth-lead">관심그룹, 매매 일지, 분석 요청을 한곳에서 관리합니다. 실제 주문은 연결되지 않습니다.</p>
+        <p class="member-auth-lead">매매 일지, 관심그룹, 분석 요청을 한곳에서 관리합니다. 실제 주문은 연결되지 않습니다.</p>
         <div class="member-auth-points" aria-label="회원 영역 원칙">
           <article>
             <span>01</span>
@@ -1913,7 +1913,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <p class="eyebrow">회원 공간</p>
           <h1 id="member-title">내 공간</h1>
           <p class="asof" id="memberStatus">로그인 상태 확인 중</p>
-          <p class="member-workspace-lede">관심그룹, 매매 일지, 분석 요청을 이어갑니다. 실제 주문·계좌와 연결되지 않습니다.</p>
+          <p class="member-workspace-lede">매매 일지, 관심그룹, 분석 요청을 이어갑니다. 실제 주문·계좌와 연결되지 않습니다.</p>
         </div>
         <div class="member-signed-in" id="memberSignedIn" hidden>
           <span class="status-pill" id="memberSignedInState">대시보드 확인 중</span>
@@ -1930,8 +1930,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
 
       <nav class="member-tab-strip" role="tablist" aria-label="내 공간 섹션">
         <a id="home-tab" class="is-active" href="#member-home-section" role="tab" data-member-tab="home" aria-controls="member-home-section" aria-selected="true">홈 <span id="memberHomeStatus">준비됨</span></a>
-        <a id="watchlist-tab" href="#watchlist-section" role="tab" data-member-tab="watchlist" aria-controls="watchlist-section" aria-selected="false">관심그룹 <span id="watchlistTabCount">0</span></a>
         <a id="portfolio-tab" href="#portfolio-section" role="tab" data-member-tab="portfolio" aria-controls="portfolio-section" aria-selected="false">매매 일지 <span id="portfolioTabCount">0</span></a>
+        <a id="watchlist-tab" href="#watchlist-section" role="tab" data-member-tab="watchlist" aria-controls="watchlist-section" aria-selected="false">관심그룹 <span id="watchlistTabCount">0</span></a>
         <a id="analysis-tab" href="#analysis-request-section" role="tab" data-member-tab="analysis" aria-controls="analysis-request-section" aria-selected="false">분석 요청 <span id="analysisTabCount">0</span></a>
         <a id="paper-simulation-tab" href="#paper-simulation-section" role="tab" data-member-tab="paper" aria-controls="paper-simulation-section" aria-selected="false">AI 가상매매 <span id="paperSimulationTabCount">0</span></a>
       </nav>
@@ -1948,14 +1948,14 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           </div>
           <section class="member-overview-strip" id="memberOverview" aria-label="내 공간 요약">
             <article>
-              <span>관심그룹</span>
-              <strong id="memberOverviewWatchlists">0</strong>
-              <small>종목 목록</small>
-            </article>
-            <article>
               <span>매매 일지</span>
               <strong id="memberOverviewPortfolios">0</strong>
               <small>일지 묶음</small>
+            </article>
+            <article>
+              <span>관심그룹</span>
+              <strong id="memberOverviewWatchlists">0</strong>
+              <small>종목 목록</small>
             </article>
             <article>
               <span>대기 중 요청</span>
@@ -1974,26 +1974,26 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             </article>
           </section>
           <p class="member-home-state-note" id="memberHomeStateNote" aria-live="polite">저장된 항목을 불러오고 있습니다.</p>
-          <section class="member-primary-action" id="memberPrimaryAction" data-member-primary-action="watchlist" aria-live="polite">
+          <section class="member-primary-action" id="memberPrimaryAction" data-member-primary-action="portfolio" aria-live="polite">
             <div>
               <span>다음 작업</span>
-              <strong id="memberPrimaryActionTitle">관심그룹부터 추가하세요</strong>
-              <small id="memberPrimaryActionCopy">자주 보는 종목을 묶어두면 분석 요청과 리포트를 이어서 보기 쉽습니다.</small>
+              <strong id="memberPrimaryActionTitle">첫 매매 일지를 남겨보세요</strong>
+              <small id="memberPrimaryActionCopy">평단, 목표가, 손절가를 주문 연결 없이 직접 정리합니다.</small>
             </div>
-            <button class="home-primary-link" type="button" id="memberPrimaryActionButton" data-member-jump="watchlist">관심그룹 추가</button>
+            <button class="home-primary-link" type="button" id="memberPrimaryActionButton" data-member-jump="portfolio">매매 일지 시작</button>
           </section>
           <div class="member-home-grid" aria-label="다음 작업">
             <article class="member-home-card">
               <span>01</span>
-              <strong>관심그룹</strong>
-              <small>자주 보는 종목을 그룹으로 묶습니다.</small>
-              <button class="ghost-button" type="button" data-member-jump="watchlist">관심그룹 열기</button>
-            </article>
-            <article class="member-home-card">
-              <span>02</span>
               <strong>매매 일지</strong>
               <small>평단, 수수료, 목표가를 직접 남깁니다.</small>
               <button class="ghost-button" type="button" data-member-jump="portfolio">매매 일지 열기</button>
+            </article>
+            <article class="member-home-card">
+              <span>02</span>
+              <strong>관심그룹</strong>
+              <small>자주 보는 종목을 그룹으로 묶습니다.</small>
+              <button class="ghost-button" type="button" data-member-jump="watchlist">관심그룹 열기</button>
             </article>
             <article class="member-home-card">
               <span>03</span>
@@ -2697,7 +2697,7 @@ def _analysis_feed_toolbar(model: dict[str, Any]) -> str:
       <span>결과 {_h(count)}건</span>
       <span>정렬: 최신 기준일순</span>
       <span>{_h(filter_label)}</span>
-      <small>{_h(basis_label)} 리포트 상세, 종목, 결과 기록, 원문 데이터로 이동합니다.</small>
+      <small>{_h(basis_label)} 목록입니다. 상세, 종목, 결과로 바로 이동합니다.</small>
     </div>
     """
 
@@ -2744,7 +2744,7 @@ def _outcome_feed_toolbar(model: dict[str, Any]) -> str:
       <span>결과 {_h(count)}</span>
       <span>정렬: 최신 기준일순</span>
       <span>{_h(filter_label)}</span>
-      <small>리포트 상세, 종목, 같은 종목 리포트, 원문 데이터로 이동합니다.</small>
+      <small>결과에서 원 리포트와 종목 화면으로 바로 이동합니다.</small>
     </div>
     """
 
@@ -13905,7 +13905,7 @@ MEMBER_PAGE_JS = """
     if (completedCount) parts.push(`완료 리포트 ${completedCount}건`);
     if (paperCount) parts.push(`AI 가상매매 ${paperCount}건`);
     if (!parts.length) {
-      return "아직 저장된 항목이 없습니다. 관심그룹부터 시작해 보세요.";
+      return "아직 저장된 항목이 없습니다. 매매 일지나 관심그룹부터 시작해 보세요.";
     }
     return `저장된 항목: ${parts.join(" / ")}`;
   }
@@ -13959,19 +13959,19 @@ MEMBER_PAGE_JS = """
         "가상 진입과 청산 이유를 리포트와 이어서 볼 수 있습니다.",
         "AI 가상매매 보기"
       );
-    } else if (!watchlistCount) {
-      setMemberPrimaryAction(
-        "watchlist",
-        "관심그룹부터 추가하세요",
-        "자주 보는 종목을 묶어두면 분석 요청과 리포트를 이어서 보기 쉽습니다.",
-        "관심그룹 추가"
-      );
     } else if (!portfolioCount) {
       setMemberPrimaryAction(
         "portfolio",
-        "매매 일지를 정리해보세요",
-        "계좌 주문과 연결되지 않는 매매 일지로 매수·매도 판단과 목표가를 남깁니다.",
-        "매매 일지 기록하기"
+        "첫 매매 일지를 남겨보세요",
+        "계좌 주문과 연결되지 않는 개인 기록입니다. 평단, 목표가, 손절가를 직접 정리합니다.",
+        "매매 일지 시작"
+      );
+    } else if (!watchlistCount) {
+      setMemberPrimaryAction(
+        "watchlist",
+        "관심그룹을 추가하세요",
+        "자주 보는 종목을 묶어두면 분석 요청과 리포트를 이어서 보기 쉽습니다.",
+        "관심그룹 추가"
       );
     } else {
       setMemberPrimaryAction(

@@ -331,7 +331,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     html = render_member_dashboard_page(site_base_url="https://example.com")
 
     assert "내 공간에서 종목을 관리하세요" in html
-    assert "관심그룹, 매매 일지, 분석 요청을 한곳에서 관리합니다" in html
+    assert "매매 일지, 관심그룹, 분석 요청을 한곳에서 관리합니다" in html
     assert "처음이라면 가입하세요." in html
     assert "auth-form-note" in html
     assert "내 공간" in html
@@ -350,18 +350,19 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "오늘 이어갈 항목입니다." in html
     assert "memberHomeStateNote" in html
     assert "저장된 항목을 불러오고 있습니다." in html
-    assert "아직 저장된 항목이 없습니다. 관심그룹부터 시작해 보세요." in html
+    assert "아직 저장된 항목이 없습니다. 매매 일지나 관심그룹부터 시작해 보세요." in html
     assert "member-home-grid" in html
     assert "member-primary-action" in html
     assert "background: var(--home-acid);" in html
     assert "color: #10130f;" in html
-    assert "관심그룹부터 추가하세요" in html
-    assert "관심그룹 추가" in html
-    assert 'data-member-primary-action="watchlist"' in html
+    assert "첫 매매 일지를 남겨보세요" in html
+    assert "매매 일지 시작" in html
+    assert 'data-member-primary-action="watchlist"' not in html
     assert "memberPrimaryActionButton" in html
     assert "setMemberPrimaryAction" in html
     assert "진행 중인 분석을 확인하세요" in html
-    assert "매매 일지를 정리해보세요" in html
+    assert "관심그룹을 추가하세요" in html
+    assert html.index('data-member-tab="portfolio"') < html.index('data-member-tab="watchlist"')
     assert "완료된 공개 리포트를 확인합니다." in html
     assert "member-report-card" in html
     assert "member-paper-card" in html
@@ -949,7 +950,7 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "종목명이나 6자리 코드로 공개 리포트를 찾습니다" in html
     assert "전체 공개 리포트" in html
     assert "정렬: 최신 기준일순" in html
-    assert "리포트 상세, 종목, 결과 기록, 원문 데이터로 이동합니다." in html
+    assert "상세, 종목, 결과로 바로 이동합니다." in html
     assert "resolveTickerInput" in html
     assert "renderTickerOptions" in html
     assert "공개 리포트" in html
@@ -1057,7 +1058,7 @@ def test_render_public_outcomes_page_shows_public_track_record():
     assert "005930 또는 삼성전자" in html
     assert "전체 결과 기록" in html
     assert "정렬: 최신 기준일순" in html
-    assert "리포트 상세, 종목, 같은 종목 리포트, 원문 데이터로 이동합니다." in html
+    assert "결과에서 원 리포트와 종목 화면으로 바로 이동합니다." in html
     assert "outcome-cadence-strip" in html
     assert "outcome-feed-card" in html
     assert "analysis-feed-meta-line" in html
