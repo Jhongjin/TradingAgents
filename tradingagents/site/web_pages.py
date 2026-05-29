@@ -2008,24 +2008,17 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <small>요청 가능 횟수와 진행 상태를 확인합니다.</small>
               <button class="ghost-button" type="button" data-member-jump="analysis">분석 요청 열기</button>
             </article>
-            <article class="member-home-card member-report-card">
-              <span>04</span>
-              <strong>공개 리포트</strong>
-              <small>완료된 공개 리포트를 확인합니다.</small>
-              <a class="ghost-button member-report-link" href="/analyses">공개 리포트 열기</a>
-            </article>
             <article class="member-home-card member-paper-card">
-              <span>05</span>
+              <span>04</span>
               <strong>AI 가상매매</strong>
               <small>AI의 가상 진입·청산 기록을 봅니다.</small>
-              <button class="ghost-button" type="button" data-member-jump="paper">AI 가상매매 열기</button>
+              <button class="ghost-button" type="button" data-member-jump="paper">가상매매 보기</button>
             </article>
-            <article class="member-home-card member-admin-card">
-              <span>06</span>
-              <strong>운영 콘솔</strong>
-              <small>상태 점검과 작업 처리를 실행합니다.</small>
-              <a class="ghost-button member-admin-link" href="/admin">운영 열기</a>
-            </article>
+          </div>
+          <div class="member-home-links" aria-label="보조 이동">
+            <a class="member-report-link" href="/analyses">공개 리포트 보기</a>
+            <a class="member-report-link" href="/outcomes">결과 기록 보기</a>
+            <a class="member-admin-link" href="/admin">운영 콘솔</a>
           </div>
         </section>
 
@@ -6898,10 +6891,30 @@ h3 {
   text-decoration: none;
 }
 
-.member-admin-card,
-.member-report-card,
 .member-paper-card {
   border-left-color: var(--home-celadon);
+}
+
+.member-home-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(246, 243, 232, 0.08);
+}
+
+.member-home-links a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
 }
 
 .member-admin-link,
@@ -6909,6 +6922,12 @@ h3 {
   border: 1px solid var(--home-celadon);
   background: rgba(143, 216, 189, 0.16);
   color: var(--ink);
+}
+
+.member-home-links a:hover {
+  border-color: var(--home-acid);
+  background: rgba(215, 255, 63, 0.13);
+  color: var(--home-acid);
 }
 
 .member-panel {

@@ -367,8 +367,9 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "진행 중인 분석을 확인하세요" in html
     assert "관심그룹을 추가하세요" in html
     assert html.index('data-member-tab="portfolio"') < html.index('data-member-tab="watchlist"')
-    assert "완료된 공개 리포트를 확인합니다." in html
-    assert "member-report-card" in html
+    assert "member-home-links" in html
+    assert 'href="/analyses">공개 리포트 보기</a>' in html
+    assert 'href="/outcomes">결과 기록 보기</a>' in html
     assert "member-paper-card" in html
     assert "AI 가상매매" in html
     assert 'data-member-tab="paper"' in html
@@ -376,16 +377,13 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "AI의 가상 진입·청산 기록을 봅니다." in html
     assert "paperSimulationList" in html
     assert "/api/member/paper-simulations" in html
-    assert "member-admin-card" in html
+    assert "member-admin-link" in html
     assert "data-admin-token-visible hidden" not in html
     assert "운영 콘솔" in html
-    assert "상태 점검과 작업 처리를 실행합니다." in html
     assert "adminTokenItems" not in html
-    assert "운영 열기" in html
     assert 'class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>' in html
     assert 'storageGet("tradingagents.admin.worker_token")' in html
     assert 'node.hidden = !(signedIn || storageGet("tradingagents.admin.worker_token") || window.location.pathname === "/admin")' in html
-    assert 'href="/analyses">공개 리포트 열기</a>' in html
     assert 'data-member-jump="portfolio"' in html
     assert 'data-member-tab="portfolio"' in html
     assert 'aria-selected="true"' in html
