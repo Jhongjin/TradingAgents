@@ -11275,6 +11275,11 @@ PAGE_JS = """
   const dates = bars.map((point) => point.date);
   const closes = bars.map((point) => point.close);
   const barByDate = new Map(bars.map((bar) => [bar.date, bar]));
+  const firstClose = closes[0];
+  const lastClose = closes[closes.length - 1];
+  const periodReturn = firstClose ? (lastClose - firstClose) / firstClose : null;
+  const periodHigh = Math.max(...bars.map((bar) => bar.high));
+  const periodLow = Math.min(...bars.map((bar) => bar.low));
 
   function movingAverage(values, windowSize) {
     return values.map((_, index) => {
@@ -11296,14 +11301,19 @@ PAGE_JS = """
     return node;
   }
 
+  function periodReturnLabel(value) {
+    return Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${(value * 100).toFixed(2)}%` : "-";
+  }
+
   function drawLegend(bar = bars[bars.length - 1]) {
     if (!legend || !bar) return;
     const latestMa5 = ma5ByDate.get(bar.date);
     const latestMa20 = ma20ByDate.get(bar.date);
     const chips = [
-      "TradingView",
+      `기간 ${periodReturnLabel(periodReturn)}`,
       `종가 ${money.format(bar.close)}원`,
       `거래량 ${compact.format(bar.volume)}`,
+      `고저 ${money.format(periodHigh)} / ${money.format(periodLow)}`,
       latestMa5 ? `MA5 ${money.format(latestMa5)}` : "MA5 대기",
       latestMa20 ? `MA20 ${money.format(latestMa20)}` : "MA20 대기"
     ];

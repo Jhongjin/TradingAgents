@@ -193,6 +193,8 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "<dt>기준일</dt>" in html
     assert "<dt>평가일</dt>" in html
     assert "movingAverage" in html
+    assert "periodReturnLabel" in html
+    assert "고저" in html
     assert "TradingView" in html
     assert "한국형 투자 렌즈" in html
     assert "안전 가드레일" in html
