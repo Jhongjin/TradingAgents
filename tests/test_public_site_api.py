@@ -205,8 +205,9 @@ def test_public_stock_payload_uses_configured_chart_vendor(monkeypatch):
 
 
 def test_public_stock_payload_exposes_auto_vendor_resolution(monkeypatch):
-    def fake_chart_series(symbol, start_date, end_date, *, vendor):
+    def fake_chart_series(symbol, start_date, end_date, *, vendor, interval):
         assert vendor == "auto"
+        assert interval == "1d"
         return ChartSeries(
             ticker_code=symbol,
             ticker_name="삼성전자",
@@ -230,6 +231,7 @@ def test_public_stock_payload_exposes_auto_vendor_resolution(monkeypatch):
     assert payload["chart"]["vendor"] == "pykrx"
     assert payload["chart"]["requested_vendor"] == "auto"
     assert payload["chart"]["resolved_vendor"] == "pykrx"
+    assert payload["chart"]["interval"] == "1d"
     assert payload["chart"]["point_count"] == 0
     assert payload["chart"]["data_source_label"] == "pykrx"
     assert payload["chart"]["fallback_used"] is True
@@ -239,13 +241,14 @@ def test_public_stock_payload_limits_default_krx_diagnostic_window(monkeypatch):
     monkeypatch.setenv("TRADINGAGENTS_KRX_CHART_MAX_DAYS", "7")
     captured: dict[str, str] = {}
 
-    def fake_chart_series(symbol, start_date, end_date, *, vendor):
+    def fake_chart_series(symbol, start_date, end_date, *, vendor, interval):
         captured.update(
             {
                 "symbol": symbol,
                 "start_date": start_date,
                 "end_date": end_date,
                 "vendor": vendor,
+                "interval": interval,
             }
         )
         return ChartSeries(
@@ -272,10 +275,57 @@ def test_public_stock_payload_limits_default_krx_diagnostic_window(monkeypatch):
         "start_date": "2026-05-12",
         "end_date": "2026-05-19",
         "vendor": "krx",
+        "interval": "1d",
     }
     assert payload["chart"]["status"] == "available"
     assert payload["chart"]["start_date"] == "2026-05-12"
     assert payload["chart"]["vendor"] == "krx"
+
+
+def test_public_stock_payload_passes_intraday_interval_to_chart_provider(monkeypatch):
+    captured: dict[str, str] = {}
+
+    def fake_chart_series(symbol, start_date, end_date, *, vendor, interval):
+        captured.update(
+            {
+                "symbol": symbol,
+                "start_date": start_date,
+                "end_date": end_date,
+                "vendor": vendor,
+                "interval": interval,
+            }
+        )
+        return ChartSeries(
+            ticker_code="005930",
+            ticker_name="삼성전자",
+            market="KOSPI",
+            currency="KRW",
+            vendor="yfinance",
+            interval="60m",
+            points=[],
+        )
+
+    monkeypatch.setattr("tradingagents.site.public_api.get_ohlcv_chart_series", fake_chart_series)
+
+    payload = build_public_stock_payload(
+        "005930",
+        chart_end="2026-05-19",
+        as_of_date="2026-05-19",
+        chart_interval="60m",
+        chart_vendor="yfinance",
+        include_analysis=False,
+    )
+
+    assert captured == {
+        "symbol": "005930",
+        "start_date": "2026-04-19",
+        "end_date": "2026-05-19",
+        "vendor": "yfinance",
+        "interval": "60m",
+    }
+    assert payload["chart"]["status"] == "available"
+    assert payload["chart"]["vendor"] == "yfinance"
+    assert payload["chart"]["interval"] == "60m"
 
 
 def test_public_stock_payload_recommends_refresh_for_stale_or_missing_analysis():

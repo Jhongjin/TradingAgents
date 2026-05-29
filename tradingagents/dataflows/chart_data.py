@@ -11,10 +11,16 @@ import pandas as pd
 
 from .errors import VendorUnavailableError
 from .kr_tickers import is_kr_ticker, resolve_kr_ticker
+from .stockstats_utils import yf_retry
 from . import krx_openapi, pykrx_vendor
 
 
 DEFAULT_KRX_CHART_MAX_DAYS = 14
+DAILY_INTERVAL = "1d"
+WEEKLY_INTERVAL = "1wk"
+MONTHLY_INTERVAL = "1mo"
+INTRADAY_INTERVALS = {"1m", "5m", "15m", "30m", "60m"}
+SUPPORTED_INTERVALS = {DAILY_INTERVAL, WEEKLY_INTERVAL, MONTHLY_INTERVAL, *INTRADAY_INTERVALS}
 
 
 @dataclass(frozen=True)
@@ -49,6 +55,7 @@ class ChartSeries:
     currency: str
     vendor: str
     points: list[OhlcvPoint]
+    interval: str = DAILY_INTERVAL
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -57,6 +64,7 @@ class ChartSeries:
             "market": self.market,
             "currency": self.currency,
             "vendor": self.vendor,
+            "interval": self.interval,
             "points": [point.as_dict() for point in self.points],
         }
 
@@ -89,6 +97,7 @@ def get_ohlcv_chart_series(
     end_date: str,
     *,
     vendor: str = "pykrx",
+    interval: str = DAILY_INTERVAL,
 ) -> ChartSeries:
     """Return normalized Korean OHLCV chart data.
 
@@ -99,8 +108,21 @@ def get_ohlcv_chart_series(
     if not is_kr_ticker(symbol):
         raise VendorUnavailableError(f"chart data currently supports Korean 6-digit tickers only: {symbol!r}")
 
-    resolved = resolve_kr_ticker(symbol, lookup_pykrx=False)
     selected_vendor = _normalize_vendor(vendor)
+    selected_interval = normalize_chart_interval(interval)
+    resolved = resolve_kr_ticker(symbol, lookup_pykrx=selected_interval in INTRADAY_INTERVALS)
+    if selected_interval in INTRADAY_INTERVALS:
+        frame = _yfinance_ohlcv_frame(resolved.yfinance_symbol, start_date, end_date, selected_interval)
+        return ChartSeries(
+            ticker_code=resolved.code,
+            ticker_name=resolved.name,
+            market=resolved.market,
+            currency="KRW",
+            vendor="yfinance",
+            interval=selected_interval,
+            points=_points_from_frame(frame, interval=selected_interval),
+        )
+
     if selected_vendor == "auto":
         vendor_candidates = (
             ["krx", "pykrx"]
@@ -134,7 +156,8 @@ def get_ohlcv_chart_series(
         market=resolved.market,
         currency="KRW",
         vendor=selected_vendor,
-        points=_points_from_frame(frame),
+        interval=selected_interval,
+        points=_points_from_frame(_aggregate_frame_for_interval(frame, selected_interval), interval=selected_interval),
     )
 
 
@@ -207,6 +230,39 @@ def _normalize_vendor(vendor: str | None) -> str:
     return selected
 
 
+def normalize_chart_interval(interval: str | None) -> str:
+    selected = (interval or DAILY_INTERVAL).strip().lower().replace("_", "-")
+    aliases = {
+        "d": DAILY_INTERVAL,
+        "day": DAILY_INTERVAL,
+        "daily": DAILY_INTERVAL,
+        "1day": DAILY_INTERVAL,
+        "w": WEEKLY_INTERVAL,
+        "week": WEEKLY_INTERVAL,
+        "weekly": WEEKLY_INTERVAL,
+        "1w": WEEKLY_INTERVAL,
+        "m": MONTHLY_INTERVAL,
+        "month": MONTHLY_INTERVAL,
+        "monthly": MONTHLY_INTERVAL,
+        "1month": MONTHLY_INTERVAL,
+        "1h": "60m",
+        "hour": "60m",
+        "hourly": "60m",
+        "60min": "60m",
+        "30min": "30m",
+        "15min": "15m",
+        "5min": "5m",
+        "1min": "1m",
+    }
+    selected = aliases.get(selected, selected)
+    if selected not in SUPPORTED_INTERVALS:
+        raise VendorUnavailableError(
+            f"Unsupported chart interval: {interval!r}. "
+            "Choose from 1d, 1wk, 1mo, 60m, 30m, 15m, 5m, 1m."
+        )
+    return selected
+
+
 def get_krx_chart_max_days() -> int:
     """Return the maximum KRX Open API chart span to attempt synchronously."""
 
@@ -251,7 +307,74 @@ def _ohlcv_frame_for_vendor(vendor: str, code: str, start_date: str, end_date: s
     raise VendorUnavailableError(f"Unsupported chart data vendor: {vendor!r}")
 
 
-def _points_from_frame(frame: pd.DataFrame) -> list[OhlcvPoint]:
+def _aggregate_frame_for_interval(frame: pd.DataFrame, interval: str) -> pd.DataFrame:
+    if frame is None or frame.empty or interval == DAILY_INTERVAL:
+        return frame
+    if interval not in {WEEKLY_INTERVAL, MONTHLY_INTERVAL}:
+        return frame
+    rule = "W-FRI" if interval == WEEKLY_INTERVAL else "ME"
+    aggregations = {
+        "Open": "first",
+        "High": "max",
+        "Low": "min",
+        "Close": "last",
+        "Volume": "sum",
+    }
+    if "Value" in frame.columns:
+        aggregations["Value"] = "sum"
+    resampled = frame.sort_index().resample(rule).agg(aggregations)
+    return resampled.dropna(subset=["Close"])
+
+
+def _yfinance_ohlcv_frame(symbol: str, start_date: str, end_date: str, interval: str) -> pd.DataFrame:
+    try:
+        import yfinance as yf
+    except Exception as exc:
+        raise VendorUnavailableError("yfinance is not installed") from exc
+
+    start = datetime.strptime(start_date, "%Y-%m-%d").date()
+    end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    if end < start:
+        raise ValueError("end_date must be on or after start_date")
+    end_exclusive = end + timedelta(days=1)
+    try:
+        frame = yf_retry(
+            lambda: yf.download(
+                symbol,
+                start=start.isoformat(),
+                end=end_exclusive.isoformat(),
+                interval=interval,
+                progress=False,
+                auto_adjust=False,
+                multi_level_index=False,
+            )
+        )
+    except Exception as exc:
+        raise VendorUnavailableError(f"yfinance intraday chart request failed for {symbol}: {exc}") from exc
+    return _normalize_yfinance_frame(frame)
+
+
+def _normalize_yfinance_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame is None or frame.empty:
+        return pd.DataFrame()
+    normalized = frame.copy()
+    if isinstance(normalized.columns, pd.MultiIndex):
+        normalized.columns = normalized.columns.get_level_values(0)
+    aliases = {
+        "Open": "Open",
+        "High": "High",
+        "Low": "Low",
+        "Close": "Close",
+        "Volume": "Volume",
+    }
+    normalized = normalized.rename(columns={key: value for key, value in aliases.items() if key in normalized.columns})
+    preferred = [column for column in ["Open", "High", "Low", "Close", "Volume"] if column in normalized.columns]
+    normalized = normalized[preferred]
+    normalized = normalized.apply(pd.to_numeric, errors="coerce")
+    return normalized.dropna(subset=["Close"]).sort_index()
+
+
+def _points_from_frame(frame: pd.DataFrame, *, interval: str = DAILY_INTERVAL) -> list[OhlcvPoint]:
     if frame is None or frame.empty:
         return []
 
@@ -260,7 +383,7 @@ def _points_from_frame(frame: pd.DataFrame) -> list[OhlcvPoint]:
     for index, row in normalized.iterrows():
         points.append(
             OhlcvPoint(
-                date=pd.to_datetime(index).strftime("%Y-%m-%d"),
+                date=_point_date(index, interval=interval),
                 open=_float_or_none(row, "Open"),
                 high=_float_or_none(row, "High"),
                 low=_float_or_none(row, "Low"),
@@ -271,6 +394,13 @@ def _points_from_frame(frame: pd.DataFrame) -> list[OhlcvPoint]:
             )
         )
     return points
+
+
+def _point_date(index: Any, *, interval: str) -> str:
+    timestamp = pd.to_datetime(index)
+    if interval in INTRADAY_INTERVALS:
+        return timestamp.isoformat()
+    return timestamp.strftime("%Y-%m-%d")
 
 
 def _float_or_none(row: pd.Series, name: str) -> float | None:

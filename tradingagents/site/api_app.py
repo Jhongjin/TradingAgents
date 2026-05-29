@@ -447,6 +447,7 @@ def create_app(
         chart_end: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None,
         as_of_date: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None,
         chart_vendor: str | None = None,
+        chart_interval: str | None = None,
         max_analysis_age_days: int = 1,
     ) -> HTMLResponse:
         return _stock_html_response(
@@ -456,6 +457,7 @@ def create_app(
             chart_end=chart_end,
             as_of_date=as_of_date,
             chart_vendor=chart_vendor,
+            chart_interval=chart_interval,
             max_analysis_age_days=max_analysis_age_days,
         )
 
@@ -467,6 +469,7 @@ def create_app(
         chart_end: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None,
         as_of_date: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None,
         chart_vendor: str | None = None,
+        chart_interval: str | None = None,
         include_chart: bool = True,
         include_analysis: bool = True,
         max_analysis_age_days: int = 1,
@@ -480,6 +483,7 @@ def create_app(
                 chart_end=chart_end,
                 as_of_date=as_of_date,
                 chart_vendor=chart_vendor,
+                chart_interval=chart_interval,
                 include_chart=include_chart,
                 include_analysis=include_analysis,
                 max_analysis_age_days=max_analysis_age_days,
@@ -1133,6 +1137,7 @@ def _stock_html_response(
     chart_end: str | None = None,
     as_of_date: str | None = None,
     chart_vendor: str | None = None,
+    chart_interval: str | None = None,
     max_analysis_age_days: int = 1,
 ) -> HTMLResponse:
     try:
@@ -1143,6 +1148,7 @@ def _stock_html_response(
             chart_end=chart_end,
             as_of_date=as_of_date,
             chart_vendor=chart_vendor,
+            chart_interval=chart_interval,
             max_analysis_age_days=max_analysis_age_days,
             site_base_url=_request_site_base_url(request),
         )

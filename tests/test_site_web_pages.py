@@ -175,11 +175,21 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "1일" in html
     assert "1분" in html
     assert "60분" in html
-    assert "분봉 데이터 소스 연결 후 제공" in html
+    assert "주봉" in html
+    assert "월봉" in html
+    assert "chart-tools" in html
+    assert 'data-chart-indicator="ma60"' in html
+    assert 'data-chart-draw-trend' in html
+    assert "chartDrawingLayer" in html
+    assert "setupTrendDrawing" in html
+    assert "볼린저" in html
     assert "KRX 14D" in html
-    assert "pykrx / 2개 거래일 표시 / auto 요청에서 pykrx 사용" in html
+    assert "일봉 / pykrx / 2개 봉 표시 / auto 요청에서 pykrx 사용" in html
     assert "차트 데이터 기준" in html
     assert "2026-05-05 기준" in html
+    assert "<dt>차트 주기</dt>" in html
+    assert "<dd>일봉</dd>" in html
+    assert "<dt>표시 봉</dt>" in html
     assert "<dt>제공처 선택</dt>" in html
     assert "요청 auto / 실제 표시 pykrx" in html
     assert "<dt>대체 제공처</dt>" in html
@@ -194,6 +204,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "<dt>평가일</dt>" in html
     assert "movingAverage" in html
     assert "periodReturnLabel" in html
+    assert "bollinger" in html
     assert "고저" in html
     assert "TradingView" in html
     assert "한국형 투자 렌즈" in html
@@ -1311,13 +1322,17 @@ def test_api_app_serves_public_stock_html_page(monkeypatch):
     monkeypatch.setattr("tradingagents.site.api_app.render_public_stock_page", fake_render)
     client = TestClient(create_app(repo=None, load_repo_from_env=False))
 
-    response = client.get("/stocks/005930", params={"chart_start": "2026-01-01", "chart_vendor": "krx"})
+    response = client.get(
+        "/stocks/005930",
+        params={"chart_start": "2026-01-01", "chart_vendor": "krx", "chart_interval": "1wk"},
+    )
 
     assert response.status_code == 200
     assert response.text.startswith("<!doctype html>")
     assert captured["ticker"] == "005930"
     assert captured["chart_start"] == "2026-01-01"
     assert captured["chart_vendor"] == "krx"
+    assert captured["chart_interval"] == "1wk"
 
 
 def test_seo_helpers_build_canonical_robots_and_sitemap():

@@ -9,7 +9,12 @@ import os
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from tradingagents.dataflows.chart_data import get_krx_chart_max_days, get_ohlcv_chart_series
+from tradingagents.dataflows.chart_data import (
+    INTRADAY_INTERVALS,
+    get_krx_chart_max_days,
+    get_ohlcv_chart_series,
+    normalize_chart_interval,
+)
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
 from tradingagents.report_quality import enrich_reports_with_quality
@@ -30,6 +35,7 @@ def build_public_stock_payload(
     as_of_date: str | None = None,
     max_analysis_age_days: int = 1,
     chart_vendor: str | None = None,
+    chart_interval: str | None = None,
     include_chart: bool = True,
     include_analysis: bool = True,
 ) -> dict[str, Any]:
@@ -45,14 +51,19 @@ def build_public_stock_payload(
 
     resolved = resolve_kr_ticker(ticker)
     selected_chart_vendor = chart_vendor or os.getenv("TRADINGAGENTS_CHART_DATA_VENDOR", "pykrx")
+    selected_chart_interval = normalize_chart_interval(chart_interval)
     end = _parse_or_default_end(chart_end)
-    start = _parse_or_default_start(chart_start, end, selected_chart_vendor)
+    start = _parse_or_default_start(chart_start, end, selected_chart_vendor, selected_chart_interval)
     as_of = _parse_or_default_end(as_of_date)
     if max_analysis_age_days < 0:
         raise ValueError("max_analysis_age_days must be non-negative")
     analysis = _analysis_payload(repo, resolved.code) if include_analysis else {"status": "skipped"}
     analysis_refresh = _analysis_refresh_payload(analysis, as_of, max_analysis_age_days)
-    chart = _chart_payload(resolved.code, start, end, selected_chart_vendor) if include_chart else {"status": "skipped"}
+    chart = (
+        _chart_payload(resolved.code, start, end, selected_chart_vendor, selected_chart_interval)
+        if include_chart
+        else {"status": "skipped", "interval": selected_chart_interval}
+    )
 
     payload = {
         "ticker": {
@@ -137,20 +148,23 @@ def _analysis_refresh_payload(
     }
 
 
-def _chart_payload(ticker_code: str, start: date, end: date, vendor: str) -> dict[str, Any]:
+def _chart_payload(ticker_code: str, start: date, end: date, vendor: str, interval: str) -> dict[str, Any]:
     requested_vendor = _normalize_chart_vendor(vendor)
+    requested_interval = normalize_chart_interval(interval)
     try:
         series = get_ohlcv_chart_series(
             ticker_code,
             start.isoformat(),
             end.isoformat(),
             vendor=vendor,
+            interval=requested_interval,
         )
     except Exception as exc:
         return {
             "status": "unavailable",
             "start_date": start.isoformat(),
             "end_date": end.isoformat(),
+            "interval": requested_interval,
             "vendor": vendor,
             **_chart_source_metadata(requested_vendor=requested_vendor, resolved_vendor=None, point_count=0),
             "error": _public_error(exc),
@@ -161,6 +175,7 @@ def _chart_payload(ticker_code: str, start: date, end: date, vendor: str) -> dic
         "status": "available",
         "start_date": start.isoformat(),
         "end_date": end.isoformat(),
+        "interval": series.interval,
         **_chart_source_metadata(
             requested_vendor=requested_vendor,
             resolved_vendor=series.vendor,
@@ -191,6 +206,7 @@ def _chart_data_source_label(vendor: str | None) -> str:
     return {
         "krx": "KRX Open API",
         "pykrx": "pykrx",
+        "yfinance": "Yahoo Finance",
         "auto": "auto vendor selection",
     }.get(selected, "unknown chart vendor")
 
@@ -209,12 +225,30 @@ def _coerce_date(value: Any) -> date:
     return datetime.strptime(str(value), "%Y-%m-%d").date()
 
 
-def _parse_or_default_start(value: str | None, end: date, chart_vendor: str = "pykrx") -> date:
+def _parse_or_default_start(
+    value: str | None,
+    end: date,
+    chart_vendor: str = "pykrx",
+    chart_interval: str = "1d",
+) -> date:
     if value:
         return datetime.strptime(value, "%Y-%m-%d").date()
+    interval = normalize_chart_interval(chart_interval)
+    if interval in INTRADAY_INTERVALS:
+        return end - timedelta(days=_default_intraday_days(interval))
     if _normalize_chart_vendor(chart_vendor) == "krx":
         return end - timedelta(days=get_krx_chart_max_days())
     return end - timedelta(days=180)
+
+
+def _default_intraday_days(interval: str) -> int:
+    return {
+        "1m": 1,
+        "5m": 1,
+        "15m": 5,
+        "30m": 5,
+        "60m": 30,
+    }.get(interval, 1)
 
 
 def _normalize_chart_vendor(vendor: str | None) -> str:

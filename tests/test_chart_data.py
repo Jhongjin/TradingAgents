@@ -129,6 +129,69 @@ def test_ohlcv_chart_series_auto_uses_pykrx_for_large_ranges(monkeypatch):
     assert series.points[0].close == 70500.0
 
 
+def test_ohlcv_chart_series_aggregates_weekly_points(monkeypatch):
+    fake_stock = MagicMock()
+    fake_stock.get_market_ohlcv_by_date.return_value = pd.DataFrame(
+        {
+            "시가": [70000, 70500, 71000],
+            "고가": [71000, 71500, 73000],
+            "저가": [69000, 70000, 70800],
+            "종가": [70500, 71200, 72500],
+            "거래량": [100, 200, 300],
+        },
+        index=[pd.Timestamp("2026-01-05"), pd.Timestamp("2026-01-06"), pd.Timestamp("2026-01-09")],
+    )
+    monkeypatch.setattr(pykrx_vendor, "_get_pykrx_stock_module", lambda: fake_stock)
+
+    series = chart_data.get_ohlcv_chart_series("005930", "2026-01-05", "2026-01-09", interval="1wk")
+
+    assert series.interval == "1wk"
+    assert len(series.points) == 1
+    assert series.points[0].open == 70000.0
+    assert series.points[0].high == 73000.0
+    assert series.points[0].low == 69000.0
+    assert series.points[0].close == 72500.0
+    assert series.points[0].volume == 600
+
+
+def test_ohlcv_chart_series_uses_yfinance_for_intraday(monkeypatch):
+    captured = {}
+
+    def fake_intraday(symbol, start_date, end_date, interval):
+        captured.update(
+            {
+                "symbol": symbol,
+                "start_date": start_date,
+                "end_date": end_date,
+                "interval": interval,
+            }
+        )
+        return pd.DataFrame(
+            {
+                "Open": [70000],
+                "High": [71000],
+                "Low": [69000],
+                "Close": [70500],
+                "Volume": [123456],
+            },
+            index=[pd.Timestamp("2026-01-05 09:00:00", tz="Asia/Seoul")],
+        )
+
+    monkeypatch.setattr(chart_data, "_yfinance_ohlcv_frame", fake_intraday)
+
+    series = chart_data.get_ohlcv_chart_series("005930", "2026-01-05", "2026-01-06", interval="60m")
+
+    assert captured == {
+        "symbol": "005930.KS",
+        "start_date": "2026-01-05",
+        "end_date": "2026-01-06",
+        "interval": "60m",
+    }
+    assert series.vendor == "yfinance"
+    assert series.interval == "60m"
+    assert series.points[0].date.startswith("2026-01-05T09:00:00")
+
+
 def test_ohlcv_chart_series_rejects_large_krx_ranges_before_request(monkeypatch):
     monkeypatch.setenv("TRADINGAGENTS_KRX_CHART_MAX_DAYS", "1")
 
@@ -144,6 +207,11 @@ def test_ohlcv_chart_series_rejects_large_krx_ranges_before_request(monkeypatch)
 def test_ohlcv_chart_series_rejects_unknown_vendor():
     with pytest.raises(VendorUnavailableError, match="Unsupported chart data vendor"):
         chart_data.get_ohlcv_chart_series("005930", "2026-01-02", "2026-01-05", vendor="bogus")
+
+
+def test_ohlcv_chart_series_rejects_unknown_interval():
+    with pytest.raises(VendorUnavailableError, match="Unsupported chart interval"):
+        chart_data.get_ohlcv_chart_series("005930", "2026-01-02", "2026-01-05", interval="2h")
 
 
 def test_latest_close_price_uses_last_available_ohlcv_row(monkeypatch):

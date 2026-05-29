@@ -29,6 +29,7 @@ def render_public_stock_page(
     as_of_date: str | None = None,
     max_analysis_age_days: int = 1,
     chart_vendor: str | None = None,
+    chart_interval: str | None = None,
     site_base_url: str | None = None,
 ) -> str:
     """Render the first public stock-analysis page.
@@ -46,6 +47,7 @@ def render_public_stock_page(
         as_of_date=as_of_date,
         max_analysis_age_days=max_analysis_age_days,
         chart_vendor=chart_vendor,
+        chart_interval=chart_interval,
     )
     notice_items = _stock_notice_items(payload.get("notices", []))
     page_payload = {**payload, "notices": notice_items}
@@ -59,6 +61,7 @@ def render_public_stock_page(
     outcomes_html = _outcome_cards((payload.get("analysis") or {}).get("outcomes") or [])
     notices_html = "".join(f"<li>{_h(notice)}</li>" for notice in notice_items)
     chart_source_html = _data_source_strip(model["chart_source_rows"], label="차트 데이터 기준")
+    chart_tools_html = _chart_tools()
     analysis_source_html = _data_source_strip(model["analysis_source_rows"], label="AI 리서치 출처")
     confidence_html = _analysis_confidence_panel(model["analysis_confidence"])
     stock_signal_html = _stock_signal_card(model)
@@ -146,11 +149,13 @@ def render_public_stock_page(
           </div>
         </div>
         {chart_controls_html}
+        {chart_tools_html}
         <p class="chart-caption">{_h(model["chart_caption"])}</p>
         {chart_source_html}
         <div class="chart-wrap" data-chart-engine="tradingview-lightweight">
           <div id="priceChart" class="tv-price-chart" role="img" aria-label="{_h(model["name"])} 가격 차트"></div>
           <canvas id="priceChartCanvas" class="chart-canvas-fallback" aria-label="{_h(model["name"])} 가격 차트 예비 렌더러" hidden></canvas>
+          <svg id="chartDrawingLayer" class="chart-drawing-layer" aria-hidden="true"></svg>
           <div class="chart-legend" id="chartLegend" aria-hidden="true"></div>
           <div class="chart-tooltip" id="chartTooltip" hidden></div>
           <p id="chartFallback" class="chart-fallback" hidden>{_h(model["chart_fallback"])}</p>
@@ -2197,6 +2202,8 @@ def _view_model(payload: dict[str, Any], *, site_base_url: str | None = None) ->
         "chart_status": _chart_status_label(chart.get("status")),
         "chart_vendor": _chart_vendor_value(chart.get("vendor")),
         "chart_vendor_label": _chart_vendor_label(chart.get("vendor")),
+        "chart_interval": _chart_interval_value(chart.get("interval")),
+        "chart_interval_label": _chart_interval_label(chart.get("interval")),
         "chart_start_date": str(chart.get("start_date") or ""),
         "chart_end_date": str(chart.get("end_date") or ""),
         "chart_range_days": _chart_range_days(chart.get("start_date"), chart.get("end_date")),
@@ -2213,6 +2220,8 @@ def _chart_controls(model: dict[str, Any]) -> str:
     code = str(model.get("code") or "")
     end = _date_or_today(model.get("chart_end_date"))
     active_days = model.get("chart_range_days")
+    active_interval = _chart_interval_value(model.get("chart_interval"))
+    active_vendor = str(model.get("chart_vendor") or "")
     period_options = [
         ("1D", "1일", 1),
         ("1W", "1주", 7),
@@ -2223,34 +2232,59 @@ def _chart_controls(model: dict[str, Any]) -> str:
     range_links = []
     for key, label, days in period_options:
         start = end - timedelta(days=days)
+        params = {
+            "chart_start": start.isoformat(),
+            "chart_end": end.isoformat(),
+            "chart_interval": active_interval,
+        }
+        if active_vendor and active_vendor != "unknown":
+            params["chart_vendor"] = "yfinance" if _chart_interval_is_intraday(active_interval) else active_vendor
         href = _stock_query_href(
             code,
-            {
-                "chart_start": start.isoformat(),
-                "chart_end": end.isoformat(),
-            },
+            params,
         )
         active = _period_is_active(active_days, days)
+        current_attr = ' aria-current="page"' if active else ""
         range_links.append(
             f'<a class="chart-tab{" is-active" if active else ""}" href="{_h(href)}"'
-            f'{" aria-current=\"page\"" if active else ""}>{_h(label)}</a>'
+            f'{current_attr}>{_h(label)}</a>'
         )
 
-    pykrx_href = _stock_query_href(code, {"chart_vendor": "pykrx"})
-    krx_href = _stock_query_href(code, {"chart_vendor": "krx"})
+    interval_tabs = []
+    for value, label, days in _chart_interval_options():
+        start = end - timedelta(days=days)
+        params = {
+            "chart_start": start.isoformat(),
+            "chart_end": end.isoformat(),
+            "chart_interval": value,
+        }
+        if _chart_interval_is_intraday(value):
+            params["chart_vendor"] = "yfinance"
+        elif active_vendor and active_vendor != "yfinance":
+            params["chart_vendor"] = active_vendor
+        href = _stock_query_href(code, params)
+        active = active_interval == value
+        current_attr = ' aria-current="page"' if active else ""
+        title_attr = ' title="60분봉"' if value == "60m" else ""
+        interval_tabs.append(
+            f'<a class="chart-tab{" is-active" if active else ""}" href="{_h(href)}"{title_attr}'
+            f'{current_attr}>{_h(label)}</a>'
+        )
+
     vendor = model.get("chart_vendor")
-    vendor_links = [
-        f'<a class="chart-tab{" is-active" if vendor == "pykrx" else ""}" href="{_h(pykrx_href)}">pykrx</a>',
-        f'<a class="chart-tab{" is-active" if vendor == "krx" else ""}" href="{_h(krx_href)}">KRX 14D</a>',
-    ]
-    interval_tabs = [
-        '<span class="chart-tab is-active" aria-current="page">일봉</span>',
-        '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">1분</span>',
-        '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">5분</span>',
-        '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">15분</span>',
-        '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">30분</span>',
-        '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">60분</span>',
-    ]
+    if _chart_interval_is_intraday(active_interval):
+        yfinance_href = _stock_query_href(code, {"chart_interval": active_interval, "chart_vendor": "yfinance"})
+        vendor_links = [
+            f'<a class="chart-tab is-active" aria-current="page" href="{_h(yfinance_href)}">Yahoo 분봉</a>'
+        ]
+    else:
+        vendor_params = {"chart_interval": active_interval}
+        pykrx_href = _stock_query_href(code, {**vendor_params, "chart_vendor": "pykrx"})
+        krx_href = _stock_query_href(code, {**vendor_params, "chart_vendor": "krx"})
+        vendor_links = [
+            f'<a class="chart-tab{" is-active" if vendor == "pykrx" else ""}" href="{_h(pykrx_href)}">pykrx</a>',
+            f'<a class="chart-tab{" is-active" if vendor == "krx" else ""}" href="{_h(krx_href)}">KRX 14D</a>',
+        ]
 
     return (
         '<div class="chart-toolbar">'
@@ -2265,6 +2299,35 @@ def _chart_controls(model: dict[str, Any]) -> str:
         + "</nav>"
         "</div>"
     )
+
+
+def _chart_tools() -> str:
+    indicators = [
+        ("ma5", "MA5", True),
+        ("ma20", "MA20", True),
+        ("ma60", "MA60", False),
+        ("bollinger", "볼린저", False),
+        ("volume", "거래량", True),
+    ]
+    buttons = "".join(
+        f'<button type="button" class="chart-tool-button{" is-active" if active else ""}" '
+        f'data-chart-indicator="{_h(key)}" aria-pressed="{"true" if active else "false"}">{_h(label)}</button>'
+        for key, label, active in indicators
+    )
+    return f"""
+    <div class="chart-tools" aria-label="차트 도구">
+      <div class="chart-tool-group">
+        <span>보조지표</span>
+        {buttons}
+      </div>
+      <div class="chart-tool-group">
+        <span>그리기</span>
+        <button type="button" class="chart-tool-button" data-chart-draw-trend aria-pressed="false">추세선</button>
+        <button type="button" class="chart-tool-button" data-chart-clear-trends>선 지우기</button>
+      </div>
+      <small id="chartToolState">추세선은 시작점과 끝점을 차례로 클릭해 그립니다.</small>
+    </div>
+    """
 
 
 def _stock_signal_card(model: dict[str, Any]) -> str:
@@ -2340,7 +2403,8 @@ def _chart_source_rows(chart: dict[str, Any], points: list[dict[str, Any]]) -> l
     return [
         ("표시 데이터", str(chart.get("data_source_label") or _chart_vendor_label(chart.get("vendor")))),
         ("기준일", f"{chart.get('end_date') or '-'} 기준"),
-        ("거래일", f"{point_count}거래일"),
+        ("차트 주기", _chart_interval_label(chart.get("interval"))),
+        ("표시 봉", f"{point_count}개"),
         ("제공처 선택", f"요청 {requested} / 실제 표시 {resolved}"),
         ("대체 제공처", f"auto 요청에서 {resolved} 사용" if chart.get("fallback_used") else "사용 안 함"),
     ]
@@ -2537,19 +2601,77 @@ def _chart_vendor_label(value: Any) -> str:
         return "KRX Open API"
     if selected == "pykrx":
         return "pykrx"
+    if selected == "yfinance":
+        return "Yahoo Finance"
     if selected == "auto":
         return "auto"
     return "데이터 제공처 확인"
+
+
+def _chart_interval_value(value: Any) -> str:
+    selected = str(value or "1d").strip().lower().replace("_", "-")
+    aliases = {
+        "daily": "1d",
+        "day": "1d",
+        "1day": "1d",
+        "weekly": "1wk",
+        "week": "1wk",
+        "1w": "1wk",
+        "monthly": "1mo",
+        "month": "1mo",
+        "1month": "1mo",
+        "1h": "60m",
+        "hourly": "60m",
+        "hour": "60m",
+        "60min": "60m",
+        "30min": "30m",
+        "15min": "15m",
+        "5min": "5m",
+        "1min": "1m",
+    }
+    selected = aliases.get(selected, selected)
+    return selected if selected in {"1d", "1wk", "1mo", "60m", "30m", "15m", "5m", "1m"} else "1d"
+
+
+def _chart_interval_label(value: Any) -> str:
+    return {
+        "1d": "일봉",
+        "1wk": "주봉",
+        "1mo": "월봉",
+        "60m": "1시간봉",
+        "30m": "30분봉",
+        "15m": "15분봉",
+        "5m": "5분봉",
+        "1m": "1분봉",
+    }.get(_chart_interval_value(value), "일봉")
+
+
+def _chart_interval_is_intraday(value: Any) -> bool:
+    return _chart_interval_value(value) in {"60m", "30m", "15m", "5m", "1m"}
+
+
+def _chart_interval_options() -> list[tuple[str, str, int]]:
+    return [
+        ("1d", "일봉", 180),
+        ("1wk", "주봉", 365),
+        ("1mo", "월봉", 730),
+        ("60m", "1시간", 30),
+        ("30m", "30분", 5),
+        ("15m", "15분", 5),
+        ("5m", "5분", 1),
+        ("1m", "1분", 1),
+    ]
 
 
 def _chart_caption(chart: dict[str, Any], points: list[dict[str, Any]]) -> str:
     start = chart.get("start_date") or "-"
     end = chart.get("end_date") or "-"
     vendor = _chart_vendor_label(chart.get("vendor"))
-    point_label = f"{len(points):,}개 거래일 표시" if points else "거래일 데이터 없음"
+    interval = _chart_interval_label(chart.get("interval"))
+    point_label = f"{len(points):,}개 봉 표시" if points else "차트 데이터 없음"
     resolved = chart.get("resolved_vendor") or chart.get("vendor") or "데이터 제공처"
     fallback_note = f" / auto 요청에서 {resolved} 사용" if chart.get("fallback_used") else ""
-    return f"{start}~{end} / {vendor} / {point_label}{fallback_note}"
+    return f"{start}~{end} / {interval} / {vendor} / {point_label}{fallback_note}"
 
 
 def _chart_fallback_message(chart: dict[str, Any]) -> str:
@@ -4784,6 +4906,63 @@ h3 {
   min-width: 0;
 }
 
+.chart-tools,
+.chart-tool-group {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.chart-tools {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(20, 107, 99, 0.05);
+}
+
+.chart-tool-group {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chart-tool-group > span,
+.chart-tools small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.chart-tool-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.chart-tool-button:hover,
+.chart-tool-button.is-active {
+  border-color: rgba(20, 107, 99, 0.45);
+  background: var(--surface-strong);
+  color: var(--accent-strong);
+}
+
+.chart-tool-button:active {
+  transform: translateY(1px);
+}
+
 .chart-tabs {
   flex-wrap: wrap;
   gap: 6px;
@@ -4894,7 +5073,8 @@ h3 {
 }
 
 .tv-price-chart,
-.chart-canvas-fallback {
+.chart-canvas-fallback,
+.chart-drawing-layer {
   display: block;
   position: absolute;
   inset: 0;
@@ -4905,6 +5085,22 @@ h3 {
 .tv-price-chart[hidden],
 .chart-canvas-fallback[hidden] {
   display: none;
+}
+
+.tv-price-chart.is-drawing-trend {
+  cursor: crosshair;
+}
+
+.chart-drawing-layer {
+  z-index: 1;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.chart-drawing-layer line {
+  stroke: var(--accent);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 5px rgba(20, 107, 99, 0.28));
 }
 
 .chart-legend {
@@ -7731,16 +7927,19 @@ h3 {
   }
 
   .chart-toolbar,
+  .chart-tools,
   .chart-heading-meta {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .chart-tabs {
+  .chart-tabs,
+  .chart-tool-group {
     width: 100%;
   }
 
-  .chart-tab {
+  .chart-tab,
+  .chart-tool-button {
     flex: 1 1 auto;
     justify-content: center;
   }
@@ -9597,10 +9796,21 @@ button:disabled {
 .market-page .status-pill,
 .market-page .data-pill,
 .market-page .chart-tab,
+.market-page .chart-tool-button,
 .market-page .chart-legend span {
   border-color: rgba(246, 243, 232, 0.16);
   background: rgba(246, 243, 232, 0.07);
   color: rgba(246, 243, 232, 0.72);
+}
+
+.market-page .chart-tools {
+  border-color: rgba(246, 243, 232, 0.13);
+  background: rgba(246, 243, 232, 0.05);
+}
+
+.market-page .chart-tool-group > span,
+.market-page .chart-tools small {
+  color: rgba(198, 221, 192, 0.78);
 }
 
 .market-page .chart-legend span {
@@ -9674,7 +9884,9 @@ button:disabled {
 }
 
 .market-page .chart-tab:hover,
-.market-page .chart-tab.is-active {
+.market-page .chart-tab.is-active,
+.market-page .chart-tool-button:hover,
+.market-page .chart-tool-button.is-active {
   border-color: rgba(215, 255, 63, 0.58);
   background: rgba(215, 255, 63, 0.12);
   color: var(--home-acid);
@@ -9689,6 +9901,11 @@ button:disabled {
 
 .market-page .chart-tab.is-active {
   box-shadow: inset 0 0 0 1px rgba(215, 255, 63, 0.18);
+}
+
+.market-page .chart-drawing-layer line {
+  stroke: var(--home-acid);
+  filter: drop-shadow(0 0 7px rgba(215, 255, 63, 0.32));
 }
 
 .market-page .metric-grid article {
@@ -11258,6 +11475,7 @@ PAGE_JS = """
   const node = document.getElementById("stock-payload");
   const chartNode = document.getElementById("priceChart");
   const canvas = document.getElementById("priceChartCanvas");
+  const drawingLayer = document.getElementById("chartDrawingLayer");
   const legend = document.getElementById("chartLegend");
   const fallback = document.getElementById("chartFallback");
   const tooltip = document.getElementById("chartTooltip");
@@ -11283,22 +11501,62 @@ PAGE_JS = """
     return;
   }
 
+  function chartTime(value) {
+    const text = String(value || "");
+    if (text.includes("T") || text.includes(" ")) {
+      const normalized = text.includes("T") ? text : text.replace(" ", "T");
+      const parsed = Date.parse(normalized);
+      return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : text.slice(0, 10);
+    }
+    return text.slice(0, 10);
+  }
+
+  function displayTime(value) {
+    const text = String(value || "");
+    if (!(text.includes("T") || text.includes(" "))) return text.slice(0, 10);
+    const parsed = new Date(text.includes("T") ? text : text.replace(" ", "T"));
+    if (Number.isNaN(parsed.getTime())) return text.replace("T", " ").slice(0, 16);
+    const datePart = new Intl.DateTimeFormat("ko-KR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    }).format(parsed);
+    return datePart.replace(/\\. /g, "-").replace(".", "").replace(" ", " ");
+  }
+
   const bars = points.map((point) => ({
-    date: point.date,
+    date: String(point.date || ""),
+    time: chartTime(point.date),
+    label: displayTime(point.date),
     open: Number.isFinite(point.open) ? Number(point.open) : Number(point.close),
     high: Number.isFinite(point.high) ? Number(point.high) : Number(point.close),
     low: Number.isFinite(point.low) ? Number(point.low) : Number(point.close),
     close: Number(point.close),
     volume: Number.isFinite(point.volume) ? Number(point.volume) : 0
   }));
-  const dates = bars.map((point) => point.date);
+  const dates = bars.map((point) => point.label);
   const closes = bars.map((point) => point.close);
-  const barByDate = new Map(bars.map((bar) => [bar.date, bar]));
+  const barByTime = new Map(bars.map((bar) => [String(bar.time), bar]));
+  const barByDay = new Map();
+  bars.forEach((bar) => {
+    const day = String(bar.date).slice(0, 10);
+    if (!barByDay.has(day)) barByDay.set(day, bar);
+  });
   const firstClose = closes[0];
   const lastClose = closes[closes.length - 1];
   const periodReturn = firstClose ? (lastClose - firstClose) / firstClose : null;
   const periodHigh = Math.max(...bars.map((bar) => bar.high));
   const periodLow = Math.min(...bars.map((bar) => bar.low));
+  const indicatorState = {
+    ma5: true,
+    ma20: true,
+    ma60: false,
+    bollinger: false,
+    volume: true
+  };
 
   function movingAverage(values, windowSize) {
     return values.map((_, index) => {
@@ -11310,9 +11568,23 @@ PAGE_JS = """
 
   const ma5 = movingAverage(closes, 5);
   const ma20 = movingAverage(closes, 20);
-  const ma5ByDate = new Map(bars.map((bar, index) => [bar.date, ma5[index]]));
-  const ma20ByDate = new Map(bars.map((bar, index) => [bar.date, ma20[index]]));
+  const ma60 = movingAverage(closes, 60);
+  const ma5ByTime = new Map(bars.map((bar, index) => [String(bar.time), ma5[index]]));
+  const ma20ByTime = new Map(bars.map((bar, index) => [String(bar.time), ma20[index]]));
+  const ma60ByTime = new Map(bars.map((bar, index) => [String(bar.time), ma60[index]]));
+  const bollinger = closes.map((_, index) => {
+    if (index + 1 < 20) return null;
+    const slice = closes.slice(index + 1 - 20, index + 1);
+    const avg = ma20[index];
+    const variance = slice.reduce((total, value) => total + ((value - avg) ** 2), 0) / slice.length;
+    const deviation = Math.sqrt(variance);
+    return { mid: avg, upper: avg + deviation * 2, lower: avg - deviation * 2 };
+  });
   let applySimulationMarkers = () => {};
+  let refreshChartIndicators = () => {};
+  const trendLines = [];
+  let pendingTrendPoint = null;
+  let trendDrawMode = false;
 
   function legendChip(label) {
     const node = document.createElement("span");
@@ -11326,17 +11598,21 @@ PAGE_JS = """
 
   function drawLegend(bar = bars[bars.length - 1]) {
     if (!legend || !bar) return;
-    const latestMa5 = ma5ByDate.get(bar.date);
-    const latestMa20 = ma20ByDate.get(bar.date);
+    const key = String(bar.time);
+    const latestMa5 = ma5ByTime.get(key);
+    const latestMa20 = ma20ByTime.get(key);
+    const latestMa60 = ma60ByTime.get(key);
     const chips = [
       `기간 ${periodReturnLabel(periodReturn)}`,
       `종가 ${money.format(bar.close)}원`,
-      `거래량 ${compact.format(bar.volume)}`,
+      indicatorState.volume ? `거래량 ${compact.format(bar.volume)}` : "",
       `고저 ${money.format(periodHigh)} / ${money.format(periodLow)}`,
-      latestMa5 ? `MA5 ${money.format(latestMa5)}` : "MA5 대기",
-      latestMa20 ? `MA20 ${money.format(latestMa20)}` : "MA20 대기"
+      indicatorState.ma5 && latestMa5 ? `MA5 ${money.format(latestMa5)}` : "",
+      indicatorState.ma20 && latestMa20 ? `MA20 ${money.format(latestMa20)}` : "",
+      indicatorState.ma60 && latestMa60 ? `MA60 ${money.format(latestMa60)}` : "",
+      indicatorState.bollinger ? "볼린저 20/2" : ""
     ];
-    legend.replaceChildren(...chips.map(legendChip));
+    legend.replaceChildren(...chips.filter(Boolean).map(legendChip));
   }
 
   function timeKey(value) {
@@ -11349,7 +11625,9 @@ PAGE_JS = """
 
   function markerDate(value) {
     const key = String(value || "").slice(0, 10);
-    return barByDate.has(key) ? key : "";
+    const exact = barByTime.get(String(value || ""));
+    if (exact) return exact.time;
+    return barByDay.get(key)?.time || "";
   }
 
   function baseAnalysisMarkers() {
@@ -11402,15 +11680,16 @@ PAGE_JS = """
     }
     const change = bar.open ? ((bar.close - bar.open) / bar.open) * 100 : 0;
     const title = document.createElement("strong");
-    title.textContent = bar.date;
+    title.textContent = bar.label;
     const ohlc = document.createElement("span");
     ohlc.textContent = `시 ${money.format(bar.open)} / 고 ${money.format(bar.high)} / 저 ${money.format(bar.low)} / 종 ${money.format(bar.close)}`;
     const volume = document.createElement("span");
     volume.textContent = `거래량 ${compact.format(bar.volume)} / 당일 ${change >= 0 ? "+" : ""}${change.toFixed(2)}%`;
     const averages = document.createElement("span");
-    const latestMa5 = ma5ByDate.get(bar.date);
-    const latestMa20 = ma20ByDate.get(bar.date);
-    averages.textContent = `MA5 ${latestMa5 ? money.format(latestMa5) : "-"} / MA20 ${latestMa20 ? money.format(latestMa20) : "-"}`;
+    const latestMa5 = ma5ByTime.get(String(bar.time));
+    const latestMa20 = ma20ByTime.get(String(bar.time));
+    const latestMa60 = ma60ByTime.get(String(bar.time));
+    averages.textContent = `MA5 ${latestMa5 ? money.format(latestMa5) : "-"} / MA20 ${latestMa20 ? money.format(latestMa20) : "-"} / MA60 ${latestMa60 ? money.format(latestMa60) : "-"}`;
     tooltip.replaceChildren(title, ohlc, volume, averages);
     tooltip.hidden = false;
 
@@ -11421,6 +11700,90 @@ PAGE_JS = """
     const top = Math.min(rect.height - tooltipHeight - 12, Math.max(12, point.y + 12));
     tooltip.style.left = `${left}px`;
     tooltip.style.top = `${top}px`;
+  }
+
+  function setChartToolState(message) {
+    const node = document.getElementById("chartToolState");
+    if (node) node.textContent = message;
+  }
+
+  function bindIndicatorControls() {
+    document.querySelectorAll("[data-chart-indicator]").forEach((button) => {
+      const key = button.getAttribute("data-chart-indicator");
+      if (!key || !(key in indicatorState)) return;
+      button.addEventListener("click", () => {
+        indicatorState[key] = !indicatorState[key];
+        button.classList.toggle("is-active", indicatorState[key]);
+        button.setAttribute("aria-pressed", indicatorState[key] ? "true" : "false");
+        refreshChartIndicators();
+      });
+    });
+  }
+
+  function updateTrendLayer(chartApi, candleSeries) {
+    if (!drawingLayer || !chartApi || !candleSeries) return;
+    const rect = chartNode.getBoundingClientRect();
+    drawingLayer.setAttribute("viewBox", `0 0 ${Math.max(1, rect.width)} ${Math.max(1, rect.height)}`);
+    drawingLayer.replaceChildren(...trendLines.map((line) => {
+      const x1 = chartApi.timeScale().timeToCoordinate(line.start.time);
+      const y1 = candleSeries.priceToCoordinate(line.start.price);
+      const x2 = chartApi.timeScale().timeToCoordinate(line.end.time);
+      const y2 = candleSeries.priceToCoordinate(line.end.price);
+      if (![x1, y1, x2, y2].every((value) => Number.isFinite(value))) return null;
+      const node = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      node.setAttribute("x1", String(x1));
+      node.setAttribute("y1", String(y1));
+      node.setAttribute("x2", String(x2));
+      node.setAttribute("y2", String(y2));
+      return node;
+    }).filter(Boolean));
+  }
+
+  function setupTrendDrawing(chartApi, candleSeries) {
+    const drawButton = document.querySelector("[data-chart-draw-trend]");
+    const clearButton = document.querySelector("[data-chart-clear-trends]");
+    if (!drawButton || !chartApi || !candleSeries) return;
+    drawButton.addEventListener("click", () => {
+      trendDrawMode = !trendDrawMode;
+      pendingTrendPoint = null;
+      drawButton.classList.toggle("is-active", trendDrawMode);
+      drawButton.setAttribute("aria-pressed", trendDrawMode ? "true" : "false");
+      chartNode.classList.toggle("is-drawing-trend", trendDrawMode);
+      setChartToolState(trendDrawMode ? "추세선 시작점을 클릭하세요." : "추세선은 시작점과 끝점을 차례로 클릭해 그립니다.");
+    });
+    clearButton?.addEventListener("click", () => {
+      trendLines.splice(0, trendLines.length);
+      pendingTrendPoint = null;
+      updateTrendLayer(chartApi, candleSeries);
+      setChartToolState("추세선을 모두 지웠습니다.");
+    });
+    chartNode.addEventListener("pointerdown", (event) => {
+      if (!trendDrawMode) return;
+      const rect = chartNode.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const time = chartApi.timeScale().coordinateToTime(x);
+      const price = candleSeries.coordinateToPrice(y);
+      if (!time || !Number.isFinite(price)) return;
+      event.preventDefault();
+      const point = { time, price };
+      if (!pendingTrendPoint) {
+        pendingTrendPoint = point;
+        setChartToolState("추세선 끝점을 클릭하세요.");
+        return;
+      }
+      trendLines.push({ start: pendingTrendPoint, end: point });
+      pendingTrendPoint = null;
+      trendDrawMode = false;
+      drawButton.classList.remove("is-active");
+      drawButton.setAttribute("aria-pressed", "false");
+      chartNode.classList.remove("is-drawing-trend");
+      updateTrendLayer(chartApi, candleSeries);
+      setChartToolState("추세선을 추가했습니다.");
+    });
+    if (typeof chartApi.timeScale().subscribeVisibleTimeRangeChange === "function") {
+      chartApi.timeScale().subscribeVisibleTimeRangeChange(() => updateTrendLayer(chartApi, candleSeries));
+    }
   }
 
   function renderTradingViewChart() {
@@ -11480,7 +11843,7 @@ PAGE_JS = """
       priceLineColor: "#d7ff3f"
     });
     candleSeries.setData(bars.map((bar) => ({
-      time: bar.date,
+      time: bar.time,
       open: bar.open,
       high: bar.high,
       low: bar.low,
@@ -11494,10 +11857,26 @@ PAGE_JS = """
       lastValueVisible: false
     });
     volumeSeries.setData(bars.map((bar) => ({
-      time: bar.date,
+      time: bar.time,
       value: bar.volume,
       color: bar.close >= bar.open ? "rgba(255, 107, 77, 0.28)" : "rgba(109, 164, 255, 0.24)"
     })));
+
+    const ma5Data = bars
+      .map((bar, index) => (ma5[index] ? { time: bar.time, value: ma5[index] } : null))
+      .filter(Boolean);
+    const ma20Data = bars
+      .map((bar, index) => (ma20[index] ? { time: bar.time, value: ma20[index] } : null))
+      .filter(Boolean);
+    const ma60Data = bars
+      .map((bar, index) => (ma60[index] ? { time: bar.time, value: ma60[index] } : null))
+      .filter(Boolean);
+    const bollUpperData = bars
+      .map((bar, index) => (bollinger[index] ? { time: bar.time, value: bollinger[index].upper } : null))
+      .filter(Boolean);
+    const bollLowerData = bars
+      .map((bar, index) => (bollinger[index] ? { time: bar.time, value: bollinger[index].lower } : null))
+      .filter(Boolean);
 
     const ma5Series = chartApi.addSeries(TV.LineSeries, {
       color: "#d7ff3f",
@@ -11505,9 +11884,7 @@ PAGE_JS = """
       priceLineVisible: false,
       lastValueVisible: false
     });
-    ma5Series.setData(bars
-      .map((bar, index) => (ma5[index] ? { time: bar.date, value: ma5[index] } : null))
-      .filter(Boolean));
+    ma5Series.setData(ma5Data);
 
     const ma20Series = chartApi.addSeries(TV.LineSeries, {
       color: "#c79a3a",
@@ -11516,9 +11893,49 @@ PAGE_JS = """
       priceLineVisible: false,
       lastValueVisible: false
     });
-    ma20Series.setData(bars
-      .map((bar, index) => (ma20[index] ? { time: bar.date, value: ma20[index] } : null))
-      .filter(Boolean));
+    ma20Series.setData(ma20Data);
+
+    const ma60Series = chartApi.addSeries(TV.LineSeries, {
+      color: "#8fd8bd",
+      lineWidth: 2,
+      lineStyle: TV.LineStyle?.Dotted ?? 1,
+      priceLineVisible: false,
+      lastValueVisible: false
+    });
+    ma60Series.setData([]);
+
+    const bollUpperSeries = chartApi.addSeries(TV.LineSeries, {
+      color: "rgba(143, 216, 189, 0.62)",
+      lineWidth: 1,
+      lineStyle: TV.LineStyle?.Dashed ?? 2,
+      priceLineVisible: false,
+      lastValueVisible: false
+    });
+    const bollLowerSeries = chartApi.addSeries(TV.LineSeries, {
+      color: "rgba(143, 216, 189, 0.62)",
+      lineWidth: 1,
+      lineStyle: TV.LineStyle?.Dashed ?? 2,
+      priceLineVisible: false,
+      lastValueVisible: false
+    });
+    bollUpperSeries.setData([]);
+    bollLowerSeries.setData([]);
+
+    const volumeData = bars.map((bar) => ({
+      time: bar.time,
+      value: bar.volume,
+      color: bar.close >= bar.open ? "rgba(255, 107, 77, 0.28)" : "rgba(109, 164, 255, 0.24)"
+    }));
+    refreshChartIndicators = () => {
+      ma5Series.setData(indicatorState.ma5 ? ma5Data : []);
+      ma20Series.setData(indicatorState.ma20 ? ma20Data : []);
+      ma60Series.setData(indicatorState.ma60 ? ma60Data : []);
+      bollUpperSeries.setData(indicatorState.bollinger ? bollUpperData : []);
+      bollLowerSeries.setData(indicatorState.bollinger ? bollLowerData : []);
+      volumeSeries.setData(indicatorState.volume ? volumeData : []);
+      drawLegend();
+    };
+    refreshChartIndicators();
 
     chartApi.priceScale("right").applyOptions({ scaleMargins: { top: 0.08, bottom: 0.3 } });
     chartApi.priceScale("volume").applyOptions({ scaleMargins: { top: 0.76, bottom: 0 } });
@@ -11556,10 +11973,12 @@ PAGE_JS = """
         return;
       }
       const key = timeKey(param.time);
-      const bar = barByDate.get(key);
+      const bar = barByTime.get(key);
       updateHtmlTooltip(bar, param.point);
       drawLegend(bar);
     });
+
+    setupTrendDrawing(chartApi, candleSeries);
 
     const resize = () => {
       const nextRect = chartNode.getBoundingClientRect();
@@ -11568,6 +11987,7 @@ PAGE_JS = """
         height: Math.max(260, Math.floor(nextRect.height || 420))
       });
       chartApi.timeScale().fitContent();
+      updateTrendLayer(chartApi, candleSeries);
     };
     if ("ResizeObserver" in window) {
       new ResizeObserver(resize).observe(chartNode);
@@ -11703,8 +12123,10 @@ PAGE_JS = """
         const isUp = bar.close >= bar.open;
         const color = isUp ? "#ff6b4d" : "#6da4ff";
         const volumeY = volumeBottom - (bar.volume / maxVolume) * (volumeBottom - volumeTop);
-        ctx.fillStyle = isUp ? "rgba(255, 107, 77, 0.22)" : "rgba(109, 164, 255, 0.2)";
-        ctx.fillRect(x - candleWidth / 2, volumeY, candleWidth, Math.max(1, volumeBottom - volumeY));
+        if (indicatorState.volume) {
+          ctx.fillStyle = isUp ? "rgba(255, 107, 77, 0.22)" : "rgba(109, 164, 255, 0.2)";
+          ctx.fillRect(x - candleWidth / 2, volumeY, candleWidth, Math.max(1, volumeBottom - volumeY));
+        }
         ctx.strokeStyle = color;
         ctx.fillStyle = color;
         ctx.lineWidth = 1.2;
@@ -11722,8 +12144,13 @@ PAGE_JS = """
       });
 
       drawLine(closes, width, left, right, top, priceBottom, "rgba(143, 216, 189, 0.9)");
-      drawLine(ma5, width, left, right, top, priceBottom, "#d7ff3f");
-      drawLine(ma20, width, left, right, top, priceBottom, "#c79a3a", [4, 4]);
+      if (indicatorState.ma5) drawLine(ma5, width, left, right, top, priceBottom, "#d7ff3f");
+      if (indicatorState.ma20) drawLine(ma20, width, left, right, top, priceBottom, "#c79a3a", [4, 4]);
+      if (indicatorState.ma60) drawLine(ma60, width, left, right, top, priceBottom, "#8fd8bd", [2, 4]);
+      if (indicatorState.bollinger) {
+        drawLine(bollinger.map((item) => item?.upper ?? null), width, left, right, top, priceBottom, "rgba(143, 216, 189, 0.7)", [5, 5]);
+        drawLine(bollinger.map((item) => item?.lower ?? null), width, left, right, top, priceBottom, "rgba(143, 216, 189, 0.7)", [5, 5]);
+      }
 
       const lastClose = closes[closes.length - 1];
       const lastX = xAt(bars.length - 1, width, left, right);
@@ -11775,6 +12202,7 @@ PAGE_JS = """
       updateHtmlTooltip(null);
       draw();
     });
+    refreshChartIndicators = draw;
     drawLegend();
     return true;
   }
@@ -11786,6 +12214,7 @@ PAGE_JS = """
     // Keep the public page usable if the external chart library is blocked.
   }
   if (!chartRendered) renderCanvasFallback();
+  bindIndicatorControls();
 
   const simulationNode = document.getElementById("simulationPreview");
   if (simulationNode) {
