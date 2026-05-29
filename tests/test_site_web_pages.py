@@ -141,13 +141,6 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "chart-interval-tabs" in html
     assert "chart-attribution" in html
     assert "TradingView" in html
-    assert "advancedPriceChart" in html
-    assert 'data-tv-datafeed="/api/tradingview"' in html
-    assert "createTradingViewDatafeed" in html
-    assert "renderAdvancedTradingViewChart" in html
-    assert "TradingView.widget" in html
-    assert "getServerTime" in html
-    assert 'createStudy?.("Moving Average"' in html
     assert "lightweight-charts@5.2.0" in html
     assert "CandlestickSeries" in html
     assert "HistogramSeries" in html

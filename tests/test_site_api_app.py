@@ -1,12 +1,11 @@
-from datetime import date, datetime, time as datetime_time
+from datetime import date
 from decimal import Decimal
 from unittest.mock import MagicMock
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 from fastapi.testclient import TestClient
 
-from tradingagents.dataflows.chart_data import ChartSeries, LatestPrice, OhlcvPoint
+from tradingagents.dataflows.chart_data import LatestPrice
 from tradingagents.dataflows import pykrx_vendor
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.site.api_app import create_app
@@ -75,10 +74,6 @@ def _seed_public_analysis(repo: StorageRepository) -> None:
         )
     )
     repo.complete_analysis_run(run_id)
-
-
-def _korea_timestamp(day: date) -> int:
-    return int(datetime.combine(day, datetime_time.min, tzinfo=ZoneInfo("Asia/Seoul")).timestamp())
 
 
 def _seed_public_buy_analysis(repo: StorageRepository) -> str:
@@ -164,89 +159,6 @@ def test_api_app_public_stock_api_resolves_company_name():
     body = response.json()
     assert body["ticker"]["code"] == "376900"
     assert body["ticker"]["name"] == "로킷헬스케어"
-
-
-def test_api_app_serves_tradingview_datafeed(monkeypatch):
-    captured: dict[str, str] = {}
-
-    def fake_chart_series(symbol, start_date, end_date, *, vendor, interval):
-        captured.update(
-            {
-                "symbol": symbol,
-                "start_date": start_date,
-                "end_date": end_date,
-                "vendor": vendor,
-                "interval": interval,
-            }
-        )
-        return ChartSeries(
-            ticker_code="005930",
-            ticker_name="삼성전자",
-            market="KOSPI",
-            currency="KRW",
-            vendor="pykrx",
-            interval="1d",
-            points=[
-                OhlcvPoint("2026-05-04", open=70_000, high=71_000, low=69_000, close=70_500, volume=1000),
-                OhlcvPoint("2026-05-05", open=71_000, high=72_000, low=70_000, close=71_500, volume=1200),
-            ],
-        )
-
-    monkeypatch.setattr("tradingagents.site.tradingview_datafeed_api.get_ohlcv_chart_series", fake_chart_series)
-
-    client = TestClient(create_app(repo=None, load_repo_from_env=False))
-    config = client.get("/api/tradingview/config")
-    search = client.get("/api/tradingview/search", params={"query": "삼성", "limit": 5})
-    symbol = client.get("/api/tradingview/symbols", params={"symbol": "KRX:005930"})
-    history = client.get(
-        "/api/tradingview/history",
-        params={
-            "symbol": "KOSPI:005930",
-            "resolution": "D",
-            "from": _korea_timestamp(date(2026, 5, 4)),
-            "to": _korea_timestamp(date(2026, 5, 5)),
-        },
-    )
-    tv_time = client.get("/api/tradingview/time")
-
-    assert config.status_code == 200
-    assert {"1", "5", "15", "30", "60", "D", "W", "M"}.issubset(
-        set(config.json()["supported_resolutions"])
-    )
-    assert search.status_code == 200
-    assert search.json()[0]["symbol"] == "005930"
-    assert search.json()[0]["description"] == "삼성전자"
-    assert symbol.status_code == 200
-    assert symbol.json()["ticker"] == "005930"
-    assert symbol.json()["description"] == "삼성전자"
-    assert symbol.json()["has_intraday"] is True
-    assert symbol.json()["intraday_multipliers"] == ["1", "5", "15", "30", "60"]
-    assert history.status_code == 200
-    assert history.json()["s"] == "ok"
-    assert history.json()["c"] == [70500.0, 71500.0]
-    assert history.json()["v"] == [1000, 1200]
-    assert captured == {
-        "symbol": "005930",
-        "start_date": "2026-05-04",
-        "end_date": "2026-05-05",
-        "vendor": "pykrx",
-        "interval": "1d",
-    }
-    assert tv_time.status_code == 200
-    assert tv_time.headers["cache-control"] == "no-store"
-    assert tv_time.text.strip().isdigit()
-
-
-def test_api_app_serves_charting_library_placeholder_when_asset_missing():
-    client = TestClient(create_app(repo=None, load_repo_from_env=False))
-
-    response = client.get("/charting_library/charting_library.js")
-    missing_asset = client.get("/charting_library/static/bundles/missing.css")
-
-    assert response.status_code == 200
-    assert response.headers["cache-control"] == "no-store"
-    assert response.text == ""
-    assert missing_asset.status_code == 404
 
 
 def test_api_app_serves_public_simulation_preview(monkeypatch):

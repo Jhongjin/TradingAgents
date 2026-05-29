@@ -160,8 +160,7 @@ def render_public_stock_page(
           <div class="chart-tooltip" id="chartTooltip" hidden></div>
           <p id="chartFallback" class="chart-fallback" hidden>{_h(model["chart_fallback"])}</p>
         </div>
-        <div id="advancedPriceChart" class="advanced-chart-shell" data-tv-symbol="{_h(model["code"])}" data-tv-datafeed="/api/tradingview" data-tv-library-path="/charting_library/" hidden></div>
-        <p class="chart-attribution"><a href="https://www.tradingview.com/" rel="noopener noreferrer" target="_blank">TradingView</a> 전문 차트 연결을 우선 사용하고, 연결 전에는 기본 차트로 표시합니다.</p>
+        <p class="chart-attribution"><a href="https://www.tradingview.com/" rel="noopener noreferrer" target="_blank">TradingView Lightweight Charts</a> 기반 차트입니다.</p>
       </section>
 
       <aside class="side-rail" aria-label="핵심 지표">
@@ -5087,20 +5086,6 @@ h3 {
   aspect-ratio: 16 / 10;
 }
 
-.advanced-chart-shell {
-  position: relative;
-  min-height: 520px;
-  aspect-ratio: 16 / 10;
-  overflow: hidden;
-  border: 1px solid rgba(246, 243, 232, 0.16);
-  border-radius: 6px;
-  background: rgba(11, 18, 13, 0.78);
-}
-
-.advanced-chart-shell[hidden] {
-  display: none;
-}
-
 .chart-attribution {
   margin: 10px 0 0;
   color: var(--muted);
@@ -8306,12 +8291,6 @@ h3 {
   .chart-wrap {
     height: min(72vw, 340px);
     min-height: 260px;
-    aspect-ratio: auto;
-  }
-
-  .advanced-chart-shell {
-    height: min(84vw, 420px);
-    min-height: 320px;
     aspect-ratio: auto;
   }
 
@@ -11903,173 +11882,6 @@ PAGE_JS = """
     }
   }
 
-  function tradingViewResolution(interval) {
-    return {
-      "1d": "D",
-      "1wk": "W",
-      "1mo": "M",
-      "60m": "60",
-      "30m": "30",
-      "15m": "15",
-      "5m": "5",
-      "1m": "1"
-    }[String(interval || "1d")] || "D";
-  }
-
-  function tradingViewSymbolName() {
-    const ticker = payload.ticker || {};
-    const code = String(ticker.code || chart.ticker_code || "").trim();
-    const market = String(ticker.market || chart.market || "KRX").trim() || "KRX";
-    return code ? `${market}:${code}` : "";
-  }
-
-  function udfUrl(baseUrl, path, params = {}) {
-    const url = new URL(`${baseUrl.replace(new RegExp("/$"), "")}/${path}`, window.location.origin);
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, value);
-    });
-    return url.toString();
-  }
-
-  async function loadJson(url) {
-    const response = await fetch(url, { headers: { "Accept": "application/json" } });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
-  }
-
-  function createTradingViewDatafeed(baseUrl) {
-    return {
-      onReady(callback) {
-        loadJson(udfUrl(baseUrl, "config"))
-          .then((config) => setTimeout(() => callback(config), 0))
-          .catch(() => setTimeout(() => callback({
-            supports_search: true,
-            supports_group_request: false,
-            supports_marks: false,
-            supports_timescale_marks: false,
-            supports_time: true,
-            supported_resolutions: ["1", "5", "15", "30", "60", "D", "W", "M"]
-          }), 0));
-      },
-      searchSymbols(userInput, exchange, symbolType, onResultReadyCallback) {
-        loadJson(udfUrl(baseUrl, "search", {
-          query: userInput,
-          exchange,
-          type: symbolType,
-          limit: 30
-        }))
-          .then((items) => onResultReadyCallback(Array.isArray(items) ? items : []))
-          .catch(() => onResultReadyCallback([]));
-      },
-      resolveSymbol(symbolName, onSymbolResolvedCallback, onResolveErrorCallback) {
-        loadJson(udfUrl(baseUrl, "symbols", { symbol: symbolName }))
-          .then(onSymbolResolvedCallback)
-          .catch((error) => onResolveErrorCallback(error.message || "symbol not found"));
-      },
-      getBars(symbolInfo, resolution, periodParams, onHistoryCallback, onErrorCallback) {
-        const from = periodParams?.from || Math.floor(Date.now() / 1000) - 86400 * 180;
-        const to = periodParams?.to || Math.floor(Date.now() / 1000);
-        loadJson(udfUrl(baseUrl, "history", {
-          symbol: symbolInfo.ticker || symbolInfo.name,
-          resolution,
-          from,
-          to,
-          countback: periodParams?.countBack
-        }))
-          .then((payload) => {
-            if (payload.s === "error") {
-              onErrorCallback(payload.errmsg || "history error");
-              return;
-            }
-            if (payload.s === "no_data") {
-              onHistoryCallback([], { noData: true });
-              return;
-            }
-            const rows = (payload.t || []).map((time, index) => ({
-              time: Number(time) * 1000,
-              open: Number(payload.o?.[index]),
-              high: Number(payload.h?.[index]),
-              low: Number(payload.l?.[index]),
-              close: Number(payload.c?.[index]),
-              volume: Number(payload.v?.[index] || 0)
-            })).filter((bar) => [bar.time, bar.open, bar.high, bar.low, bar.close].every(Number.isFinite));
-            onHistoryCallback(rows, { noData: rows.length === 0 });
-          })
-          .catch((error) => onErrorCallback(error.message || "history error"));
-      },
-      getServerTime(callback) {
-        fetch(udfUrl(baseUrl, "time"))
-          .then((response) => response.text())
-          .then((value) => callback(Number(value)))
-          .catch(() => callback(Math.floor(Date.now() / 1000)));
-      },
-      subscribeBars() {},
-      unsubscribeBars() {}
-    };
-  }
-
-  async function ensureTradingViewAdvancedLibrary(libraryPath) {
-    if (window.TradingView && typeof window.TradingView.widget === "function") return true;
-    const base = libraryPath.replace(new RegExp("/$"), "");
-    const src = `${base}/charting_library.js`;
-    await new Promise((resolve) => {
-      const script = document.createElement("script");
-      script.src = src;
-      script.async = true;
-      script.onload = resolve;
-      script.onerror = resolve;
-      document.head.appendChild(script);
-    });
-    return Boolean(window.TradingView && typeof window.TradingView.widget === "function");
-  }
-
-  async function renderAdvancedTradingViewChart() {
-    const advancedNode = document.getElementById("advancedPriceChart");
-    if (!advancedNode) return false;
-    const symbol = tradingViewSymbolName();
-    if (!symbol) return false;
-    const libraryPath = advancedNode.dataset.tvLibraryPath || "/charting_library/";
-    const datafeedBase = advancedNode.dataset.tvDatafeed || "/api/tradingview";
-    if (!(await ensureTradingViewAdvancedLibrary(libraryPath))) return false;
-
-    const chartWrap = chartNode.closest(".chart-wrap");
-    if (fallback) fallback.hidden = true;
-    if (canvas) canvas.hidden = true;
-    if (chartWrap) chartWrap.hidden = true;
-    document.querySelector(".chart-tools")?.setAttribute("hidden", "true");
-    advancedNode.hidden = false;
-
-    const widget = new window.TradingView.widget({
-      autosize: true,
-      container: advancedNode.id,
-      datafeed: createTradingViewDatafeed(datafeedBase),
-      library_path: libraryPath,
-      locale: "ko",
-      symbol,
-      interval: tradingViewResolution(chart.interval),
-      timezone: "Asia/Seoul",
-      theme: "dark",
-      disabled_features: ["use_localstorage_for_settings"],
-      enabled_features: ["study_templates"],
-      studies_overrides: {
-        "volume.volume.color.0": "rgba(109, 164, 255, 0.35)",
-        "volume.volume.color.1": "rgba(255, 107, 77, 0.38)"
-      }
-    });
-    if (typeof widget.onChartReady === "function") {
-      widget.onChartReady(() => {
-        try {
-          const activeChart = widget.activeChart?.();
-          activeChart?.createStudy?.("Moving Average", false, false, { length: 5 });
-          activeChart?.createStudy?.("Moving Average", false, false, { length: 20 });
-        } catch (_) {
-          // Built-in studies remain available from the TradingView toolbar.
-        }
-      });
-    }
-    return true;
-  }
-
   function renderTradingViewChart() {
     const TV = window.LightweightCharts;
     if (!TV || typeof TV.createChart !== "function") return false;
@@ -12494,16 +12306,9 @@ PAGE_JS = """
   async function bootStockPageChart() {
     let chartRendered = false;
     try {
-      chartRendered = await renderAdvancedTradingViewChart();
+      chartRendered = renderTradingViewChart();
     } catch (error) {
       chartRendered = false;
-    }
-    if (!chartRendered) {
-      try {
-        chartRendered = renderTradingViewChart();
-      } catch (error) {
-        chartRendered = false;
-      }
     }
     if (!chartRendered) renderCanvasFallback();
     bindIndicatorControls();
