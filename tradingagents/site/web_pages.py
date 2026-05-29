@@ -2334,7 +2334,11 @@ def _chart_tools() -> str:
         <button type="button" class="chart-tool-button" data-chart-draw-trend aria-pressed="false">추세선</button>
         <button type="button" class="chart-tool-button" data-chart-clear-trends>선 지우기</button>
       </div>
-      <small id="chartToolState">추세선: 차트 위 두 지점을 클릭</small>
+      <div class="chart-tool-group">
+        <span>보기</span>
+        <button type="button" class="chart-tool-button" data-chart-fit>전체보기</button>
+      </div>
+      <small id="chartToolState">지표와 추세선을 차트 위에서 조정할 수 있습니다.</small>
     </div>
     """
 
@@ -11681,6 +11685,7 @@ PAGE_JS = """
   const trendLines = [];
   let pendingTrendPoint = null;
   let trendDrawMode = false;
+  const isIntradayChart = /m$|h$/i.test(String(chart.interval || ""));
 
   function legendChip(label) {
     const node = document.createElement("span");
@@ -11882,6 +11887,16 @@ PAGE_JS = """
     }
   }
 
+  function setupChartFitControl(chartApi, candleSeries) {
+    const fitButton = document.querySelector("[data-chart-fit]");
+    if (!fitButton || !chartApi) return;
+    fitButton.addEventListener("click", () => {
+      chartApi.timeScale().fitContent();
+      updateTrendLayer(chartApi, candleSeries);
+      setChartToolState("전체 기간을 화면에 맞췄습니다.");
+    });
+  }
+
   function renderTradingViewChart() {
     const TV = window.LightweightCharts;
     if (!TV || typeof TV.createChart !== "function") return false;
@@ -11924,7 +11939,7 @@ PAGE_JS = """
         borderColor: "rgba(246, 243, 232, 0.14)",
         fixLeftEdge: true,
         fixRightEdge: true,
-        timeVisible: false,
+        timeVisible: isIntradayChart,
         secondsVisible: false
       }
     });
@@ -12075,6 +12090,7 @@ PAGE_JS = """
     });
 
     setupTrendDrawing(chartApi, candleSeries);
+    setupChartFitControl(chartApi, candleSeries);
 
     const resize = () => {
       const nextRect = chartNode.getBoundingClientRect();

@@ -146,6 +146,9 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "HistogramSeries" in html
     assert "createSeriesMarkers" in html
     assert "chartSimulationMarkers" in html
+    assert "data-chart-fit" in html
+    assert "전체보기" in html
+    assert "timeVisible: isIntradayChart" in html
     assert "모의 진입" in html
     assert "stock-hero-stack" in html
     assert "stock-signal-card" in html
