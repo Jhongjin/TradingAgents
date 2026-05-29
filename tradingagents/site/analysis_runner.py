@@ -62,24 +62,51 @@ def _date_string(value: Any) -> str:
 def _configure_worker_write_paths(graph_config: dict[str, Any], overrides: Mapping[str, Any]) -> None:
     """Keep Vercel worker runs away from read-only home directories."""
 
-    worker_root = os.path.join(tempfile.gettempdir(), "tradingagents", "worker")
-    if not overrides.get("results_dir") and not os.getenv("TRADINGAGENTS_RESULTS_DIR"):
-        graph_config["results_dir"] = os.path.join(worker_root, "logs")
-    if not overrides.get("data_cache_dir") and not os.getenv("TRADINGAGENTS_CACHE_DIR"):
-        graph_config["data_cache_dir"] = os.path.join(worker_root, "cache")
-    if not overrides.get("memory_log_path") and not os.getenv("TRADINGAGENTS_MEMORY_LOG_PATH"):
-        graph_config["memory_log_path"] = os.path.join(worker_root, "memory", "trading_memory.md")
+    worker_root = _worker_root()
+    _configure_write_path(
+        graph_config,
+        overrides,
+        config_key="results_dir",
+        env_name="TRADINGAGENTS_RESULTS_DIR",
+        default_path=os.path.join(worker_root, "logs"),
+    )
+    _configure_write_path(
+        graph_config,
+        overrides,
+        config_key="data_cache_dir",
+        env_name="TRADINGAGENTS_CACHE_DIR",
+        default_path=os.path.join(worker_root, "cache"),
+    )
+    _configure_write_path(
+        graph_config,
+        overrides,
+        config_key="memory_log_path",
+        env_name="TRADINGAGENTS_MEMORY_LOG_PATH",
+        default_path=os.path.join(worker_root, "memory", "trading_memory.md"),
+    )
 
 
 @contextmanager
 def _worker_write_env(graph_config: Mapping[str, Any], overrides: Mapping[str, Any]) -> Iterator[None]:
     updates: dict[str, str] = {}
-    if overrides.get("data_cache_dir") or not os.getenv("TRADINGAGENTS_CACHE_DIR"):
-        updates["TRADINGAGENTS_CACHE_DIR"] = str(graph_config["data_cache_dir"])
-    if overrides.get("results_dir") or not os.getenv("TRADINGAGENTS_RESULTS_DIR"):
-        updates["TRADINGAGENTS_RESULTS_DIR"] = str(graph_config["results_dir"])
-    if overrides.get("memory_log_path") or not os.getenv("TRADINGAGENTS_MEMORY_LOG_PATH"):
-        updates["TRADINGAGENTS_MEMORY_LOG_PATH"] = str(graph_config["memory_log_path"])
+    for config_key, env_name in (
+        ("data_cache_dir", "TRADINGAGENTS_CACHE_DIR"),
+        ("results_dir", "TRADINGAGENTS_RESULTS_DIR"),
+        ("memory_log_path", "TRADINGAGENTS_MEMORY_LOG_PATH"),
+    ):
+        desired = str(graph_config[config_key])
+        if overrides.get(config_key) or os.getenv(env_name) != desired:
+            updates[env_name] = desired
+
+    if _serverless_runtime():
+        worker_root = _worker_root()
+        worker_home = os.path.join(worker_root, "home")
+        updates["HOME"] = worker_home
+        updates.setdefault("XDG_CACHE_HOME", os.path.join(worker_root, "xdg-cache"))
+        updates.setdefault("MPLCONFIGDIR", os.path.join(worker_root, "matplotlib"))
+        updates.setdefault("HF_HOME", os.path.join(worker_root, "hf"))
+
+    _ensure_worker_write_dirs(graph_config, updates)
 
     previous = {key: os.environ.get(key) for key in updates}
     os.environ.update(updates)
@@ -91,3 +118,38 @@ def _worker_write_env(graph_config: Mapping[str, Any], overrides: Mapping[str, A
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
+
+
+def _worker_root() -> str:
+    return os.path.join(tempfile.gettempdir(), "tradingagents", "worker")
+
+
+def _serverless_runtime() -> bool:
+    return bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
+
+def _configure_write_path(
+    graph_config: dict[str, Any],
+    overrides: Mapping[str, Any],
+    *,
+    config_key: str,
+    env_name: str,
+    default_path: str,
+) -> None:
+    if overrides.get(config_key):
+        return
+    env_value = os.getenv(env_name)
+    if env_value and not _serverless_runtime():
+        graph_config[config_key] = env_value
+        return
+    graph_config[config_key] = default_path
+
+
+def _ensure_worker_write_dirs(graph_config: Mapping[str, Any], updates: Mapping[str, str]) -> None:
+    for config_key in ("data_cache_dir", "results_dir"):
+        os.makedirs(str(graph_config[config_key]), exist_ok=True)
+    os.makedirs(os.path.dirname(str(graph_config["memory_log_path"])), exist_ok=True)
+    for env_name in ("HOME", "XDG_CACHE_HOME", "MPLCONFIGDIR", "HF_HOME"):
+        path = updates.get(env_name)
+        if path:
+            os.makedirs(path, exist_ok=True)

@@ -24,6 +24,10 @@ class FakeGraph:
             "TRADINGAGENTS_RESULTS_DIR": os.getenv("TRADINGAGENTS_RESULTS_DIR"),
             "TRADINGAGENTS_CACHE_DIR": os.getenv("TRADINGAGENTS_CACHE_DIR"),
             "TRADINGAGENTS_MEMORY_LOG_PATH": os.getenv("TRADINGAGENTS_MEMORY_LOG_PATH"),
+            "HOME": os.getenv("HOME"),
+            "XDG_CACHE_HOME": os.getenv("XDG_CACHE_HOME"),
+            "MPLCONFIGDIR": os.getenv("MPLCONFIGDIR"),
+            "HF_HOME": os.getenv("HF_HOME"),
         }
         self.calls.append((ticker, trade_date))
         return {}, "Hold"
@@ -101,3 +105,36 @@ def test_tradingagents_runner_preserves_explicit_write_paths(tmp_path):
     assert graph.config["data_cache_dir"] == paths["data_cache_dir"]
     assert graph.config["memory_log_path"] == paths["memory_log_path"]
     assert graph.env["TRADINGAGENTS_CACHE_DIR"] == paths["data_cache_dir"]
+
+
+def test_tradingagents_runner_routes_serverless_write_paths_to_tmp(monkeypatch):
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setenv("HOME", "/home/sbx_user1051")
+    monkeypatch.setenv("TRADINGAGENTS_RESULTS_DIR", "/home/sbx_user1051/.tradingagents/logs")
+    monkeypatch.setenv("TRADINGAGENTS_CACHE_DIR", "/home/sbx_user1051/.tradingagents/cache")
+    monkeypatch.setenv("TRADINGAGENTS_MEMORY_LOG_PATH", "/home/sbx_user1051/.tradingagents/memory/trading_memory.md")
+    FakeGraph.instances = []
+    request = {
+        "ticker_code": "005930",
+        "requested_trade_date": "2026-05-05",
+    }
+
+    run_tradingagents_graph_for_request(
+        request,
+        config={"database_url": "sqlite+pysqlite:///:memory:"},
+        graph_factory=FakeGraph,
+    )
+
+    worker_root = os.path.join(tempfile.gettempdir(), "tradingagents", "worker")
+    graph = FakeGraph.instances[0]
+    assert graph.config["results_dir"] == os.path.join(worker_root, "logs")
+    assert graph.config["data_cache_dir"] == os.path.join(worker_root, "cache")
+    assert graph.config["memory_log_path"] == os.path.join(worker_root, "memory", "trading_memory.md")
+    assert graph.env["TRADINGAGENTS_CACHE_DIR"] == graph.config["data_cache_dir"]
+    assert graph.env["TRADINGAGENTS_RESULTS_DIR"] == graph.config["results_dir"]
+    assert graph.env["TRADINGAGENTS_MEMORY_LOG_PATH"] == graph.config["memory_log_path"]
+    assert graph.env["HOME"] == os.path.join(worker_root, "home")
+    assert graph.env["XDG_CACHE_HOME"] == os.path.join(worker_root, "xdg-cache")
+    assert graph.env["MPLCONFIGDIR"] == os.path.join(worker_root, "matplotlib")
+    assert graph.env["HF_HOME"] == os.path.join(worker_root, "hf")
+    assert os.getenv("HOME") == "/home/sbx_user1051"

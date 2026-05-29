@@ -621,8 +621,11 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied(monkeypat
     assert "현재 최대 1건" in html
     assert "syncWorkerLimits" in html
     assert "limitFromControl" in html
+    assert "대상 보기" in html
+    assert "리포트 생성" in html
     assert "data-admin-action=\"paper-dry-run\"" in html
     assert "data-admin-action=\"paper-process\"" in html
+    assert "모의매매 저장" in html
     assert "/api/admin/paper-simulations/process" in html
     assert "AI 가상매매" in html
     assert "가상 보유 재평가" in html
@@ -647,16 +650,16 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied(monkeypat
     assert "probe_vendors" in html
     assert "vendor_probes" in html
     assert "요청 제한 헤더" in html
-    assert "대상 확인 우선" in html
+    assert "대상 보기 우선" in html
     assert "분석 요청 처리" in html
     assert "5일/20일 결과 기록" in html
     assert "AI 가상매매 기록" in html
     assert "실제 주문은 없습니다." in html
-    assert "대상 확인은 저장 없이 조회만 합니다." in html
-    assert "대기열 처리는 요청 상태를 처리 중으로 바꾸고 공개 리포트를 생성합니다." in html
-    assert "결과 저장은 5일/20일 수익률과 벤치마크 차이를 저장합니다." in html
-    assert "가상 기록은 실제 주문 없이 AI 모의매매 기록만 저장합니다." in html
-    assert "대상 확인 중" in html
+    assert "대상 보기는 저장하지 않습니다." in html
+    assert "리포트 생성은 요청 상태를 처리 중으로 바꾸고 공개 리포트를 만듭니다." in html
+    assert "결과 저장은 5일/20일 수익률과 벤치마크 차이를 남깁니다." in html
+    assert "모의매매 저장은 실제 주문 없이 AI의 가상 진입·청산 기록만 남깁니다." in html
+    assert "대상 보는 중" in html
     assert "분석 리포트 생성 결과입니다." in html
     assert "한 번 더 눌러 실행" in html
     assert 'data-admin-action$="process"][data-confirmed="true"]' in html
