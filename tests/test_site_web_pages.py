@@ -378,7 +378,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "/api/member/paper-simulations" in html
     assert "member-admin-card" in html
     assert "data-admin-token-visible hidden" not in html
-    assert "운영자 콘솔" in html
+    assert "운영 콘솔" in html
     assert "상태 점검과 작업 처리를 실행합니다." in html
     assert "adminTokenItems" not in html
     assert "운영 열기" in html

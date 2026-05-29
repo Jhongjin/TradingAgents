@@ -1772,7 +1772,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <article class="admin-card">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">분석 기반 모의매매</p>
+            <p class="eyebrow">분석 기반 가상매매</p>
             <h2>AI 가상매매 기록</h2>
           </div>
           <span class="status-pill">주문 없음</span>
@@ -1977,7 +1977,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <article>
               <span>AI 가상매매</span>
               <strong id="memberOverviewPaperSimulations">0</strong>
-              <small>모의매매</small>
+              <small>가상매매</small>
             </article>
           </section>
           <p class="member-home-state-note" id="memberHomeStateNote" aria-live="polite">저장된 항목을 불러오고 있습니다.</p>
@@ -2022,7 +2022,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             </article>
             <article class="member-home-card member-admin-card">
               <span>06</span>
-              <strong>운영자 콘솔</strong>
+              <strong>운영 콘솔</strong>
               <small>상태 점검과 작업 처리를 실행합니다.</small>
               <a class="ghost-button member-admin-link" href="/admin">운영 열기</a>
             </article>
@@ -12168,7 +12168,7 @@ ADMIN_PAGE_JS = """
       recentPanel.appendChild(renderRecentList("기록 후보", "결과 기록", outcomes.candidate_runs || [], runLabel));
       recentPanel.appendChild(renderRecentList("최근 완료 기록", "결과", outcomes.recent_completed || [], outcomeLabel));
       recentPanel.appendChild(renderRecentList("보류/데이터 없음", "확인 필요", [...(outcomes.recent_pending || []), ...(outcomes.recent_unavailable || [])], outcomeIssueLabel));
-      recentPanel.appendChild(renderRecentList("AI 가상매매 대기", "모의매매", paper.candidate_runs || [], paperCandidateLabel));
+      recentPanel.appendChild(renderRecentList("AI 가상매매 대기", "가상매매", paper.candidate_runs || [], paperCandidateLabel));
       recentPanel.appendChild(renderRecentList("가상 보유 재평가", "보유 중", paper.open_positions || [], paperOpenLabel));
     }
   }
@@ -12197,10 +12197,10 @@ ADMIN_PAGE_JS = """
       if (isDryRun || payload?.status === "dry_run") {
         const rows = Array.isArray(payload?.items) ? payload.items : [];
         const openRows = Array.isArray(payload?.open_positions) ? payload.open_positions : [];
-        const limitNote = payload?.notice || "완료된 분석 리포트 중 아직 모의매매 기록이 없는 항목입니다.";
+        const limitNote = payload?.notice || "완료된 분석 리포트 중 아직 가상매매 기록이 없는 항목입니다.";
         appendActionCell(fragment, "새 기록", String(payload?.candidate_count ?? rows.length), limitNote, rows.length ? "is-warn" : "is-ok");
         appendActionCell(fragment, "재평가", String(payload?.open_position_count ?? openRows.length), "가상 보유 중인 기록을 최신 가격으로 다시 확인합니다.", openRows.length ? "is-warn" : "is-ok");
-        appendActionCell(fragment, "실행 경계", "가상", "실제 주문 없이, 분석 리포트 기준의 모의매매 기록만 저장합니다.", "is-ok");
+        appendActionCell(fragment, "실행 경계", "가상", "실제 주문 없이, 분석 리포트 기준의 가상매매 기록만 저장합니다.", "is-ok");
       } else {
         const summary = payload?.summary || {};
         const results = Array.isArray(payload?.results) ? payload.results : [];
