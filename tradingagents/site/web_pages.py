@@ -14207,6 +14207,7 @@ MEMBER_PAGE_JS = """
 
   function paperSimulationLines(row) {
     const lines = [];
+    if (row.metadata?.pattern_label) lines.push(`진입 패턴 ${row.metadata.pattern_label}`);
     if (row.entry_date) lines.push(`모의 진입 ${shortDate(row.entry_date)} @ ${money(row.entry_price)}`);
     if (row.exit_date) lines.push(`모의 청산 ${shortDate(row.exit_date)} @ ${money(row.exit_price)} / ${exitReasonLabel(row.exit_reason)}`);
     if (!row.exit_date && row.metadata?.mark_date) lines.push(`최근 평가 ${shortDate(row.metadata.mark_date)} @ ${money(row.metadata.mark_price)} / ${signedPercent(row.metadata.unrealized_return)}`);
@@ -14229,13 +14230,14 @@ MEMBER_PAGE_JS = """
     if (row.report_path) actions.append(inlineLink("리포트", row.report_path));
     const currentPrice = row.exit_price || row.metadata?.mark_price;
     const currentDate = row.exit_date || row.metadata?.mark_date;
+    const patternLabel = row.metadata?.pattern_label || "";
     node.append(
       cardHeader(title, meta, paperStatusLabel(status)),
       metricGrid([
         ["진입가", money(row.entry_price), shortDate(row.entry_date)],
         ["청산/평가", currentPrice ? money(currentPrice) : "-", currentDate ? shortDate(currentDate) : "보유 중"],
         ["손익", row.status === "open" ? signedPercent(row.metadata?.unrealized_return) : signedMoney(row.realized_pnl), row.status === "open" ? "평가 기준" : signedPercent(row.realized_return)],
-        ["규칙", exitReasonLabel(row.exit_reason), "모의 기준"]
+        ["패턴", patternLabel || exitReasonLabel(row.exit_reason), patternLabel ? "진입 시점" : "모의 기준"]
       ]),
       miniList(paperSimulationLines(row), "AI 모의투자 상세 대기", "기록")
     );

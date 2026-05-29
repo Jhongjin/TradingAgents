@@ -478,6 +478,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "paperSimulationCard" in html
     assert "paperLearningNote" in html
     assert "복기 요약" in html
+    assert "진입 패턴" in html
+    assert "pattern_label" in html
     assert "아직 매매 일지가 없습니다" in html
     assert "아직 관심그룹이 없습니다" in html
     assert "완료 후 AI 리포트 링크를 보여줍니다." in html
