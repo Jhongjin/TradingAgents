@@ -1063,7 +1063,8 @@ def test_render_public_outcomes_page_shows_public_track_record():
 
     assert 'class="public-home market-page outcome-page"' in html
     assert '<h1 id="outcomes-title">사후 기록</h1>' in html
-    assert "리포트 후 5일/20일 결과를 시장 기준과 비교합니다" in html
+    assert "AI 리포트별 5일/20일 확인 결과입니다." in html
+    assert "시장 기준과 비교해 이후 흐름을 확인합니다." in html
     assert "outcome-filter-panel" in html
     assert "outcome-filter-state" in html
     assert "outcome-feed-toolbar" in html

@@ -439,7 +439,7 @@ def render_public_outcomes_page(
         <p class="eyebrow">사후 기록</p>
         <h1 id="outcomes-title">사후 기록</h1>
         <p class="asof">{_h(model["subtitle"])}</p>
-        <p class="outcome-hero-copy">리포트 후 5일/20일 결과를 시장 기준과 비교합니다.</p>
+        <p class="outcome-hero-copy">시장 기준과 비교해 이후 흐름을 확인합니다.</p>
         <div class="analysis-detail-actions">
           <a href="/analyses">AI 리포트</a>
           <a href="/features/outcomes">기록 기준</a>
@@ -2738,7 +2738,7 @@ def _analysis_outcomes_view_model(payload: dict[str, Any], *, site_base_url: str
         "title": "사후 기록 | TradingAgents Korea",
         "description": "TradingAgents Korea 공개 리서치의 5일/20일 이후 기록과 시장 기준 대비 차이를 확인합니다.",
         "canonical_url": canonical_url("/outcomes", site_base_url=site_base_url),
-        "subtitle": "리포트 후 5일/20일 결과를 기록합니다.",
+        "subtitle": "AI 리포트별 5일/20일 확인 결과입니다.",
         "status_label": _analysis_outcomes_status_label(payload.get("status")),
         "ticker_code": ticker_code,
         "filter_status": filter_status,
