@@ -90,6 +90,10 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/charting_library/:path*",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/index.py"
     },
