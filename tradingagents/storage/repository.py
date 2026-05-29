@@ -435,12 +435,28 @@ class StorageRepository:
         _validate_uuid(request_id, "analysis_request_id")
         _validate_analysis_request_status(status)
         values: dict[str, Any] = {"status": status, "updated_at": datetime.now(timezone.utc)}
-        if reason is not None:
-            values["reason"] = reason
-        if analysis_run_id is not None:
-            _validate_uuid(analysis_run_id, "analysis_run_id")
-            values["analysis_run_id"] = analysis_run_id
         with self.engine.begin() as conn:
+            if reason is not None and status == "failed":
+                row = (
+                    conn.execute(
+                        select(
+                            analysis_refresh_requests.c.reason,
+                            analysis_refresh_requests.c.metadata_json,
+                        ).where(analysis_refresh_requests.c.id == request_id)
+                    )
+                    .mappings()
+                    .first()
+                )
+                metadata = dict(row["metadata_json"] or {}) if row else {}
+                if row and row["reason"]:
+                    metadata.setdefault("request_reason", row["reason"])
+                metadata["failure_reason"] = reason
+                values["metadata_json"] = metadata
+            elif reason is not None:
+                values["reason"] = reason
+            if analysis_run_id is not None:
+                _validate_uuid(analysis_run_id, "analysis_run_id")
+                values["analysis_run_id"] = analysis_run_id
             conn.execute(
                 update(analysis_refresh_requests)
                 .where(analysis_refresh_requests.c.id == request_id)

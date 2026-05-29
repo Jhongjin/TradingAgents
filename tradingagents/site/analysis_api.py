@@ -360,6 +360,7 @@ def _analysis_request_item(row: dict[str, Any]) -> dict[str, Any]:
     item = dict(row)
     ticker_code = str(item.get("ticker_code") or "")
     status = item.get("status")
+    metadata = item.get("metadata_json") if isinstance(item.get("metadata_json"), dict) else {}
     analysis_run_id = str(item.get("analysis_run_id") or "")
     item["public_stock_path"] = f"/stocks/{ticker_code}" if ticker_code else None
     item["report_path"] = f"/analyses/{analysis_run_id}" if analysis_run_id else None
@@ -368,6 +369,8 @@ def _analysis_request_item(row: dict[str, Any]) -> dict[str, Any]:
     item["next_action_label"] = _analysis_request_next_action_label(status, has_report=bool(analysis_run_id))
     item["next_action_path"] = item["report_path"] or item["public_stock_path"]
     item["is_active"] = str(status or "") in ACTIVE_ANALYSIS_REQUEST_STATUSES
+    item["request_reason"] = metadata.get("request_reason") or (item.get("reason") if str(status) != "failed" else "")
+    item["failure_reason"] = metadata.get("failure_reason") or (item.get("reason") if str(status) == "failed" else "")
     return item
 
 

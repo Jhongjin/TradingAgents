@@ -208,19 +208,32 @@ def test_build_member_analysis_requests_payload_surfaces_queue_transparency(monk
             reason="refresh",
         )
     )
+    failed_request_id = repo.create_analysis_request(
+        AnalysisRequestInput(
+            user_id=USER_ID,
+            ticker_code="086520",
+            ticker_name="에코프로",
+            requested_trade_date=date(2026, 5, 7),
+            reason="실패 전 메모",
+        )
+    )
+    repo.update_analysis_request_status(failed_request_id, status="failed", reason="RuntimeError: LLM unavailable")
 
     payload = build_member_analysis_requests_payload(repo, user_id=USER_ID)
     rows = {row["id"]: row for row in payload["items"]}
 
     assert payload["summary"]["quota_policy"]["active_limit"] == 2
     assert payload["summary"]["quota_policy"]["active_used"] == 1
-    assert payload["summary"]["quota_policy"]["daily_used"] == 2
+    assert payload["summary"]["quota_policy"]["daily_used"] == 3
     assert payload["summary"]["queued_count"] == 1
     assert rows[completed_request_id]["report_path"] == f"/analyses/{run_id}"
     assert rows[completed_request_id]["next_action_label"] == "리포트 보기"
     assert rows[queued_request_id]["member_queue_position"] == 1
     assert rows[queued_request_id]["queue_scope_label"] == "내 활성 요청 기준"
     assert "평일 18:10 자동 실행" in rows[queued_request_id]["status_hint"]
+    assert rows[failed_request_id]["request_reason"] == "실패 전 메모"
+    assert rows[failed_request_id]["failure_reason"] == "RuntimeError: LLM unavailable"
+    assert rows[failed_request_id]["next_action_label"] == "메모 확인 후 재요청"
 
 
 def test_public_analysis_feed_lists_completed_public_runs_only():

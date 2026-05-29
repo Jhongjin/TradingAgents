@@ -21,6 +21,7 @@ def _queue_request(repo: StorageRepository) -> str:
             user_id=USER_ID,
             ticker_code="005930",
             requested_trade_date=date(2026, 5, 5),
+            reason="실적 발표 전 재점검",
         )
     )
 
@@ -62,7 +63,9 @@ def test_analysis_worker_marks_request_failed_when_runner_raises():
     assert results[0].status == "failed"
     assert "LLM unavailable" in results[0].error
     assert failed[0]["status"] == "failed"
-    assert "LLM unavailable" in failed[0]["reason"]
+    assert failed[0]["reason"] == "실적 발표 전 재점검"
+    assert failed[0]["metadata_json"]["request_reason"] == "실적 발표 전 재점검"
+    assert "LLM unavailable" in failed[0]["metadata_json"]["failure_reason"]
 
 
 def test_analysis_worker_rejects_invalid_limit():

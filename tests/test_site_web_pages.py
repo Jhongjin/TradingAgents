@@ -488,6 +488,10 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "member_queue_position" in html
     assert "next_action_label" in html
     assert "status_hint" in html
+    assert "request_reason" in html
+    assert "failure_reason" in html
+    assert "failureReasonLabel" in html
+    assert "실패 사유" in html
     assert "member-inline-link" in html
     assert "analysis-status-running" in html
     assert "status_counts" in html

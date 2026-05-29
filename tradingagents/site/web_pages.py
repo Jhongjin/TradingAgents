@@ -13566,10 +13566,19 @@ MEMBER_PAGE_JS = """
     const elements = analysisRequestForm.elements || {};
     if (elements.ticker) elements.ticker.value = row.ticker_code || "";
     if (elements.requested_trade_date) elements.requested_trade_date.value = String(row.requested_trade_date || "").slice(0, 10);
-    if (elements.reason) elements.reason.value = row.reason || "";
+    if (elements.reason) elements.reason.value = row.request_reason || "";
     const title = `${row.ticker_name || row.ticker_code || "분석 요청"}`.trim();
     setStatus(`${title} 재요청 내용을 입력했습니다. 확인 후 요청을 누르세요.`);
     elements.ticker?.focus();
+  }
+
+  function failureReasonLabel(value) {
+    const text = String(value || "").trim();
+    if (!text) return "실패 사유 확인 필요";
+    if (text.includes("Read-only file system")) {
+      return "서버 임시 저장 경로 문제로 실패했습니다. 다시 요청하면 수정된 worker로 처리됩니다.";
+    }
+    return text.length > 180 ? `${text.slice(0, 177)}...` : text;
   }
 
   function analysisRequestCard(row) {
@@ -13601,9 +13610,10 @@ MEMBER_PAGE_JS = """
     hint.textContent = row.status_hint || "분석 요청 상태를 확인하고 있습니다.";
 
     const details = [];
-    if (row.reason) details.push(`요청 메모 ${row.reason}`);
+    if (row.request_reason) details.push(`요청 메모 ${row.request_reason}`);
     if (status === "queued") details.push("처리 전 대기");
     if (status === "running") details.push("리포트 생성 중");
+    if (status === "failed") details.push(`실패 사유 ${failureReasonLabel(row.failure_reason || row.reason)}`);
     if (row.member_queue_position) details.push(`${row.queue_scope_label || "내 활성 요청 기준"} ${row.member_queue_position}번째`);
     if (row.analysis_run_id) details.push(`리포트 ID ${compactId(row.analysis_run_id)}`);
     if (row.public_stock_path) details.push(`종목 페이지 ${row.public_stock_path}`);
