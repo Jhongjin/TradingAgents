@@ -13560,6 +13560,18 @@ MEMBER_PAGE_JS = """
     return node;
   }
 
+  function prefillAnalysisRequest(row) {
+    if (!analysisRequestForm || !row) return;
+    activateMemberTab("analysis");
+    const elements = analysisRequestForm.elements || {};
+    if (elements.ticker) elements.ticker.value = row.ticker_code || "";
+    if (elements.requested_trade_date) elements.requested_trade_date.value = String(row.requested_trade_date || "").slice(0, 10);
+    if (elements.reason) elements.reason.value = row.reason || "";
+    const title = `${row.ticker_name || row.ticker_code || "분석 요청"}`.trim();
+    setStatus(`${title} 재요청 내용을 입력했습니다. 확인 후 요청을 누르세요.`);
+    elements.ticker?.focus();
+  }
+
   function analysisRequestCard(row) {
     const title = `${row.ticker_name || row.ticker_code || "한국 종목"} ${row.ticker_code || ""}`.trim();
     const status = row.status || "unknown";
@@ -13599,6 +13611,11 @@ MEMBER_PAGE_JS = """
 
     const actions = document.createElement("div");
     actions.className = "analysis-request-actions";
+    if (status === "failed") {
+      const retry = smallButton("다시 요청");
+      retry.addEventListener("click", () => prefillAnalysisRequest(row));
+      actions.append(retry);
+    }
     if (row.is_active) {
       const refresh = smallButton(row.next_action_label || "상태 새로고침");
       refresh.addEventListener("click", () => loadMemberData());

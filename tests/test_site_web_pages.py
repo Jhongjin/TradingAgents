@@ -397,6 +397,9 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "fillAnalysisWatchlistTickerSelect" in html
     assert "관심그룹 종목 선택" in html
     assert "관심그룹 종목을 분석 요청에 넣었습니다." in html
+    assert "prefillAnalysisRequest" in html
+    assert "다시 요청" in html
+    assert "재요청 내용을 입력했습니다. 확인 후 요청을 누르세요." in html
     assert ".member-page .member-form select option" in html
     assert "color-scheme: dark;" in html
     assert "memberOverview" in html
