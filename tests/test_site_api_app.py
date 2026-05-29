@@ -1334,7 +1334,7 @@ def test_api_app_lists_member_analysis_requests():
     assert list_response.json()["items"][0]["id"] == request_id
     assert list_response.json()["items"][0]["public_stock_path"] == "/stocks/005930"
     assert list_response.json()["items"][0]["status_label"] == "대기"
-    assert list_response.json()["items"][0]["status_hint"].startswith("요청이 큐에 들어갔습니다")
+    assert list_response.json()["items"][0]["status_hint"].startswith("대기열에 등록되었습니다")
     assert list_response.json()["items"][0]["next_action_label"] == "상태 새로고침"
     assert list_response.json()["items"][0]["member_queue_position"] == 1
     assert list_response.json()["items"][0]["is_active"] is True

@@ -465,7 +465,9 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'method: "DELETE"' in html
     assert "analysisRequestSummary" in html
     assert "status_label" in html
-    assert "분석 처리 대기 중" in html
+    assert "처리 전 대기" in html
+    assert "평일 18:10 자동 실행" in html
+    assert "scheduleMemberDataPoll" in html
     assert "분석 요청" in html
     assert "새 분석 요청" in html
     assert "요청 상태, 가능 횟수, 완료 리포트를 확인합니다" in html

@@ -383,8 +383,8 @@ def _analysis_request_status_label(status: Any) -> str:
 
 def _analysis_request_status_hint(status: Any) -> str:
     return {
-        "queued": "요청이 큐에 들어갔습니다. 운영 worker가 순서대로 처리합니다.",
-        "running": "worker가 공개 리포트 생성과 저장을 진행 중입니다.",
+        "queued": "대기열에 등록되었습니다. 평일 18:10 자동 실행 또는 운영 콘솔 실행 때 처리 중으로 바뀝니다.",
+        "running": "공개 리포트를 생성하고 저장하는 중입니다. 완료되면 리포트 링크가 표시됩니다.",
         "completed": "공개 리포트가 저장되었습니다. 리포트와 종목 페이지에서 근거를 확인할 수 있습니다.",
         "failed": "처리 중 오류가 기록되었습니다. 실패 사유를 확인한 뒤 다시 요청할 수 있습니다.",
         "skipped": "중복 요청 또는 운영 정책으로 건너뛰었습니다.",

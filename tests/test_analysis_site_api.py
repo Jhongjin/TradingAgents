@@ -220,7 +220,7 @@ def test_build_member_analysis_requests_payload_surfaces_queue_transparency(monk
     assert rows[completed_request_id]["next_action_label"] == "리포트 보기"
     assert rows[queued_request_id]["member_queue_position"] == 1
     assert rows[queued_request_id]["queue_scope_label"] == "내 활성 요청 기준"
-    assert "운영 worker" in rows[queued_request_id]["status_hint"]
+    assert "평일 18:10 자동 실행" in rows[queued_request_id]["status_hint"]
 
 
 def test_public_analysis_feed_lists_completed_public_runs_only():

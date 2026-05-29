@@ -2214,6 +2214,7 @@ def _chart_controls(model: dict[str, Any]) -> str:
     end = _date_or_today(model.get("chart_end_date"))
     active_days = model.get("chart_range_days")
     period_options = [
+        ("1D", "1일", 1),
         ("1W", "1주", 7),
         ("1M", "1개월", 30),
         ("3M", "3개월", 90),
@@ -2244,7 +2245,6 @@ def _chart_controls(model: dict[str, Any]) -> str:
     ]
     interval_tabs = [
         '<span class="chart-tab is-active" aria-current="page">일봉</span>',
-        '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">1일</span>',
         '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">1분</span>',
         '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">5분</span>',
         '<span class="chart-tab is-disabled" aria-disabled="true" title="분봉 데이터 소스 연결 후 제공">15분</span>',
@@ -2514,8 +2514,10 @@ def _period_is_active(active_days: Any, option_days: int) -> bool:
         days = int(active_days)
     except (TypeError, ValueError):
         return False
+    if option_days == 1:
+        return days <= 2
     if option_days == 7:
-        return days <= 10
+        return 2 < days <= 10
     if option_days == 30:
         return 10 < days <= 45
     if option_days == 90:
@@ -11309,7 +11311,7 @@ PAGE_JS = """
     }
   }
 
-  if (points.length < 2) {
+  if (points.length < 1) {
     showFallbackMessage(chart.error ? `차트 데이터를 불러오지 못했습니다: ${chart.error}` : "차트 데이터가 부족합니다.");
     return;
   }
@@ -12550,6 +12552,7 @@ MEMBER_PAGE_JS = """
   const userEmailKey = "tradingagents.member.user_email";
   const userIdKey = "tradingagents.member.user_id";
   const activeTabKey = "tradingagents.member.active_tab";
+  let memberDataPollTimer = null;
   const tabHashes = {
     home: "#member-home-section",
     portfolio: "#portfolio-section",
@@ -12919,7 +12922,32 @@ MEMBER_PAGE_JS = """
     return Number(storageGet(expiresAtKey) || 0);
   }
 
+  function clearMemberDataPoll() {
+    if (memberDataPollTimer) {
+      window.clearTimeout(memberDataPollTimer);
+      memberDataPollTimer = null;
+    }
+  }
+
+  function activeAnalysisRequestCount(requests) {
+    const summaryCount = Number(requests?.summary?.active_count ?? NaN);
+    if (Number.isFinite(summaryCount)) return summaryCount;
+    return (requests?.items || []).filter((row) => (
+      row?.is_active || ["queued", "running"].includes(String(row?.status || ""))
+    )).length;
+  }
+
+  function scheduleMemberDataPoll(requests) {
+    clearMemberDataPoll();
+    if (document.hidden || activeAnalysisRequestCount(requests) <= 0) return;
+    memberDataPollTimer = window.setTimeout(() => {
+      memberDataPollTimer = null;
+      loadMemberData().catch((error) => setStatus(error.message, true));
+    }, 30_000);
+  }
+
   function clearSession() {
+    clearMemberDataPoll();
     sessionKeys.forEach((key) => storageRemove(key));
     setSignedInState(false);
   }
@@ -13516,7 +13544,7 @@ MEMBER_PAGE_JS = """
 
     const note = document.createElement("p");
     note.className = "analysis-queue-note";
-    note.textContent = "같은 종목과 기준일의 처리 중인 요청은 기존 대기열에 합쳐지며 요청 가능 횟수를 다시 사용하지 않습니다.";
+    note.textContent = "대기 요청은 운영 콘솔 실행 또는 평일 18:10 자동 실행 때 처리됩니다. 같은 종목과 기준일의 중복 요청은 기존 대기열에 합쳐집니다.";
     node.append(meters, strip, note);
     return node;
   }
@@ -13551,7 +13579,8 @@ MEMBER_PAGE_JS = """
 
     const details = [];
     if (row.reason) details.push(`요청 메모 ${row.reason}`);
-    if (row.is_active) details.push("분석 처리 대기 중");
+    if (status === "queued") details.push("처리 전 대기");
+    if (status === "running") details.push("리포트 생성 중");
     if (row.member_queue_position) details.push(`${row.queue_scope_label || "내 활성 요청 기준"} ${row.member_queue_position}번째`);
     if (row.analysis_run_id) details.push(`리포트 ID ${compactId(row.analysis_run_id)}`);
     if (row.public_stock_path) details.push(`종목 페이지 ${row.public_stock_path}`);
@@ -13962,6 +13991,7 @@ MEMBER_PAGE_JS = """
       requests,
       errorText(errors, "analysis_requests")
     );
+    scheduleMemberDataPoll(requests);
     renderPaperSimulations(
       paperSimulations,
       errorText(errors, "paper_simulations")
@@ -13989,6 +14019,7 @@ MEMBER_PAGE_JS = """
 
   async function loadMemberData() {
     if (!accessToken() && !refreshToken()) {
+      clearMemberDataPoll();
       setSignedInState(false);
       setStatus(config.configured ? "로그인 필요" : "Supabase 공개 인증 설정 대기 중", !config.configured);
       return;
@@ -14001,6 +14032,7 @@ MEMBER_PAGE_JS = """
       setStatus("저장된 세션으로 로그인 상태를 확인하고 있습니다.");
       const restoredToken = await ensureAccessToken();
       if (!restoredToken) {
+        clearMemberDataPoll();
         setSignedInState(false);
         setStatus("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.", true);
         return;
@@ -14014,6 +14046,7 @@ MEMBER_PAGE_JS = """
       return;
     }
     if (!accessToken() && !refreshToken()) {
+      clearMemberDataPoll();
       setSignedInState(false);
       setStatus(dashboardResult.error, true);
       return;
@@ -14043,6 +14076,7 @@ MEMBER_PAGE_JS = """
     renderPortfolios(portfolios, portfolioDetails, portfoliosResult.error);
     renderWatchlists(watchlists, watchlistDetails, watchlistsResult.error);
     renderAnalysisRequests(requests, requestsResult.error);
+    scheduleMemberDataPoll(requests);
     renderPaperSimulations(paperSimulations, paperResult.error);
     updateMemberOverview(portfolios, watchlists, requests, paperSimulations);
     const errors = [portfoliosResult, watchlistsResult, requestsResult, paperResult].filter((result) => !result.ok).length
