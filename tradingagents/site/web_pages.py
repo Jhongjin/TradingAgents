@@ -95,7 +95,7 @@ def render_public_stock_page(
       <a href="/features">이용 흐름</a>
       <a href="/features/methodology">데이터 기준</a>
       <a href="/analyses">AI 리포트</a>
-      <a href="/outcomes">사후 기록</a>
+      <a href="/outcomes">결과 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -306,7 +306,7 @@ def render_public_analysis_feed_page(
       <a href="/features">이용 흐름</a>
       <a href="/features/methodology">데이터 기준</a>
       <a href="/analyses">AI 리포트</a>
-      <a href="/outcomes">사후 기록</a>
+      <a href="/outcomes">결과 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -430,7 +430,7 @@ def render_public_outcomes_page(
       <a href="/features">이용 흐름</a>
       <a href="/features/methodology">데이터 기준</a>
       <a href="/analyses">AI 리포트</a>
-      <a href="/outcomes" aria-current="page">사후 기록</a>
+      <a href="/outcomes" aria-current="page">결과 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -441,10 +441,10 @@ def render_public_outcomes_page(
   <main id="main-content" class="shell market-shell">
     <section class="summary-band outcome-hero" aria-labelledby="outcomes-title">
       <div>
-        <p class="eyebrow">사후 기록</p>
-        <h1 id="outcomes-title">사후 기록</h1>
+        <p class="eyebrow">결과 기록</p>
+        <h1 id="outcomes-title">결과 기록</h1>
         <p class="asof">{_h(model["subtitle"])}</p>
-        <p class="outcome-hero-copy">시장 기준과 비교해 이후 흐름을 확인합니다.</p>
+        <p class="outcome-hero-copy">AI 리포트 이후 5일/20일 흐름을 시장과 비교합니다.</p>
         <div class="analysis-detail-actions">
           <a href="/analyses">AI 리포트</a>
           <a href="/features/outcomes">기록 기준</a>
@@ -452,13 +452,13 @@ def render_public_outcomes_page(
         </div>
       </div>
       <div class="decision-box">
-        <span class="decision-label">사후 기록</span>
+        <span class="decision-label">결과 기록</span>
         <strong>{_h(model["item_count"])}</strong>
         <span>{_h(model["status_label"])}</span>
       </div>
     </section>
 
-    <section class="analysis-filter-panel outcome-filter-panel" aria-label="사후 기록 필터">
+    <section class="analysis-filter-panel outcome-filter-panel" aria-label="결과 기록 필터">
       <div class="analysis-filter-stack">
         <form class="analysis-filter-form outcome-filter-form" action="/outcomes" method="get">
           <label for="outcomeTicker">종목명 또는 코드</label>
@@ -468,12 +468,12 @@ def render_public_outcomes_page(
           <select id="outcomeStatus" name="status">
             {_outcome_status_options(model["filter_status"])}
           </select>
-          <button type="submit">사후 기록 조회</button>
+          <button type="submit">결과 조회</button>
           <a href="/outcomes">필터 초기화</a>
         </form>
         {filter_state_html}
       </div>
-      <p>종목별 5일/20일 결과와 시장 기준 대비 차이를 확인합니다.</p>
+      <p>종목별 5일/20일 흐름과 시장 기준 대비 차이를 확인합니다.</p>
     </section>
 
     {summary_html}
@@ -483,8 +483,8 @@ def render_public_outcomes_page(
     <section class="report-section outcome-feed-section" aria-labelledby="outcome-feed-title">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">사후 기록</p>
-          <h2 id="outcome-feed-title">사후 기록</h2>
+          <p class="eyebrow">결과 목록</p>
+          <h2 id="outcome-feed-title">결과 기록</h2>
         </div>
         <span class="status-pill">{_h(model["filter_label"])}</span>
       </div>
@@ -566,7 +566,7 @@ def render_public_analysis_detail_page(
       <a href="/features">이용 흐름</a>
       <a href="/features/methodology">데이터 기준</a>
       <a href="/analyses">AI 리포트</a>
-      <a href="/outcomes">사후 기록</a>
+      <a href="/outcomes">결과 기록</a>
       <a href="/stocks/{_h(model["ticker_code"])}">종목</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
@@ -681,7 +681,7 @@ def render_public_home_page(
       <a href="/features">이용 흐름</a>
       <a href="/features/methodology">데이터 기준</a>
       <a href="/analyses">AI 리포트</a>
-      <a href="/outcomes">사후 기록</a>
+      <a href="/outcomes">결과 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -996,7 +996,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
             ("04", "다음 판단", "결과를 매매 지시가 아니라 리포트 품질 점검 자료로 남깁니다."),
         ),
         "steps": ("분석 완료", "사후 기록", "시장 기준", "차이 확인", "공개 리뷰"),
-        "cta_label": "사후 기록 보기",
+        "cta_label": "결과 기록 보기",
         "cta_href": "/outcomes",
         "secondary_cta_label": "데이터 기준 보기",
         "secondary_cta_href": "/features/methodology",
@@ -1029,7 +1029,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "steps": ("출처 표기", "분석 기준", "AI 리포트", "사후 기록", "주문 없음"),
         "cta_label": "공개 분석 보기",
         "cta_href": "/analyses",
-        "secondary_cta_label": "사후 기록 보기",
+        "secondary_cta_label": "결과 기록 보기",
         "secondary_cta_href": "/features/outcomes",
         "diagram_label": "데이터 기준",
     },
@@ -1093,7 +1093,7 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
       <a href="/features" aria-current="page">이용 흐름</a>
       <a href="/features/methodology">데이터 기준</a>
       <a href="/analyses">AI 리포트</a>
-      <a href="/outcomes">사후 기록</a>
+      <a href="/outcomes">결과 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -1317,7 +1317,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
         ),
         "next_actions": (
             ("방법론 확인", "/features/methodology", "데이터 출처, 기준일, 주문 차단 원칙을 함께 확인합니다."),
-            ("사후 기록 보기", "/outcomes", "과거 리포트 후 5일/20일 결과를 검토합니다."),
+            ("결과 기록 보기", "/outcomes", "과거 리포트 후 5일/20일 결과를 검토합니다."),
             ("공개 분석 보기", "/analyses", "실제 AI 리포트를 읽고 원문 데이터까지 확인합니다."),
         ),
     },
@@ -1382,7 +1382,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
       <a href="/features">이용 흐름</a>
       <a href="/features/methodology">데이터 기준</a>
       <a href="/analyses">AI 리포트</a>
-      <a href="/outcomes">사후 기록</a>
+      <a href="/outcomes">결과 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -1509,7 +1509,7 @@ def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
       <a href="/features">이용 흐름</a>
       <a href="/features/methodology">데이터 기준</a>
       <a href="/analyses">AI 리포트</a>
-      <a href="/outcomes">사후 기록</a>
+      <a href="/outcomes">결과 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -1604,7 +1604,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <a href="/features">이용 흐름</a>
       <a href="/features/methodology">데이터 기준</a>
       <a href="/analyses">AI 리포트</a>
-      <a href="/outcomes">사후 기록</a>
+      <a href="/outcomes">결과 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
       <a class="top-admin-link" href="/admin" data-auth-visible="admin" hidden aria-current="page">운영 콘솔</a>
@@ -1849,7 +1849,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <a href="/features">이용 흐름</a>
       <a href="/features/methodology">데이터 기준</a>
       <a href="/analyses">AI 리포트</a>
-      <a href="/outcomes">사후 기록</a>
+      <a href="/outcomes">결과 기록</a>
       <a class="top-auth-link" href="/member" data-auth-visible="signed-out">로그인</a>
       <a class="top-join-link" href="/member?mode=signup" data-auth-visible="signed-out">가입</a>
       <a class="top-dashboard-link" href="/mypage" data-auth-visible="signed-in" hidden>내 공간</a>
@@ -2022,7 +2022,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           </div>
           <div class="member-home-links" aria-label="보조 이동">
             <a class="member-report-link" href="/analyses">AI 리포트 보기</a>
-            <a class="member-report-link" href="/outcomes">사후 기록 보기</a>
+            <a class="member-report-link" href="/outcomes">결과 기록 보기</a>
             <a class="member-admin-link" href="/admin">운영 콘솔</a>
           </div>
         </section>
@@ -2762,7 +2762,7 @@ def _analysis_feed_view_model(payload: dict[str, Any], *, site_base_url: str | N
         "title": title,
         "description": description,
         "canonical_url": canonical_url("/analyses", site_base_url=site_base_url),
-        "subtitle": "AI 리포트를 종목별로 찾아보고 원문 데이터와 사후 기록을 이어서 확인하세요.",
+        "subtitle": "종목별 AI 리포트와 이후 결과 기록을 함께 확인하세요.",
         "status": f"{_analysis_feed_status_label(payload.get('status'))} · {basis_label}",
         "ticker_code": ticker_code,
         "filter_label": f"{ticker_code} 필터" if ticker_code else "전체 종목",
@@ -2783,7 +2783,7 @@ def _analysis_filter_state(model: dict[str, Any]) -> str:
           <span>{_h(ticker)} 필터 적용</span>
           <span>결과 {_h(count)}건</span>
           <a href="/stocks/{_h(ticker)}">종목 페이지</a>
-          <a href="/outcomes?ticker={_h(ticker)}">사후 기록</a>
+          <a href="/outcomes?ticker={_h(ticker)}">결과 기록</a>
         </div>
         """
     return f"""
@@ -2791,7 +2791,7 @@ def _analysis_filter_state(model: dict[str, Any]) -> str:
       <span>전체 AI 리포트</span>
       <span>{_h(basis_label)}</span>
       <span>결과 {_h(count)}건</span>
-      <a href="/outcomes">사후 기록</a>
+      <a href="/outcomes">결과 기록</a>
     </div>
     """
 
@@ -2805,7 +2805,7 @@ def _analysis_feed_toolbar(model: dict[str, Any]) -> str:
       <span>결과 {_h(count)}건</span>
       <span>정렬: 최신 기준일순</span>
       <span>{_h(filter_label)}</span>
-      <small>{_h(basis_label)} 목록입니다. 상세, 종목, 사후 기록으로 바로 이동합니다.</small>
+      <small>{_h(basis_label)} 목록입니다. 상세, 종목, 결과 기록으로 이동합니다.</small>
     </div>
     """
 
@@ -2814,7 +2814,7 @@ def _outcome_filter_state(model: dict[str, Any]) -> str:
     ticker = str(model.get("ticker_code") or "").strip()
     status = str(model.get("filter_status") or "").strip()
     count = str(model.get("item_count") or "0건")
-    filter_label = str(model.get("filter_label") or "전체 사후 기록")
+    filter_label = str(model.get("filter_label") or "전체 결과 기록")
     query: dict[str, str] = {"limit": "20"}
     if ticker:
         query["ticker"] = ticker
@@ -2825,7 +2825,7 @@ def _outcome_filter_state(model: dict[str, Any]) -> str:
         stock_link = f'<a href="/stocks/{_h(ticker)}">종목 페이지</a>' if ticker else ""
         analyses_href = f"/analyses?ticker={_h(ticker)}" if ticker else "/analyses"
         return f"""
-        <div class="analysis-filter-state outcome-filter-state" aria-label="현재 사후 기록 필터 상태">
+        <div class="analysis-filter-state outcome-filter-state" aria-label="현재 결과 기록 필터 상태">
           <span>{_h(filter_label)} 적용</span>
           <span>결과 {_h(count)}</span>
           {stock_link}
@@ -2834,8 +2834,8 @@ def _outcome_filter_state(model: dict[str, Any]) -> str:
         </div>
         """
     return f"""
-    <div class="analysis-filter-state outcome-filter-state" aria-label="현재 사후 기록 필터 상태">
-      <span>전체 사후 기록</span>
+    <div class="analysis-filter-state outcome-filter-state" aria-label="현재 결과 기록 필터 상태">
+      <span>전체 결과 기록</span>
       <span>5일 / 20일</span>
       <span>결과 {_h(count)}</span>
       <a href="/analyses">AI 리포트</a>
@@ -2846,9 +2846,9 @@ def _outcome_filter_state(model: dict[str, Any]) -> str:
 
 def _outcome_feed_toolbar(model: dict[str, Any]) -> str:
     count = str(model.get("item_count") or "0건")
-    filter_label = str(model.get("filter_label") or "전체 사후 기록")
+    filter_label = str(model.get("filter_label") or "전체 결과 기록")
     return f"""
-    <div class="analysis-feed-toolbar outcome-feed-toolbar" aria-label="사후 기록 목록 상태">
+    <div class="analysis-feed-toolbar outcome-feed-toolbar" aria-label="결과 기록 목록 상태">
       <span>결과 {_h(count)}</span>
       <span>정렬: 최신 기준일순</span>
       <span>{_h(filter_label)}</span>
@@ -2866,12 +2866,12 @@ def _analysis_outcomes_view_model(payload: dict[str, Any], *, site_base_url: str
         filters.append(str(ticker_code))
     if filter_status:
         filters.append(_outcome_status_label(str(filter_status)))
-    filter_label = " / ".join(filters) if filters else "전체 사후 기록"
+    filter_label = " / ".join(filters) if filters else "전체 결과 기록"
     return {
-        "title": "사후 기록 | TradingAgents Korea",
+        "title": "결과 기록 | TradingAgents Korea",
         "description": "TradingAgents Korea 공개 리서치의 5일/20일 이후 기록과 시장 기준 대비 차이를 확인합니다.",
         "canonical_url": canonical_url("/outcomes", site_base_url=site_base_url),
-        "subtitle": "AI 리포트별 5일/20일 확인 결과입니다.",
+        "subtitle": "AI 리포트 이후 5일/20일 결과입니다.",
         "status_label": _analysis_outcomes_status_label(payload.get("status")),
         "ticker_code": ticker_code,
         "filter_status": filter_status,
@@ -3126,16 +3126,16 @@ def _analysis_outcome_summary_cards(summary: dict[str, Any]) -> str:
             """
         )
     return f"""
-    <section class="analysis-summary-grid outcome-summary-grid" aria-label="사후 기록 요약">
+    <section class="analysis-summary-grid outcome-summary-grid" aria-label="결과 기록 요약">
       {"".join(html_cards)}
     </section>
     """
 
 
 def _analysis_outcome_cadence_strip(model: dict[str, Any]) -> str:
-    filter_label = model.get("filter_label") or "전체 사후 기록"
+    filter_label = model.get("filter_label") or "전체 결과 기록"
     return f"""
-    <section class="analysis-pipeline-strip outcome-cadence-strip" aria-label="사후 기록 흐름">
+    <section class="analysis-pipeline-strip outcome-cadence-strip" aria-label="결과 기록 흐름">
       <article>
         <span>01</span>
         <strong>기준일</strong>
@@ -3165,7 +3165,7 @@ def _analysis_outcome_feed_cards(
     *,
     ticker_code: str | None = None,
     filter_status: str | None = None,
-    filter_label: str = "전체 사후 기록",
+    filter_label: str = "전체 결과 기록",
 ) -> str:
     if not items:
         if ticker_code or filter_status:
@@ -3180,7 +3180,7 @@ def _analysis_outcome_feed_cards(
               <span>필터 결과 없음</span>
               <h3>{_h(title)}</h3>
               <p>조건에 맞는 결과가 아직 없습니다. 기간이 부족하거나 가격 데이터가 비어 있을 수 있습니다.</p>
-              <div class="analysis-feed-signal-row" aria-label="사후 기록 필터 결과 없음">
+              <div class="analysis-feed-signal-row" aria-label="결과 기록 필터 결과 없음">
                 <span>{_h(str(filter_label))}</span>
                 <span>결과 0건</span>
                 <span>조건 변경 가능</span>
@@ -3196,9 +3196,9 @@ def _analysis_outcome_feed_cards(
         return """
         <article class="analysis-feed-card outcome-feed-card empty">
           <span>대기</span>
-          <h3>사후 기록 대기</h3>
+          <h3>결과 기록 대기</h3>
           <p>아직 5일/20일 결과가 없거나 가격 데이터가 부족합니다.</p>
-          <div class="analysis-feed-signal-row" aria-label="사후 기록 대기 상태">
+          <div class="analysis-feed-signal-row" aria-label="결과 기록 대기 상태">
             <span>5일/20일 대기</span>
             <span>차이 대기</span>
             <span>주문 없음</span>
@@ -3442,7 +3442,7 @@ def _analysis_detail_map(model: dict[str, Any]) -> str:
           <a href="#analysis-provenance">출처</a>
           <a href="#analysis-decision">의견</a>
           <a href="#analysis-reports">AI 리포트</a>
-          <a href="#analysis-outcomes">사후 기록</a>
+          <a href="#analysis-outcomes">결과 기록</a>
         </nav>
       </div>
       <div class="analysis-detail-map-grid">
@@ -11177,7 +11177,7 @@ PAGE_JS = """
     "/features": "이용 흐름",
     "/features/methodology": "데이터 기준",
     "/analyses": "AI 리포트",
-    "/outcomes": "사후 기록",
+    "/outcomes": "결과 기록",
     "/member": "로그인",
     "/member?mode=signup": "가입",
     "/mypage": "내 공간",
@@ -13093,7 +13093,7 @@ MEMBER_PAGE_JS = """
     "/features": "이용 흐름",
     "/features/methodology": "데이터 기준",
     "/analyses": "AI 리포트",
-    "/outcomes": "사후 기록",
+    "/outcomes": "결과 기록",
     "/member": "로그인",
     "/member?mode=signup": "가입",
     "/mypage": "내 공간",
