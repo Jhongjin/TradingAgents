@@ -108,7 +108,7 @@ def test_tradingagents_runner_preserves_explicit_write_paths(tmp_path):
 
 
 def test_tradingagents_runner_routes_serverless_write_paths_to_tmp(monkeypatch):
-    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setenv("VERCEL_ENV", "production")
     monkeypatch.setenv("HOME", "/home/sbx_user1051")
     monkeypatch.setenv("TRADINGAGENTS_RESULTS_DIR", "/home/sbx_user1051/.tradingagents/logs")
     monkeypatch.setenv("TRADINGAGENTS_CACHE_DIR", "/home/sbx_user1051/.tradingagents/cache")

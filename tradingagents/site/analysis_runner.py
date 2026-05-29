@@ -125,7 +125,16 @@ def _worker_root() -> str:
 
 
 def _serverless_runtime() -> bool:
-    return bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+    return any(
+        os.getenv(name)
+        for name in (
+            "VERCEL",
+            "VERCEL_ENV",
+            "VERCEL_URL",
+            "VERCEL_REGION",
+            "AWS_LAMBDA_FUNCTION_NAME",
+        )
+    )
 
 
 def _configure_write_path(
