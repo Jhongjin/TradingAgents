@@ -147,7 +147,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "가상 진입" in html
     assert "stock-hero-stack" in html
     assert "stock-signal-card" in html
-    assert "stock-flow-strip" in html
+    assert "stock-flow-strip" not in html
     assert "stock-simulation-section" in html
     assert "simulationPreview" in html
     assert 'data-simulation-url="/api/simulations/preview/005930"' in html

@@ -61,7 +61,6 @@ def render_public_stock_page(
     chart_source_html = _data_source_strip(model["chart_source_rows"], label="차트 데이터 기준")
     analysis_source_html = _data_source_strip(model["analysis_source_rows"], label="AI 리서치 출처")
     confidence_html = _analysis_confidence_panel(model["analysis_confidence"])
-    stock_flow_html = _stock_flow_strip(model)
     stock_signal_html = _stock_signal_card(model)
 
     return f"""<!doctype html>
@@ -133,8 +132,6 @@ def render_public_stock_page(
         {stock_signal_html}
       </aside>
     </section>
-
-    {stock_flow_html}
 
     <section class="workspace">
       <section id="stock-chart-section" class="chart-panel" aria-labelledby="chart-title">
@@ -2294,31 +2291,6 @@ def _stock_signal_card(model: dict[str, Any]) -> str:
         </div>
       </dl>
     </div>
-    """
-
-
-def _stock_flow_strip(model: dict[str, Any]) -> str:
-    confidence = model.get("analysis_confidence") or {}
-    items = [
-        ("01", "가격", model.get("chart_caption") or "표시 기준 확인"),
-        ("02", "AI", model.get("analysis_state") or "분석 대기"),
-        ("03", "리포트", confidence.get("label") or model.get("refresh_state") or "근거 확인"),
-        ("04", "주문 없음", "조회와 기록만 제공"),
-    ]
-    cards = "".join(
-        f"""
-        <article>
-          <span>{_h(number)}</span>
-          <strong>{_h(title)}</strong>
-          <small>{_h(str(copy))}</small>
-        </article>
-        """
-        for number, title, copy in items
-    )
-    return f"""
-    <section class="stock-flow-strip" aria-label="종목 상세 리서치 흐름">
-      {cards}
-    </section>
     """
 
 
@@ -9346,43 +9318,6 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
-.stock-flow-strip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1px;
-  margin: 18px 0 0;
-  overflow: hidden;
-  border: 1px solid rgba(246, 243, 232, 0.14);
-  border-radius: 8px;
-  background: rgba(246, 243, 232, 0.14);
-}
-
-.stock-flow-strip article {
-  display: grid;
-  gap: 9px;
-  min-height: 132px;
-  padding: 18px;
-  background: rgba(15, 22, 18, 0.78);
-}
-
-.stock-flow-strip span {
-  color: var(--home-acid);
-  font-family: var(--app-font-stack);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.stock-flow-strip strong {
-  color: var(--home-ink);
-  font-size: 18px;
-  line-height: 1.15;
-}
-
-.stock-flow-strip small {
-  color: var(--home-muted-readable, rgba(246, 243, 232, 0.74));
-  line-height: 1.5;
-}
-
 .stock-reading-guide {
   display: grid;
   grid-template-columns: minmax(240px, 0.74fr) minmax(0, 1.26fr);
@@ -10777,7 +10712,6 @@ button:disabled {
   .analysis-reader-guide,
   .analysis-reader-guide-grid,
   .analysis-empty-plan,
-  .stock-flow-strip,
   .stock-reading-guide,
   .stock-reading-nav,
   .admin-readiness-panel,
