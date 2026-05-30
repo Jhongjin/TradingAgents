@@ -333,6 +333,10 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "삼성전자(005930) 실시간 AI 가상 관제 시뮬레이션 예시" in html
     assert "AI 가상 관제" in html
     assert "가상 진입 대기" in html
+    assert "삼성전자 샘플 분석실 바로가기" in html
+    assert "home-sample-pill" in html
+    assert "캔들 차트" in html
+    assert "정밀 캔들 차트와 이동평균, 거래량 흐름을 통해 가격의 맥락을 분석합니다." in html
     assert "home-analyst-window-caption" in html
     assert "homeSignalCanvas" in html
     assert "homeSignalTicker" in html
@@ -358,6 +362,14 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "프라이빗 리서치 공간이 열립니다" in html
     assert "안전한 Read-Only 운영 원칙" in html
     assert "box-shadow: 0 0 10px rgba(220, 252, 19, 0.3)" in html
+    assert "quick-card-action" in html
+    assert "차트 관제" in html
+    assert "home-flow-icon" in html
+    assert "통화</dt>" not in html
+    assert "페이지</dt>" not in html
+    assert "KRW OHLCV" not in html
+    assert "▦" not in html
+    assert "⌁" not in html
     assert "home-service-map" in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html

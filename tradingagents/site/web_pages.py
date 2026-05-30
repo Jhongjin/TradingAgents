@@ -689,7 +689,7 @@ def render_public_home_page(
           <button type="submit">조회</button>
         </form>
         <div class="home-cta-row home-action-row" aria-label="첫 방문자 주요 행동">
-          <a class="home-primary-link" href="/stocks/005930">샘플 종목 보기</a>
+          <a class="home-sample-pill" href="/stocks/005930" aria-label="삼성전자 샘플 분석실 바로가기"><span aria-hidden="true">💡</span> 삼성전자 샘플 분석실 바로가기</a>
           <a class="home-secondary-link" href="/member?mode=signup">내 공간 만들기</a>
         </div>
         <aside class="home-member-preview" aria-label="AI 관제 흐름">
@@ -733,7 +733,7 @@ def render_public_home_page(
             <i style="--h: 79%"></i>
           </div>
           <div class="home-console-grid signal-vector-row">
-            <div><span>가격</span><strong>OHLCV</strong></div>
+            <div><span>가격</span><strong>캔들 차트</strong></div>
             <div><span>공시</span><strong>DART</strong></div>
             <div><span>뉴스</span><strong>Naver</strong></div>
             <div><span>사후 결과</span><strong>5일 / 20일</strong></div>
@@ -748,11 +748,11 @@ def render_public_home_page(
         </div>
         <div class="home-live-tape" aria-hidden="true">
           <div class="home-live-tape-track">
-            <span>005930 삼성전자 / KRX OHLCV / DART 공시</span>
+            <span>005930 삼성전자 / 정밀 캔들 / DART 공시</span>
             <span>000660 SK하이닉스 / 시장 대비 / 뉴스 반응</span>
             <span>035420 NAVER / 공시 확인 / 20일 기록</span>
             <span>086520 에코프로 / 변동성 점검 / 주문 없음</span>
-            <span>005930 삼성전자 / KRX OHLCV / DART 공시</span>
+            <span>005930 삼성전자 / 정밀 캔들 / DART 공시</span>
             <span>000660 SK하이닉스 / 시장 대비 / 뉴스 반응</span>
           </div>
         </div>
@@ -829,7 +829,7 @@ def render_public_home_page(
         <p>가격 흐름, 공시, 뉴스, AI 의견, 사후 결과를 같은 타임라인에서 읽도록 공개 분석의 맥락을 만듭니다. <a href="/features/research">AI 리포트 흐름 보기</a></p>
       </div>
       <div class="home-lens-grid">
-        <article><span>01</span><strong>가격</strong><p>KRW OHLCV와 이동평균, 거래량 흐름을 확인합니다.</p></article>
+        <article><span>01</span><strong>가격</strong><p>정밀 캔들 차트와 이동평균, 거래량 흐름을 통해 가격의 맥락을 분석합니다.</p></article>
         <article><span>02</span><strong>공시</strong><p>DART 공시와 재무 이벤트를 분석 흐름에 반영합니다.</p></article>
         <article><span>03</span><strong>뉴스</strong><p>Naver 뉴스 신호로 단기 이슈와 시장 반응을 추적합니다.</p></article>
         <article><span>04</span><strong>AI 의견</strong><p>복수 에이전트의 근거와 의견을 AI 리포트 구조로 정리합니다.</p></article>
@@ -872,17 +872,23 @@ def render_public_home_page(
       </div>
       <div class="home-flow-list">
         <article>
-          <span aria-hidden="true">▦</span>
+          <span class="home-flow-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M4 5.5h16M7 9v9m5-6v6m5-10v10M5 19h14"/></svg>
+          </span>
           <strong>프라이빗 매매 일지</strong>
           <p>매수·매도 기록, 평균단가, 목표가, 손절가를 실제 주문 연결 없이 정리합니다.</p>
         </article>
         <article>
-          <span aria-hidden="true">⌁</span>
+          <span class="home-flow-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M13 3 5 14h6l-1 7 9-12h-6l1-6Z"/></svg>
+          </span>
           <strong>관심그룹</strong>
           <p>자주 보는 종목을 그룹으로 묶고 메모와 현재 상태를 함께 확인합니다.</p>
         </article>
         <article>
-          <span aria-hidden="true">↗</span>
+          <span class="home-flow-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M12 21a9 9 0 1 0-9-9m9 5v-5l4-4M8 12h4"/></svg>
+          </span>
           <strong>분석 요청 대기열</strong>
           <p>원하는 종목을 AI 리포트 생성 대기열에 올리고 완료 리포트를 추적합니다.</p>
         </article>
@@ -2981,14 +2987,13 @@ def _quick_ticker_cards() -> str:
     for code, name, market in quick:
         cards.append(
             f"""
-            <article class="analysis-feed-card">
-              <span>{_h(market)}</span>
+            <article class="analysis-feed-card quick-ticker-card">
+              <div class="quick-card-head">
+                <span>{_h(market)}</span>
+                <a class="quick-card-action" href="/stocks/{_h(code)}">차트 관제 <span aria-hidden="true">↗</span></a>
+              </div>
               <h3><a href="/stocks/{_h(code)}">{_h(name)} <small>{_h(code)}</small></a></h3>
-              <p>KRW 차트와 공개 분석 상태를 확인합니다.</p>
-              <dl>
-                <div><dt>통화</dt><dd>KRW</dd></div>
-                <div><dt>페이지</dt><dd>분석 보기</dd></div>
-              </dl>
+              <p>가격 흐름과 공개 분석 상태를 바로 확인합니다.</p>
             </article>
             """
         )
@@ -8399,6 +8404,7 @@ h3 {
 
 .public-home .top-links {
   color: rgba(246, 243, 232, 0.68);
+  gap: 10px;
 }
 
 .public-home .top-links a:hover {
@@ -8412,22 +8418,36 @@ h3 {
   color: var(--home-ink);
 }
 
-.public-home .top-links .top-auth-link,
 .public-home .top-links .top-dashboard-link,
 .public-home .top-links .top-admin-link {
   border-color: rgba(246, 243, 232, 0.2);
   color: var(--home-ink);
 }
 
+.public-home .top-links .top-auth-link {
+  padding-inline: 4px;
+  border-color: transparent;
+  background: transparent;
+  color: rgba(246, 243, 232, 0.62);
+}
+
+.public-home .top-links .top-auth-link:hover {
+  background: transparent;
+  color: var(--home-ink);
+}
+
 .public-home .top-links .top-join-link {
+  padding-inline: 16px;
   border-color: var(--home-acid);
   background: var(--home-acid);
   color: #10130f;
+  box-shadow: 0 0 18px rgba(220, 252, 19, 0.22);
 }
 
 .public-home .top-links .top-join-link:hover {
   background: #ecff72;
   color: #10130f;
+  box-shadow: 0 0 24px rgba(220, 252, 19, 0.32);
 }
 
 .home-shell-art {
@@ -8538,6 +8558,34 @@ h3 {
 
 .home-action-row {
   margin-top: 14px;
+}
+
+.home-sample-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 15px;
+  border: 1px solid rgba(246, 243, 232, 0.22);
+  border-radius: 999px;
+  background: rgba(246, 243, 232, 0.075);
+  color: rgba(246, 243, 232, 0.88);
+  font-size: 14px;
+  font-weight: 850;
+  letter-spacing: -0.03em;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.home-sample-pill:hover {
+  transform: translateY(-1px);
+  border-color: rgba(220, 252, 19, 0.48);
+  background: rgba(246, 243, 232, 0.12);
+  box-shadow: 0 0 14px rgba(220, 252, 19, 0.12);
+}
+
+.home-sample-pill:active {
+  transform: translateY(1px);
 }
 
 .home-member-preview {
@@ -9064,7 +9112,7 @@ h3 {
 }
 
 .home-lens-grid span,
-.home-flow-list span {
+.home-flow-list .home-flow-icon {
   color: var(--home-acid);
   font-family: var(--app-font-stack);
 }
@@ -9121,6 +9169,63 @@ h3 {
   background: transparent;
 }
 
+.home-ticker-rail .quick-ticker-card {
+  gap: 10px;
+  min-height: 138px;
+  padding: 14px 15px 15px;
+  border-top: 1px solid rgba(246, 243, 232, 0.12);
+  border-left: 2px solid rgba(215, 255, 63, 0.76);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(215, 255, 63, 0.07), transparent 44%),
+    rgba(251, 250, 244, 0.045);
+}
+
+.quick-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.quick-card-head > span {
+  margin: 0;
+}
+
+.quick-card-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgba(246, 243, 232, 0.16);
+  border-radius: 999px;
+  background: rgba(246, 243, 232, 0.06);
+  color: rgba(246, 243, 232, 0.72);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  transition: border-color 180ms ease, color 180ms ease, background 180ms ease;
+}
+
+.quick-card-action:hover {
+  border-color: rgba(220, 252, 19, 0.42);
+  background: rgba(220, 252, 19, 0.1);
+  color: var(--home-acid);
+}
+
+.home-ticker-rail .quick-ticker-card h3 {
+  margin: 2px 0 0;
+  line-height: 1.1;
+}
+
+.home-ticker-rail .quick-ticker-card p {
+  max-width: 16rem;
+  color: rgba(246, 243, 232, 0.58);
+  font-size: 13px;
+}
+
 .public-home .home-ops-strip {
   color: var(--home-ink);
 }
@@ -9157,7 +9262,7 @@ h3 {
   line-height: 1.12;
 }
 
-.public-home .home-flow-list span {
+.public-home .home-flow-list .home-flow-icon {
   display: inline-grid;
   width: 34px;
   height: 34px;
@@ -9168,6 +9273,16 @@ h3 {
   color: var(--home-acid);
   font-size: 17px;
   line-height: 1;
+}
+
+.public-home .home-flow-list .home-flow-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .public-home .home-flow-list p {
@@ -9198,11 +9313,16 @@ h3 {
 .public-home .home-readonly-banner li {
   padding-top: 0;
   border-top: 0;
-  color: rgba(246, 243, 232, 0.7);
+  color: rgba(246, 243, 232, 0.76);
   font-size: 13px;
   line-height: 1.5;
   letter-spacing: -0.02em;
-  opacity: 0.84;
+  opacity: 0.6;
+}
+
+.public-home .home-readonly-banner a {
+  color: rgba(246, 243, 232, 0.92);
+  letter-spacing: -0.02em;
 }
 
 @media (prefers-reduced-motion: no-preference) {
