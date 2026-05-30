@@ -450,7 +450,6 @@ def render_public_outcomes_page(
         <p class="eyebrow">사후 점검</p>
         <h1 id="outcomes-title">리포트 사후 결과</h1>
         <p class="asof">{_h(model["subtitle"])}</p>
-        <p class="outcome-hero-copy">리포트 기준일 뒤 5일·20일 수익률을 시장 기준과 비교합니다.</p>
         <div class="analysis-detail-actions">
           <a href="/analyses">AI 리포트</a>
           <a href="/features/outcomes">계산 기준</a>
@@ -479,7 +478,7 @@ def render_public_outcomes_page(
         </form>
         {filter_state_html}
       </div>
-      <p>종목별 5일/20일 흐름과 시장 대비 차이를 확인합니다.</p>
+      <p>조회할 종목코드나 종목명을 입력하세요.</p>
     </section>
 
     {summary_html}
@@ -2818,7 +2817,6 @@ def _outcome_filter_state(model: dict[str, Any]) -> str:
     <div class="analysis-filter-state outcome-filter-state" aria-label="현재 사후 결과 필터 상태">
       <span>전체 사후 결과</span>
       <span>5일 / 20일</span>
-      <span>결과 {_h(count)}</span>
       <a href="/analyses">AI 리포트</a>
       <a href="{_h(api_path)}">원문 데이터</a>
     </div>
@@ -2828,9 +2826,11 @@ def _outcome_filter_state(model: dict[str, Any]) -> str:
 def _outcome_feed_toolbar(model: dict[str, Any]) -> str:
     count = str(model.get("item_count") or "0건")
     filter_label = str(model.get("filter_label") or "전체 사후 결과")
+    has_filter = bool(str(model.get("ticker_code") or "").strip() or str(model.get("filter_status") or "").strip())
+    count_label = f"결과 {_h(count)}" if has_filter or count != "0건" else "검증 대기열"
     return f"""
     <div class="analysis-feed-toolbar outcome-feed-toolbar" aria-label="사후 결과 목록 상태">
-      <span>결과 {_h(count)}</span>
+      <span>{count_label}</span>
       <span>정렬: 최신 기준일순</span>
       <span>{_h(filter_label)}</span>
       <small>원 리포트와 종목 화면으로 바로 이동합니다.</small>
@@ -2852,7 +2852,7 @@ def _analysis_outcomes_view_model(payload: dict[str, Any], *, site_base_url: str
         "title": "사후 결과 | TradingAgents Korea",
         "description": "TradingAgents Korea 공개 리서치의 5일/20일 이후 결과와 시장 대비 차이를 확인합니다.",
         "canonical_url": canonical_url("/outcomes", site_base_url=site_base_url),
-        "subtitle": "리포트 기준일 뒤 5일/20일 결과입니다.",
+        "subtitle": "AI 리포트 발행 이후 5일 및 20일간의 절대 수익률 추이를 추적하고, 동기간 시장(KOSPI/KOSDAQ) 대비 초과 수익률(Alpha)을 정밀 검증합니다.",
         "status_label": _analysis_outcomes_status_label(payload.get("status")),
         "ticker_code": ticker_code,
         "filter_status": filter_status,
@@ -3175,16 +3175,16 @@ def _analysis_outcome_feed_cards(
             """
         return """
         <article class="analysis-feed-card outcome-feed-card empty">
-          <span>대기</span>
-          <h3>사후 결과 대기</h3>
-          <p>아직 5일/20일 결과가 없거나 가격 데이터가 부족합니다.</p>
+          <span>TRACKING QUEUE</span>
+          <h3>현재 평가 대기열에 등록된 사후 성과 검증 데이터가 존재하지 않습니다.</h3>
+          <p>TradingAgents 시스템이 평일 크론탭(Cron) 스케줄러를 통해 KRX 종가 데이터 및 리포트 진입 시점 대비 사후 성과를 실시간 계산 중입니다. 백테스팅 엔진의 구동 모습을 즉시 확인하시려면 아래 샘플 분석실을 확인해 보세요.</p>
           <div class="analysis-feed-signal-row" aria-label="사후 결과 대기 상태">
-            <span>5일/20일 대기</span>
-            <span>차이 대기</span>
-            <span>주문 없음</span>
+            <span>성과 검증 대기열</span>
+            <span>KRX 종가 추적</span>
+            <span>Alpha 계산 준비</span>
           </div>
-          <div class="analysis-feed-actions">
-            <a href="/stocks/005930">샘플 종목</a>
+          <div class="analysis-feed-actions outcome-empty-cta-row">
+            <a href="/stocks/005930#analysis-outcomes">💡 삼성전자 사후 성과 검증실 바로가기</a>
             <a href="/analyses">AI 리포트</a>
             <a href="/features/outcomes">기준</a>
             <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
@@ -10092,6 +10092,11 @@ button:disabled {
   color: var(--home-celadon);
 }
 
+.outcome-page .decision-box span:last-child {
+  letter-spacing: -0.02em;
+  opacity: 0.8;
+}
+
 .market-page .analysis-empty-plan {
   border-color: rgba(246, 243, 232, 0.13);
   background: rgba(246, 243, 232, 0.13);
@@ -10625,6 +10630,50 @@ button:disabled {
 }
 
 .analysis-page .analysis-empty-cta-row a:first-child {
+  font-size: 14px;
+  letter-spacing: -0.03em;
+  box-shadow: 0 0 20px rgba(220, 252, 19, 0.18);
+}
+
+.outcome-page .outcome-feed-card.empty {
+  padding: clamp(18px, 2.4vw, 28px);
+  background:
+    linear-gradient(135deg, rgba(215, 255, 63, 0.045), transparent 40%),
+    rgba(251, 250, 244, 0.055);
+}
+
+.outcome-page .outcome-feed-card.empty > span {
+  color: var(--home-celadon);
+  letter-spacing: 0.08em;
+}
+
+.outcome-page .outcome-feed-card.empty h3 {
+  max-width: 52rem;
+  color: var(--home-ink);
+  font-size: clamp(22px, 2.15vw, 32px);
+  line-height: 1.14;
+  text-wrap: balance;
+  word-break: keep-all;
+}
+
+.outcome-page .outcome-feed-card.empty p {
+  max-width: 80ch;
+  color: var(--home-readable, rgba(246, 243, 232, 0.84));
+  line-height: 1.72;
+}
+
+.outcome-page .outcome-empty-cta-row {
+  grid-template-columns: minmax(280px, 1.5fr) repeat(3, minmax(112px, 0.6fr));
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.outcome-page .outcome-empty-cta-row a {
+  min-height: 42px;
+  border-radius: 7px;
+}
+
+.outcome-page .outcome-empty-cta-row a:first-child {
   font-size: 14px;
   letter-spacing: -0.03em;
   box-shadow: 0 0 20px rgba(220, 252, 19, 0.18);
@@ -11440,6 +11489,10 @@ button:disabled {
   }
 
   .analysis-page .analysis-empty-cta-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .outcome-page .outcome-empty-cta-row {
     grid-template-columns: minmax(0, 1fr);
   }
 

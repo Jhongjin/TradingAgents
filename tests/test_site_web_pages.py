@@ -1146,8 +1146,9 @@ def test_render_public_outcomes_page_shows_public_track_record():
 
     assert 'class="public-home market-page outcome-page"' in html
     assert '<h1 id="outcomes-title">리포트 사후 결과</h1>' in html
-    assert "리포트 기준일 뒤 5일/20일 결과입니다." in html
-    assert "리포트 기준일 뒤 5일·20일 수익률을 시장 기준과 비교합니다." in html
+    assert "AI 리포트 발행 이후 5일 및 20일간의 절대 수익률 추이를 추적하고" in html
+    assert "초과 수익률(Alpha)을 정밀 검증합니다." in html
+    assert "리포트 기준일 뒤 5일·20일 수익률을 시장 기준과 비교합니다." not in html
     assert "outcome-filter-panel" in html
     assert "outcome-filter-state" in html
     assert "outcome-feed-toolbar" in html
@@ -1186,17 +1187,23 @@ def test_render_public_outcomes_page_shows_public_track_record():
 def test_render_public_outcomes_page_empty_state_has_next_actions():
     html = render_public_outcomes_page(repo=_repo(), site_base_url="https://example.com")
 
-    assert "사후 결과 대기" in html
+    assert "TRACKING QUEUE" in html
+    assert "현재 평가 대기열에 등록된 사후 성과 검증 데이터가 존재하지 않습니다." in html
     assert "outcome-filter-state" in html
     assert 'class="analysis-pipeline-strip outcome-cadence-strip"' not in html
     assert "전체 사후 결과" in html
-    assert "5일/20일 대기" in html
-    assert "차이 대기" in html
-    assert "아직 5일/20일 결과가 없거나 가격 데이터가 부족합니다" in html
-    assert 'href="/stocks/005930">샘플 종목</a>' in html
+    assert "결과 0건" not in html
+    assert "검증 대기열" in html
+    assert "성과 검증 대기열" in html
+    assert "KRX 종가 추적" in html
+    assert "Alpha 계산 준비" in html
+    assert "평일 크론탭(Cron) 스케줄러" in html
+    assert 'href="/stocks/005930#analysis-outcomes">💡 삼성전자 사후 성과 검증실 바로가기</a>' in html
     assert 'href="/analyses">AI 리포트</a>' in html
     assert 'href="/features/outcomes">기준</a>' in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
+    assert "outcome-empty-cta-row" in html
+    assert ".outcome-page .decision-box span:last-child" in html
 
 
 def test_render_public_outcomes_page_filtered_empty_state_guides_recovery():
