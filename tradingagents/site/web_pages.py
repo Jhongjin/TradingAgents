@@ -24,7 +24,7 @@ TOP_NAV_ITEMS: tuple[tuple[str, str], ...] = (
     ("/", "종목 검색"),
     ("/analyses", "AI 리포트"),
     ("/outcomes", "사후 결과"),
-    ("/features/methodology", "출처·한계"),
+    ("/features/methodology", "데이터 기준"),
 )
 
 
@@ -474,7 +474,7 @@ def render_public_outcomes_page(
           <select id="outcomeStatus" name="status">
             {_outcome_status_options(model["filter_status"])}
           </select>
-          <button type="submit">결과 찾기</button>
+          <button type="submit">사후 결과 찾기</button>
           <a href="/outcomes">전체 보기</a>
         </form>
         {filter_state_html}
@@ -489,7 +489,7 @@ def render_public_outcomes_page(
     <section class="report-section outcome-feed-section" aria-labelledby="outcome-feed-title">
       <div class="panel-heading">
         <div>
-        <p class="eyebrow">사후 결과 목록</p>
+          <p class="eyebrow">사후 결과 목록</p>
           <h2 id="outcome-feed-title">최근 사후 결과</h2>
         </div>
         <span class="status-pill">{_h(model["filter_label"])}</span>
@@ -985,28 +985,28 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "steps": ("분석 완료", "사후 결과", "시장 기준", "차이 확인", "공개 리뷰"),
         "cta_label": "사후 결과 보기",
         "cta_href": "/outcomes",
-        "secondary_cta_label": "출처·한계 보기",
+        "secondary_cta_label": "데이터 기준 보기",
         "secondary_cta_href": "/features/methodology",
         "diagram_label": "사후 결과",
     },
     "methodology": {
         "path": "/features/methodology",
-        "title": "출처·한계 | TradingAgents Korea",
+        "title": "데이터 기준 | TradingAgents Korea",
         "description": "TradingAgents Korea의 데이터 출처, AI 분석 한계, 사후 결과, 주문 없는 운영 원칙입니다.",
-        "eyebrow": "출처·한계",
-        "heading": "어떤 데이터로 판단했는지 먼저 공개합니다",
+        "eyebrow": "데이터 기준",
+        "heading": "데이터 출처와 한계를 한곳에 둡니다",
         "lead": "AI 리포트는 종목 판단의 근거를 보여주는 자료입니다. KRX, DART, Naver 뉴스, AI 리포트, 5일/20일 사후 결과를 한 흐름으로 묶되, 투자 실행 권한은 서비스가 갖지 않습니다.",
         "proof": (("출처", "KRX / DART / Naver"), ("사후 결과", "5일 / 20일"), ("권한", "주문 차단")),
         "cards": (
-            ("출처·한계", "공개 화면은 기준일, 데이터 제공처, 대체 경로 여부를 최대한 노출하고 원문 데이터로 확인할 수 있게 둡니다."),
+            ("데이터 출처", "공개 화면은 기준일, 데이터 제공처, 대체 경로 여부를 최대한 노출하고 원문 데이터로 확인할 수 있게 둡니다."),
             ("AI 한계", "리포트는 정보 제공용이며 누락 데이터, 시장 휴장, 제공처 장애, 모델 오류 가능성을 전제로 읽어야 합니다."),
             ("사후 결과", "완료된 공개 분석은 사후 결과 작업이 5일/20일 뒤 종목 수익률과 시장 기준 차이를 추적합니다."),
             ("회원 경계", "회원 매매 일지와 관심그룹은 개인 기록이며 AI 리포트 목록과 분리해 호출합니다."),
             ("운영 보안", "운영 키는 브라우저 세션 입력값으로만 사용하고 HTML, 문서, 커밋에 포함하지 않습니다."),
             ("실행 차단", "KIS 같은 브로커 연동은 조회 전용 계좌조회 검토까지만 가능하며 주문 기능은 구현하지 않습니다."),
         ),
-        "journey_heading": "리포트는 출처, 한계, 결과를 함께 읽습니다",
-        "journey_intro": "출처·한계는 화면의 숫자와 문장을 어떻게 읽어야 하는지 알려주는 기준점입니다.",
+        "journey_heading": "리포트는 출처, 한계, 결과를 함께 봅니다",
+        "journey_intro": "데이터 기준은 화면의 숫자와 문장을 어떻게 읽어야 하는지 알려주는 기준점입니다.",
         "journey": (
             ("01", "출처", "가격, 공시, 뉴스, 리포트가 어디서 왔는지 확인합니다."),
             ("02", "기준일", "차트와 리포트가 같은 날짜 기준인지 점검합니다."),
@@ -1018,7 +1018,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "cta_href": "/analyses",
         "secondary_cta_label": "사후 결과 보기",
         "secondary_cta_href": "/features/outcomes",
-        "diagram_label": "출처·한계",
+        "diagram_label": "데이터 기준",
     },
 }
 
@@ -1058,7 +1058,7 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>처음 시작하기 | TradingAgents Korea</title>
-  <meta name="description" content="TradingAgents Korea의 종목 검색, AI 리포트, 내 공간, 사후 결과, 출처·한계를 한 번에 확인합니다.">
+  <meta name="description" content="TradingAgents Korea의 종목 검색, AI 리포트, 내 공간, 사후 결과, 데이터 기준을 한 번에 확인합니다.">
   <link rel="canonical" href="{_h(canonical)}">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ko_KR">
@@ -1190,7 +1190,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
         "next_actions": (
             ("회원 기능 보기", "/features/member-workspace", "가입하면 어떤 기록 공간이 열리는지 먼저 확인합니다."),
             ("내 공간 열기", "/mypage", "로그인 후 관심그룹과 분석 요청을 내 공간에서 관리합니다."),
-            ("출처·한계 확인", "/features/methodology", "데이터 출처와 AI 분석 한계를 함께 읽습니다."),
+            ("데이터 기준 확인", "/features/methodology", "데이터 출처와 AI 분석 한계를 함께 읽습니다."),
         ),
     },
     "terms": {
@@ -1521,7 +1521,7 @@ def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
         <h2>AI 리포트와 회원 기록의 경계를 분리합니다</h2>
       </div>
       <ul>
-        <li><a href="/features/methodology">출처·한계</a>에서 데이터 출처와 AI 분석 한계를 함께 확인할 수 있습니다.</li>
+        <li><a href="/features/methodology">데이터 기준</a>에서 데이터 출처와 AI 분석 한계를 함께 확인할 수 있습니다.</li>
         <li><a href="/disclaimer">투자 유의사항</a>, <a href="/terms">이용약관</a>, <a href="/privacy">개인정보처리방침</a>은 공개 페이지로 제공합니다.</li>
         <li>TradingAgents Korea는 실거래 주문 기능을 제공하지 않는 주문 없는 AI 리서치 플랫폼입니다.</li>
       </ul>
@@ -1925,7 +1925,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <article>
               <span>AI 가상매매</span>
               <strong id="memberOverviewPaperSimulations">0</strong>
-              <small>가상 기록</small>
+              <small>가상매매 기록</small>
             </article>
           </section>
           <p class="member-home-state-note" id="memberHomeStateNote" aria-live="polite">저장된 항목을 불러오고 있습니다.</p>
@@ -3303,7 +3303,7 @@ def _analysis_feed_cards(
           </div>
           <div class="analysis-feed-actions">
             <a href="/stocks/005930">샘플 종목</a>
-            <a href="/features/methodology">출처·한계</a>
+            <a href="/features/methodology">데이터 기준</a>
             <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
           </div>
         </article>
@@ -11198,7 +11198,7 @@ PAGE_JS = """
   let lastSearchController = null;
   const topNavLabels = {
     "/": "종목 검색",
-    "/features/methodology": "출처·한계",
+    "/features/methodology": "데이터 기준",
     "/analyses": "AI 리포트",
     "/outcomes": "사후 결과",
     "/member": "로그인",
@@ -12828,7 +12828,7 @@ ADMIN_PAGE_JS = """
         const rows = Array.isArray(payload?.items) ? payload.items : [];
         const openRows = Array.isArray(payload?.open_positions) ? payload.open_positions : [];
         const limitNote = payload?.notice || "완료된 분석 리포트 중 아직 가상매매 기록이 없는 항목입니다.";
-        appendActionCell(fragment, "새 가상 기록", String(payload?.candidate_count ?? rows.length), limitNote, rows.length ? "is-warn" : "is-ok");
+        appendActionCell(fragment, "새 가상매매", String(payload?.candidate_count ?? rows.length), limitNote, rows.length ? "is-warn" : "is-ok");
         appendActionCell(fragment, "보유 재평가", String(payload?.open_position_count ?? openRows.length), "가상 보유 중인 기록을 최신 가격으로 다시 확인합니다.", openRows.length ? "is-warn" : "is-ok");
         appendActionCell(fragment, "실행 경계", "가상매매", "실제 주문 없이, 분석 리포트 기준의 가상매매 기록만 저장합니다.", "is-ok");
       } else {
@@ -13203,7 +13203,7 @@ MEMBER_PAGE_JS = """
   };
   const memberTopNavLabels = {
     "/": "종목 검색",
-    "/features/methodology": "출처·한계",
+    "/features/methodology": "데이터 기준",
     "/analyses": "AI 리포트",
     "/outcomes": "사후 결과",
     "/member": "로그인",

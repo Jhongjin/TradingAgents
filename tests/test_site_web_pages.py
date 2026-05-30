@@ -641,14 +641,14 @@ def test_render_feature_detail_pages_use_public_theme():
     assert 'href="/features/research">AI 리포트 먼저 보기</a>' in member_html
     assert "로그인 후에는 개인 기록만 따로 열립니다" in member_html
     assert "/api/member/dashboard" not in member_html
-    assert 'href="/features/methodology">출처·한계 보기</a>' in outcomes_html
+    assert 'href="/features/methodology">데이터 기준 보기</a>' in outcomes_html
     assert 'href="/outcomes">사후 결과 보기</a>' in outcomes_html
     assert "사후 결과는 추천 성과가 아니라 리포트 품질 기록입니다" in outcomes_html
     assert "/api/member/dashboard" not in outcomes_html
-    assert "어떤 데이터로 판단했는지 먼저 공개합니다" in methodology_html
+    assert "데이터 출처와 한계를 한곳에 둡니다" in methodology_html
     assert "KRX / DART / Naver" in methodology_html
     assert "주문 기능은 구현하지 않습니다" in methodology_html
-    assert "리포트는 출처, 한계, 결과를 함께 읽습니다" in methodology_html
+    assert "리포트는 출처, 한계, 결과를 함께 봅니다" in methodology_html
     assert 'href="/features/outcomes">사후 결과 보기</a>' in methodology_html
     assert '<link rel="canonical" href="https://example.com/features/methodology">' in methodology_html
     assert "/api/member/dashboard" not in methodology_html
@@ -1060,7 +1060,7 @@ def test_render_public_analysis_feed_empty_state_has_next_actions():
     assert 'class="analysis-pipeline-strip"' not in html
     assert "공개 분석 커버리지 요약" not in html
     assert 'href="/stocks/005930">샘플 종목</a>' in html
-    assert 'href="/features/methodology">출처·한계</a>' in html
+    assert 'href="/features/methodology">데이터 기준</a>' in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
 
 
