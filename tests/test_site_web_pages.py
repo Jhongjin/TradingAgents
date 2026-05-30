@@ -317,10 +317,10 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "TradingAgents Korea" in html
     assert "한국 주식 AI 분석" in html
     assert "최근 공개 분석" in html
-    assert "한국 주식 AI 리서치" in html
-    assert "주문 없는 한국 주식 AI 리서치" in html
-    assert "종목을 검색하면 차트, 공시, 뉴스, AI 리포트, 사후 결과를 한 번에 확인합니다." in html
-    assert "처음 방문해도 바로 쓸 수 있는 세 가지 흐름" in html
+    assert "한국 주식 AI 관제 시스템" in html
+    assert "실거래 주문 없이 오직 데이터로 증명하는 한국 주식 AI 관제 시스템" in html
+    assert "다차원 AI 데이터 엔진이 찾아낸 한국 주식의 맥락" in html
+    assert "AI 리서치부터 가상 매매 시뮬레이션까지의 파이프라인" in html
     assert "내 공간 만들기" in html
     assert "AI 리포트 흐름 보기" in html
     assert "home-member-preview" in html
@@ -330,7 +330,10 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "공식·공개 데이터" in html
     assert "실거래 주문 기능 차단" in html
     assert "5일/20일 사후 결과" in html
-    assert "KRX 신호" in html
+    assert "삼성전자(005930) 실시간 AI 가상 관제 시뮬레이션 예시" in html
+    assert "AI 가상 관제" in html
+    assert "가상 진입 대기" in html
+    assert "home-analyst-window-caption" in html
     assert "homeSignalCanvas" in html
     assert "homeSignalTicker" in html
     assert "homeSignalDecision" in html
@@ -342,7 +345,7 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "syncTopNavigationState" in html
     assert '.top-links a[aria-current="page"]' in html
     assert "로그인" in html
-    assert "가입" in html
+    assert "회원으로 시작하기" in html
     assert 'href="/member?mode=signup"' in html
     assert 'href="/" aria-current="page">종목 검색</a>' in html
     assert 'href="/features/research"' in html
@@ -351,6 +354,10 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert 'data-auth-visible="signed-out"' in html
     assert 'data-auth-visible="signed-in" hidden' in html
     assert "분석 흐름" in html
+    assert "하나의 차트 위로 융합되는 5대 핵심 시그널 맵" in html
+    assert "프라이빗 리서치 공간이 열립니다" in html
+    assert "안전한 Read-Only 운영 원칙" in html
+    assert "box-shadow: 0 0 10px rgba(220, 252, 19, 0.3)" in html
     assert "home-service-map" in html
     assert "tickerSuggestions" in html
     assert "/api/tickers/search" in html

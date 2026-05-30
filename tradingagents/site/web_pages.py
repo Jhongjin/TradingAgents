@@ -679,9 +679,9 @@ def render_public_home_page(
   <main id="main-content" class="home-shell home-shell-art">
     <section class="home-hero home-hero-artboard" aria-labelledby="home-title">
       <div class="home-hero-copy home-hero-content">
-        <p class="home-kicker">주문 없는 한국 주식 AI 리서치</p>
-        <h1 id="home-title">한국 주식 AI 리서치</h1>
-        <p class="home-lede">종목을 검색하면 차트, 공시, 뉴스, AI 리포트, 사후 결과를 한 번에 확인합니다.</p>
+        <p class="home-kicker">실거래 주문 없이 오직 데이터로 증명하는 한국 주식 AI 관제 시스템</p>
+        <h1 id="home-title">한국 주식 AI 관제 시스템</h1>
+        <p class="home-lede">다차원 AI 데이터 엔진이 찾아낸 한국 주식의 맥락. 종목 검색 한 번으로 가격 흐름, DART 공시, Naver 뉴스 반응, 그리고 AI 가상 매매 시뮬레이션까지 단 하나의 통합 타임라인 차트에서 관제하세요.</p>
         <form class="ticker-search home-search home-command-search" action="/stocks" method="get">
           <label class="sr-only" for="ticker">종목코드 또는 종목명</label>
           <input id="ticker" name="ticker" list="tickerSuggestions" maxlength="80" placeholder="005930 또는 삼성전자" autocomplete="off">
@@ -692,16 +692,20 @@ def render_public_home_page(
           <a class="home-primary-link" href="/stocks/005930">샘플 종목 보기</a>
           <a class="home-secondary-link" href="/member?mode=signup">내 공간 만들기</a>
         </div>
-        <aside class="home-member-preview" aria-label="내 공간에서 할 수 있는 일">
-          <strong>내 공간에서 할 수 있는 일</strong>
+        <aside class="home-member-preview" aria-label="AI 관제 흐름">
+          <strong>AI 관제 흐름</strong>
           <ul>
-            <li><span>매매 일지</span><small>매수·매도 기록과 목표가 메모를 직접 남깁니다.</small></li>
-            <li><span>관심그룹</span><small>자주 보는 한국 종목을 목록으로 묶어 확인합니다.</small></li>
-            <li><span>분석 요청</span><small>보고 싶은 종목을 요청하고 완료 리포트 연결을 확인합니다.</small></li>
+            <li><span>데이터 수집</span><small>KRX·DART·뉴스 반응을 같은 기준일로 묶습니다.</small></li>
+            <li><span>AI 리포트</span><small>복수 에이전트가 근거와 판단을 구조화합니다.</small></li>
+            <li><span>가상매매</span><small>리포트 이후 가상 진입·청산 기록을 남깁니다.</small></li>
           </ul>
         </aside>
       </div>
       <div class="home-hero-visual home-signal-art" aria-label="한국 주식 AI 분석 신호 아트보드">
+        <div class="home-analyst-window-caption">
+          <span>삼성전자(005930) 실시간 AI 가상 관제 시뮬레이션 예시</span>
+          <small>Read-only</small>
+        </div>
         <canvas id="homeSignalCanvas" class="home-signal-canvas" aria-hidden="true"></canvas>
         <div class="home-market-field" aria-hidden="true">
           <span class="home-scanline"></span>
@@ -710,13 +714,13 @@ def render_public_home_page(
         </div>
         <div class="home-console signal-stock-card">
           <div class="home-console-top">
-            <span>KRX 신호</span>
-            <span>주문 없는 리서치</span>
+            <span>AI 가상 관제</span>
+            <span>주문 차단</span>
           </div>
           <div class="home-console-focus">
             <span id="homeSignalTicker">005930 / 삼성전자</span>
-            <strong id="homeSignalDecision">보유 관찰</strong>
-            <small id="homeSignalMeta">가격 + 공시 + 뉴스 + 시장 대비</small>
+            <strong id="homeSignalDecision">가상 진입 대기</strong>
+            <small id="homeSignalMeta">가격 흐름 + 공시 + 뉴스 반응 + 5일/20일 사후 결과</small>
           </div>
           <div class="home-sparkline" aria-hidden="true">
             <i style="--h: 38%"></i>
@@ -790,27 +794,27 @@ def render_public_home_page(
       <div class="home-section-heading">
         <div>
           <p class="eyebrow">사용 흐름</p>
-          <h2 id="service-map-title">처음 방문해도 바로 쓸 수 있는 세 가지 흐름</h2>
+          <h2 id="service-map-title">AI 리서치부터 가상 매매 시뮬레이션까지의 파이프라인</h2>
         </div>
-        <p>종목 검색에서 AI 리포트, 개인 기록, AI 가상매매까지 이어지는 읽기 전용 흐름입니다.</p>
+        <p>종목 검색에서 AI 리포트, 프라이빗 기록, AI 가상매매까지 이어지는 읽기 전용 데이터 운영 흐름입니다.</p>
       </div>
       <div class="home-service-grid">
         <article>
           <span>01</span>
-          <strong>종목 분석 보기</strong>
-          <p>종목코드나 종목명으로 검색해 가격, 공시, 뉴스, AI 리포트, 데이터 출처를 한 화면에서 확인합니다.</p>
+          <strong>멀티 에이전트 다차원 분석</strong>
+          <p>종목코드나 종목명으로 가격, 공시, 뉴스, AI 의견, 데이터 출처를 한 화면에서 연결합니다.</p>
           <a href="/stocks/005930">샘플 종목 보기</a>
         </article>
         <article>
           <span>02</span>
-          <strong>내 공간 만들기</strong>
-          <p>매매 일지, 관심그룹, 분석 요청을 한곳에서 관리합니다. 실제 주문은 연결되지 않습니다.</p>
+          <strong>프라이빗 매매 일지 및 관심그룹</strong>
+          <p>개인 매매 일지와 관심그룹을 분리해 관리합니다. 실제 계좌나 주문 경로는 연결하지 않습니다.</p>
           <a href="/member?mode=signup">내 공간 만들기</a>
         </article>
         <article>
           <span>03</span>
-          <strong>AI 분석 요청하기</strong>
-          <p>더 살펴보고 싶은 한국 종목을 요청하고, 처리 상태와 완료 리포트 연결을 내 공간에서 확인합니다.</p>
+          <strong>실시간 AI 리포트 생성 대기열 운영</strong>
+          <p>더 살펴보고 싶은 한국 종목을 대기열에 올리고, 처리 상태와 완료 리포트 연결을 확인합니다.</p>
           <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청으로 시작하기</a>
         </article>
       </div>
@@ -820,9 +824,9 @@ def render_public_home_page(
       <div class="home-section-heading">
         <div>
           <p class="eyebrow">분석 흐름</p>
-          <h2 id="lens-home-title">종목을 다섯 개의 신호로 분해합니다</h2>
+          <h2 id="lens-home-title">하나의 차트 위로 융합되는 5대 핵심 시그널 맵</h2>
         </div>
-        <p>차트만 보거나 뉴스만 읽는 화면이 아니라, 가격과 이벤트를 함께 묶어 공개 분석의 맥락을 만듭니다. <a href="/features/research">AI 리포트 흐름 보기</a></p>
+        <p>가격 흐름, 공시, 뉴스, AI 의견, 사후 결과를 같은 타임라인에서 읽도록 공개 분석의 맥락을 만듭니다. <a href="/features/research">AI 리포트 흐름 보기</a></p>
       </div>
       <div class="home-lens-grid">
         <article><span>01</span><strong>가격</strong><p>KRW OHLCV와 이동평균, 거래량 흐름을 확인합니다.</p></article>
@@ -858,44 +862,43 @@ def render_public_home_page(
       </div>
     </section>
 
-    <section class="home-ops-strip" aria-label="서비스 원칙">
-      <div>
-        <p class="eyebrow">운영 원칙</p>
-        <h2>실제 주문·계좌 연결 없는 리서치</h2>
-      </div>
-      <ul>
-        <li>실제 주문, 계좌 연결, 투자 자문을 제공하지 않습니다.</li>
-        <li>AI 분석은 판단 근거를 정리하는 정보 제공용 자료입니다.</li>
-        <li><a href="/features/methodology">데이터 출처와 한계</a>를 공개 방법론으로 분리해 설명합니다.</li>
-        <li><a href="/disclaimer">투자 유의사항</a>, <a href="/terms">이용약관</a>, <a href="/privacy">개인정보처리방침</a>을 공개합니다.</li>
-      </ul>
-    </section>
-
     <section class="home-band home-member-band" aria-labelledby="member-title">
       <div class="home-section-heading">
         <div>
           <p class="eyebrow">회원 기능</p>
-          <h2 id="member-title">가입하면 내 공간이 열립니다</h2>
+          <h2 id="member-title">프라이빗 리서치 공간이 열립니다</h2>
         </div>
         <a class="home-primary-link" href="/member?mode=signup">회원으로 시작하기</a>
       </div>
       <div class="home-flow-list">
         <article>
-          <span>01</span>
-          <strong>매매 일지</strong>
-          <p>매수/매도 기록, 평균단가, 목표가, 손절가를 직접 남깁니다.</p>
+          <span aria-hidden="true">▦</span>
+          <strong>프라이빗 매매 일지</strong>
+          <p>매수·매도 기록, 평균단가, 목표가, 손절가를 실제 주문 연결 없이 정리합니다.</p>
         </article>
         <article>
-          <span>02</span>
+          <span aria-hidden="true">⌁</span>
           <strong>관심그룹</strong>
-          <p>한국 종목코드 기준으로 메모와 함께 관심그룹을 관리합니다.</p>
+          <p>자주 보는 종목을 그룹으로 묶고 메모와 현재 상태를 함께 확인합니다.</p>
         </article>
         <article>
-          <span>03</span>
+          <span aria-hidden="true">↗</span>
           <strong>분석 요청 대기열</strong>
-          <p>원하는 종목을 요청하면 처리 상태와 완료 리포트 연결을 확인합니다.</p>
+          <p>원하는 종목을 AI 리포트 생성 대기열에 올리고 완료 리포트를 추적합니다.</p>
         </article>
       </div>
+    </section>
+
+    <section class="home-ops-strip home-readonly-banner" aria-label="안전한 Read-Only 운영 원칙">
+      <div>
+        <p class="eyebrow">운영 원칙</p>
+        <h2>🔒 안전한 Read-Only 운영 원칙</h2>
+      </div>
+      <ul>
+        <li>실제 주문, 계좌 연결, 투자 자문을 제공하지 않습니다.</li>
+        <li>AI 분석과 AI 가상매매는 판단 근거를 정리하는 정보 제공용 자료입니다.</li>
+        <li><a href="/features/methodology">데이터 기준</a>, <a href="/disclaimer">투자 유의사항</a>, <a href="/terms">이용약관</a>, <a href="/privacy">개인정보처리방침</a>을 공개합니다.</li>
+      </ul>
     </section>
   </main>
 
@@ -8366,6 +8369,7 @@ h3 {
     radial-gradient(circle at 12% 34%, rgba(143, 216, 189, 0.13), transparent 31%),
     linear-gradient(180deg, #10130f 0%, #171a16 48%, #11140f 100%);
   color: var(--home-ink);
+  letter-spacing: -0.03em;
   overflow-x: clip;
 }
 
@@ -8499,6 +8503,14 @@ h3 {
   border-radius: 6px;
   background: rgba(23, 26, 22, 0.84);
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
+  transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.home-command-search:hover,
+.home-command-search:focus-within {
+  border-color: rgba(220, 252, 19, 0.68);
+  background: rgba(24, 29, 20, 0.94);
+  box-shadow: 0 0 10px rgba(220, 252, 19, 0.3), 0 28px 80px rgba(0, 0, 0, 0.32);
 }
 
 .home-command-search input {
@@ -8682,15 +8694,47 @@ h3 {
   min-height: clamp(360px, 38vw, 560px);
   aspect-ratio: 1.06 / 1;
   overflow: hidden;
-  border: 1px solid rgba(246, 243, 232, 0.18);
-  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
   background:
     linear-gradient(90deg, rgba(215, 255, 63, 0.1) 1px, transparent 1px),
     linear-gradient(rgba(143, 216, 189, 0.08) 1px, transparent 1px),
     radial-gradient(circle at 72% 28%, rgba(215, 255, 63, 0.18), transparent 28%),
     linear-gradient(135deg, #11130f, #1c201a 58%, #0f110e);
   background-size: 28px 28px, 28px 28px, auto, auto;
-  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 34px 90px rgba(0, 0, 0, 0.34);
+}
+
+.home-analyst-window-caption {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 16px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgba(246, 243, 232, 0.1);
+  border-radius: 6px;
+  background: rgba(16, 19, 15, 0.72);
+  color: rgba(246, 243, 232, 0.72);
+  font-family: var(--app-font-stack);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(10px);
+}
+
+.home-analyst-window-caption small {
+  color: var(--home-acid);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .home-signal-art::after {
@@ -8791,7 +8835,7 @@ h3 {
   position: absolute;
   left: 34px;
   right: 34px;
-  top: 34px;
+  top: 58px;
   z-index: 2;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -8871,6 +8915,10 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+.signal-stock-card .home-console-focus {
+  padding: 22px 22px 14px;
+}
+
 .signal-stock-card .home-console-focus small {
   color: rgba(246, 243, 232, 0.64);
   overflow-wrap: anywhere;
@@ -8894,6 +8942,9 @@ h3 {
 
 .signal-stock-card .home-sparkline {
   border-bottom-color: rgba(246, 243, 232, 0.14);
+  gap: 5px;
+  height: 70px;
+  margin: 0 22px 14px;
 }
 
 .signal-stock-card .home-sparkline i {
@@ -9079,15 +9130,79 @@ h3 {
 }
 
 .public-home .home-flow-list {
-  border-top-color: rgba(246, 243, 232, 0.16);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  border-top: 0;
 }
 
 .public-home .home-flow-list article {
-  border-bottom-color: rgba(246, 243, 232, 0.12);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 12px;
+  min-height: 210px;
+  padding: 20px;
+  border: 1px solid rgba(246, 243, 232, 0.13);
+  border-left: 3px solid rgba(215, 255, 63, 0.72);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(215, 255, 63, 0.075), transparent 42%),
+    rgba(32, 35, 30, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
 .public-home .home-flow-list strong {
   color: var(--home-ink);
+  font-size: clamp(20px, 2vw, 26px);
+  line-height: 1.12;
+}
+
+.public-home .home-flow-list span {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(215, 255, 63, 0.38);
+  border-radius: 6px;
+  background: rgba(215, 255, 63, 0.1);
+  color: var(--home-acid);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.public-home .home-flow-list p {
+  max-width: 31rem;
+  font-size: 14px;
+}
+
+.home-readonly-banner {
+  margin-top: clamp(22px, 4vw, 44px);
+  padding: 18px 20px;
+  border: 1px solid rgba(246, 243, 232, 0.12);
+  border-radius: 8px;
+  background: rgba(49, 53, 46, 0.56);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.public-home .home-readonly-banner h2 {
+  font-size: clamp(18px, 2vw, 24px);
+  line-height: 1.18;
+  letter-spacing: -0.03em;
+}
+
+.home-readonly-banner ul {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.public-home .home-readonly-banner li {
+  padding-top: 0;
+  border-top: 0;
+  color: rgba(246, 243, 232, 0.7);
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: -0.02em;
+  opacity: 0.84;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -9325,10 +9440,23 @@ h3 {
     aspect-ratio: 16 / 9;
   }
 
+  .home-analyst-window-caption {
+    left: 12px;
+    right: 12px;
+    top: 10px;
+    min-height: 24px;
+    padding: 0 8px;
+    font-size: 9px;
+  }
+
+  .home-analyst-window-caption small {
+    font-size: 8px;
+  }
+
   .signal-flow-row {
     left: 16px;
     right: 16px;
-    top: 16px;
+    top: 42px;
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
@@ -9371,6 +9499,20 @@ h3 {
   .home-lens-grid,
   .home-analysis-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-home .home-flow-list,
+  .home-readonly-banner ul {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-home .home-flow-list article {
+    min-height: 0;
+  }
+
+  .home-readonly-banner {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px;
   }
 
   .home-lens-grid article {
