@@ -6966,7 +6966,7 @@ h3 {
 }
 
 .auth-form-note {
-  margin: -4px 0 0;
+  margin: -8px 0 0;
   color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
   font-size: 12px;
   line-height: 1.45;
@@ -7441,6 +7441,10 @@ h3 {
   display: block;
 }
 
+.auth-form .password-row {
+  position: relative;
+}
+
 .member-form .password-row input {
   min-width: 0;
 }
@@ -7457,20 +7461,26 @@ h3 {
   position: absolute;
   top: 50%;
   right: 12px;
-  height: 30px;
-  min-width: 92px;
-  padding: 0 10px;
-  border-color: rgba(246, 243, 232, 0.18);
-  border-radius: 999px;
-  background: rgba(246, 243, 232, 0.08);
-  color: var(--home-readable, rgba(246, 243, 232, 0.84));
-  font-size: 12px;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: rgba(246, 243, 232, 0.64);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
   line-height: 1;
   transform: translateY(-50%);
 }
 
 .member-page .auth-form .password-toggle:hover {
-  background: rgba(246, 243, 232, 0.13);
+  background: transparent;
+  color: var(--home-acid);
 }
 
 .compact-form {

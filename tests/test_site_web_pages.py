@@ -404,6 +404,9 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert ".member-page .auth-form .password-toggle" in html
     assert ".button-row.auth-button-row" in html
     assert "position: absolute;" in html
+    assert "background: transparent;" in html
+    assert "font-size: 11px;" in html
+    assert "margin: -8px 0 0;" in html
     assert "height: 46px;" in html
     assert "opacity: 0.6;" in html
     assert "내 공간" in html
