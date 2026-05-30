@@ -12761,7 +12761,7 @@ ADMIN_PAGE_JS = """
     opsSummary.textContent = "";
     recentPanel && (recentPanel.textContent = "");
     const fragment = document.createDocumentFragment();
-    appendOpsCell(fragment, "Ops", "오류", message, "is-error");
+    appendOpsCell(fragment, "운영", "오류", message, "is-error");
     opsSummary.appendChild(fragment);
   }
 
@@ -13004,7 +13004,7 @@ ADMIN_PAGE_JS = """
     const response = await fetch(path, { ...options, headers });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(payload.detail || payload.error || `HTTP ${response.status}`);
+      throw new Error(payload.detail || payload.error || `요청 실패 (HTTP ${response.status})`);
     }
     return payload;
   }
@@ -13690,7 +13690,7 @@ MEMBER_PAGE_JS = """
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(payload.error_description || payload.msg || payload.error || "Supabase auth failed");
+      throw new Error(payload.error_description || payload.msg || payload.error || "인증 요청에 실패했습니다.");
     }
     return payload;
   }
@@ -13729,7 +13729,7 @@ MEMBER_PAGE_JS = """
 
   function apiErrorMessage(payload) {
     const detail = payload?.detail;
-    if (!detail) return payload?.error || "Request failed";
+    if (!detail) return payload?.error || "요청 처리에 실패했습니다.";
     if (typeof detail === "string") return detail;
     if (typeof detail === "object") return detail.message || detail.error || JSON.stringify(detail);
     return String(detail);
@@ -13767,7 +13767,7 @@ MEMBER_PAGE_JS = """
     try {
       return { ok: true, payload: await memberApi(path, options) };
     } catch (error) {
-      return { ok: false, error: error.message || "Request failed" };
+      return { ok: false, error: error.message || "요청 처리에 실패했습니다." };
     }
   }
 
@@ -14206,7 +14206,7 @@ MEMBER_PAGE_JS = """
     const text = String(value || "").trim();
     if (!text) return "실패 사유 확인 필요";
     if (text.includes("Read-only file system")) {
-      return "서버 임시 저장 경로 문제로 실패했습니다. 다시 요청하면 수정된 worker로 처리됩니다.";
+      return "서버 임시 저장 경로 문제로 실패했습니다. 다시 요청하면 수정된 처리 경로로 진행됩니다.";
     }
     return text.length > 180 ? `${text.slice(0, 177)}...` : text;
   }
