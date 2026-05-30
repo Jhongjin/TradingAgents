@@ -269,7 +269,7 @@ def _learning_context_text(
 
     scope = f"{ticker_code} 종목" if ticker_code else "전체 종목"
     lines = [
-        "AI 모의투자 복기 참고자료(비식별 집계, 실제 주문 아님):",
+        "AI 가상매매 복기 참고자료(비식별 집계, 실제 주문 아님):",
         (
             f"- 범위: {scope}의 모의 청산 {closed_count}건 기준입니다. "
             "확정 매매 신호가 아니라 리스크 점검 자료로만 사용하세요."
@@ -328,6 +328,6 @@ def _decimal(value: Any) -> Decimal:
 
 def _notices() -> list[str]:
     return [
-        "AI 모의투자 기록은 저장된 분석 리포트를 기준으로 계산한 기록입니다.",
+        "AI 가상매매 기록은 저장된 분석 리포트를 기준으로 계산한 기록입니다.",
         "실제 주문, 계좌 연결, 투자 자문 기능은 포함하지 않습니다.",
     ]

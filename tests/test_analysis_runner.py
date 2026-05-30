@@ -129,7 +129,7 @@ def test_tradingagents_runner_adds_anonymous_paper_learning_context():
     )
 
     context = FakeGraph.instances[0].config["paper_learning_context"]
-    assert "AI 모의투자 복기 참고자료" in context
+    assert "AI 가상매매 복기 참고자료" in context
     assert "비식별 집계" in context
     assert "실제 주문 아님" in context
     assert "20일선 위 / 단기 강세" in context

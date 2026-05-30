@@ -188,7 +188,7 @@ paper_simulation_accounts = Table(
     metadata,
     Column("id", Uuid(as_uuid=False), primary_key=True),
     Column("user_id", Uuid(as_uuid=False), nullable=False, index=True),
-    Column("name", Text, nullable=False, default="AI 모의투자"),
+    Column("name", Text, nullable=False, default="AI 가상매매"),
     Column("base_currency", String(8), nullable=False, default="KRW"),
     Column("initial_cash", Numeric(18, 4), nullable=False, default=10000000),
     Column("cash_balance", Numeric(18, 4), nullable=False, default=10000000),

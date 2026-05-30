@@ -8,6 +8,10 @@ from decimal import Decimal
 from typing import Any, Mapping
 
 
+PAPER_SIMULATION_ACCOUNT_NAME = "AI 가상매매"
+PAPER_SIMULATION_LEGACY_ACCOUNT_NAME = "AI 모의투자"
+
+
 @dataclass(frozen=True)
 class AnalysisRunInput:
     ticker_code: str
@@ -98,7 +102,7 @@ class ManualTradeInput:
 @dataclass(frozen=True)
 class PaperSimulationAccountInput:
     user_id: str
-    name: str = "AI 모의투자"
+    name: str = PAPER_SIMULATION_ACCOUNT_NAME
     base_currency: str = "KRW"
     initial_cash: Decimal = Decimal("10000000")
     cash_balance: Decimal | None = None

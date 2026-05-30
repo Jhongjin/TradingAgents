@@ -20,6 +20,8 @@ from .models import (
     AnalysisRequestInput,
     AnalysisRunInput,
     ManualTradeInput,
+    PAPER_SIMULATION_ACCOUNT_NAME,
+    PAPER_SIMULATION_LEGACY_ACCOUNT_NAME,
     PaperSimulationAccountInput,
     PaperSimulationEventInput,
     PaperSimulationPositionInput,
@@ -817,15 +819,24 @@ class StorageRepository:
             ).mappings().all()
         return [dict(row) for row in rows]
 
-    def get_paper_simulation_account(self, *, user_id: str, name: str = "AI 모의투자") -> dict[str, Any] | None:
+    def get_paper_simulation_account(
+        self,
+        *,
+        user_id: str,
+        name: str = PAPER_SIMULATION_ACCOUNT_NAME,
+    ) -> dict[str, Any] | None:
         _validate_uuid(user_id, "paper simulation user_id")
+        names = [name]
+        if name == PAPER_SIMULATION_ACCOUNT_NAME:
+            names.append(PAPER_SIMULATION_LEGACY_ACCOUNT_NAME)
         with self.engine.begin() as conn:
             row = conn.execute(
                 select(paper_simulation_accounts)
                 .where(
                     paper_simulation_accounts.c.user_id == user_id,
-                    paper_simulation_accounts.c.name == name,
+                    paper_simulation_accounts.c.name.in_(names),
                 )
+                .order_by(desc(paper_simulation_accounts.c.name == name))
                 .limit(1)
             ).mappings().first()
         return dict(row) if row else None
