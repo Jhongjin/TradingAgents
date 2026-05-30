@@ -218,6 +218,7 @@ def test_api_app_serves_public_simulation_preview(monkeypatch):
     body = response.json()
     assert body["status"] == "available"
     assert body["execution_boundary"] == "simulation_only_no_orders"
+    assert body["execution_boundary_label"] == "실제 주문 없음 · 가상매매 전용"
     assert body["analysis_run_id"] == run_id
     assert body["decision"]["rating"] == "Buy"
     assert body["simulation"]["status"] == "closed"
@@ -283,6 +284,7 @@ def test_api_app_serves_member_paper_simulations(monkeypatch):
 
     assert worker_response.status_code == 200
     assert worker_response.json()["execution_boundary"] == "simulation_only_no_orders"
+    assert worker_response.json()["execution_boundary_label"] == "실제 주문 없음 · 가상매매 전용"
     assert worker_response.json()["summary"]["created_count"] == 1
     assert member_response.status_code == 200
     assert member_response.headers["cache-control"] == "private, no-store"

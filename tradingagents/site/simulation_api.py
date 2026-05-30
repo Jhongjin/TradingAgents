@@ -19,6 +19,8 @@ SIMULATION_NOTICES = [
     "청산은 기본 익절, 손절, 보유일 규칙으로 계산되며 브로커 주문과 연결되지 않습니다.",
 ]
 
+EXECUTION_BOUNDARY_LABEL = "실제 주문 없음 · 가상매매 전용"
+
 
 def build_public_simulation_preview_payload(
     repo: StorageRepository | None,
@@ -107,6 +109,7 @@ def build_public_simulation_preview_payload(
             "status": "available",
             "mode": "paper_simulation",
             "execution_boundary": "simulation_only_no_orders",
+            "execution_boundary_label": EXECUTION_BOUNDARY_LABEL,
             "ticker": _ticker_payload(resolved),
             "analysis_run_id": run.get("id"),
             "trade_date": trade_date,

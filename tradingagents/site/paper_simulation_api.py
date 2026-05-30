@@ -9,6 +9,8 @@ from tradingagents.storage import StorageRepository
 
 from .public_api import _json_ready
 
+EXECUTION_BOUNDARY_LABEL = "실제 주문 없음 · 가상매매 전용"
+
 
 def build_member_paper_simulation_payload(
     repo: StorageRepository,
@@ -31,6 +33,7 @@ def build_member_paper_simulation_payload(
                 "status": "empty",
                 "mode": "paper_simulation",
                 "execution_boundary": "simulation_only_no_orders",
+                "execution_boundary_label": EXECUTION_BOUNDARY_LABEL,
                 "account": None,
                 "summary": _summary([]),
                 "positions": [],
@@ -48,6 +51,7 @@ def build_member_paper_simulation_payload(
             "status": "available",
             "mode": "paper_simulation",
             "execution_boundary": "simulation_only_no_orders",
+            "execution_boundary_label": EXECUTION_BOUNDARY_LABEL,
             "account": _account_item(account),
             "summary": _summary(positions),
             "positions": positions,
@@ -85,6 +89,7 @@ def build_paper_learning_context_payload(
             "status": "available" if positions else "empty",
             "mode": "paper_learning_context",
             "execution_boundary": "simulation_only_no_orders",
+            "execution_boundary_label": EXECUTION_BOUNDARY_LABEL,
             "ticker_code": ticker_code,
             "sample_count": len(positions),
             "summary": summary,

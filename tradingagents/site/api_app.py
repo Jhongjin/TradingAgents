@@ -33,7 +33,7 @@ from .analysis_api import (
 )
 from .auth import SUPABASE_API_KEY_ENV_NAMES, SUPABASE_URL_ENV_NAMES, resolve_member_user_id
 from .market_api import build_latest_prices_payload
-from .paper_simulation_api import build_member_paper_simulation_payload
+from .paper_simulation_api import EXECUTION_BOUNDARY_LABEL, build_member_paper_simulation_payload
 from .portfolio_api import build_manual_portfolio_list_payload, build_manual_portfolio_payload, normalize_portfolio_ticker
 from .public_api import build_public_stock_payload
 from .seo import build_ads_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
@@ -963,6 +963,7 @@ def create_app(
                 "open_position_count": len(open_positions),
                 "mode": "paper_simulation",
                 "execution_boundary": "simulation_only_no_orders",
+                "execution_boundary_label": EXECUTION_BOUNDARY_LABEL,
                 "items": [_admin_paper_candidate_preview(row) for row in candidates],
                 "open_positions": [_admin_paper_open_preview(row) for row in open_positions],
                 "limit": effective_limit,
@@ -1424,6 +1425,7 @@ def _process_paper_simulations(repo: StorageRepository, *, limit: int, as_of_dat
         "status": "processed",
         "mode": "paper_simulation",
         "execution_boundary": "simulation_only_no_orders",
+        "execution_boundary_label": EXECUTION_BOUNDARY_LABEL,
         "item_count": len(results),
         "summary": summarize_paper_simulation_results(results),
         "inspect_path": "/api/member/paper-simulations",

@@ -82,6 +82,7 @@ def test_paper_simulation_worker_persists_member_position(monkeypatch):
     assert repo.list_paper_simulation_candidates() == []
     assert payload["status"] == "available"
     assert payload["execution_boundary"] == "simulation_only_no_orders"
+    assert payload["execution_boundary_label"] == "실제 주문 없음 · 가상매매 전용"
     assert payload["summary"]["closed_count"] == 1
     assert payload["summary"]["win_count"] == 1
     assert payload["summary"]["learning"]["best_bucket"]["label"] == "Buy / buy"
