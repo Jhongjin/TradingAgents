@@ -186,6 +186,9 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "월봉" in html
     assert "chart-tools" in html
     assert 'data-chart-indicator="ma60"' in html
+    assert 'data-chart-indicator="ma120"' in html
+    assert "tradingagents.chart.indicators.v1" in html
+    assert "readChartIndicatorState" in html
     assert 'data-chart-draw-trend' in html
     assert "chartDrawingLayer" in html
     assert "setupTrendDrawing" in html
@@ -208,6 +211,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "<dt>기준일</dt>" in html
     assert "<dt>평가일</dt>" in html
     assert "movingAverage" in html
+    assert "MA120" in html
     assert "periodReturnLabel" in html
     assert "bollinger" in html
     assert "고저" in html
@@ -243,6 +247,24 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert '<meta name="twitter:card" content="summary">' in html
     assert '"code":"005930"' in html
     assert "71,800원" in html
+
+
+def test_render_public_stock_page_limits_intraday_period_tabs(monkeypatch):
+    payload = _payload()
+    payload["chart"]["interval"] = "1m"
+    payload["chart"]["vendor"] = "yfinance"
+    payload["chart"]["requested_vendor"] = "yfinance"
+    payload["chart"]["resolved_vendor"] = "yfinance"
+    payload["chart"]["data_source_label"] = "Yahoo Finance"
+    monkeypatch.setattr("tradingagents.site.web_pages.build_public_stock_payload", lambda *args, **kwargs: payload)
+
+    html = render_public_stock_page("005930", site_base_url="https://example.com")
+
+    assert "Yahoo 분봉" in html
+    assert "1분봉" in html
+    assert "1일" in html
+    assert "6개월" not in html
+    assert "3개월" not in html
 
 
 def test_render_public_stock_page_surfaces_missing_data_warnings(monkeypatch):
