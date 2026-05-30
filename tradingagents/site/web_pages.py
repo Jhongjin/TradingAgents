@@ -2384,7 +2384,17 @@ def _analysis_refresh_label(refresh: dict[str, Any]) -> str:
         prefix = "확인 대기"
     else:
         prefix = "업데이트 권장" if refresh.get("recommended") else "최신"
-    return f"{prefix} ({reason}{age_label})"
+    return f"{prefix} ({_analysis_refresh_reason_label(reason)}{age_label})"
+
+
+def _analysis_refresh_reason_label(reason: str) -> str:
+    return {
+        "-": "확인 정보 없음",
+        "fresh": "최근 리포트",
+        "analysis_skipped": "분석 생략",
+        "storage_not_configured": "저장소 확인 대기",
+        "no_completed_public_analysis": "완료된 공개 리포트 없음",
+    }.get(str(reason or "-"), str(reason or "확인 정보 없음"))
 
 
 def _analysis_confidence_model(
@@ -2462,13 +2472,13 @@ def _analysis_missing_data_warnings(
 
     if refresh.get("recommended"):
         reason = refresh.get("reason") or "refresh_recommended"
-        warnings.append(f"분석 업데이트 권장: {reason}")
+        warnings.append(f"분석 업데이트 권장: {_analysis_refresh_reason_label(str(reason))}")
     if status == "available" and report_count == 0:
         warnings.append("AI 리포트가 저장되지 않았습니다.")
     if status == "available" and not has_decision:
         warnings.append("AI 의견 레코드가 저장되지 않았습니다.")
     if status == "available" and outcome_count == 0:
-        warnings.append("5일/20일 사후 결과이 아직 없습니다.")
+        warnings.append("5일/20일 사후 결과가 아직 없습니다.")
     if chart.get("status") != "available":
         warnings.append(_chart_fallback_message(chart))
     elif point_count == 0:

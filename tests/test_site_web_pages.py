@@ -204,7 +204,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "<dd>자동 전환: pykrx</dd>" in html
     assert "AI 리서치 출처" in html
     assert "공개 분석 00000000" in html
-    assert "최신 (fresh / 0일 경과)" in html
+    assert "최신 (최근 리포트 / 0일 경과)" in html
     assert "근거 상태" in html
     assert "근거 충분" in html
     assert "표시된 근거에서 큰 누락은 보이지 않습니다" in html
@@ -290,7 +290,7 @@ def test_render_public_stock_page_surfaces_missing_data_warnings(monkeypatch):
 
     assert "데이터 부족" in html
     assert "공개 분석이 아직 저장되지 않았습니다." in html
-    assert "분석 업데이트 권장: no_completed_public_analysis" in html
+    assert "분석 업데이트 권장: 완료된 공개 리포트 없음" in html
     assert "차트 데이터를 불러오지 못했습니다: chart vendor offline" in html
     assert 'href="/analyses?ticker=005930">이 종목 리포트</a>' in html
     assert 'href="/member?mode=signup&amp;tab=analysis#analysis-request-section">분석 요청</a>' in html
