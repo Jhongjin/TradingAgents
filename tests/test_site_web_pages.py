@@ -426,11 +426,17 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "memberHomeStateNote" in html
     assert "저장된 항목을 불러오고 있습니다." in html
     assert "아직 저장된 항목이 없습니다. 매매 일지나 관심그룹부터 시작해 보세요." in html
+    assert "프라이빗 리서치 룸이 성공적으로 활성화되었습니다." in html
     assert "member-home-grid" in html
     assert "member-primary-action" in html
+    assert "align-items: center;" in html
+    assert "display: inline-flex;" in html
+    assert "font-weight: 950;" in html
+    assert "border: 1px solid rgba(215, 255, 63, 0.36);" in html
     assert "background: var(--home-acid);" in html
     assert "color: #10130f;" in html
-    assert "첫 매매 일지를 남겨보세요" in html
+    assert "나만의 첫 번째 프라이빗 매매 일지를 가동해 보세요" in html
+    assert "증권사 실제 계좌 주문과 연동되지 않는 100% 안전한 Read-Only 기록실입니다." in html
     assert "매매 일지 시작" in html
     assert 'data-member-primary-action="watchlist"' not in html
     assert "memberPrimaryActionButton" in html

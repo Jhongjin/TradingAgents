@@ -1944,8 +1944,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <section class="member-primary-action" id="memberPrimaryAction" data-member-primary-action="portfolio" aria-live="polite">
             <div>
               <span>다음 작업</span>
-              <strong id="memberPrimaryActionTitle">첫 매매 일지를 남겨보세요</strong>
-              <small id="memberPrimaryActionCopy">평단, 목표가, 손절가를 주문 연결 없이 직접 정리합니다.</small>
+              <strong id="memberPrimaryActionTitle">나만의 첫 번째 프라이빗 매매 일지를 가동해 보세요</strong>
+              <small id="memberPrimaryActionCopy">증권사 실제 계좌 주문과 연동되지 않는 100% 안전한 Read-Only 기록실입니다. 매수 평단과 목표가, 손절 라인을 직접 커스텀 빌드하여 투자 시나리오를 정밀 관리하세요.</small>
             </div>
             <button class="home-primary-link" type="button" id="memberPrimaryActionButton" data-member-jump="portfolio">매매 일지 시작</button>
           </section>
@@ -7150,10 +7150,23 @@ h3 {
 }
 
 .member-home-card span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  min-width: 32px;
+  height: 22px;
+  border: 1px solid rgba(215, 255, 63, 0.36);
+  border-radius: 999px;
+  background: rgba(215, 255, 63, 0.13);
+  box-shadow: inset 0 0 0 1px rgba(215, 255, 63, 0.08);
   color: var(--home-acid);
   font-family: var(--app-font-stack);
-  font-size: 12px;
-  font-weight: 900;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .member-home-card strong {
@@ -11558,6 +11571,7 @@ button:disabled {
 .member-tab-strip {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: center;
   gap: 8px;
   margin: 0 0 16px;
   padding: 8px;
@@ -11580,10 +11594,11 @@ button:disabled {
 }
 
 .member-tab-strip a span {
-  display: inline-grid;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 28px;
   height: 24px;
-  place-items: center;
   border: 1px solid rgba(246, 243, 232, 0.14);
   border-radius: 999px;
   background: rgba(246, 243, 232, 0.06);
@@ -15229,6 +15244,14 @@ MEMBER_PAGE_JS = """
     return `저장된 항목: ${parts.join(" / ")}`;
   }
 
+  function dashboardSignedInMeta(portfoliosPayload = {}, watchlistsPayload = {}, requestsPayload = {}, paperPayload = {}) {
+    const meta = dashboardStatusMeta(portfoliosPayload, watchlistsPayload, requestsPayload, paperPayload);
+    if (meta === "아직 저장된 항목이 없습니다. 매매 일지나 관심그룹부터 시작해 보세요.") {
+      return "프라이빗 리서치 룸이 성공적으로 활성화되었습니다. 하단의 가동 파이프라인을 통해 나만의 투자 기록을 축적해 보세요.";
+    }
+    return meta;
+  }
+
   function setMemberHomeNote(text) {
     setText(memberHomeStateNote, text);
   }
@@ -15281,8 +15304,8 @@ MEMBER_PAGE_JS = """
     } else if (!portfolioCount) {
       setMemberPrimaryAction(
         "portfolio",
-        "첫 매매 일지를 남겨보세요",
-        "계좌 주문과 연결되지 않는 개인 기록입니다. 평단, 목표가, 손절가를 직접 정리합니다.",
+        "나만의 첫 번째 프라이빗 매매 일지를 가동해 보세요",
+        "증권사 실제 계좌 주문과 연동되지 않는 100% 안전한 Read-Only 기록실입니다. 매수 평단과 목표가, 손절 라인을 직접 커스텀 빌드하여 투자 시나리오를 정밀 관리하세요.",
         "매매 일지 시작"
       );
     } else if (!watchlistCount) {
@@ -15374,7 +15397,7 @@ MEMBER_PAGE_JS = """
       setSignedInState(true, {
         label: "대시보드 준비 완료",
         user: userLabel,
-        meta: dashboardStatusMeta(portfolios, watchlists, requests, paperSimulations)
+        meta: dashboardSignedInMeta(portfolios, watchlists, requests, paperSimulations)
       });
       setStatus("대시보드 준비 완료");
       return;
@@ -15474,7 +15497,7 @@ MEMBER_PAGE_JS = """
     setSignedInState(true, {
       label: "기본 화면 준비 완료",
       user: userLabel,
-      meta: dashboardStatusMeta(portfolios, watchlists, requests, paperSimulations)
+      meta: dashboardSignedInMeta(portfolios, watchlists, requests, paperSimulations)
     });
     setStatus("대시보드 준비 완료");
   }
