@@ -235,6 +235,8 @@ def test_api_app_simulation_preview_degrades_without_analysis():
 
     assert response.status_code == 200
     assert response.json()["status"] == "no_completed_analysis"
+    assert response.json()["execution_boundary"] == "simulation_only_no_orders"
+    assert response.json()["execution_boundary_label"] == "실제 주문 없음 · 가상매매 전용"
 
 
 def test_api_app_serves_member_paper_simulations(monkeypatch):
