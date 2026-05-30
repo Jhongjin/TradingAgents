@@ -6123,6 +6123,10 @@ h3 {
     rgba(15, 22, 18, 0.72);
 }
 
+.feature-journey.feature-journey-compact {
+  align-items: center;
+}
+
 .feature-journey-heading h2 {
   max-width: 18ch;
   margin: 0;
@@ -6135,7 +6139,7 @@ h3 {
 .feature-journey-compact .feature-journey-heading h2 {
   max-width: 22ch;
   font-size: clamp(2rem, 2.8vw, 2.5rem);
-  line-height: 1.3;
+  line-height: 1.25;
   letter-spacing: -0.03em;
 }
 
@@ -9116,6 +9120,15 @@ h3 {
   font-weight: 900;
   line-height: 0.98;
   text-wrap: balance;
+}
+
+.public-home .feature-boundary {
+  margin-bottom: clamp(28px, 5vw, 56px);
+}
+
+.public-home .feature-boundary h2 {
+  line-height: 1.25;
+  letter-spacing: -0.03em;
 }
 
 .public-home .home-section-heading p,

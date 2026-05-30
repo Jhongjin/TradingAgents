@@ -674,6 +674,9 @@ def test_render_feature_detail_pages_use_public_theme():
     assert "feature-title-compact" in methodology_html
     assert "feature-journey-compact" in methodology_html
     assert ".feature-diagram-compact .feature-signal-card strong" in methodology_html
+    assert ".feature-journey.feature-journey-compact" in methodology_html
+    assert ".public-home .feature-boundary h2" in methodology_html
+    assert "margin-bottom: clamp(28px, 5vw, 56px);" in methodology_html
     assert 'href="/features/outcomes">사후 결과 보기</a>' in methodology_html
     assert '<link rel="canonical" href="https://example.com/features/methodology">' in methodology_html
     assert "/api/member/dashboard" not in methodology_html
