@@ -489,7 +489,7 @@ def render_public_outcomes_page(
     <section class="report-section outcome-feed-section" aria-labelledby="outcome-feed-title">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">결과 목록</p>
+        <p class="eyebrow">사후 결과 목록</p>
           <h2 id="outcome-feed-title">최근 사후 결과</h2>
         </div>
         <span class="status-pill">{_h(model["filter_label"])}</span>
@@ -3355,7 +3355,7 @@ def _analysis_feed_cards(
               <div class="analysis-feed-actions">
                 <a href="{_h(str(report_path))}">리포트 상세</a>
                 <a href="/stocks/{_h(str(code))}">종목 보기</a>
-                <a href="{_h(str(outcome_path))}">결과</a>
+                <a href="{_h(str(outcome_path))}">사후 결과</a>
                 <a class="subtle-action" href="{_h(str(api_path))}">원문 데이터</a>
               </div>
             </article>

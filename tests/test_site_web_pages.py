@@ -1044,7 +1044,7 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "<dt>시장 대비</dt><dd>+3.00%</dd>" in html
     assert "<dt>리포트</dt><dd>1개</dd>" in html
     assert f'href="/analyses/{run_id}">리포트 상세</a>' in html
-    assert 'href="/outcomes?ticker=005930">결과</a>' in html
+    assert 'href="/outcomes?ticker=005930">사후 결과</a>' in html
     assert f'class="subtle-action" href="/api/analyses/{run_id}">원문 데이터</a>' in html
     assert "/stocks/005930" in html
     assert '<link rel="canonical" href="https://example.com/analyses">' in html
