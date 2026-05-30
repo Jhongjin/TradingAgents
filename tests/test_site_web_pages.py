@@ -659,6 +659,7 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied(monkeypat
 
     assert "운영 콘솔" in html
     assert "운영 토큰" in html
+    assert "운영 버튼은 토큰 입력 후 활성화됩니다" in html
     assert "DASHBOARD_ADMIN_TOKEN" in html
     assert "OPERATOR_ACCESS_CODE" in html
     assert 'aria-current="page">운영 콘솔</a>' in html
@@ -678,6 +679,9 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied(monkeypat
     assert "adminRequestLimitHint" in html
     assert "현재 최대 1건" in html
     assert "syncWorkerLimits" in html
+    assert "syncAdminAccessControls" in html
+    assert "requiresOperationToken" in html
+    assert "운영 토큰을 먼저 입력하세요." in html
     assert "limitFromControl" in html
     assert "대상 확인" in html
     assert "리포트 생성" in html

@@ -1627,7 +1627,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
           <button type="submit">세션에 저장</button>
           <button type="button" data-admin-token-clear>토큰 지우기</button>
         </div>
-        <small id="adminTokenState">Vercel 환경변수 TRADINGAGENTS_WORKER_TOKEN, DASHBOARD_ADMIN_TOKEN, OPERATOR_ACCESS_CODE 중 설정된 값을 입력하세요.</small>
+        <small id="adminTokenState">Vercel 환경변수 TRADINGAGENTS_WORKER_TOKEN, DASHBOARD_ADMIN_TOKEN, OPERATOR_ACCESS_CODE 중 설정된 값을 입력하세요. 운영 버튼은 토큰 입력 후 활성화됩니다.</small>
       </form>
     </section>
 
@@ -12532,11 +12532,32 @@ ADMIN_PAGE_JS = """
     return (tokenInput?.value || "").trim() || savedToken();
   }
 
+  function requiresOperationToken(button) {
+    return Boolean(button?.matches("[data-admin-action], [data-admin-ops-summary]"));
+  }
+
+  function syncAdminAccessControls() {
+    const hasToken = Boolean(currentToken());
+    document.querySelectorAll("[data-admin-action], [data-admin-ops-summary]").forEach((button) => {
+      if (button.getAttribute("aria-busy") === "true") return;
+      button.disabled = !hasToken;
+      button.title = hasToken ? "" : "운영 토큰을 먼저 입력하세요.";
+    });
+    [requestLimit, outcomeLimit, paperSimulationLimit].forEach((control) => {
+      if (control) control.disabled = !hasToken;
+    });
+    document.body.classList.toggle("admin-token-ready", hasToken);
+    if (tokenState && !hasToken) {
+      tokenState.textContent = "운영 토큰을 입력하면 대기열 조회와 작업 실행 버튼이 활성화됩니다.";
+    }
+  }
+
   function clearSavedToken(message = "저장된 운영 토큰을 지웠습니다.") {
     sessionStorage.removeItem(tokenKey);
     if (tokenInput) tokenInput.value = "";
     if (tokenState) tokenState.textContent = message;
     window.dispatchEvent(new Event("tradingagents:admin-token"));
+    syncAdminAccessControls();
   }
 
   function setOutput(node, payload) {
@@ -12546,8 +12567,8 @@ ADMIN_PAGE_JS = """
 
   function setBusy(button, isBusy) {
     if (!button) return;
-    button.disabled = isBusy;
     button.setAttribute("aria-busy", isBusy ? "true" : "false");
+    button.disabled = isBusy || (requiresOperationToken(button) && !currentToken());
   }
 
   function positiveInt(value, fallback = 1) {
@@ -13028,6 +13049,7 @@ ADMIN_PAGE_JS = """
 
   if (tokenInput) tokenInput.value = savedToken();
   if (savedToken() && tokenState) tokenState.textContent = "세션에 저장된 운영 토큰을 사용합니다.";
+  syncAdminAccessControls();
 
   tokenForm?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -13039,6 +13061,11 @@ ADMIN_PAGE_JS = """
     sessionStorage.setItem(tokenKey, token);
     if (tokenState) tokenState.textContent = "운영 토큰을 이 브라우저 세션에 저장했습니다.";
     window.dispatchEvent(new Event("tradingagents:admin-token"));
+    syncAdminAccessControls();
+  });
+
+  tokenInput?.addEventListener("input", () => {
+    syncAdminAccessControls();
   });
 
   tokenClearButton?.addEventListener("click", () => {
