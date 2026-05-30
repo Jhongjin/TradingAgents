@@ -362,6 +362,8 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "프라이빗 리서치 공간이 열립니다" in html
     assert "안전한 Read-Only 운영 원칙" in html
     assert "box-shadow: 0 0 10px rgba(220, 252, 19, 0.3)" in html
+    assert ".public-home .analysis-feed-actions a" in html
+    assert "color: rgba(246, 243, 232, 0.92)" in html
     assert "quick-card-action" in html
     assert "차트 관제" in html
     assert "home-flow-icon" in html

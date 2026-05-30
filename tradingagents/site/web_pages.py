@@ -9155,6 +9155,29 @@ h3 {
   border-top-color: rgba(246, 243, 232, 0.12);
 }
 
+.public-home .analysis-feed-actions {
+  border-top-color: rgba(246, 243, 232, 0.13);
+}
+
+.public-home .analysis-feed-actions a {
+  border-color: rgba(246, 243, 232, 0.24);
+  background: rgba(246, 243, 232, 0.075);
+  color: rgba(246, 243, 232, 0.92);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.public-home .analysis-feed-actions a:hover {
+  border-color: rgba(220, 252, 19, 0.48);
+  background: rgba(220, 252, 19, 0.1);
+  color: var(--home-acid);
+}
+
+.public-home .analysis-feed-actions a:first-child {
+  border-color: var(--home-acid);
+  background: var(--home-acid);
+  color: #10130f;
+}
+
 .home-analysis-grid .analysis-feed-card:first-child:not(.empty) {
   background: rgba(251, 250, 244, 0.09);
   border-top: 4px solid var(--home-acid);
