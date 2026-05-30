@@ -431,8 +431,13 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "member-primary-action" in html
     assert "align-items: center;" in html
     assert "display: inline-flex;" in html
+    assert "display: flex;" in html
+    assert "gap: 0.375rem;" in html
+    assert "align-items: flex-end;" in html
     assert "font-weight: 950;" in html
-    assert "border: 1px solid rgba(215, 255, 63, 0.36);" in html
+    assert "color: #dcfc13;" in html
+    assert "border: 1px solid rgba(220, 252, 19, 0.42);" in html
+    assert "*01*" not in html
     assert "background: var(--home-acid);" in html
     assert "color: #10130f;" in html
     assert "나만의 첫 번째 프라이빗 매매 일지를 가동해 보세요" in html

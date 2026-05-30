@@ -7077,6 +7077,19 @@ h3 {
   gap: 14px;
 }
 
+.member-home-panel > .panel-heading {
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.member-home-panel > .panel-heading > div {
+  min-width: 0;
+}
+
+.member-home-panel > .panel-heading .status-pill {
+  flex: 0 0 auto;
+}
+
 .member-primary-action {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -7156,11 +7169,11 @@ h3 {
   justify-self: start;
   min-width: 32px;
   height: 22px;
-  border: 1px solid rgba(215, 255, 63, 0.36);
+  border: 1px solid rgba(220, 252, 19, 0.42);
   border-radius: 999px;
-  background: rgba(215, 255, 63, 0.13);
-  box-shadow: inset 0 0 0 1px rgba(215, 255, 63, 0.08);
-  color: var(--home-acid);
+  background: rgba(220, 252, 19, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(220, 252, 19, 0.1);
+  color: #dcfc13;
   font-family: var(--app-font-stack);
   font-size: 11px;
   font-weight: 950;
@@ -11581,16 +11594,17 @@ button:disabled {
 }
 
 .member-tab-strip a {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  min-height: 42px;
+  display: flex;
   align-items: center;
-  justify-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: 42px;
   border: 1px solid transparent;
   border-radius: 6px;
   color: var(--muted);
   font-weight: 900;
+  line-height: 1;
+  text-align: center;
 }
 
 .member-tab-strip a span {
