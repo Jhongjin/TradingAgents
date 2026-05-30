@@ -59,6 +59,41 @@ def build_member_paper_simulation_payload(
     )
 
 
+def build_paper_learning_context_payload(
+    repo: StorageRepository,
+    *,
+    ticker_code: str | None = None,
+    limit: int = 200,
+) -> dict[str, Any]:
+    """Build anonymous aggregate paper-trading lessons for AI report context."""
+
+    if limit <= 0:
+        raise ValueError("limit must be positive")
+
+    positions = [
+        _position_item(row)
+        for row in repo.list_paper_simulation_learning_positions(
+            ticker_code=ticker_code,
+            limit=limit,
+        )
+    ]
+    summary = _summary(positions)
+    learning = summary.get("learning") or {}
+    context_text = _learning_context_text(summary, learning, ticker_code=ticker_code)
+    return _json_ready(
+        {
+            "status": "available" if positions else "empty",
+            "mode": "paper_learning_context",
+            "execution_boundary": "simulation_only_no_orders",
+            "ticker_code": ticker_code,
+            "sample_count": len(positions),
+            "summary": summary,
+            "learning": learning,
+            "context_text": context_text,
+        }
+    )
+
+
 def _account_item(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": str(row.get("id") or ""),
@@ -220,6 +255,67 @@ def _learning_bucket_label(position: dict[str, Any]) -> str:
         if str(value or "").strip()
     )
     return decision or "AI 의견"
+
+
+def _learning_context_text(
+    summary: dict[str, Any],
+    learning: dict[str, Any],
+    *,
+    ticker_code: str | None = None,
+) -> str:
+    closed_count = int(summary.get("closed_count") or 0)
+    if closed_count <= 0:
+        return ""
+
+    scope = f"{ticker_code} 종목" if ticker_code else "전체 종목"
+    lines = [
+        "AI 모의투자 복기 참고자료(비식별 집계, 실제 주문 아님):",
+        (
+            f"- 범위: {scope}의 모의 청산 {closed_count}건 기준입니다. "
+            "확정 매매 신호가 아니라 리스크 점검 자료로만 사용하세요."
+        ),
+        (
+            f"- 전체 승률: {_percent(summary.get('win_rate'))}, "
+            f"평균 실현 수익률: {_signed_percent(summary.get('average_realized_return'))}, "
+            f"누적 가상 손익: {_signed_money(summary.get('total_realized_pnl'))}"
+        ),
+    ]
+    best = learning.get("best_bucket") if isinstance(learning, dict) else None
+    if best:
+        lines.append(
+            (
+                f"- 가장 성과가 좋았던 패턴: {best.get('label')} "
+                f"({best.get('trade_count') or 0}건, 승률 {_percent(best.get('win_rate'))}, "
+                f"평균 {_signed_percent(best.get('average_return'))})"
+            )
+        )
+    buckets = learning.get("buckets") if isinstance(learning, dict) else []
+    for bucket in list(buckets or [])[:3]:
+        lines.append(
+            (
+                f"- 참고 패턴: {bucket.get('label')} · {bucket.get('trade_count') or 0}건 · "
+                f"승률 {_percent(bucket.get('win_rate'))} · "
+                f"평균 {_signed_percent(bucket.get('average_return'))}"
+            )
+        )
+    return "\n".join(lines)
+
+
+def _percent(value: Any) -> str:
+    if value is None:
+        return "-"
+    return f"{float(value) * 100:.1f}%"
+
+
+def _signed_percent(value: Any) -> str:
+    if value is None:
+        return "-"
+    return f"{float(value) * 100:+.1f}%"
+
+
+def _signed_money(value: Any) -> str:
+    amount = _decimal(value)
+    return f"{amount:+,.0f}원"
 
 
 def _decimal(value: Any) -> Decimal:

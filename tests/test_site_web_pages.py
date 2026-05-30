@@ -480,6 +480,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "renderPaperSimulations" in html
     assert "paperSimulationCard" in html
     assert "paperLearningNote" in html
+    assert "paper-learning-buckets" in html
     assert "복기 요약" in html
     assert "진입 패턴" in html
     assert "pattern_label" in html

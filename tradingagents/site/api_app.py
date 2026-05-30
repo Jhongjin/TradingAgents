@@ -1391,6 +1391,7 @@ def _process_analysis_request_queue(repo: StorageRepository, *, limit: int) -> d
         lambda queued_request: run_tradingagents_graph_for_request(
             queued_request,
             config={"database_url": os.getenv("DATABASE_URL")},
+            repo=repo,
         ),
         limit=limit,
     )

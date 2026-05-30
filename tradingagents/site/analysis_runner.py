@@ -5,21 +5,27 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import date, datetime
+import logging
 import os
 import tempfile
 from typing import Any
 
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.graph.trading_graph import TradingAgentsGraph
+from tradingagents.storage import StorageRepository
+
+from .paper_simulation_api import build_paper_learning_context_payload
 
 
 GraphFactory = Callable[..., TradingAgentsGraph]
+logger = logging.getLogger(__name__)
 
 
 def run_tradingagents_graph_for_request(
     request: Mapping[str, Any],
     *,
     config: dict[str, Any] | None = None,
+    repo: StorageRepository | None = None,
     selected_analysts: list[str] | None = None,
     graph_factory: GraphFactory = TradingAgentsGraph,
 ) -> str:
@@ -36,6 +42,9 @@ def run_tradingagents_graph_for_request(
     graph_config.update(config or {})
     graph_config["storage_enabled"] = True
     _configure_worker_write_paths(graph_config, config or {})
+    paper_learning_context = _paper_learning_context(request, repo)
+    if paper_learning_context:
+        graph_config["paper_learning_context"] = paper_learning_context
 
     with _worker_write_env(graph_config, config or {}):
         graph = graph_factory(
@@ -49,6 +58,29 @@ def run_tradingagents_graph_for_request(
     if not analysis_run_id:
         raise RuntimeError("TradingAgents graph finished without a persisted analysis_run_id")
     return str(analysis_run_id)
+
+
+def _paper_learning_context(request: Mapping[str, Any], repo: StorageRepository | None) -> str:
+    """Return anonymous paper-simulation lessons for the requested ticker."""
+
+    if repo is None:
+        return ""
+    ticker = str(request.get("ticker_code") or "").strip() or None
+    try:
+        payload = build_paper_learning_context_payload(repo, ticker_code=ticker)
+        context_text = str(payload.get("context_text") or "").strip()
+        if context_text:
+            return context_text
+        if ticker:
+            payload = build_paper_learning_context_payload(repo, ticker_code=None)
+    except Exception as exc:
+        logger.info(
+            "Paper simulation learning context unavailable for %s: %s",
+            ticker or "unknown",
+            exc,
+        )
+        return ""
+    return str(payload.get("context_text") or "").strip()
 
 
 def _date_string(value: Any) -> str:

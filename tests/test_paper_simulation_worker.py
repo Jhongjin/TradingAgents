@@ -1,8 +1,16 @@
 from datetime import date, timedelta
 from types import SimpleNamespace
 
-from tradingagents.storage import AnalysisRunInput, TradeDecisionInput, StorageRepository, create_storage_engine
-from tradingagents.site.paper_simulation_api import build_member_paper_simulation_payload
+from tradingagents.storage import (
+    AnalysisRunInput,
+    StorageRepository,
+    TradeDecisionInput,
+    create_storage_engine,
+)
+from tradingagents.site.paper_simulation_api import (
+    build_member_paper_simulation_payload,
+    build_paper_learning_context_payload,
+)
 from tradingagents.site.paper_simulation_worker import process_paper_simulation_candidates, process_paper_simulations
 
 
@@ -126,6 +134,13 @@ def test_paper_simulation_worker_groups_learning_by_entry_pattern(monkeypatch):
     assert metadata["entry_pattern"]["status"] == "available"
     assert metadata["pattern_label"] == "20일선 위 / 단기 강세 / 거래량 증가"
     assert payload["summary"]["learning"]["best_bucket"]["label"] == metadata["pattern_label"]
+
+    context = build_paper_learning_context_payload(repo, ticker_code="005930")
+    assert context["status"] == "available"
+    assert context["sample_count"] == 1
+    assert "비식별 집계" in context["context_text"]
+    assert "실제 주문 아님" in context["context_text"]
+    assert "20일선 위 / 단기 강세 / 거래량 증가" in context["context_text"]
 
 
 def test_paper_simulation_worker_refreshes_open_positions_until_virtual_exit(monkeypatch):

@@ -951,7 +951,10 @@ class StorageRepository:
         stmt = (
             select(paper_simulation_positions)
             .where(paper_simulation_positions.c.user_id == user_id)
-            .order_by(desc(paper_simulation_positions.c.updated_at), desc(paper_simulation_positions.c.created_at))
+            .order_by(
+                desc(paper_simulation_positions.c.updated_at),
+                desc(paper_simulation_positions.c.created_at),
+            )
             .limit(limit)
         )
         if status is not None:
@@ -1017,6 +1020,46 @@ class StorageRepository:
         with self.engine.begin() as conn:
             count = conn.execute(stmt).scalar_one()
         return int(count)
+
+    def list_paper_simulation_learning_positions(
+        self,
+        *,
+        ticker_code: str | None = None,
+        limit: int = 200,
+    ) -> list[dict[str, Any]]:
+        """Return closed paper positions for anonymous aggregate learning."""
+
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        normalized_ticker = _normalize_ticker_code(ticker_code) if ticker_code else None
+        stmt = (
+            select(
+                paper_simulation_positions.c.ticker_code,
+                paper_simulation_positions.c.ticker_name,
+                paper_simulation_positions.c.market,
+                paper_simulation_positions.c.status,
+                paper_simulation_positions.c.entry_date,
+                paper_simulation_positions.c.entry_price,
+                paper_simulation_positions.c.exit_date,
+                paper_simulation_positions.c.exit_price,
+                paper_simulation_positions.c.exit_reason,
+                paper_simulation_positions.c.realized_pnl,
+                paper_simulation_positions.c.realized_return,
+                paper_simulation_positions.c.decision_rating,
+                paper_simulation_positions.c.decision_action,
+                paper_simulation_positions.c.target_weight,
+                paper_simulation_positions.c.metadata_json,
+                paper_simulation_positions.c.updated_at,
+            )
+            .where(paper_simulation_positions.c.status == "closed")
+            .order_by(desc(paper_simulation_positions.c.updated_at), desc(paper_simulation_positions.c.created_at))
+            .limit(limit)
+        )
+        if normalized_ticker:
+            stmt = stmt.where(paper_simulation_positions.c.ticker_code == normalized_ticker)
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
 
     def list_paper_simulation_candidates(self, *, limit: int = 20) -> list[dict[str, Any]]:
         """List completed member analyses that do not yet have a paper position."""

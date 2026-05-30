@@ -7180,6 +7180,27 @@ h3 {
   line-height: 1.45;
 }
 
+.paper-learning-buckets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.paper-learning-buckets span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 8px;
+  border: 1px solid rgba(143, 216, 189, 0.2);
+  border-radius: 999px;
+  color: rgba(246, 243, 232, 0.84);
+  background: rgba(246, 243, 232, 0.06);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
 .member-home-links {
   display: flex;
   flex-wrap: wrap;
@@ -14263,6 +14284,7 @@ MEMBER_PAGE_JS = """
   function paperLearningNote(summary = {}) {
     const learning = summary.learning || {};
     const best = learning.best_bucket || null;
+    const buckets = Array.isArray(learning.buckets) ? learning.buckets.slice(0, 3) : [];
     const node = document.createElement("div");
     node.className = "paper-learning-note";
     const label = document.createElement("span");
@@ -14276,7 +14298,21 @@ MEMBER_PAGE_JS = """
       title.textContent = "청산 기록 대기";
       copy.textContent = "모의 청산이 쌓이면 AI 의견별 승률과 평균 수익률을 보여줍니다.";
     }
-    node.replaceChildren(label, title, copy);
+    const bucketList = document.createElement("div");
+    bucketList.className = "paper-learning-buckets";
+    buckets.forEach((bucket) => {
+      const item = document.createElement("span");
+      const labelText = bucket.label || "패턴 미분류";
+      const winRate = signedPercent(bucket.win_rate).replace("+", "");
+      item.textContent = `${labelText} · ${bucket.trade_count || 0}건 · 승률 ${winRate}`;
+      bucketList.append(item);
+    });
+    node.replaceChildren(
+      label,
+      title,
+      copy,
+      ...(bucketList.childElementCount ? [bucketList] : [])
+    );
     return node;
   }
 

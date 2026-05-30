@@ -1,9 +1,16 @@
 from datetime import date
+from decimal import Decimal
 import os
 import tempfile
 
 import pytest
 
+from tradingagents.storage import (
+    PaperSimulationAccountInput,
+    PaperSimulationPositionInput,
+    StorageRepository,
+    create_storage_engine,
+)
 from tradingagents.site.analysis_runner import run_tradingagents_graph_for_request
 
 
@@ -39,6 +46,39 @@ class MissingRunIdGraph(FakeGraph):
         self.last_analysis_run_id = None
 
 
+USER_ID = "00000000-0000-0000-0000-000000000001"
+
+
+def _repo() -> StorageRepository:
+    repo = StorageRepository(create_storage_engine())
+    repo.create_schema()
+    return repo
+
+
+def _record_closed_paper_position(repo: StorageRepository, *, ticker_code: str = "005930") -> None:
+    account = repo.ensure_paper_simulation_account(PaperSimulationAccountInput(user_id=USER_ID))
+    repo.record_paper_simulation_position(
+        PaperSimulationPositionInput(
+            account_id=account["id"],
+            user_id=USER_ID,
+            ticker_code=ticker_code,
+            ticker_name="삼성전자" if ticker_code == "005930" else ticker_code,
+            market="KOSPI",
+            status="closed",
+            quantity=1,
+            entry_date=date(2026, 5, 5),
+            entry_price=Decimal("70000"),
+            exit_date=date(2026, 5, 7),
+            exit_price=Decimal("76000"),
+            realized_pnl=Decimal("6000"),
+            realized_return=0.0857,
+            decision_rating="Buy",
+            decision_action="buy",
+            metadata={"pattern_label": "20일선 위 / 단기 강세"},
+        )
+    )
+
+
 def test_tradingagents_runner_invokes_graph_and_returns_analysis_run_id(monkeypatch):
     monkeypatch.delenv("TRADINGAGENTS_RESULTS_DIR", raising=False)
     monkeypatch.delenv("TRADINGAGENTS_CACHE_DIR", raising=False)
@@ -70,6 +110,47 @@ def test_tradingagents_runner_invokes_graph_and_returns_analysis_run_id(monkeypa
     assert graph.env["TRADINGAGENTS_RESULTS_DIR"] == graph.config["results_dir"]
     assert graph.env["TRADINGAGENTS_MEMORY_LOG_PATH"] == graph.config["memory_log_path"]
     assert os.getenv("TRADINGAGENTS_CACHE_DIR") is None
+
+
+def test_tradingagents_runner_adds_anonymous_paper_learning_context():
+    repo = _repo()
+    _record_closed_paper_position(repo)
+    FakeGraph.instances = []
+
+    run_tradingagents_graph_for_request(
+        {
+            "ticker_code": "005930",
+            "requested_trade_date": date(2026, 5, 8),
+            "user_id": USER_ID,
+        },
+        config={"database_url": "sqlite+pysqlite:///:memory:"},
+        repo=repo,
+        graph_factory=FakeGraph,
+    )
+
+    context = FakeGraph.instances[0].config["paper_learning_context"]
+    assert "AI 모의투자 복기 참고자료" in context
+    assert "비식별 집계" in context
+    assert "실제 주문 아님" in context
+    assert "20일선 위 / 단기 강세" in context
+    assert USER_ID not in context
+
+
+def test_tradingagents_runner_falls_back_to_marketwide_paper_learning_context():
+    repo = _repo()
+    _record_closed_paper_position(repo, ticker_code="005930")
+    FakeGraph.instances = []
+
+    run_tradingagents_graph_for_request(
+        {"ticker_code": "000660", "requested_trade_date": date(2026, 5, 8)},
+        config={"database_url": "sqlite+pysqlite:///:memory:"},
+        repo=repo,
+        graph_factory=FakeGraph,
+    )
+
+    context = FakeGraph.instances[0].config["paper_learning_context"]
+    assert "전체 종목의 모의 청산 1건" in context
+    assert "20일선 위 / 단기 강세" in context
 
 
 def test_tradingagents_runner_requires_persisted_analysis_run_id():

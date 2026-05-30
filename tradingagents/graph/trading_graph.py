@@ -377,6 +377,11 @@ class TradingAgentsGraph:
         """Execute the graph and write the resulting state to disk and memory log."""
         # Initialize state — inject memory log context for PM.
         past_context = self.memory_log.get_past_context(company_name)
+        paper_learning_context = str(self.config.get("paper_learning_context") or "").strip()
+        if paper_learning_context:
+            past_context = "\n\n".join(
+                part for part in (past_context, paper_learning_context) if part
+            )
         init_agent_state = self.propagator.create_initial_state(
             company_name, trade_date, past_context=past_context
         )
