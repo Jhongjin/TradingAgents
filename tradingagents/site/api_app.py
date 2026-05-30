@@ -1160,12 +1160,12 @@ def _stock_html_response(
 def _resolve_stock_lookup(value: str) -> str:
     query = value.strip()
     if not query:
-        raise ValueError("ticker query cannot be empty")
+        raise ValueError("검색어를 입력해 주세요.")
     if query.isdigit() and len(query) == 6:
         return query
     results = build_ticker_search_payload(query, limit=1)["items"]
     if not results:
-        raise ValueError("matching Korean ticker was not found")
+        raise ValueError("일치하는 한국 종목을 찾지 못했습니다.")
     return str(results[0]["code"])
 
 
@@ -1177,7 +1177,7 @@ def _resolve_public_stock_api_ticker(value: str) -> str:
         return _resolve_stock_lookup(query)
     except ValueError as exc:
         raise VendorUnavailableError(
-            "public stock API supports Korean 6-digit ticker codes or Korean company names"
+            "공개 종목 API는 6자리 종목코드 또는 한국 종목명을 지원합니다."
         ) from exc
 
 

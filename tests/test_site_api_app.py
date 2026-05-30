@@ -161,6 +161,22 @@ def test_api_app_public_stock_api_resolves_company_name():
     assert body["ticker"]["name"] == "로킷헬스케어"
 
 
+def test_api_app_stock_lookup_error_uses_korean_message(monkeypatch):
+    monkeypatch.setattr(
+        "tradingagents.site.api_app.build_ticker_search_payload",
+        lambda *args, **kwargs: {"items": []},
+    )
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+
+    response = client.get("/stocks", params={"ticker": "없는회사"})
+    api_response = client.get("/api/stocks/없는회사", params={"include_chart": "false"})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "일치하는 한국 종목을 찾지 못했습니다."
+    assert api_response.status_code == 400
+    assert api_response.json()["detail"] == "공개 종목 API는 6자리 종목코드 또는 한국 종목명을 지원합니다."
+
+
 def test_api_app_public_analysis_feed_resolves_company_name():
     repo = _repo()
     _seed_public_analysis(repo)
@@ -739,7 +755,7 @@ def test_api_app_rejects_non_korean_public_stock_ticker():
     response = client.get("/api/stocks/AAPL", params={"include_chart": "false"})
 
     assert response.status_code == 400
-    assert "Korean 6-digit ticker codes or Korean company names" in response.json()["detail"]
+    assert response.json()["detail"] == "공개 종목 API는 6자리 종목코드 또는 한국 종목명을 지원합니다."
 
 
 def test_api_app_serves_manual_portfolio_payload():

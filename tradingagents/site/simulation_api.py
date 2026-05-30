@@ -35,7 +35,7 @@ def build_public_simulation_preview_payload(
     """Build a read-only paper-trade preview from the latest public analysis."""
 
     if not is_kr_ticker(ticker):
-        raise ValueError("simulation preview currently supports Korean 6-digit tickers only")
+        raise ValueError("AI 가상매매 미리보기는 6자리 한국 종목코드만 지원합니다.")
     resolved = resolve_kr_ticker(ticker, lookup_pykrx=False)
     if repo is None:
         return _json_ready(

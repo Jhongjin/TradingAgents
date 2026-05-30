@@ -173,7 +173,7 @@ def test_queue_analysis_refresh_request_enforces_daily_quota():
 def test_queue_analysis_refresh_request_rejects_non_korean_ticker():
     repo = _repo()
 
-    with pytest.raises(ValueError, match="Korean 6-digit"):
+    with pytest.raises(ValueError, match="6자리 한국 종목코드"):
         queue_analysis_refresh_request(repo, ticker="AAPL", user_id=USER_ID)
 
 
@@ -325,6 +325,13 @@ def test_public_analysis_feed_validates_limit():
 
     with pytest.raises(ValueError, match="cannot exceed 1"):
         build_public_analysis_feed_payload(repo, limit=2, max_limit=1)
+
+
+def test_public_analysis_feed_uses_korean_message_for_unknown_ticker(monkeypatch):
+    monkeypatch.setattr("tradingagents.site.analysis_api.search_kr_tickers", lambda *args, **kwargs: [])
+
+    with pytest.raises(ValueError, match="일치하는 한국 종목을 찾지 못했습니다"):
+        build_public_analysis_feed_payload(_repo(), ticker="없는회사")
 
 
 def test_public_analysis_feed_uses_compact_feed_query_not_bundle_lookup():

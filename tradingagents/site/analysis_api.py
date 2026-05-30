@@ -63,7 +63,7 @@ def queue_analysis_refresh_request(
     """Queue a member-requested analysis refresh without running LLM work inline."""
 
     if not is_kr_ticker(ticker):
-        raise ValueError("analysis refresh currently supports Korean 6-digit tickers only")
+        raise ValueError("분석 요청은 6자리 한국 종목코드만 지원합니다.")
     resolved = resolve_kr_ticker(ticker, lookup_pykrx=False)
     trade_date = _trade_date(requested_trade_date)
     existing = repo.find_active_analysis_request(
@@ -317,7 +317,7 @@ def _resolve_ticker_filter(ticker: str | None) -> str | None:
     if not matches:
         matches = search_kr_tickers(query, limit=1, lookup_pykrx=True)
     if not matches:
-        raise ValueError("matching Korean ticker was not found")
+        raise ValueError("일치하는 한국 종목을 찾지 못했습니다.")
     return matches[0].code
 
 
