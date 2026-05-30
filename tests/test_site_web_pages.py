@@ -147,7 +147,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "createSeriesMarkers" in html
     assert "chartSimulationMarkers" in html
     assert "data-chart-fit" in html
-    assert "전체보기" in html
+    assert "전체 보기" in html
     assert "timeVisible: isIntradayChart" in html
     assert "가상 매수" in html
     assert "stock-hero-stack" in html
@@ -193,7 +193,7 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert "chartDrawingLayer" in html
     assert "setupTrendDrawing" in html
     assert "볼린저" in html
-    assert "KRX 14D" in html
+    assert "KRX 14일" in html
     assert "일봉 · pykrx · 2개 봉 · 2026-05-04~2026-05-05 · 자동 전환: pykrx" in html
     assert "차트 데이터 기준" in html
     assert "<dt>기간</dt>" in html
@@ -260,7 +260,7 @@ def test_render_public_stock_page_limits_intraday_period_tabs(monkeypatch):
 
     html = render_public_stock_page("005930", site_base_url="https://example.com")
 
-    assert "Yahoo 분봉" in html
+    assert "Yahoo 시간·분봉" in html
     assert "1분봉" in html
     assert "1일" in html
     assert "6개월" not in html

@@ -2218,7 +2218,7 @@ def _chart_controls(model: dict[str, Any]) -> str:
     if _chart_interval_is_intraday(active_interval):
         yfinance_href = _stock_query_href(code, {"chart_interval": active_interval, "chart_vendor": "yfinance"})
         vendor_links = [
-            f'<a class="chart-tab is-active" aria-current="page" href="{_h(yfinance_href)}">Yahoo 분봉</a>'
+            f'<a class="chart-tab is-active" aria-current="page" href="{_h(yfinance_href)}">Yahoo 시간·분봉</a>'
         ]
     else:
         vendor_params = {"chart_interval": active_interval}
@@ -2226,7 +2226,7 @@ def _chart_controls(model: dict[str, Any]) -> str:
         krx_href = _stock_query_href(code, {**vendor_params, "chart_vendor": "krx"})
         vendor_links = [
             f'<a class="chart-tab{" is-active" if vendor == "pykrx" else ""}" href="{_h(pykrx_href)}">pykrx</a>',
-            f'<a class="chart-tab{" is-active" if vendor == "krx" else ""}" href="{_h(krx_href)}">KRX 14D</a>',
+            f'<a class="chart-tab{" is-active" if vendor == "krx" else ""}" href="{_h(krx_href)}">KRX 14일</a>',
         ]
 
     return (
@@ -2274,9 +2274,9 @@ def _chart_tools() -> str:
       </div>
       <div class="chart-tool-group">
         <span>보기</span>
-        <button type="button" class="chart-tool-button" data-chart-fit>전체보기</button>
+        <button type="button" class="chart-tool-button" data-chart-fit>전체 보기</button>
       </div>
-      <small id="chartToolState">지표와 추세선을 차트 위에서 조정할 수 있습니다.</small>
+      <small id="chartToolState">지표와 추세선은 차트 위에서 조정합니다.</small>
     </div>
     """
 
