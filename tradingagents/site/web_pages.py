@@ -12667,14 +12667,37 @@ ADMIN_PAGE_JS = """
     }, {});
   }
 
+  function opsStatusLabel(value) {
+    return {
+      queued: "대기",
+      running: "처리 중",
+      completed: "완료",
+      failed: "실패",
+      pending: "보류",
+      unavailable: "데이터 없음",
+      skipped: "건너뜀",
+      dry_run: "실행 전 확인"
+    }[value] || value || "-";
+  }
+
+  function opsReasonLabel(value) {
+    return {
+      already_completed: "이미 처리됨",
+      insufficient_holding_days: "확인 기간 부족",
+      return_data_unavailable: "수익률 데이터 없음",
+      no_completed_public_analysis: "완료된 공개 리포트 없음",
+      simulation_only_no_orders: "가상매매 전용"
+    }[value] || value || "다음 자동 처리에서 재확인";
+  }
+
   function actionErrorNote(rows) {
     const errors = (Array.isArray(rows) ? rows : [])
       .filter((row) => row?.error && row.error !== "already_completed")
       .slice(0, 2)
       .map((row) => {
         const ticker = row.ticker_code || row.request_id || row.analysis_run_id || "항목";
-        const horizon = row.horizon_days ? ` ${row.horizon_days}D` : "";
-        return `${ticker}${horizon}: ${row.error}`;
+        const horizon = row.horizon_days ? ` ${row.horizon_days}일` : "";
+        return `${ticker}${horizon}: ${opsReasonLabel(row.error)}`;
       });
     return errors.length ? errors.join(" · ") : "실패 로그 없음";
   }
@@ -12689,7 +12712,7 @@ ADMIN_PAGE_JS = """
   function outcomeLabel(item) {
     if (!item) return "항목 없음";
     const ticker = [item.ticker_name, item.ticker_code].filter(Boolean).join(" ");
-    const horizon = item.horizon_days ? `${item.horizon_days}D` : "run";
+    const horizon = item.horizon_days ? `${item.horizon_days}일` : "리포트";
     const alpha = item.alpha_return === null || item.alpha_return === undefined
       ? "시장 대비 -"
       : `시장 대비 ${(Number(item.alpha_return) * 100).toFixed(2)}%`;
@@ -12699,16 +12722,16 @@ ADMIN_PAGE_JS = """
   function outcomeIssueLabel(item) {
     if (!item) return "항목 없음";
     const ticker = [item.ticker_name, item.ticker_code].filter(Boolean).join(" ");
-    const horizon = item.horizon_days ? `${item.horizon_days}D` : "run";
-    const status = item.status || "status";
-    const reason = item.error || item.evaluated_at || "다음 worker 실행에서 재확인";
-    return `${ticker || item.id || "outcome"} / ${horizon} / ${status} / ${reason}`;
+    const horizon = item.horizon_days ? `${item.horizon_days}일` : "리포트";
+    const status = opsStatusLabel(item.status);
+    const reason = opsReasonLabel(item.error || item.evaluated_at);
+    return `${ticker || item.id || "사후 결과"} / ${horizon} / ${status} / ${reason}`;
   }
 
   function runLabel(item) {
     if (!item) return "항목 없음";
     const ticker = [item.ticker_name, item.ticker_code].filter(Boolean).join(" ");
-    return `${ticker || item.id || "run"} / ${item.trade_date || "-"} / ${item.status || "-"}`;
+    return `${ticker || item.id || "리포트"} / ${item.trade_date || "-"} / ${opsStatusLabel(item.status)}`;
   }
 
   function paperCandidateLabel(item) {
