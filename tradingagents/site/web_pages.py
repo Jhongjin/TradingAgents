@@ -1002,19 +1002,19 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "title": "데이터 기준 | TradingAgents Korea",
         "description": "TradingAgents Korea의 데이터 출처, AI 분석 한계, 사후 결과, 주문 없는 운영 원칙입니다.",
         "eyebrow": "데이터 기준",
-        "heading": "데이터 출처와 한계를 한곳에 둡니다",
-        "lead": "AI 리포트는 종목 판단의 근거를 보여주는 자료입니다. KRX, DART, Naver 뉴스, AI 리포트, 5일/20일 사후 결과를 한 흐름으로 묶되, 투자 실행 권한은 서비스가 갖지 않습니다.",
-        "proof": (("출처", "KRX / DART / Naver"), ("사후 결과", "5일 / 20일"), ("권한", "주문 차단")),
+        "heading": "데이터 출처와 AI 한계를 한 화면에서 검증합니다",
+        "lead": "KRX 종가, DART 공시, Naver 뉴스, AI 리포트, 5일·20일 성과 검증을 하나의 신뢰 기준으로 연결합니다. TradingAgents Korea는 리서치 근거만 제공하며 투자 실행 권한은 보유하지 않습니다.",
+        "proof": (("출처", "KRX 종가 · DART 공시 · Naver 뉴스"), ("사후 결과", "5일 · 20일 성과 검증"), ("권한", "🔒 실거래 주문 차단 (Read-Only)")),
         "cards": (
-            ("데이터 출처", "공개 화면은 기준일, 데이터 제공처, 대체 경로 여부를 최대한 노출하고 원문 데이터로 확인할 수 있게 둡니다."),
-            ("AI 한계", "리포트는 정보 제공용이며 누락 데이터, 시장 휴장, 제공처 장애, 모델 오류 가능성을 전제로 읽어야 합니다."),
+            ("데이터 출처", "실시간 API 장애 시 대체 데이터 경로(Fallback Path) 구동 여부를 투명하게 공개하며, 유저가 신호의 무결성을 검증할 수 있도록 원문 데이터 링크를 함께 제공합니다."),
+            ("AI 한계", "본 AI 리포트는 투자 판단 보조용 정보이며 거래소 지연, 모델 파싱 오류 가능성이 존재하므로 절대적 투자 확정 신호가 아님을 고지합니다."),
             ("사후 결과", "완료된 공개 분석은 사후 결과 작업이 5일/20일 뒤 종목 수익률과 시장 기준 차이를 추적합니다."),
             ("회원 경계", "회원 매매 일지와 관심그룹은 개인 기록이며 AI 리포트 목록과 분리해 호출합니다."),
             ("운영 보안", "운영 키는 브라우저 세션 입력값으로만 사용하고 HTML, 문서, 커밋에 포함하지 않습니다."),
-            ("실행 차단", "KIS 같은 브로커 연동은 조회 전용 계좌조회 검토까지만 가능하며 주문 기능은 구현하지 않습니다."),
+            ("실행 차단", "국내 주요 증권사(한국투자증권 등) 계좌 연동 시 오직 조회 전용(Read-Only) API 프로토콜만 채택합니다. 시스템 아키텍처 상 실거래 주문 실행(Order Execution) 기능은 원천 차단되어 안전합니다."),
         ),
-        "journey_heading": "리포트는 출처, 한계, 결과를 함께 봅니다",
-        "journey_intro": "데이터 기준은 화면의 숫자와 문장을 어떻게 읽어야 하는지 알려주는 기준점입니다.",
+        "journey_heading": "출처·한계·성과를 함께 검증합니다",
+        "journey_intro": "데이터 기준은 화면의 숫자와 문장을 어떤 순서로 읽어야 하는지 알려주는 신뢰성 가이드라인입니다.",
         "journey": (
             ("01", "출처", "가격, 공시, 뉴스, 리포트가 어디서 왔는지 확인합니다."),
             ("02", "기준일", "차트와 리포트가 같은 날짜 기준인지 점검합니다."),
@@ -1027,6 +1027,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "secondary_cta_label": "사후 결과 보기",
         "secondary_cta_href": "/features/outcomes",
         "diagram_label": "데이터 기준",
+        "compact_typography": True,
     },
 }
 
@@ -1325,6 +1326,9 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
     if page is None:
         raise ValueError("Unknown feature page")
 
+    title_class_attr = ' class="feature-title-compact"' if page.get("compact_typography") else ""
+    journey_class = " feature-journey-compact" if page.get("compact_typography") else ""
+    diagram_class = " feature-diagram-compact" if page.get("compact_typography") else ""
     proof_html = "".join(
         f"""<div><dt>{_h(label)}</dt><dd>{_h(value)}</dd></div>"""
         for label, value in page["proof"]
@@ -1371,7 +1375,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
     <section class="feature-hero" aria-labelledby="feature-title">
       <div class="feature-copy">
         <p class="home-kicker">{_h(page["eyebrow"])}</p>
-        <h1 id="feature-title">{_h(page["heading"])}</h1>
+        <h1 id="feature-title"{title_class_attr}>{_h(page["heading"])}</h1>
         <p>{_h(page["lead"])}</p>
         <dl class="home-proof-row feature-proof-row" aria-label="기능 기준">
           {proof_html}
@@ -1381,7 +1385,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
           <a class="home-secondary-link" href="{_h(page.get("secondary_cta_href", "/features/member-workspace"))}">{_h(page.get("secondary_cta_label", "회원 기능 보기"))}</a>
         </div>
       </div>
-      <div class="feature-diagram" aria-label="기능 데이터 흐름">
+      <div class="feature-diagram{diagram_class}" aria-label="기능 데이터 흐름">
         <div class="feature-diagram-top">
           <span>TA-KR</span>
           <span>주문 없음</span>
@@ -1401,7 +1405,7 @@ def render_feature_detail_page(slug: str, *, site_base_url: str | None = None) -
       {card_html}
     </section>
 
-    <section class="feature-journey" aria-labelledby="feature-journey-title">
+    <section class="feature-journey{journey_class}" aria-labelledby="feature-journey-title">
       <div class="feature-journey-heading">
         <p class="eyebrow">사용자 흐름</p>
         <h2 id="feature-journey-title">{_h(str(page.get("journey_heading", "처음 방문자도 바로 이어갈 수 있습니다")))}</h2>
@@ -5920,6 +5924,13 @@ h3 {
   font-size: clamp(44px, 5.8vw, 82px);
 }
 
+.feature-detail-page .feature-copy h1.feature-title-compact {
+  max-width: 26ch;
+  font-size: clamp(2rem, 2.8vw, 2.5rem);
+  line-height: 1.3;
+  letter-spacing: -0.03em;
+}
+
 .feature-copy > p,
 .admin-hero > div > p {
   max-width: 680px;
@@ -6016,6 +6027,12 @@ h3 {
   line-height: 1;
 }
 
+.feature-diagram-compact .feature-signal-card strong {
+  font-size: clamp(1.5rem, 2.4vw, 2.2rem);
+  line-height: 1.28;
+  letter-spacing: -0.03em;
+}
+
 .feature-signal-card small {
   color: var(--home-readable, rgba(246, 243, 232, 0.84));
   line-height: 1.6;
@@ -6087,6 +6104,11 @@ h3 {
   color: rgba(246, 243, 232, 0.78);
 }
 
+.feature-card-grid p {
+  margin: 0;
+  line-height: 1.62;
+}
+
 .feature-journey {
   display: grid;
   grid-template-columns: minmax(240px, 0.58fr) minmax(0, 1.42fr);
@@ -6108,6 +6130,13 @@ h3 {
   font-size: clamp(28px, 3.4vw, 48px);
   line-height: 1;
   text-wrap: balance;
+}
+
+.feature-journey-compact .feature-journey-heading h2 {
+  max-width: 22ch;
+  font-size: clamp(2rem, 2.8vw, 2.5rem);
+  line-height: 1.3;
+  letter-spacing: -0.03em;
 }
 
 .feature-journey-heading p:not(.eyebrow) {
@@ -6134,6 +6163,12 @@ h3 {
   min-height: 170px;
   padding: 18px;
   background: rgba(9, 13, 11, 0.46);
+}
+
+.feature-journey-compact .feature-journey-grid article {
+  gap: 8px;
+  min-height: 150px;
+  padding: 15px;
 }
 
 .feature-journey-grid span {

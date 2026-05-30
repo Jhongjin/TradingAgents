@@ -666,10 +666,14 @@ def test_render_feature_detail_pages_use_public_theme():
     assert 'href="/outcomes">사후 결과 보기</a>' in outcomes_html
     assert "사후 결과는 추천 성과가 아니라 리포트 품질 기록입니다" in outcomes_html
     assert "/api/member/dashboard" not in outcomes_html
-    assert "데이터 출처와 한계를 한곳에 둡니다" in methodology_html
-    assert "KRX / DART / Naver" in methodology_html
-    assert "주문 기능은 구현하지 않습니다" in methodology_html
-    assert "리포트는 출처, 한계, 결과를 함께 봅니다" in methodology_html
+    assert "데이터 출처와 AI 한계를 한 화면에서 검증합니다" in methodology_html
+    assert "KRX 종가 · DART 공시 · Naver 뉴스" in methodology_html
+    assert "실거래 주문 차단 (Read-Only)" in methodology_html
+    assert "실거래 주문 실행(Order Execution) 기능은 원천 차단" in methodology_html
+    assert "출처·한계·성과를 함께 검증합니다" in methodology_html
+    assert "feature-title-compact" in methodology_html
+    assert "feature-journey-compact" in methodology_html
+    assert ".feature-diagram-compact .feature-signal-card strong" in methodology_html
     assert 'href="/features/outcomes">사후 결과 보기</a>' in methodology_html
     assert '<link rel="canonical" href="https://example.com/features/methodology">' in methodology_html
     assert "/api/member/dashboard" not in methodology_html
