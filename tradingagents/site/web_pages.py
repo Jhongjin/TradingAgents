@@ -10372,7 +10372,7 @@ button:disabled {
 
 .analysis-filter-stack {
   display: grid;
-  gap: 10px;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -10412,6 +10412,8 @@ button:disabled {
 }
 
 .analysis-feed-toolbar {
+  align-items: center;
+  gap: 0.5rem;
   margin: -2px 0 14px;
   padding: 10px 0;
   border-top: 1px solid rgba(246, 243, 232, 0.1);
@@ -10419,7 +10421,11 @@ button:disabled {
 }
 
 .analysis-feed-toolbar small {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
   color: var(--home-muted-readable, rgba(246, 243, 232, 0.76));
+  letter-spacing: -0.02em;
   line-height: 1.45;
 }
 
@@ -11108,6 +11114,12 @@ button:disabled {
 
 .market-page .notice-strip ul {
   color: rgba(246, 243, 232, 0.72);
+}
+
+.analysis-page .notice-strip ul {
+  color: rgba(246, 243, 232, 0.72);
+  letter-spacing: -0.02em;
+  opacity: 0.5;
 }
 
 .member-page .notice-strip {

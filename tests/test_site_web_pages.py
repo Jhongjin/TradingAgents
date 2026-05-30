@@ -1089,6 +1089,9 @@ def test_render_public_analysis_feed_empty_state_has_next_actions():
     assert "analysis-empty-cta-row" in html
     assert "transition: all 0.2s ease" in html
     assert ".analysis-page .report-section" in html
+    assert ".analysis-page .notice-strip ul" in html
+    assert "opacity: 0.5" in html
+    assert "gap: 0.5rem" in html
 
 
 def test_render_public_analysis_feed_filtered_empty_state_guides_recovery():
