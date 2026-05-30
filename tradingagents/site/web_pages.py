@@ -4305,8 +4305,9 @@ a {
 
 .home-cta-row {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 0.75rem;
   margin-top: 14px;
 }
 
@@ -6028,9 +6029,14 @@ h3 {
 }
 
 .feature-diagram-compact .feature-signal-card strong {
-  font-size: clamp(1.5rem, 2.4vw, 2.2rem);
-  line-height: 1.28;
+  max-width: 100%;
+  font-size: clamp(1.35rem, 1.8vw, 1.5rem);
+  line-height: 1.4;
   letter-spacing: -0.03em;
+  overflow-wrap: normal;
+  text-wrap: balance;
+  white-space: normal;
+  word-break: keep-all;
 }
 
 .feature-signal-card small {
@@ -6125,6 +6131,7 @@ h3 {
 
 .feature-journey.feature-journey-compact {
   align-items: center;
+  padding-block: clamp(18px, 2.4vw, 28px);
 }
 
 .feature-journey-heading h2 {
@@ -9124,6 +9131,7 @@ h3 {
 
 .public-home .feature-boundary {
   margin-bottom: clamp(28px, 5vw, 56px);
+  padding-block: clamp(18px, 2.4vw, 28px);
 }
 
 .public-home .feature-boundary h2 {

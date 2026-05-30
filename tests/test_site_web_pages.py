@@ -676,6 +676,11 @@ def test_render_feature_detail_pages_use_public_theme():
     assert ".feature-diagram-compact .feature-signal-card strong" in methodology_html
     assert ".feature-journey.feature-journey-compact" in methodology_html
     assert ".public-home .feature-boundary h2" in methodology_html
+    assert "font-size: clamp(1.35rem, 1.8vw, 1.5rem);" in methodology_html
+    assert "word-break: keep-all;" in methodology_html
+    assert "white-space: normal;" in methodology_html
+    assert "gap: 0.75rem;" in methodology_html
+    assert "padding-block: clamp(18px, 2.4vw, 28px);" in methodology_html
     assert "margin-bottom: clamp(28px, 5vw, 56px);" in methodology_html
     assert 'href="/features/outcomes">사후 결과 보기</a>' in methodology_html
     assert '<link rel="canonical" href="https://example.com/features/methodology">' in methodology_html
