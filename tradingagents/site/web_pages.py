@@ -13193,6 +13193,7 @@ MEMBER_PAGE_JS = """
   const userEmailKey = "tradingagents.member.user_email";
   const userIdKey = "tradingagents.member.user_id";
   const activeTabKey = "tradingagents.member.active_tab";
+  const analysisScheduleText = "평일 18:10 자동 실행 또는 운영 콘솔 실행 때 처리됩니다.";
   let memberDataPollTimer = null;
   const tabHashes = {
     home: "#member-home-section",
@@ -14184,7 +14185,7 @@ MEMBER_PAGE_JS = """
 
     const note = document.createElement("p");
     note.className = "analysis-queue-note";
-    note.textContent = "대기 요청은 운영 콘솔 실행 또는 평일 18:10 자동 실행 때 처리됩니다. 같은 종목과 기준일의 중복 요청은 기존 대기열에 합쳐집니다.";
+    note.textContent = `대기 요청은 ${analysisScheduleText} 같은 종목과 기준일의 중복 요청은 기존 대기열에 합쳐집니다.`;
     node.append(meters, strip, note);
     return node;
   }
@@ -14923,11 +14924,11 @@ MEMBER_PAGE_JS = """
       setFormBusy(form, false);
       await loadMemberData();
       if (payload?.status === "already_queued") {
-        setStatus("이미 대기 중인 분석 요청이 있어 기존 대기열 항목을 유지했습니다.");
+        setStatus(`이미 대기 중인 분석 요청이 있어 기존 대기열 항목을 유지했습니다. ${analysisScheduleText}`);
       } else if (payload?.status === "queued") {
         const quota = payload?.quota;
         const suffix = quota ? ` (${quota.daily_used}/${quota.daily_limit}, 최근 ${quota.window_hours}시간)` : "";
-        setStatus(`분석 요청을 대기열에 등록했습니다${suffix}.`);
+        setStatus(`분석 요청을 대기열에 등록했습니다${suffix}. ${analysisScheduleText}`);
       } else if (options.successMessage) {
         setStatus(options.successMessage);
       }
