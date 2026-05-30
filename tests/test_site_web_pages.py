@@ -322,7 +322,7 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert "종목을 검색하면 차트, 공시, 뉴스, AI 리포트, 사후 결과를 한 번에 확인합니다." in html
     assert "처음 방문해도 바로 쓸 수 있는 세 가지 흐름" in html
     assert "내 공간 만들기" in html
-    assert "가입하면 열리는 기능" in html
+    assert "AI 리포트 흐름 보기" in html
     assert "home-member-preview" in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청으로 시작하기</a>' in html
     assert "home-start-strip" in html
@@ -598,15 +598,15 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
 def test_render_feature_index_page_guides_first_visit():
     html = render_feature_index_page(site_base_url="https://example.com")
 
-    assert "기능 안내 | TradingAgents Korea" in html
+    assert "처음 시작하기 | TradingAgents Korea" in html
     assert "종목을 읽고, 필요한 기록만 내 공간에 남깁니다" in html
-    assert "먼저 종목을 검색해 AI 리포트를 읽어보세요" in html
-    assert "TradingAgents Korea는 투자 판단을 돕는 자료를 제공하지만 주문은 실행하지 않습니다." in html
+    assert "먼저 종목을 검색하고 AI 리포트를 읽어보세요" in html
+    assert "주문은 실행하지 않습니다." in html
     assert 'href="/features/research"' in html
     assert 'href="/features/member-workspace"' in html
     assert 'href="/features/outcomes"' in html
     assert 'href="/features/methodology"' in html
-    assert 'href="/member?mode=signup">가입하고 내 공간 열기</a>' in html
+    assert 'href="/member?mode=signup">내 공간 만들기</a>' in html
     assert '<link rel="canonical" href="https://example.com/features">' in html
     assert "/api/member/dashboard" not in html
     assert "/api/portfolios" not in html
@@ -618,23 +618,23 @@ def test_render_feature_detail_pages_use_public_theme():
     outcomes_html = render_feature_detail_page("outcomes", site_base_url="https://example.com")
     methodology_html = render_feature_detail_page("methodology", site_base_url="https://example.com")
 
-    assert "종목을 검색하면 가격·출처·AI 리포트가 한 화면에 모입니다" in html
+    assert "가격·출처·AI 의견을 한 화면에서 봅니다" in html
     assert 'class="public-home feature-page feature-detail-page"' in html
     assert ".feature-detail-page .feature-shell" in html
     assert "feature-diagram" in html
     assert "feature-journey" in html
     assert "사용자 흐름" in html
-    assert "처음 방문자도 바로 확인할 수 있습니다" in html
+    assert "검색 후 바로 읽을 수 있습니다" in html
     assert "가입 후 저장" in html
     assert "데이터 경계" in html
     assert "필요한 데이터만 불러옵니다" in html
     assert "color: var(--home-readable, rgba(246, 243, 232, 0.84));" in html
-    assert 'href="/features/member-workspace">가입하면 열리는 기능</a>' in html
+    assert 'href="/features/member-workspace">내 공간 보기</a>' in html
     assert 'href="/outcomes">사후 결과</a>' in html
     assert '<link rel="canonical" href="https://example.com/features/research">' in html
-    assert 'href="/member?mode=signup">가입하고 내 공간 열기</a>' in member_html
+    assert 'href="/member?mode=signup">내 공간 만들기</a>' in member_html
     assert "/api/member/dashboard" not in html
-    assert 'href="/features/research">공개 리서치 먼저 보기</a>' in member_html
+    assert 'href="/features/research">AI 리포트 먼저 보기</a>' in member_html
     assert "로그인 후에는 개인 기록만 따로 열립니다" in member_html
     assert "/api/member/dashboard" not in member_html
     assert 'href="/features/methodology">출처·한계 보기</a>' in outcomes_html

@@ -692,8 +692,8 @@ def render_public_home_page(
           <a class="home-primary-link" href="/stocks/005930">샘플 종목 보기</a>
           <a class="home-secondary-link" href="/member?mode=signup">내 공간 만들기</a>
         </div>
-        <aside class="home-member-preview" aria-label="가입 후 제공 기능">
-          <strong>가입하면 열리는 기능</strong>
+        <aside class="home-member-preview" aria-label="내 공간에서 할 수 있는 일">
+          <strong>내 공간에서 할 수 있는 일</strong>
           <ul>
             <li><span>매매 일지</span><small>매수·매도 기록과 목표가 메모를 직접 남깁니다.</small></li>
             <li><span>관심그룹</span><small>자주 보는 한국 종목을 목록으로 묶어 확인합니다.</small></li>
@@ -789,10 +789,10 @@ def render_public_home_page(
     <section class="home-service-map" aria-labelledby="service-map-title">
       <div class="home-section-heading">
         <div>
-          <p class="eyebrow">서비스 흐름</p>
+          <p class="eyebrow">사용 흐름</p>
           <h2 id="service-map-title">처음 방문해도 바로 쓸 수 있는 세 가지 흐름</h2>
         </div>
-        <p>TradingAgents Korea는 한국 주식 분석 리포트와 개인 투자 메모, AI 가상매매 기록을 연결하는 주문 없는 리서치 서비스입니다.</p>
+        <p>종목 검색에서 AI 리포트, 개인 기록, AI 가상매매까지 이어지는 읽기 전용 흐름입니다.</p>
       </div>
       <div class="home-service-grid">
         <article>
@@ -822,7 +822,7 @@ def render_public_home_page(
           <p class="eyebrow">분석 흐름</p>
           <h2 id="lens-home-title">종목을 다섯 개의 신호로 분해합니다</h2>
         </div>
-        <p>차트만 보거나 뉴스만 읽는 화면이 아니라, 가격과 이벤트를 함께 묶어 공개 분석의 맥락을 만듭니다. <a href="/features/research">리서치 구조 보기</a></p>
+        <p>차트만 보거나 뉴스만 읽는 화면이 아니라, 가격과 이벤트를 함께 묶어 공개 분석의 맥락을 만듭니다. <a href="/features/research">AI 리포트 흐름 보기</a></p>
       </div>
       <div class="home-lens-grid">
         <article><span>01</span><strong>가격</strong><p>KRW OHLCV와 이동평균, 거래량 흐름을 확인합니다.</p></article>
@@ -907,19 +907,19 @@ def render_public_home_page(
 FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
     "research": {
         "path": "/features/research",
-        "title": "AI 리서치 파이프라인 | TradingAgents Korea",
-        "description": "KRX, DART, Naver 뉴스와 AI 리포트를 연결하는 한국 주식 AI 리서치 흐름입니다.",
-        "eyebrow": "서비스 소개 / 리서치 흐름",
-        "heading": "종목을 검색하면 가격·출처·AI 리포트가 한 화면에 모입니다",
-        "lead": "처음 방문자는 종목명이나 6자리 코드를 검색해 가격 흐름, 데이터 출처, AI 리포트, 사후 결과를 바로 확인할 수 있습니다. 가입하면 관심그룹을 만들고 필요한 종목의 새 리서치를 요청할 수 있습니다.",
+        "title": "AI 리포트 흐름 | TradingAgents Korea",
+        "description": "가격, 공시, 뉴스, AI 의견을 한 화면에 묶는 공개 리포트 흐름입니다.",
+        "eyebrow": "AI 리포트",
+        "heading": "가격·출처·AI 의견을 한 화면에서 봅니다",
+        "lead": "종목명이나 6자리 코드로 검색하면 가격 흐름, 데이터 출처, AI 리포트, 사후 결과를 바로 확인할 수 있습니다. 저장과 새 요청은 내 공간에서 이어집니다.",
         "proof": (("공개 페이지", "종목·분석 피드"), ("데이터", "KRX / DART / Naver"), ("주문", "실거래 차단")),
         "cards": (
             ("종목 조회", "6자리 한국 종목코드와 종목명 검색으로 KOSPI/KOSDAQ 종목을 찾습니다."),
             ("차트 데이터", "OHLCV 차트, 가격 상태, 데이터 제공처 표기를 종목 화면에만 전달합니다."),
             ("공개 분석", "완료된 AI 리포트와 판단, 모델, 리포트 수를 공개 피드와 연결합니다."),
         ),
-        "journey_heading": "처음 방문자도 바로 확인할 수 있습니다",
-        "journey_intro": "공개 화면에서 리서치 흐름을 먼저 읽고, 반복해서 볼 종목만 내 공간에 담는 흐름입니다.",
+        "journey_heading": "검색 후 바로 읽을 수 있습니다",
+        "journey_intro": "공개 화면에서는 종목을 먼저 보고, 다시 볼 종목만 내 공간에 담습니다.",
         "journey": (
             ("01", "종목 검색", "삼성전자처럼 종목명으로 검색해도 6자리 코드 화면으로 이동합니다."),
             ("02", "출처 확인", "가격 기준일, 제공처, 대체 데이터 사용 여부를 먼저 봅니다."),
@@ -929,17 +929,17 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "steps": ("종목 검색", "KRX 가격 데이터", "DART 공시", "Naver 뉴스", "AI 리포트"),
         "cta_label": "삼성전자 예시 보기",
         "cta_href": "/stocks/005930",
-        "secondary_cta_label": "가입하면 열리는 기능",
+        "secondary_cta_label": "내 공간 보기",
         "secondary_cta_href": "/features/member-workspace",
-        "diagram_label": "리서치 흐름",
+        "diagram_label": "AI 리포트",
     },
     "member-workspace": {
         "path": "/features/member-workspace",
         "title": "내 공간 | TradingAgents Korea",
         "description": "로그인한 사용자를 위한 매매 일지, 관심그룹, 분석 요청 대기열의 구성 방식입니다.",
-        "eyebrow": "서비스 소개 / 내 공간",
+        "eyebrow": "내 공간",
         "heading": "가입하면 매매 일지, 관심그룹, 분석 요청을 한 곳에서 관리합니다",
-        "lead": "회원 화면은 로그인 전에는 로그인/가입만 보여줍니다. 로그인 후에는 매매 일지, 관심그룹, 분석 요청 대기열을 불러와 내 판단 근거를 따로 보관합니다. 실제 주문·계좌 연결은 없습니다.",
+        "lead": "로그인 후에는 매매 일지, 관심그룹, 분석 요청을 내 계정에 저장합니다. 실제 주문·계좌 연결은 없습니다.",
         "proof": (("인증", "이메일 로그인"), ("저장", "사용자별 개인 기록"), ("범위", "조회/기록 전용")),
         "cards": (
             ("매매 일지", "매수·매도 기록, 평균단가, 비용, 목표가, 손절가를 직접 관리합니다."),
@@ -955,9 +955,9 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
             ("04", "분석 요청", "필요한 종목만 대기열에 넣고 완료 리포트 연결을 확인합니다."),
         ),
         "steps": ("로그인", "내 공간", "개인 기록", "분석 요청", "주문 차단"),
-        "cta_label": "가입하고 내 공간 열기",
+        "cta_label": "내 공간 만들기",
         "cta_href": "/member?mode=signup",
-        "secondary_cta_label": "공개 리서치 먼저 보기",
+        "secondary_cta_label": "AI 리포트 먼저 보기",
         "secondary_cta_href": "/features/research",
         "diagram_label": "내 공간",
     },
@@ -965,9 +965,9 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "path": "/features/outcomes",
         "title": "사후 결과 | TradingAgents Korea",
         "description": "AI 분석 이후 5일/20일 결과와 시장 대비 차이를 AI 리포트에 연결하는 구조입니다.",
-        "eyebrow": "서비스 소개 / 사후 결과",
+        "eyebrow": "사후 결과",
         "heading": "리포트가 나온 뒤 5일/20일 결과를 다시 확인합니다",
-        "lead": "공개 리서치는 생성 시점에서 끝나지 않습니다. 사후 결과 작업이 5일/20일 뒤 종목 수익률과 시장 대비 차이를 남겨, AI 리포트를 이후 흐름과 함께 되돌아볼 수 있게 합니다.",
+        "lead": "AI 리포트 기준일 뒤 5일/20일 수익률과 시장 대비 차이를 남겨, 리포트를 이후 흐름과 함께 되돌아봅니다.",
         "proof": (("기록", "5일 / 20일"), ("지표", "수익률 / 시장 대비"), ("노출", "AI 리포트")),
         "cards": (
             ("결과 저장", "분석 기준일과 확인 기간별 결과를 저장해 AI 리포트와 연결합니다."),
@@ -1057,15 +1057,15 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>기능 안내 | TradingAgents Korea</title>
-  <meta name="description" content="TradingAgents Korea의 공개 리서치, 내 공간, 사후 결과, 출처·한계를 한 번에 확인합니다.">
+  <title>처음 시작하기 | TradingAgents Korea</title>
+  <meta name="description" content="TradingAgents Korea의 종목 검색, AI 리포트, 내 공간, 사후 결과, 출처·한계를 한 번에 확인합니다.">
   <link rel="canonical" href="{_h(canonical)}">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ko_KR">
   <meta name="twitter:card" content="summary">
   <meta property="og:site_name" content="TradingAgents Korea">
-  <meta property="og:title" content="기능 안내 | TradingAgents Korea">
-  <meta property="og:description" content="공개 리서치부터 내 공간까지, TradingAgents Korea에서 무엇을 할 수 있는지 안내합니다.">
+  <meta property="og:title" content="처음 시작하기 | TradingAgents Korea">
+  <meta property="og:description" content="종목 검색부터 내 공간까지, TradingAgents Korea에서 바로 이어갈 순서를 안내합니다.">
   <meta property="og:url" content="{_h(canonical)}">
   <style>{PAGE_CSS}</style>
 </head>
@@ -1076,21 +1076,21 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
       <span class="brand-mark">TA</span>
       <span>TradingAgents Korea</span>
     </a>
-    {_top_nav(label="서비스 안내")}
+    {_top_nav()}
   </header>
 
   <main id="main-content" class="home-shell feature-shell">
     <section class="feature-hero" aria-labelledby="feature-index-title">
       <div class="feature-copy">
-        <p class="home-kicker">서비스 안내 / 처음 방문자를 위한 흐름</p>
+        <p class="home-kicker">처음 방문자 흐름</p>
         <h1 id="feature-index-title">종목을 읽고, 필요한 기록만 내 공간에 남깁니다</h1>
-        <p>먼저 종목을 검색해 AI 리포트를 읽어보세요. 가입 후에는 관심그룹, 분석 요청, 매매 일지를 내 공간에 저장합니다. TradingAgents Korea는 투자 판단을 돕는 자료를 제공하지만 주문은 실행하지 않습니다.</p>
+        <p>먼저 종목을 검색하고 AI 리포트를 읽어보세요. 가입 후에는 관심그룹, 분석 요청, 매매 일지를 내 공간에 저장합니다. 주문은 실행하지 않습니다.</p>
         <dl class="home-proof-row feature-proof-row" aria-label="서비스 범위">
           {proof_html}
         </dl>
         <div class="home-cta-row">
           <a class="home-primary-link" href="/stocks/005930">샘플 종목 보기</a>
-          <a class="home-secondary-link" href="/member?mode=signup">가입하고 내 공간 열기</a>
+          <a class="home-secondary-link" href="/member?mode=signup">내 공간 만들기</a>
           <a class="home-secondary-link" href="/analyses">공개 분석 보기</a>
         </div>
       </div>
@@ -1114,7 +1114,7 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
       </div>
     </section>
 
-    <section class="feature-index-grid" aria-label="기능 목록">
+    <section class="feature-index-grid" aria-label="사용 흐름 목록">
       {feature_cards}
     </section>
 
