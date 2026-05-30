@@ -501,6 +501,10 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "아직 AI 가상매매 기록이 없습니다" in html
     assert "renderPaperSimulations" in html
     assert "paperSimulationCard" in html
+    assert "paperSimulationEventCard" in html
+    assert "최근 가상 매매 이벤트" in html
+    assert "AI가 만든 가상 매수·매도 시점과 기록 사유입니다." in html
+    assert "paperEventReasonLabel" in html
     assert "paperLearningNote" in html
     assert "paper-learning-buckets" in html
     assert "복기 요약" in html

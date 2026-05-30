@@ -7158,6 +7158,26 @@ h3 {
   line-height: 1.2;
 }
 
+.paper-event-section {
+  display: grid;
+  gap: 10px;
+}
+
+.paper-event-section-heading {
+  display: grid;
+  gap: 4px;
+  padding-top: 6px;
+}
+
+.paper-event-section-heading strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.paper-event-section-heading small {
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.78));
+}
+
 .member-home-links {
   display: flex;
   flex-wrap: wrap;
@@ -14270,6 +14290,26 @@ MEMBER_PAGE_JS = """
     return [row.decision_rating, row.decision_action].filter(Boolean).join(" / ") || "AI";
   }
 
+  function paperEventSideLabel(row = {}) {
+    const key = String(row.side || row.event_type || "").toLowerCase();
+    return {
+      buy: "가상 매수",
+      entry: "가상 매수",
+      sell: "가상 매도",
+      exit: "가상 청산"
+    }[key] || "가상 이벤트";
+  }
+
+  function paperEventReasonLabel(reason) {
+    return {
+      entry_signal: "AI 분석 진입",
+      take_profit: "목표가 도달",
+      stop_loss: "손절 기준 도달",
+      max_holding_days: "보유 기간 종료",
+      manual_refresh: "가상 포지션 갱신"
+    }[reason] || exitReasonLabel(reason);
+  }
+
   function paperSimulationLines(row) {
     const lines = [];
     if (row.metadata?.pattern_label) lines.push(`진입 패턴 ${row.metadata.pattern_label}`);
@@ -14308,6 +14348,46 @@ MEMBER_PAGE_JS = """
     );
     if (actions.childElementCount) node.append(actions);
     return node;
+  }
+
+  function paperSimulationEventCard(row) {
+    const title = `${row.ticker_code || "한국 종목"} · ${paperEventSideLabel(row)}`;
+    const node = document.createElement("article");
+    node.className = "member-item paper-simulation-event-card";
+    const actions = document.createElement("div");
+    actions.className = "analysis-request-actions";
+    if (row.ticker_code) actions.append(inlineLink("종목", `/stocks/${encodeURIComponent(row.ticker_code)}`));
+    if (row.analysis_run_id) actions.append(inlineLink("리포트", `/analyses/${encodeURIComponent(row.analysis_run_id)}`));
+    node.append(
+      cardHeader(title, `${shortDate(row.event_date)} / ${paperEventReasonLabel(row.reason)}`, paperEventSideLabel(row)),
+      metricGrid([
+        ["가격", money(row.price), "가상 체결가"],
+        ["수량", String(row.quantity || "-"), "가상 수량"],
+        ["금액", money(row.notional), "수수료·세금 전"],
+        ["사유", paperEventReasonLabel(row.reason), row.event_type || "기록"]
+      ]),
+      miniList([
+        row.commission ? `수수료 ${money(row.commission)}` : "",
+        row.transaction_tax ? `세금 ${money(row.transaction_tax)}` : "",
+        row.reason ? `기록 사유 ${paperEventReasonLabel(row.reason)}` : ""
+      ].filter(Boolean), "이벤트 상세 대기", "이벤트")
+    );
+    if (actions.childElementCount) node.append(actions);
+    return node;
+  }
+
+  function paperSimulationEventSection(events = []) {
+    const section = document.createElement("section");
+    section.className = "paper-event-section";
+    const heading = document.createElement("div");
+    heading.className = "paper-event-section-heading";
+    const title = document.createElement("strong");
+    const copy = document.createElement("small");
+    title.textContent = "최근 가상 매매 이벤트";
+    copy.textContent = "AI가 만든 가상 매수·매도 시점과 기록 사유입니다.";
+    heading.append(title, copy);
+    section.append(heading, ...events.slice(0, 6).map((row) => paperSimulationEventCard(row)));
+    return section;
   }
 
   function paperLearningNote(summary = {}) {
@@ -14494,6 +14574,7 @@ MEMBER_PAGE_JS = """
       return;
     }
     const rows = payload.positions || [];
+    const events = payload.events || [];
     const summary = payload.summary || {};
     const overview = metricGrid([
       ["가상 보유", `${summary.open_count || 0}건`, "보유 중"],
@@ -14512,7 +14593,8 @@ MEMBER_PAGE_JS = """
           "분석 요청 열기",
           () => activateMemberTab("analysis")
         )
-      ])
+      ]),
+      ...(events.length ? [paperSimulationEventSection(events)] : [])
     );
   }
 
