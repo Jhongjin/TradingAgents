@@ -161,6 +161,20 @@ def test_api_app_public_stock_api_resolves_company_name():
     assert body["ticker"]["name"] == "로킷헬스케어"
 
 
+def test_api_app_public_analysis_feed_resolves_company_name():
+    repo = _repo()
+    _seed_public_analysis(repo)
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    response = client.get("/api/analyses", params={"ticker": "삼성전자"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ticker_code"] == "005930"
+    assert body["item_count"] == 1
+    assert body["items"][0]["ticker_name"] == "삼성전자"
+
+
 def test_api_app_serves_public_simulation_preview(monkeypatch):
     repo = _repo()
     run_id = _seed_public_buy_analysis(repo)

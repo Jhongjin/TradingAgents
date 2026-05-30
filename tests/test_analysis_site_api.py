@@ -299,8 +299,11 @@ def test_public_analysis_feed_lists_completed_public_runs_only():
     repo.complete_analysis_run(private_run_id)
 
     payload = build_public_analysis_feed_payload(repo, ticker="005930.KS")
+    payload_by_name = build_public_analysis_feed_payload(repo, ticker="삼성전자")
 
     assert payload["ticker_code"] == "005930"
+    assert payload_by_name["ticker_code"] == "005930"
+    assert [item["id"] for item in payload_by_name["items"]] == [public_run_id]
     assert [item["id"] for item in payload["items"]] == [public_run_id]
     assert payload["summary"]["completed_count"] == 1
     assert payload["summary"]["unique_ticker_count"] == 1
@@ -398,8 +401,11 @@ def test_public_analysis_outcomes_payload_summarizes_completed_alpha():
     )
 
     payload = build_public_analysis_outcomes_payload(repo, ticker="005930")
+    payload_by_name = build_public_analysis_outcomes_payload(repo, ticker="삼성전자")
 
     assert payload["ticker_code"] == "005930"
+    assert payload_by_name["ticker_code"] == "005930"
+    assert payload_by_name["item_count"] == 1
     assert payload["item_count"] == 1
     assert payload["items"][0]["analysis_run_id"] == run_id
     assert payload["summary"]["completed_count"] == 1

@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
+from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker, search_kr_tickers
 from tradingagents.report_quality import enrich_reports_with_quality
 from tradingagents.storage import AnalysisRequestInput, StorageRepository
 
@@ -228,11 +228,7 @@ def build_public_analysis_feed_payload(
         raise ValueError("limit must be positive")
     if limit > max_limit:
         raise ValueError(f"limit cannot exceed {max_limit}")
-    ticker_code = None
-    if ticker:
-        if not is_kr_ticker(ticker):
-            raise ValueError("analysis feed currently supports Korean 6-digit tickers only")
-        ticker_code = resolve_kr_ticker(ticker, lookup_pykrx=False).code
+    ticker_code = _resolve_ticker_filter(ticker)
 
     try:
         if hasattr(repo, "list_public_analysis_feed_items"):
@@ -280,11 +276,7 @@ def build_public_analysis_outcomes_payload(
         raise ValueError("limit must be positive")
     if limit > max_limit:
         raise ValueError(f"limit cannot exceed {max_limit}")
-    ticker_code = None
-    if ticker:
-        if not is_kr_ticker(ticker):
-            raise ValueError("analysis outcomes currently support Korean 6-digit tickers only")
-        ticker_code = resolve_kr_ticker(ticker, lookup_pykrx=False).code
+    ticker_code = _resolve_ticker_filter(ticker)
 
     try:
         rows = repo.list_analysis_outcomes(ticker_code=ticker_code, status=status, limit=limit, public_only=True)
@@ -312,6 +304,21 @@ def build_public_analysis_outcomes_payload(
             "summary": _analysis_outcome_summary(rows),
         }
     )
+
+
+def _resolve_ticker_filter(ticker: str | None) -> str | None:
+    query = str(ticker or "").strip()
+    if not query:
+        return None
+    if is_kr_ticker(query):
+        return resolve_kr_ticker(query, lookup_pykrx=False).code
+
+    matches = search_kr_tickers(query, limit=1, lookup_pykrx=False)
+    if not matches:
+        matches = search_kr_tickers(query, limit=1, lookup_pykrx=True)
+    if not matches:
+        raise ValueError("matching Korean ticker was not found")
+    return matches[0].code
 
 
 def _analysis_feed_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
