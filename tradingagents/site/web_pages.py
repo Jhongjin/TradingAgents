@@ -1823,8 +1823,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
     <section class="member-auth-landing" id="memberAuthLanding" aria-labelledby="member-auth-title">
       <div class="member-auth-copy">
         <p class="eyebrow">회원 전용 공간</p>
-        <h1 id="member-auth-title">리서치와 개인 메모를 모아두세요</h1>
-        <p class="member-auth-lead">매매 일지, 관심그룹, 분석 요청, AI 가상매매를 한곳에서 이어갑니다.</p>
+        <h1 id="member-auth-title">나만의 프라이빗 AI 리서치 룸을 분양받으세요</h1>
+        <p class="member-auth-lead">개인 매매 일지 기록부터 관심 그룹 트랙킹, 실시간 AI 분석 요청 대기열 가동 및 가상매매 복기 요약까지 단 하나의 프라이빗 대시보드에서 통합 관리합니다.</p>
         <div class="member-auth-points" aria-label="회원 영역 원칙">
           <article>
             <span>01</span>
@@ -1847,10 +1847,10 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <section class="member-panel auth-panel" aria-labelledby="auth-panel-title">
         <div class="panel-heading auth-heading">
           <div>
-            <p class="eyebrow">안전 로그인</p>
+            <p class="eyebrow">🔒 SECURE AUTH</p>
             <h2 id="auth-panel-title">로그인 / 가입</h2>
           </div>
-          <span class="status-pill">조회/기록 전용</span>
+          <span class="status-pill">READ-ONLY ONLY</span>
         </div>
         <form class="member-form auth-form" id="authForm">
           <label>
@@ -1868,8 +1868,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <button type="button" data-auth-action="signin">로그인</button>
             <button type="button" data-auth-action="signup">가입하기</button>
           </div>
-          <p class="auth-form-note">처음이라면 가입하세요. 이메일 확인 후 바로 사용할 수 있습니다.</p>
-          <div class="member-empty auth-status" id="authStatus" role="status" aria-live="polite">이메일과 비밀번호를 입력하세요.</div>
+          <p class="auth-form-note">처음이라면 가입하기로 프라이빗 워크스페이스를 열 수 있습니다.</p>
+          <div class="member-empty auth-status" id="authStatus" role="status" aria-live="polite">프라이빗 워크스페이스 진입을 위해 인증이 필요합니다.</div>
         </form>
       </section>
     </section>
@@ -6923,24 +6923,65 @@ h3 {
   margin-top: 20px;
 }
 
-.auth-button-row {
+.auth-form input {
+  height: 46px;
+  padding: 0 13px;
+}
+
+.member-page .auth-form input {
+  height: 46px;
+}
+
+.button-row.auth-button-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: center;
+}
+
+.member-page .auth-form .auth-button-row button {
+  height: 46px;
+  border-radius: 8px;
+}
+
+.member-page .auth-form .auth-button-row [data-auth-action="signin"] {
+  border-color: var(--home-acid);
+  background: var(--home-acid);
+  color: #10130f;
+}
+
+.member-page .auth-form .auth-button-row [data-auth-action="signin"]:hover {
+  background: #ecff72;
+}
+
+.member-page .auth-form .auth-button-row [data-auth-action="signup"] {
+  border-color: rgba(246, 243, 232, 0.24);
+  background: rgba(246, 243, 232, 0.055);
+  color: var(--ink);
+}
+
+.member-page .auth-form .auth-button-row [data-auth-action="signup"]:hover {
+  border-color: rgba(215, 255, 63, 0.38);
+  background: rgba(246, 243, 232, 0.095);
 }
 
 .auth-form-note {
-  margin: -2px 0 0;
+  margin: -4px 0 0;
   color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 12px;
+  line-height: 1.45;
+  letter-spacing: -0.02em;
+  opacity: 0.6;
 }
 
 .auth-status {
-  min-height: 44px;
+  min-height: 46px;
   padding: 12px 14px;
-  border: 1px dashed var(--line);
+  border: 1px solid rgba(246, 243, 232, 0.14);
   border-radius: 8px;
-  background: var(--surface-strong);
+  background: rgba(246, 243, 232, 0.045);
+  color: var(--home-readable, rgba(246, 243, 232, 0.84));
+  letter-spacing: -0.02em;
 }
 
 .member-workspace {
@@ -7396,17 +7437,40 @@ h3 {
 }
 
 .password-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  position: relative;
+  display: block;
 }
 
 .member-form .password-row input {
   min-width: 0;
 }
 
+.auth-form .password-row input {
+  padding-right: 118px;
+}
+
 .password-toggle {
   height: 40px;
+}
+
+.member-page .auth-form .password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  height: 30px;
+  min-width: 92px;
+  padding: 0 10px;
+  border-color: rgba(246, 243, 232, 0.18);
+  border-radius: 999px;
+  background: rgba(246, 243, 232, 0.08);
+  color: var(--home-readable, rgba(246, 243, 232, 0.84));
+  font-size: 12px;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+
+.member-page .auth-form .password-toggle:hover {
+  background: rgba(246, 243, 232, 0.13);
 }
 
 .compact-form {
@@ -15319,7 +15383,7 @@ MEMBER_PAGE_JS = """
     if (!accessToken() && !refreshToken()) {
       clearMemberDataPoll();
       setSignedInState(false);
-      setStatus(config.configured ? "로그인 필요" : "Supabase 공개 인증 설정 대기 중", !config.configured);
+      setStatus(config.configured ? "프라이빗 워크스페이스 진입을 위해 인증이 필요합니다." : "Supabase 공개 인증 설정 대기 중", !config.configured);
       return;
     }
     if (!accessToken() && refreshToken()) {
@@ -15610,7 +15674,7 @@ MEMBER_PAGE_JS = """
       return;
     }
     setAuthUiState(false);
-    setStatus(config.configured ? "로그인 필요" : "Supabase 공개 인증 설정 대기 중", !config.configured);
+    setStatus(config.configured ? "프라이빗 워크스페이스 진입을 위해 인증이 필요합니다." : "Supabase 공개 인증 설정 대기 중", !config.configured);
   }
 
   bootstrapMemberSession().catch((error) => {

@@ -393,10 +393,19 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
 
     html = render_member_dashboard_page(site_base_url="https://example.com")
 
-    assert "리서치와 개인 메모를 모아두세요" in html
-    assert "매매 일지, 관심그룹, 분석 요청, AI 가상매매를 한곳에서 이어갑니다" in html
-    assert "처음이라면 가입하세요." in html
+    assert "나만의 프라이빗 AI 리서치 룸을 분양받으세요" in html
+    assert "개인 매매 일지 기록부터 관심 그룹 트랙킹" in html
+    assert "🔒 SECURE AUTH" in html
+    assert "READ-ONLY ONLY" in html
+    assert "처음이라면 가입하기로 프라이빗 워크스페이스를 열 수 있습니다." in html
+    assert "프라이빗 워크스페이스 진입을 위해 인증이 필요합니다." in html
     assert "auth-form-note" in html
+    assert ".member-page .auth-form input" in html
+    assert ".member-page .auth-form .password-toggle" in html
+    assert ".button-row.auth-button-row" in html
+    assert "position: absolute;" in html
+    assert "height: 46px;" in html
+    assert "opacity: 0.6;" in html
     assert "내 공간" in html
     assert "실거래 주문 기능은 차단하고 기록과 조회 흐름만 제공합니다." in html
     assert "memberSessionGate" in html
