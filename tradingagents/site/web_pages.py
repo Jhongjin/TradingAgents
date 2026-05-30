@@ -10381,6 +10381,10 @@ button:disabled {
   min-width: 0;
 }
 
+.outcome-filter-panel .analysis-filter-stack {
+  gap: 4px;
+}
+
 .analysis-filter-panel p {
   margin: 0;
   color: var(--home-muted-readable, rgba(246, 243, 232, 0.74));
@@ -10416,6 +10420,11 @@ button:disabled {
   color: var(--home-acid);
 }
 
+.outcome-filter-state {
+  align-items: center;
+  margin-top: -2px;
+}
+
 .analysis-feed-toolbar {
   align-items: center;
   gap: 0.5rem;
@@ -10432,6 +10441,15 @@ button:disabled {
   color: var(--home-muted-readable, rgba(246, 243, 232, 0.76));
   letter-spacing: -0.02em;
   line-height: 1.45;
+}
+
+.outcome-feed-toolbar {
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.outcome-feed-toolbar small {
+  align-self: center;
 }
 
 .analysis-reader-guide {
@@ -10547,6 +10565,11 @@ button:disabled {
 
 .outcome-filter-form {
   grid-template-columns: auto minmax(100px, 1fr) auto minmax(120px, 0.8fr) auto auto;
+  align-items: center;
+}
+
+.outcome-filter-form > * {
+  align-self: center;
 }
 
 .outcome-cadence-strip {

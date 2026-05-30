@@ -1152,6 +1152,9 @@ def test_render_public_outcomes_page_shows_public_track_record():
     assert "outcome-filter-panel" in html
     assert "outcome-filter-state" in html
     assert "outcome-feed-toolbar" in html
+    assert ".outcome-filter-panel .analysis-filter-stack" in html
+    assert ".outcome-filter-form > *" in html
+    assert ".outcome-feed-toolbar small" in html
     assert 'id="outcomeTickerSuggestions"' in html
     assert "data-ticker-submit" in html
     assert "005930 또는 삼성전자" in html
