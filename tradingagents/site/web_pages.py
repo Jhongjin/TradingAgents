@@ -1568,7 +1568,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <div>
         <p class="home-kicker">운영 콘솔 / 비밀값 저장 없음</p>
         <h1 id="admin-title">운영 작업을 확인하고 실행합니다</h1>
-        <p>운영 토큰은 브라우저 세션에만 보관되고 관리 API 호출 헤더로만 전송됩니다.</p>
+        <p>운영 토큰은 브라우저 세션에만 보관되고 운영 API 호출 헤더로만 전송됩니다.</p>
       </div>
       <form class="admin-token-panel" id="adminTokenForm">
         <label>
@@ -1596,7 +1596,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       </article>
       <article>
         <span>대기열</span>
-        <strong>대상 확인</strong>
+        <strong>실행 전 확인</strong>
         <small>저장 전에 어떤 항목이 처리될지 먼저 확인합니다.</small>
       </article>
       <article>
@@ -1614,7 +1614,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       </article>
       <article>
         <span>02</span>
-        <strong>대상 확인</strong>
+        <strong>실행 전 확인</strong>
         <small>저장 없이 이번 실행 후보와 제한값을 확인합니다.</small>
       </article>
       <article>
@@ -1678,17 +1678,17 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
             <p class="eyebrow">분석 요청 대기열</p>
             <h2>AI 리포트 생성</h2>
           </div>
-          <span class="status-pill">관리 API</span>
+          <span class="status-pill">운영 권한</span>
         </div>
         <label class="admin-number-field">이번 실행 건수
           <input id="adminRequestLimit" type="number" min="1" max="{analysis_worker_max}" value="{analysis_worker_max}">
           <small id="adminRequestLimitHint">현재 최대 {analysis_worker_max}건</small>
         </label>
         <div class="button-row">
-          <button type="button" data-admin-action="requests-dry-run">대상 확인</button>
+          <button type="button" data-admin-action="requests-dry-run">실행 전 확인</button>
           <button type="button" data-admin-action="requests-process">리포트 생성</button>
         </div>
-        <small class="admin-action-help">대상 확인은 저장하지 않고 이번 실행 후보만 보여줍니다. 리포트 생성은 요청 상태를 처리 중으로 바꾸고 AI 리포트를 저장합니다.</small>
+        <small class="admin-action-help">실행 전 확인은 저장 없이 이번 후보만 보여줍니다. 리포트 생성은 요청 상태를 처리 중으로 바꾸고 AI 리포트를 저장합니다.</small>
         <div class="admin-action-panel" id="adminRequestsPanel" aria-live="polite">
           <div class="action-cell is-waiting">
             <span>분석 리포트</span>
@@ -1712,10 +1712,10 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
           <small id="adminOutcomeLimitHint">현재 최대 {outcome_worker_max}건</small>
         </label>
         <div class="button-row">
-          <button type="button" data-admin-action="outcomes-dry-run">대상 확인</button>
+          <button type="button" data-admin-action="outcomes-dry-run">실행 전 확인</button>
           <button type="button" data-admin-action="outcomes-process">사후 결과 계산</button>
         </div>
-        <small class="admin-action-help">대상 확인은 저장하지 않고 후보 리포트만 보여줍니다. 사후 결과 계산은 5일/20일 수익률과 시장 대비를 저장합니다.</small>
+        <small class="admin-action-help">실행 전 확인은 저장 없이 후보 리포트만 보여줍니다. 사후 결과 계산은 5일/20일 수익률과 시장 대비를 저장합니다.</small>
         <div class="admin-action-panel" id="adminOutcomesPanel" aria-live="polite">
           <div class="action-cell is-waiting">
             <span>사후 결과</span>
@@ -1739,10 +1739,10 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
           <small id="adminPaperSimulationLimitHint">현재 최대 {paper_worker_max}건</small>
         </label>
         <div class="button-row">
-          <button type="button" data-admin-action="paper-dry-run">대상 확인</button>
+          <button type="button" data-admin-action="paper-dry-run">실행 전 확인</button>
           <button type="button" data-admin-action="paper-process">가상매매 기록 생성</button>
         </div>
-        <small class="admin-action-help">대상 확인은 저장하지 않고 후보 리포트와 보유 중인 가상 포지션만 보여줍니다. 기록 생성은 실제 주문 없이 가상 매수·매도 기록만 저장합니다.</small>
+        <small class="admin-action-help">실행 전 확인은 저장 없이 후보 리포트와 보유 중인 가상 포지션만 보여줍니다. 기록 생성은 실제 주문 없이 가상 매수·매도 기록만 저장합니다.</small>
         <div class="admin-action-panel" id="adminPaperSimulationPanel" aria-live="polite">
           <div class="action-cell is-waiting">
             <span>AI 가상매매</span>
@@ -13102,14 +13102,14 @@ ADMIN_PAGE_JS = """
       : { limit, dry_run: isDryRun };
     const actionLabel = isPaper ? "AI 가상매매 기록" : isOutcome ? "사후 결과 계산" : "AI 리포트 생성";
     if (!isDryRun && Date.now() - (lastDryRunAt[actionGroup] || 0) > dryRunReadyMs) {
-      const message = "먼저 대상 확인을 눌러 이번 실행 후보를 확인하세요. 확인 후 10분 동안 실행할 수 있습니다.";
+      const message = "먼저 실행 전 확인을 눌러 이번 실행 후보를 확인하세요. 확인 후 10분 동안 실행할 수 있습니다.";
       setOutput(output, message);
       renderActionSummaryPending(summaryPanel, actionLabel, message);
       return;
     }
     try {
       setBusy(button, true);
-      setOutput(output, isDryRun ? "대상 확인 중" : "작업 실행 중");
+      setOutput(output, isDryRun ? "실행 전 확인 중" : "작업 실행 중");
       renderActionSummaryPending(summaryPanel, actionLabel, isDryRun ? "저장 없이 이번 실행 후보를 확인하고 있습니다." : "선택한 대기열 작업을 저장하고 있습니다.");
       const payload = await fetchJson(path, { method: "POST", body: JSON.stringify(body) }, true);
       renderAdminActionSummary(summaryPanel, payload, isOutcome, isDryRun, isPaper);
