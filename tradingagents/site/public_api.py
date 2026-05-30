@@ -116,36 +116,65 @@ def _analysis_refresh_payload(
 ) -> dict[str, Any]:
     status = analysis.get("status")
     if status == "skipped":
-        return {"recommended": False, "reason": "analysis_skipped", "as_of": as_of}
+        return _analysis_refresh_result(False, "analysis_skipped", as_of=as_of)
     if status == "not_configured":
-        return {"recommended": False, "reason": "storage_not_configured", "as_of": as_of}
+        return _analysis_refresh_result(False, "storage_not_configured", as_of=as_of)
     if status == "missing":
-        return {"recommended": True, "reason": "no_completed_public_analysis", "as_of": as_of}
+        return _analysis_refresh_result(True, "no_completed_public_analysis", as_of=as_of)
     if status != "available":
-        return {"recommended": True, "reason": "analysis_unavailable", "as_of": as_of}
+        return _analysis_refresh_result(True, "analysis_unavailable", as_of=as_of)
 
     try:
         trade_date = _coerce_date(analysis.get("run", {}).get("trade_date"))
     except (TypeError, ValueError):
-        return {"recommended": True, "reason": "invalid_analysis_trade_date", "as_of": as_of}
+        return _analysis_refresh_result(True, "invalid_analysis_trade_date", as_of=as_of)
     age_days = (as_of - trade_date).days
     if age_days > max_age_days:
-        return {
-            "recommended": True,
-            "reason": "stale",
-            "as_of": as_of,
-            "latest_trade_date": trade_date,
-            "age_days": age_days,
-            "max_age_days": max_age_days,
-        }
+        return _analysis_refresh_result(
+            True,
+            "stale",
+            as_of=as_of,
+            latest_trade_date=trade_date,
+            age_days=age_days,
+            max_age_days=max_age_days,
+        )
+    return _analysis_refresh_result(
+        False,
+        "fresh",
+        as_of=as_of,
+        latest_trade_date=trade_date,
+        age_days=max(age_days, 0),
+        max_age_days=max_age_days,
+    )
+
+
+def _analysis_refresh_result(recommended: bool, reason: str, *, as_of: date, **extra: Any) -> dict[str, Any]:
     return {
-        "recommended": False,
-        "reason": "fresh",
+        "recommended": recommended,
+        "reason": reason,
+        "reason_label": _analysis_refresh_reason_label(reason),
+        "status_label": _analysis_refresh_status_label(recommended, reason),
         "as_of": as_of,
-        "latest_trade_date": trade_date,
-        "age_days": max(age_days, 0),
-        "max_age_days": max_age_days,
+        **extra,
     }
+
+
+def _analysis_refresh_reason_label(reason: str) -> str:
+    return {
+        "fresh": "최근 리포트",
+        "stale": "업데이트 필요",
+        "analysis_skipped": "분석 생략",
+        "storage_not_configured": "저장소 확인 대기",
+        "no_completed_public_analysis": "완료된 공개 리포트 없음",
+        "analysis_unavailable": "공개 분석 응답 확인 실패",
+        "invalid_analysis_trade_date": "분석 기준일 확인 필요",
+    }.get(str(reason or ""), str(reason or "확인 정보 없음"))
+
+
+def _analysis_refresh_status_label(recommended: bool, reason: str) -> str:
+    if reason in {"storage_not_configured", "analysis_skipped"}:
+        return "확인 대기"
+    return "업데이트 권장" if recommended else "최신"
 
 
 def _chart_payload(ticker_code: str, start: date, end: date, vendor: str, interval: str) -> dict[str, Any]:

@@ -114,6 +114,8 @@ def test_public_stock_payload_combines_analysis_and_chart(monkeypatch):
     assert payload["analysis"]["outcomes"][0]["alpha_return"] == 0.03
     assert payload["analysis_refresh"]["recommended"] is False
     assert payload["analysis_refresh"]["reason"] == "fresh"
+    assert payload["analysis_refresh"]["reason_label"] == "최근 리포트"
+    assert payload["analysis_refresh"]["status_label"] == "최신"
     assert payload["chart"]["status"] == "available"
     assert payload["chart"]["requested_vendor"] == "pykrx"
     assert payload["chart"]["resolved_vendor"] == "pykrx"
@@ -358,10 +360,13 @@ def test_public_stock_payload_recommends_refresh_for_stale_or_missing_analysis()
     assert stale_payload["analysis"]["status"] == "available"
     assert stale_payload["analysis_refresh"]["recommended"] is True
     assert stale_payload["analysis_refresh"]["reason"] == "stale"
+    assert stale_payload["analysis_refresh"]["reason_label"] == "업데이트 필요"
+    assert stale_payload["analysis_refresh"]["status_label"] == "업데이트 권장"
     assert stale_payload["analysis_refresh"]["age_days"] == 4
     assert missing_payload["analysis"]["status"] == "missing"
     assert missing_payload["analysis_refresh"]["recommended"] is True
     assert missing_payload["analysis_refresh"]["reason"] == "no_completed_public_analysis"
+    assert missing_payload["analysis_refresh"]["reason_label"] == "완료된 공개 리포트 없음"
 
 
 def test_public_stock_payload_rejects_non_korean_ticker():
