@@ -2743,7 +2743,7 @@ def _analysis_feed_view_model(payload: dict[str, Any], *, site_base_url: str | N
         "description": description,
         "canonical_url": canonical_url("/analyses", site_base_url=site_base_url),
         "subtitle": "공개 AI 리포트와 5일·20일 사후 결과를 함께 봅니다.",
-        "status": f"{_analysis_feed_status_label(payload.get('status'))} · {basis_label}",
+        "status": f"{_analysis_feed_status_label(payload.get('status'))} · 실시간 데이터 트랙킹",
         "ticker_code": ticker_code,
         "filter_label": f"{ticker_code} 필터" if ticker_code else "전체 종목",
         "item_count": str(len(items)),
@@ -2770,7 +2770,6 @@ def _analysis_filter_state(model: dict[str, Any]) -> str:
     <div class="analysis-filter-state" aria-label="현재 분석 필터 상태">
       <span>전체 AI 리포트</span>
       <span>{_h(basis_label)}</span>
-      <span>결과 {_h(count)}건</span>
       <a href="/outcomes">사후 결과</a>
     </div>
     """
@@ -2780,9 +2779,11 @@ def _analysis_feed_toolbar(model: dict[str, Any]) -> str:
     count = str(model.get("item_count") or "0")
     basis_label = str(model.get("basis_label") or "최근 AI 리포트")
     filter_label = str(model.get("filter_label") or "전체 종목")
+    has_filter = bool(str(model.get("ticker_code") or "").strip())
+    count_label = f"결과 {_h(count)}건" if has_filter or count != "0" else "아카이브 대기"
     return f"""
     <div class="analysis-feed-toolbar" aria-label="리포트 목록 상태">
-      <span>결과 {_h(count)}건</span>
+      <span>{count_label}</span>
       <span>정렬: 최신 기준일순</span>
       <span>{_h(filter_label)}</span>
       <small>{_h(basis_label)} 목록입니다. 상세, 종목, 사후 결과로 이동합니다.</small>
@@ -3311,16 +3312,16 @@ def _analysis_feed_cards(
             """
         return """
         <article class="analysis-feed-card empty">
-          <span>아직 공개 기록 없음</span>
-          <h3>아직 공개된 리포트가 없습니다</h3>
-          <p>완료된 AI 리포트가 쌓이면 이곳에 표시됩니다. 지금은 샘플 종목을 보거나 내 공간에서 새 분석을 요청하세요.</p>
+          <span>REPORT ARCHIVE</span>
+          <h3>발행된 공개 AI 분석 리포트가 존재하지 않습니다.</h3>
+          <p>TradingAgents AI 엔진이 실시간으로 한국 시장을 분석 중입니다. 플랫폼의 데이터 깊이를 즉시 확인하시려면 아래 '샘플 종목 리서치실'로 진입하거나, 나만의 프라이빗 워크스페이스에서 새로운 종목의 분석 대기열을 가동해 보세요.</p>
           <div class="analysis-feed-signal-row" aria-label="공개 분석 대기 상태">
-            <span>공개 기록 없음</span>
-            <span>리포트 0개</span>
-            <span>사후 결과 대기</span>
+            <span>리포트 아카이브</span>
+            <span>AI 엔진 대기열</span>
+            <span>사후 결과 연결</span>
           </div>
-          <div class="analysis-feed-actions">
-            <a href="/stocks/005930">샘플 종목</a>
+          <div class="analysis-feed-actions analysis-empty-cta-row">
+            <a href="/stocks/005930">💡 샘플 종목 리서치실 바로가기</a>
             <a href="/features/methodology">데이터 기준</a>
             <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
           </div>
@@ -10402,6 +10403,7 @@ button:disabled {
   color: var(--home-readable, rgba(246, 243, 232, 0.84));
   font-size: 12px;
   font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .analysis-filter-state a {
@@ -10555,11 +10557,71 @@ button:disabled {
   border: 1px solid var(--home-acid);
   background: var(--home-acid);
   color: #10130f;
+  transition: all 0.2s ease;
+}
+
+.analysis-filter-form button:hover {
+  background: #ecff72;
+  border-color: #ecff72;
+  transform: translateY(-1px);
+  box-shadow: 0 0 18px rgba(220, 252, 19, 0.22);
+}
+
+.analysis-filter-form button:active {
+  transform: translateY(1px);
 }
 
 .analysis-filter-form a {
   border: 1px solid rgba(246, 243, 232, 0.18);
   color: var(--home-ink);
+}
+
+.analysis-page .report-section {
+  border-radius: 12px;
+}
+
+.analysis-page .analysis-feed-card.empty {
+  padding: clamp(18px, 2.4vw, 28px);
+  background:
+    linear-gradient(135deg, rgba(215, 255, 63, 0.045), transparent 40%),
+    rgba(251, 250, 244, 0.055);
+}
+
+.analysis-page .analysis-feed-card.empty > span {
+  color: var(--home-celadon);
+  letter-spacing: 0.08em;
+}
+
+.analysis-page .analysis-feed-card.empty h3 {
+  max-width: 48rem;
+  color: var(--home-ink);
+  font-size: clamp(22px, 2.15vw, 32px);
+  line-height: 1.14;
+  text-wrap: balance;
+  word-break: keep-all;
+}
+
+.analysis-page .analysis-feed-card.empty p {
+  max-width: 76ch;
+  color: var(--home-readable, rgba(246, 243, 232, 0.84));
+  line-height: 1.72;
+}
+
+.analysis-page .analysis-empty-cta-row {
+  grid-template-columns: minmax(260px, 1.4fr) repeat(2, minmax(132px, 0.7fr));
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.analysis-page .analysis-empty-cta-row a {
+  min-height: 42px;
+  border-radius: 7px;
+}
+
+.analysis-page .analysis-empty-cta-row a:first-child {
+  font-size: 14px;
+  letter-spacing: -0.03em;
+  box-shadow: 0 0 20px rgba(220, 252, 19, 0.18);
 }
 
 .analysis-detail-hero {
@@ -11363,6 +11425,10 @@ button:disabled {
 
   .admin-health-strip {
     gap: 1px;
+  }
+
+  .analysis-page .analysis-empty-cta-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .admin-ops-panel .panel-heading {

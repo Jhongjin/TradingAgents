@@ -1036,6 +1036,7 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
     assert "data-ticker-submit" in html
     assert "종목명이나 6자리 코드로 공개 리포트만 검색합니다" in html
     assert "전체 AI 리포트" in html
+    assert "실시간 데이터 트랙킹" in html
     assert "정렬: 최신 기준일순" in html
     assert "상세, 종목, 사후 결과로 이동합니다." in html
     assert "resolveTickerInput" in html
@@ -1074,15 +1075,20 @@ def test_render_public_analysis_feed_page_lists_completed_runs():
 def test_render_public_analysis_feed_empty_state_has_next_actions():
     html = render_public_analysis_feed_page(repo=_repo(), site_base_url="https://example.com")
 
-    assert "아직 공개된 리포트가 없습니다" in html
-    assert "공개 기록 없음" in html
+    assert "REPORT ARCHIVE" in html
+    assert "발행된 공개 AI 분석 리포트가 존재하지 않습니다." in html
     assert 'class="analysis-empty-plan"' not in html
-    assert "완료된 AI 리포트가 쌓이면 이곳에 표시됩니다" in html
+    assert "TradingAgents AI 엔진이 실시간으로 한국 시장을 분석 중입니다" in html
+    assert "결과 0건" not in html
+    assert "아카이브 대기" in html
     assert 'class="analysis-pipeline-strip"' not in html
     assert "공개 분석 커버리지 요약" not in html
-    assert 'href="/stocks/005930">샘플 종목</a>' in html
+    assert 'href="/stocks/005930">💡 샘플 종목 리서치실 바로가기</a>' in html
     assert 'href="/features/methodology">데이터 기준</a>' in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
+    assert "analysis-empty-cta-row" in html
+    assert "transition: all 0.2s ease" in html
+    assert ".analysis-page .report-section" in html
 
 
 def test_render_public_analysis_feed_filtered_empty_state_guides_recovery():
