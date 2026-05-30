@@ -924,7 +924,7 @@ def create_app(
                 "max_limit": max_limit,
             }
             if body.limit > max_limit:
-                payload["notice"] = f"처리 한도 {max_limit}건에 맞춰 대상 확인 범위를 조정했습니다."
+                payload["notice"] = f"처리 한도 {max_limit}건에 맞춰 실행 전 확인 범위를 조정했습니다."
             return payload
         if body.limit > max_limit:
             raise HTTPException(status_code=400, detail=f"limit cannot exceed {max_limit}")
@@ -971,7 +971,7 @@ def create_app(
                 "max_limit": max_limit,
             }
             if body.limit > max_limit:
-                payload["notice"] = f"처리 한도 {max_limit}건에 맞춰 대상 확인 범위를 조정했습니다."
+                payload["notice"] = f"처리 한도 {max_limit}건에 맞춰 실행 전 확인 범위를 조정했습니다."
             return payload
         if body.limit > max_limit:
             raise HTTPException(status_code=400, detail=f"limit cannot exceed {max_limit}")
