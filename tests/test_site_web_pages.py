@@ -498,6 +498,15 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "tickerFromForm" in html
     assert "매수/매도 기록" in html
     assert "목표/손절 메모" in html
+    assert "--member-form-control-height: 44px;" in html
+    assert ".member-page #portfolioForm" in html
+    assert "align-items: stretch;" in html
+    assert "gap: 0.5rem;" in html
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr));" in html
+    assert "grid-column: 1 / span 2;" in html
+    assert "grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(120px, 0.75fr) minmax(120px, 0.75fr) minmax(104px, auto);" in html
+    assert "grid-column: 1 / span 4;" in html
+    assert "display: inline-flex;" in html
     assert 'href="#portfolio-section"' in html
     assert 'id="watchlist-section"' in html
     assert "새 관심그룹" in html

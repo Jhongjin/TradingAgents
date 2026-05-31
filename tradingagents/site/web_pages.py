@@ -7374,6 +7374,7 @@ h3 {
 }
 
 .member-form {
+  --member-form-control-height: 44px;
   display: grid;
   gap: 10px;
   margin-top: 14px;
@@ -7409,13 +7410,15 @@ h3 {
 .member-form select {
   min-width: 0;
   width: 100%;
-  height: 40px;
+  height: var(--member-form-control-height);
   padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface);
   color: var(--ink);
   font: inherit;
+  line-height: 1;
+  box-sizing: border-box;
 }
 
 .member-page .member-form input,
@@ -7513,26 +7516,41 @@ h3 {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.member-page #portfolioForm {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.member-page #portfolioForm input {
+  flex: 1 1 auto;
+}
+
+.member-page #portfolioForm button {
+  flex: 0 0 96px;
+}
+
 .compact-form input:nth-last-child(2) {
   grid-column: auto;
 }
 
 .trade-form {
-  grid-template-columns: minmax(120px, 1.2fr) minmax(88px, 0.8fr) minmax(82px, 0.7fr) minmax(122px, 1fr);
-  align-items: end;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
 }
 
 .trade-form button {
+  grid-column: 1 / span 2;
   width: 100%;
 }
 
 .target-form {
-  grid-template-columns: minmax(120px, 1.2fr) minmax(88px, 0.8fr) minmax(96px, 0.8fr) minmax(96px, 0.8fr);
-  align-items: end;
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(120px, 0.75fr) minmax(120px, 0.75fr) minmax(104px, auto);
+  align-items: center;
 }
 
 .target-form input[name="memo"] {
-  grid-column: span 3;
+  grid-column: 1 / span 4;
 }
 
 .target-form button {
@@ -7560,15 +7578,20 @@ h3 {
 
 .member-form button,
 .ghost-button {
-  height: 40px;
+  height: var(--member-form-control-height, 40px);
   padding: 0 14px;
   border: 0;
   border-radius: 6px;
   background: var(--ink);
   color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font: inherit;
   font-weight: 800;
+  line-height: 1;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
 .member-page .member-form button {
@@ -8111,6 +8134,10 @@ h3 {
   }
 
   .target-form input[name="memo"] {
+    grid-column: auto;
+  }
+
+  .trade-form button {
     grid-column: auto;
   }
 
