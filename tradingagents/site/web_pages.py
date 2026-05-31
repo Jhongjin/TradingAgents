@@ -7598,15 +7598,30 @@ h3 {
 }
 
 .analysis-request-form {
-  grid-template-columns: minmax(180px, 0.58fr) minmax(220px, 1fr) minmax(150px, auto) auto;
-  align-items: end;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
+}
+
+.analysis-request-form #analysisWatchlistTickerSelect {
+  grid-column: span 1 / span 1;
+}
+
+.analysis-request-form input[name="ticker"] {
+  grid-column: span 2 / span 2;
+}
+
+.analysis-request-form input[name="requested_trade_date"] {
+  grid-column: span 1 / span 1;
 }
 
 .analysis-request-form input[name="reason"] {
-  grid-column: 1 / span 3;
+  grid-column: span 3 / span 3;
 }
 
 .analysis-request-form button {
+  grid-column: span 1 / span 1;
+  align-self: center;
+  height: var(--member-form-control-height);
   width: 100%;
 }
 
@@ -7709,6 +7724,10 @@ h3 {
   margin-top: 14px;
 }
 
+.member-page #analysisRequestList {
+  margin-top: 8px;
+}
+
 .member-item {
   display: grid;
   gap: 6px;
@@ -7778,8 +7797,8 @@ h3 {
 
 .analysis-queue-overview {
   display: grid;
-  gap: 10px;
-  padding: 12px;
+  gap: 8px;
+  padding: 10px;
   border: 1px solid rgba(143, 216, 189, 0.22);
   border-left: 4px solid var(--home-celadon);
   border-radius: 8px;
@@ -7789,12 +7808,12 @@ h3 {
 .analysis-queue-meters {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .analysis-queue-meters div {
   min-width: 0;
-  padding: 9px 10px;
+  padding: 8px 9px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: rgba(246, 243, 232, 0.06);
@@ -8045,6 +8064,7 @@ h3 {
 
 .member-empty-action .ghost-button {
   justify-self: start;
+  letter-spacing: -0.02em;
 }
 
 .member-error {
@@ -8562,7 +8582,11 @@ h3 {
     grid-column: auto;
   }
 
-  .analysis-request-form input[name="reason"] {
+  .analysis-request-form #analysisWatchlistTickerSelect,
+  .analysis-request-form input[name="ticker"],
+  .analysis-request-form input[name="requested_trade_date"],
+  .analysis-request-form input[name="reason"],
+  .analysis-request-form button {
     grid-column: auto;
   }
 }
@@ -15259,7 +15283,7 @@ MEMBER_PAGE_JS = """
         emptyActionNode(
           "아직 분석 요청이 없습니다",
           "종목명이나 6자리 코드를 입력하면 요청 대기열에 올라갑니다. 완료 후 AI 리포트 링크를 보여줍니다.",
-          "요청 종목 입력",
+          "새로운 종목 분석 대기열 가동",
           () => focusField(analysisRequestForm, "ticker")
         )
       ])

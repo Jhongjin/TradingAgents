@@ -592,6 +592,14 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "종목명이나 6자리 코드만 입력하면 최근 기준일로 요청합니다" in html
     assert "analysis-queue-overview" in html
     assert "analysis-queue-meters" in html
+    assert ".member-page #analysisRequestList" in html
+    assert "margin-top: 8px;" in html
+    assert ".analysis-request-form #analysisWatchlistTickerSelect" in html
+    assert "grid-column: span 3 / span 3;" in html
+    assert "grid-column: span 1 / span 1;" in html
+    assert "새로운 종목 분석 대기열 가동" in html
+    assert "요청 종목 입력" not in html
+    assert "letter-spacing: -0.02em;" in html
     assert "quota_policy" in html
     assert "member_queue_position" in html
     assert "next_action_label" in html
