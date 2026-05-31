@@ -760,6 +760,10 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied(monkeypat
     assert "adminOutcomesPanel" in html
     assert "adminPaperSimulationPanel" in html
     assert "adminPaperSimulationOutput" in html
+    assert "admin-action-controls" in html
+    assert "grid-template-columns: minmax(96px, 0.38fr) repeat(2, minmax(116px, 1fr));" in html
+    assert "height: var(--admin-control-height, 44px);" in html
+    assert "border-radius: 12px;" in html
     assert 'id="adminRequestLimit" type="number" min="1" max="1" value="1"' in html
     assert "adminRequestLimitHint" in html
     assert "현재 최대 1건" in html

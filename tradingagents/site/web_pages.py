@@ -1692,13 +1692,16 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
           </div>
           <span class="status-pill">운영 권한</span>
         </div>
-        <label class="admin-number-field">이번 실행 건수
-          <input id="adminRequestLimit" type="number" min="1" max="{analysis_worker_max}" value="{analysis_worker_max}">
-          <small id="adminRequestLimitHint">현재 최대 {analysis_worker_max}건</small>
-        </label>
-        <div class="button-row">
-          <button type="button" data-admin-action="requests-dry-run">실행 전 확인</button>
-          <button type="button" data-admin-action="requests-process">리포트 생성</button>
+        <div class="admin-action-controls">
+          <label class="admin-number-field" for="adminRequestLimit">
+            <span>이번 실행 건수</span>
+            <input id="adminRequestLimit" type="number" min="1" max="{analysis_worker_max}" value="{analysis_worker_max}">
+          </label>
+          <div class="button-row">
+            <button type="button" data-admin-action="requests-dry-run">실행 전 확인</button>
+            <button type="button" data-admin-action="requests-process">리포트 생성</button>
+          </div>
+          <small class="admin-limit-hint" id="adminRequestLimitHint">현재 최대 {analysis_worker_max}건</small>
         </div>
         <small class="admin-action-help">실행 전 확인은 저장 없이 이번 후보만 보여줍니다. 리포트 생성은 요청 상태를 처리 중으로 바꾸고 AI 리포트를 저장합니다.</small>
         <div class="admin-action-panel" id="adminRequestsPanel" aria-live="polite">
@@ -1719,13 +1722,16 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
           </div>
           <span class="status-pill">5일 / 20일</span>
         </div>
-        <label class="admin-number-field">이번 실행 건수
-          <input id="adminOutcomeLimit" type="number" min="1" max="{outcome_worker_max}" value="{outcome_default}">
-          <small id="adminOutcomeLimitHint">현재 최대 {outcome_worker_max}건</small>
-        </label>
-        <div class="button-row">
-          <button type="button" data-admin-action="outcomes-dry-run">실행 전 확인</button>
-          <button type="button" data-admin-action="outcomes-process">사후 결과 계산</button>
+        <div class="admin-action-controls">
+          <label class="admin-number-field" for="adminOutcomeLimit">
+            <span>이번 실행 건수</span>
+            <input id="adminOutcomeLimit" type="number" min="1" max="{outcome_worker_max}" value="{outcome_default}">
+          </label>
+          <div class="button-row">
+            <button type="button" data-admin-action="outcomes-dry-run">실행 전 확인</button>
+            <button type="button" data-admin-action="outcomes-process">사후 결과 계산</button>
+          </div>
+          <small class="admin-limit-hint" id="adminOutcomeLimitHint">현재 최대 {outcome_worker_max}건</small>
         </div>
         <small class="admin-action-help">실행 전 확인은 저장 없이 후보 리포트만 보여줍니다. 사후 결과 계산은 5일/20일 수익률과 시장 대비를 저장합니다.</small>
         <div class="admin-action-panel" id="adminOutcomesPanel" aria-live="polite">
@@ -1746,13 +1752,16 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
           </div>
           <span class="status-pill">주문 없음</span>
         </div>
-        <label class="admin-number-field">이번 실행 건수
-          <input id="adminPaperSimulationLimit" type="number" min="1" max="{paper_worker_max}" value="{paper_default}">
-          <small id="adminPaperSimulationLimitHint">현재 최대 {paper_worker_max}건</small>
-        </label>
-        <div class="button-row">
-          <button type="button" data-admin-action="paper-dry-run">실행 전 확인</button>
-          <button type="button" data-admin-action="paper-process">가상매매 기록 생성</button>
+        <div class="admin-action-controls">
+          <label class="admin-number-field" for="adminPaperSimulationLimit">
+            <span>이번 실행 건수</span>
+            <input id="adminPaperSimulationLimit" type="number" min="1" max="{paper_worker_max}" value="{paper_default}">
+          </label>
+          <div class="button-row">
+            <button type="button" data-admin-action="paper-dry-run">실행 전 확인</button>
+            <button type="button" data-admin-action="paper-process">가상매매 기록 생성</button>
+          </div>
+          <small class="admin-limit-hint" id="adminPaperSimulationLimitHint">현재 최대 {paper_worker_max}건</small>
         </div>
         <small class="admin-action-help">실행 전 확인은 저장 없이 후보 리포트와 보유 중인 가상 포지션만 보여줍니다. 기록 생성은 실제 주문 없이 가상 매수·매도 기록만 저장합니다.</small>
         <div class="admin-action-panel" id="adminPaperSimulationPanel" aria-live="polite">
@@ -6105,6 +6114,7 @@ h3 {
 .feature-index-card small,
 .feature-boundary li,
 .admin-card label,
+.admin-ops-panel pre,
 .admin-card pre,
 .admin-token-panel small {
   color: rgba(246, 243, 232, 0.78);
@@ -6459,14 +6469,25 @@ h3 {
 
 .admin-token-panel {
   display: grid;
-  gap: 12px;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  align-items: end;
+  column-gap: 0.5rem;
+  row-gap: 8px;
   padding: 22px;
+  --admin-control-height: 44px;
 }
 
 .admin-token-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  align-items: stretch;
+  align-self: end;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+}
+
+.admin-token-panel small {
+  grid-column: 1 / -1;
+  line-height: 1.45;
 }
 
 .admin-token-panel label,
@@ -6483,10 +6504,18 @@ h3 {
   font-weight: 800;
 }
 
+.admin-limit-hint {
+  grid-column: 1 / -1;
+  margin-top: -2px;
+  color: var(--home-muted-readable, rgba(246, 243, 232, 0.78));
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .admin-token-panel input,
 .admin-number-field input {
   width: 100%;
-  height: 42px;
+  height: var(--admin-control-height, 44px);
   padding: 0 12px;
   border: 1px solid rgba(246, 243, 232, 0.18);
   border-radius: 6px;
@@ -6497,7 +6526,7 @@ h3 {
 
 .admin-token-panel button,
 .admin-card button {
-  height: 42px;
+  height: var(--admin-control-height, 44px);
   padding: 0 14px;
   border: 1px solid var(--home-acid);
   border-radius: 6px;
@@ -6506,6 +6535,33 @@ h3 {
   font: inherit;
   font-weight: 900;
   cursor: pointer;
+}
+
+.admin-action-controls {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.38fr) repeat(2, minmax(116px, 1fr));
+  align-items: end;
+  gap: 0.5rem;
+  --admin-control-height: 44px;
+}
+
+.admin-action-controls .admin-number-field {
+  min-width: 0;
+}
+
+.admin-action-controls .button-row {
+  grid-column: 2 / span 2;
+  align-self: end;
+  gap: 0.5rem;
+}
+
+.admin-action-controls .button-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .admin-card .button-row {
@@ -6595,18 +6651,24 @@ h3 {
   line-height: 1.55;
 }
 
+.admin-ops-panel pre,
 .admin-card pre {
   min-height: 190px;
   max-height: 360px;
   margin: 0;
-  padding: 14px;
+  padding: 16px;
+  box-sizing: border-box;
   overflow: auto;
   border: 1px solid rgba(246, 243, 232, 0.14);
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.24);
   font-size: 13px;
   line-height: 1.55;
   white-space: pre-wrap;
+}
+
+.admin-ops-panel pre {
+  min-height: 150px;
 }
 
 .admin-readiness-panel {
@@ -11776,6 +11838,17 @@ button:disabled {
 
   .admin-ops-panel [data-admin-ops-summary] {
     width: 100%;
+  }
+
+  .admin-token-panel,
+  .admin-action-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-token-actions,
+  .admin-action-controls .button-row,
+  .admin-limit-hint {
+    grid-column: 1 / -1;
   }
 
   .member-tab-strip {
