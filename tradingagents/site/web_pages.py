@@ -7533,6 +7533,40 @@ h3 {
   min-height: var(--member-form-control-height);
 }
 
+.member-page #watchlistForm {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.member-page #watchlistForm input {
+  flex: 1 1 auto;
+  min-height: var(--member-form-control-height);
+}
+
+.member-page #watchlistForm button {
+  flex: 0 0 128px;
+  align-self: stretch;
+  min-height: var(--member-form-control-height);
+}
+
+.member-page #watchlistItemForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+.member-page #watchlistItemForm select,
+.member-page #watchlistItemForm input,
+.member-page #watchlistItemForm button {
+  height: var(--member-form-control-height);
+}
+
+.member-page #watchlistItemForm button {
+  width: 100%;
+}
+
 .compact-form input:nth-last-child(2) {
   grid-column: auto;
 }
@@ -15206,7 +15240,7 @@ MEMBER_PAGE_JS = """
         emptyActionNode(
           "아직 관심그룹이 없습니다",
           "자주 확인할 종목을 담을 그룹을 먼저 만드세요.",
-          "그룹 이름 입력",
+          "새 관심그룹 생성 가동",
           () => focusField(watchlistForm, "name")
         )
       ])

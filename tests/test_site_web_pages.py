@@ -514,6 +514,12 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "새 관심그룹" in html
     assert "그룹 만들기" in html
     assert "종목 담기" in html
+    assert ".member-page #watchlistForm" in html
+    assert ".member-page #watchlistItemForm" in html
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in html
+    assert "gap: 0.75rem;" in html
+    assert "새 관심그룹 생성 가동" in html
+    assert "그룹 이름 입력" not in html
     assert "그룹 이름 수정" in html
     assert "이름 저장" in html
     assert "종목 삭제" in html
