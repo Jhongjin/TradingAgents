@@ -7524,10 +7524,13 @@ h3 {
 
 .member-page #portfolioForm input {
   flex: 1 1 auto;
+  min-height: var(--member-form-control-height);
 }
 
 .member-page #portfolioForm button {
   flex: 0 0 96px;
+  align-self: stretch;
+  min-height: var(--member-form-control-height);
 }
 
 .compact-form input:nth-last-child(2) {
@@ -7540,20 +7543,23 @@ h3 {
 }
 
 .trade-form button {
-  grid-column: 1 / span 2;
+  grid-column: span 4 / span 4;
   width: 100%;
 }
 
 .target-form {
-  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(120px, 0.75fr) minmax(120px, 0.75fr) minmax(104px, auto);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: center;
 }
 
 .target-form input[name="memo"] {
-  grid-column: 1 / span 4;
+  grid-column: span 3 / span 3;
 }
 
 .target-form button {
+  grid-column: span 1 / span 1;
+  align-self: center;
+  height: var(--member-form-control-height);
   width: 100%;
 }
 

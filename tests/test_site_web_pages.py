@@ -503,9 +503,11 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "align-items: stretch;" in html
     assert "gap: 0.5rem;" in html
     assert "grid-template-columns: repeat(4, minmax(0, 1fr));" in html
-    assert "grid-column: 1 / span 2;" in html
-    assert "grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(120px, 0.75fr) minmax(120px, 0.75fr) minmax(104px, auto);" in html
-    assert "grid-column: 1 / span 4;" in html
+    assert "grid-column: span 4 / span 4;" in html
+    assert "grid-column: span 3 / span 3;" in html
+    assert "grid-column: span 1 / span 1;" in html
+    assert "align-self: stretch;" in html
+    assert "align-self: center;" in html
     assert "display: inline-flex;" in html
     assert 'href="#portfolio-section"' in html
     assert 'id="watchlist-section"' in html
