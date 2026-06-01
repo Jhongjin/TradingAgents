@@ -369,8 +369,8 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert 'data-auth-visible="signed-in" hidden' in html
     assert "분석 흐름" in html
     assert "하나의 차트 위로 융합되는 5대 핵심 시그널 맵" in html
-    assert "프라이빗 리서치 공간이 열립니다" in html
-    assert "안전한 Read-Only 운영 원칙" in html
+    assert "내 리서치 공간이 열립니다" in html
+    assert "안전한 조회 전용 운영 원칙" in html
     assert "box-shadow: 0 0 10px rgba(220, 252, 19, 0.3)" in html
     assert ".public-home .analysis-feed-actions a" in html
     assert "color: rgba(246, 243, 232, 0.92)" in html
@@ -403,12 +403,12 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
 
     html = render_member_dashboard_page(site_base_url="https://example.com")
 
-    assert "나만의 프라이빗 AI 리서치 룸을 분양받으세요" in html
-    assert "개인 매매 일지 기록부터 관심 그룹 트랙킹" in html
-    assert "🔒 SECURE AUTH" in html
-    assert "READ-ONLY ONLY" in html
-    assert "처음이라면 가입하기로 프라이빗 워크스페이스를 열 수 있습니다." in html
-    assert "프라이빗 워크스페이스 진입을 위해 인증이 필요합니다." in html
+    assert "나만의 AI 리서치 공간을 시작하세요" in html
+    assert "매매 일지, 관심그룹, AI 분석 요청" in html
+    assert "보안 로그인" in html
+    assert "조회 전용" in html
+    assert "처음이라면 가입하기로 내 공간을 열 수 있습니다." in html
+    assert "내 공간 진입을 위해 인증이 필요합니다." in html
     assert "auth-form-note" in html
     assert ".member-page .auth-form input" in html
     assert ".member-page .auth-form .password-toggle" in html
@@ -436,7 +436,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "memberHomeStateNote" in html
     assert "저장된 항목을 불러오고 있습니다." in html
     assert "아직 저장된 항목이 없습니다. 매매 일지나 관심그룹부터 시작해 보세요." in html
-    assert "프라이빗 리서치 룸이 성공적으로 활성화되었습니다." in html
+    assert "내 리서치 공간이 활성화되었습니다." in html
     assert "member-home-grid" in html
     assert "member-primary-action" in html
     assert "align-items: center;" in html
@@ -450,8 +450,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "*01*" not in html
     assert "background: var(--home-acid);" in html
     assert "color: #10130f;" in html
-    assert "나만의 첫 번째 프라이빗 매매 일지를 가동해 보세요" in html
-    assert "증권사 실제 계좌 주문과 연동되지 않는 100% 안전한 Read-Only 기록실입니다." in html
+    assert "첫 매매 일지를 만들어 보세요" in html
+    assert "실제 계좌 주문과 연결되지 않는 조회 전용 기록 공간입니다." in html
     assert "매매 일지 시작" in html
     assert 'data-member-primary-action="watchlist"' not in html
     assert "memberPrimaryActionButton" in html
@@ -727,14 +727,16 @@ def test_render_feature_detail_pages_use_public_theme():
     assert 'href="/features/research">AI 리포트 먼저 보기</a>' in member_html
     assert "로그인 후에는 개인 기록만 따로 열립니다" in member_html
     assert "/api/member/dashboard" not in member_html
-    assert 'href="/features/methodology">데이터 기준 보기</a>' in outcomes_html
+    assert 'href="/features/methodology">분석 기준 보기</a>' in outcomes_html
     assert 'href="/outcomes">사후 결과 보기</a>' in outcomes_html
     assert "사후 결과는 추천 성과가 아니라 리포트 품질 기록입니다" in outcomes_html
     assert "/api/member/dashboard" not in outcomes_html
-    assert "데이터 출처와 AI 한계를 한 화면에서 검증합니다" in methodology_html
-    assert "KRX 종가 · DART 공시 · Naver 뉴스" in methodology_html
-    assert "실거래 주문 차단 (Read-Only)" in methodology_html
-    assert "실거래 주문 실행(Order Execution) 기능은 원천 차단" in methodology_html
+    assert "출처, 기준일, 한계를 함께 확인합니다" in methodology_html
+    assert "KRX 가격 · DART 공시 · Naver 뉴스" in methodology_html
+    assert "실거래 주문 차단" in methodology_html
+    assert "증권 계좌 주문 권한은 연결하지 않습니다" in methodology_html
+    assert "Fallback Path" not in methodology_html
+    assert "Order Execution" not in methodology_html
     assert "출처·한계·성과를 함께 검증합니다" in methodology_html
     assert "feature-title-compact" in methodology_html
     assert "feature-journey-compact" in methodology_html
@@ -1159,13 +1161,13 @@ def test_render_public_analysis_feed_empty_state_has_next_actions():
     assert "REPORT ARCHIVE" in html
     assert "발행된 공개 AI 분석 리포트가 존재하지 않습니다." in html
     assert 'class="analysis-empty-plan"' not in html
-    assert "TradingAgents AI 엔진이 실시간으로 한국 시장을 분석 중입니다" in html
+    assert "TradingAgents AI 엔진이 한국 시장 분석을 준비하고 있습니다" in html
     assert "결과 0건" not in html
     assert "아카이브 대기" in html
     assert 'class="analysis-pipeline-strip"' not in html
     assert "공개 분석 커버리지 요약" not in html
     assert 'href="/stocks/005930">💡 샘플 종목 리서치실 바로가기</a>' in html
-    assert 'href="/features/methodology">데이터 기준</a>' in html
+    assert 'href="/features/methodology">분석 기준</a>' in html
     assert 'href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>' in html
     assert "analysis-empty-cta-row" in html
     assert "transition: all 0.2s ease" in html

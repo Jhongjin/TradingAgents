@@ -24,7 +24,7 @@ TOP_NAV_ITEMS: tuple[tuple[str, str], ...] = (
     ("/", "종목 검색"),
     ("/analyses", "AI 리포트"),
     ("/outcomes", "사후 결과"),
-    ("/features/methodology", "데이터 기준"),
+    ("/features/methodology", "분석 기준"),
 )
 
 
@@ -795,7 +795,7 @@ def render_public_home_page(
           <p class="eyebrow">사용 흐름</p>
           <h2 id="service-map-title">AI 리서치부터 가상 매매 시뮬레이션까지의 파이프라인</h2>
         </div>
-        <p>종목 검색에서 AI 리포트, 프라이빗 기록, AI 가상매매까지 이어지는 읽기 전용 데이터 운영 흐름입니다.</p>
+        <p>종목 검색에서 AI 리포트, 개인 기록, AI 가상매매까지 이어지는 조회 전용 데이터 운영 흐름입니다.</p>
       </div>
       <div class="home-service-grid">
         <article>
@@ -806,7 +806,7 @@ def render_public_home_page(
         </article>
         <article>
           <span>02</span>
-          <strong>프라이빗 매매 일지 및 관심그룹</strong>
+          <strong>개인 매매 일지 및 관심그룹</strong>
           <p>개인 매매 일지와 관심그룹을 분리해 관리합니다. 실제 계좌나 주문 경로는 연결하지 않습니다.</p>
           <a href="/member?mode=signup">내 공간 만들기</a>
         </article>
@@ -865,7 +865,7 @@ def render_public_home_page(
       <div class="home-section-heading">
         <div>
           <p class="eyebrow">회원 기능</p>
-          <h2 id="member-title">프라이빗 리서치 공간이 열립니다</h2>
+          <h2 id="member-title">내 리서치 공간이 열립니다</h2>
         </div>
         <a class="home-primary-link" href="/member?mode=signup">회원으로 시작하기</a>
       </div>
@@ -874,7 +874,7 @@ def render_public_home_page(
           <span class="home-flow-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false"><path d="M4 5.5h16M7 9v9m5-6v6m5-10v10M5 19h14"/></svg>
           </span>
-          <strong>프라이빗 매매 일지</strong>
+          <strong>개인 매매 일지</strong>
           <p>매수·매도 기록, 평균단가, 목표가, 손절가를 실제 주문 연결 없이 정리합니다.</p>
         </article>
         <article>
@@ -894,15 +894,15 @@ def render_public_home_page(
       </div>
     </section>
 
-    <section class="home-ops-strip home-readonly-banner" aria-label="안전한 Read-Only 운영 원칙">
+    <section class="home-ops-strip home-readonly-banner" aria-label="안전한 조회 전용 운영 원칙">
       <div>
         <p class="eyebrow">운영 원칙</p>
-        <h2>🔒 안전한 Read-Only 운영 원칙</h2>
+        <h2>안전한 조회 전용 운영 원칙</h2>
       </div>
       <ul>
         <li>실제 주문, 계좌 연결, 투자 자문을 제공하지 않습니다.</li>
         <li>AI 분석과 AI 가상매매는 판단 근거를 정리하는 정보 제공용 자료입니다.</li>
-        <li><a href="/features/methodology">데이터 기준</a>, <a href="/disclaimer">투자 유의사항</a>, <a href="/terms">이용약관</a>, <a href="/privacy">개인정보처리방침</a>을 공개합니다.</li>
+        <li><a href="/features/methodology">분석 기준</a>, <a href="/disclaimer">투자 유의사항</a>, <a href="/terms">이용약관</a>, <a href="/privacy">개인정보처리방침</a>을 공개합니다.</li>
       </ul>
     </section>
   </main>
@@ -993,28 +993,28 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "steps": ("분석 완료", "사후 결과", "시장 기준", "차이 확인", "공개 리뷰"),
         "cta_label": "사후 결과 보기",
         "cta_href": "/outcomes",
-        "secondary_cta_label": "데이터 기준 보기",
+        "secondary_cta_label": "분석 기준 보기",
         "secondary_cta_href": "/features/methodology",
         "diagram_label": "사후 결과",
     },
     "methodology": {
         "path": "/features/methodology",
-        "title": "데이터 기준 | TradingAgents Korea",
+        "title": "분석 기준 | TradingAgents Korea",
         "description": "TradingAgents Korea의 데이터 출처, AI 분석 한계, 사후 결과, 주문 없는 운영 원칙입니다.",
-        "eyebrow": "데이터 기준",
-        "heading": "데이터 출처와 AI 한계를 한 화면에서 검증합니다",
-        "lead": "KRX 종가, DART 공시, Naver 뉴스, AI 리포트, 5일·20일 성과 검증을 하나의 신뢰 기준으로 연결합니다. TradingAgents Korea는 리서치 근거만 제공하며 투자 실행 권한은 보유하지 않습니다.",
-        "proof": (("출처", "KRX 종가 · DART 공시 · Naver 뉴스"), ("사후 결과", "5일 · 20일 성과 검증"), ("권한", "🔒 실거래 주문 차단 (Read-Only)")),
+        "eyebrow": "분석 기준",
+        "heading": "출처, 기준일, 한계를 함께 확인합니다",
+        "lead": "KRX 가격, DART 공시, Naver 뉴스, AI 리포트, 5일·20일 사후 결과를 한 흐름으로 연결합니다. TradingAgents Korea는 리서치 근거만 제공하며 투자 실행 권한은 보유하지 않습니다.",
+        "proof": (("출처", "KRX 가격 · DART 공시 · Naver 뉴스"), ("사후 결과", "5일 · 20일 흐름 확인"), ("권한", "실거래 주문 차단")),
         "cards": (
-            ("데이터 출처", "실시간 API 장애 시 대체 데이터 경로(Fallback Path) 구동 여부를 투명하게 공개하며, 유저가 신호의 무결성을 검증할 수 있도록 원문 데이터 링크를 함께 제공합니다."),
-            ("AI 한계", "본 AI 리포트는 투자 판단 보조용 정보이며 거래소 지연, 모델 파싱 오류 가능성이 존재하므로 절대적 투자 확정 신호가 아님을 고지합니다."),
+            ("데이터 출처", "가격, 공시, 뉴스가 어디서 왔는지와 대체 경로 사용 여부를 표시하고 원문 데이터 링크를 함께 제공합니다."),
+            ("AI 한계", "AI 리포트는 투자 판단 보조 정보입니다. 거래소 지연, 데이터 누락, 모델 해석 오류 가능성을 함께 고지합니다."),
             ("사후 결과", "완료된 공개 분석은 사후 결과 작업이 5일/20일 뒤 종목 수익률과 시장 기준 차이를 추적합니다."),
             ("회원 경계", "회원 매매 일지와 관심그룹은 개인 기록이며 AI 리포트 목록과 분리해 호출합니다."),
             ("운영 보안", "운영 키는 브라우저 세션 입력값으로만 사용하고 HTML, 문서, 커밋에 포함하지 않습니다."),
-            ("실행 차단", "국내 주요 증권사(한국투자증권 등) 계좌 연동 시 오직 조회 전용(Read-Only) API 프로토콜만 채택합니다. 시스템 아키텍처 상 실거래 주문 실행(Order Execution) 기능은 원천 차단되어 안전합니다."),
+            ("실행 차단", "증권 계좌 주문 권한은 연결하지 않습니다. 화면의 분석, 기록, 가상매매는 모두 실제 주문과 분리됩니다."),
         ),
         "journey_heading": "출처·한계·성과를 함께 검증합니다",
-        "journey_intro": "데이터 기준은 화면의 숫자와 문장을 어떤 순서로 읽어야 하는지 알려주는 신뢰성 가이드라인입니다.",
+        "journey_intro": "분석 기준은 화면의 숫자와 문장을 어떤 순서로 읽어야 하는지 알려주는 읽기 순서입니다.",
         "journey": (
             ("01", "출처", "가격, 공시, 뉴스, 리포트가 어디서 왔는지 확인합니다."),
             ("02", "기준일", "차트와 리포트가 같은 날짜 기준인지 점검합니다."),
@@ -1026,7 +1026,7 @@ FEATURE_DETAIL_PAGES: dict[str, dict[str, Any]] = {
         "cta_href": "/analyses",
         "secondary_cta_label": "사후 결과 보기",
         "secondary_cta_href": "/features/outcomes",
-        "diagram_label": "데이터 기준",
+        "diagram_label": "분석 기준",
         "compact_typography": True,
     },
 }
@@ -1067,7 +1067,7 @@ def render_feature_index_page(*, site_base_url: str | None = None) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>처음 시작하기 | TradingAgents Korea</title>
-  <meta name="description" content="TradingAgents Korea의 종목 검색, AI 리포트, 내 공간, 사후 결과, 데이터 기준을 한 번에 확인합니다.">
+  <meta name="description" content="TradingAgents Korea의 종목 검색, AI 리포트, 내 공간, 사후 결과, 분석 기준을 한 번에 확인합니다.">
   <link rel="canonical" href="{_h(canonical)}">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ko_KR">
@@ -1199,7 +1199,7 @@ POLICY_PAGES: dict[str, dict[str, Any]] = {
         "next_actions": (
             ("회원 기능 보기", "/features/member-workspace", "가입하면 어떤 기록 공간이 열리는지 먼저 확인합니다."),
             ("내 공간 열기", "/mypage", "로그인 후 관심그룹과 분석 요청을 내 공간에서 관리합니다."),
-            ("데이터 기준 확인", "/features/methodology", "데이터 출처와 AI 분석 한계를 함께 읽습니다."),
+            ("분석 기준 확인", "/features/methodology", "데이터 출처와 AI 분석 한계를 함께 읽습니다."),
         ),
     },
     "terms": {
@@ -1533,7 +1533,7 @@ def render_policy_page(slug: str, *, site_base_url: str | None = None) -> str:
         <h2>AI 리포트와 회원 기록의 경계를 분리합니다</h2>
       </div>
       <ul>
-        <li><a href="/features/methodology">데이터 기준</a>에서 데이터 출처와 AI 분석 한계를 함께 확인할 수 있습니다.</li>
+        <li><a href="/features/methodology">분석 기준</a>에서 데이터 출처와 AI 분석 한계를 함께 확인할 수 있습니다.</li>
         <li><a href="/disclaimer">투자 유의사항</a>, <a href="/terms">이용약관</a>, <a href="/privacy">개인정보처리방침</a>은 공개 페이지로 제공합니다.</li>
         <li>TradingAgents Korea는 실거래 주문 기능을 제공하지 않는 주문 없는 AI 리서치 플랫폼입니다.</li>
       </ul>
@@ -1832,8 +1832,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
     <section class="member-auth-landing" id="memberAuthLanding" aria-labelledby="member-auth-title">
       <div class="member-auth-copy">
         <p class="eyebrow">회원 전용 공간</p>
-        <h1 id="member-auth-title">나만의 프라이빗 AI 리서치 룸을 분양받으세요</h1>
-        <p class="member-auth-lead">개인 매매 일지 기록부터 관심 그룹 트랙킹, 실시간 AI 분석 요청 대기열 가동 및 가상매매 복기 요약까지 단 하나의 프라이빗 대시보드에서 통합 관리합니다.</p>
+        <h1 id="member-auth-title">나만의 AI 리서치 공간을 시작하세요</h1>
+        <p class="member-auth-lead">매매 일지, 관심그룹, AI 분석 요청, 가상매매 복기 요약을 내 공간에서 함께 관리합니다.</p>
         <div class="member-auth-points" aria-label="회원 영역 원칙">
           <article>
             <span>01</span>
@@ -1856,10 +1856,10 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <section class="member-panel auth-panel" aria-labelledby="auth-panel-title">
         <div class="panel-heading auth-heading">
           <div>
-            <p class="eyebrow">🔒 SECURE AUTH</p>
+            <p class="eyebrow">보안 로그인</p>
             <h2 id="auth-panel-title">로그인 / 가입</h2>
           </div>
-          <span class="status-pill">READ-ONLY ONLY</span>
+          <span class="status-pill">조회 전용</span>
         </div>
         <form class="member-form auth-form" id="authForm">
           <label>
@@ -1877,8 +1877,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <button type="button" data-auth-action="signin">로그인</button>
             <button type="button" data-auth-action="signup">가입하기</button>
           </div>
-          <p class="auth-form-note">처음이라면 가입하기로 프라이빗 워크스페이스를 열 수 있습니다.</p>
-          <div class="member-empty auth-status" id="authStatus" role="status" aria-live="polite">프라이빗 워크스페이스 진입을 위해 인증이 필요합니다.</div>
+          <p class="auth-form-note">처음이라면 가입하기로 내 공간을 열 수 있습니다.</p>
+          <div class="member-empty auth-status" id="authStatus" role="status" aria-live="polite">내 공간 진입을 위해 인증이 필요합니다.</div>
         </form>
       </section>
     </section>
@@ -1953,8 +1953,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <section class="member-primary-action" id="memberPrimaryAction" data-member-primary-action="portfolio" aria-live="polite">
             <div>
               <span>다음 작업</span>
-              <strong id="memberPrimaryActionTitle">나만의 첫 번째 프라이빗 매매 일지를 가동해 보세요</strong>
-              <small id="memberPrimaryActionCopy">증권사 실제 계좌 주문과 연동되지 않는 100% 안전한 Read-Only 기록실입니다. 매수 평단과 목표가, 손절 라인을 직접 커스텀 빌드하여 투자 시나리오를 정밀 관리하세요.</small>
+              <strong id="memberPrimaryActionTitle">첫 매매 일지를 만들어 보세요</strong>
+              <small id="memberPrimaryActionCopy">실제 계좌 주문과 연결되지 않는 조회 전용 기록 공간입니다. 평단, 목표가, 손절선을 직접 남겨 투자 시나리오를 점검하세요.</small>
             </div>
             <button class="home-primary-link" type="button" id="memberPrimaryActionButton" data-member-jump="portfolio">매매 일지 시작</button>
           </section>
@@ -3335,7 +3335,7 @@ def _analysis_feed_cards(
         <article class="analysis-feed-card empty">
           <span>REPORT ARCHIVE</span>
           <h3>발행된 공개 AI 분석 리포트가 존재하지 않습니다.</h3>
-          <p>TradingAgents AI 엔진이 실시간으로 한국 시장을 분석 중입니다. 플랫폼의 데이터 깊이를 즉시 확인하시려면 아래 '샘플 종목 리서치실'로 진입하거나, 나만의 프라이빗 워크스페이스에서 새로운 종목의 분석 대기열을 가동해 보세요.</p>
+          <p>TradingAgents AI 엔진이 한국 시장 분석을 준비하고 있습니다. 데이터 흐름을 먼저 보려면 아래 샘플 종목 리서치실로 이동하거나, 내 공간에서 새 종목 분석을 요청해 보세요.</p>
           <div class="analysis-feed-signal-row" aria-label="공개 분석 대기 상태">
             <span>리포트 아카이브</span>
             <span>AI 엔진 대기열</span>
@@ -3343,7 +3343,7 @@ def _analysis_feed_cards(
           </div>
           <div class="analysis-feed-actions analysis-empty-cta-row">
             <a href="/stocks/005930">💡 샘플 종목 리서치실 바로가기</a>
-            <a href="/features/methodology">데이터 기준</a>
+            <a href="/features/methodology">분석 기준</a>
             <a href="/member?mode=signup&tab=analysis#analysis-request-section">분석 요청</a>
           </div>
         </article>
@@ -12025,7 +12025,7 @@ PAGE_JS = """
   let lastSearchController = null;
   const topNavLabels = {
     "/": "종목 검색",
-    "/features/methodology": "데이터 기준",
+    "/features/methodology": "분석 기준",
     "/analyses": "AI 리포트",
     "/outcomes": "사후 결과",
     "/member": "로그인",
@@ -14178,7 +14178,7 @@ MEMBER_PAGE_JS = """
   };
   const memberTopNavLabels = {
     "/": "종목 검색",
-    "/features/methodology": "데이터 기준",
+    "/features/methodology": "분석 기준",
     "/analyses": "AI 리포트",
     "/outcomes": "사후 결과",
     "/member": "로그인",
@@ -15613,7 +15613,7 @@ MEMBER_PAGE_JS = """
   function dashboardSignedInMeta(portfoliosPayload = {}, watchlistsPayload = {}, requestsPayload = {}, paperPayload = {}) {
     const meta = dashboardStatusMeta(portfoliosPayload, watchlistsPayload, requestsPayload, paperPayload);
     if (meta === "아직 저장된 항목이 없습니다. 매매 일지나 관심그룹부터 시작해 보세요.") {
-      return "프라이빗 리서치 룸이 성공적으로 활성화되었습니다. 하단의 가동 파이프라인을 통해 나만의 투자 기록을 축적해 보세요.";
+      return "내 리서치 공간이 활성화되었습니다. 아래 흐름을 따라 투자 기록과 분석 요청을 이어가세요.";
     }
     return meta;
   }
@@ -15670,8 +15670,8 @@ MEMBER_PAGE_JS = """
     } else if (!portfolioCount) {
       setMemberPrimaryAction(
         "portfolio",
-        "나만의 첫 번째 프라이빗 매매 일지를 가동해 보세요",
-        "증권사 실제 계좌 주문과 연동되지 않는 100% 안전한 Read-Only 기록실입니다. 매수 평단과 목표가, 손절 라인을 직접 커스텀 빌드하여 투자 시나리오를 정밀 관리하세요.",
+        "첫 매매 일지를 만들어 보세요",
+        "실제 계좌 주문과 연결되지 않는 조회 전용 기록 공간입니다. 평단, 목표가, 손절선을 직접 남겨 투자 시나리오를 점검하세요.",
         "매매 일지 시작"
       );
     } else if (!watchlistCount) {
@@ -15782,7 +15782,7 @@ MEMBER_PAGE_JS = """
     if (!accessToken() && !refreshToken()) {
       clearMemberDataPoll();
       setSignedInState(false);
-      setStatus(config.configured ? "프라이빗 워크스페이스 진입을 위해 인증이 필요합니다." : "Supabase 공개 인증 설정 대기 중", !config.configured);
+      setStatus(config.configured ? "내 공간 진입을 위해 인증이 필요합니다." : "Supabase 공개 인증 설정 대기 중", !config.configured);
       return;
     }
     if (!accessToken() && refreshToken()) {
@@ -16073,7 +16073,7 @@ MEMBER_PAGE_JS = """
       return;
     }
     setAuthUiState(false);
-    setStatus(config.configured ? "프라이빗 워크스페이스 진입을 위해 인증이 필요합니다." : "Supabase 공개 인증 설정 대기 중", !config.configured);
+    setStatus(config.configured ? "내 공간 진입을 위해 인증이 필요합니다." : "Supabase 공개 인증 설정 대기 중", !config.configured);
   }
 
   bootstrapMemberSession().catch((error) => {
