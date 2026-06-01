@@ -580,6 +580,13 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "paper-learning-buckets" in html
     assert "복기 요약" in html
     assert "진입 패턴" in html
+    assert "진입 이유" in html
+    assert "청산 이유" in html
+    assert "사후 평가" in html
+    assert "post_trade_evaluation" in html
+    assert "exit_reason_detail" in html
+    assert "reason_summary" in html
+    assert "evaluation_summary" in html
     assert "pattern_label" in html
     assert "아직 매매 일지가 없습니다" in html
     assert "아직 관심그룹이 없습니다" in html

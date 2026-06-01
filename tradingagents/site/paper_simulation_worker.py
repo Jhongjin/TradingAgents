@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 from zoneinfo import ZoneInfo
 
 from tradingagents.dataflows.chart_data import get_ohlcv_chart_series
@@ -222,17 +222,16 @@ def _process_candidate(
             )
         )
         account_id = str(account["id"])
-        position_id = repo.record_paper_simulation_position(
-            _position_input(
-                candidate,
-                account_id=account_id,
-                user_id=user_id,
-                simulation=simulation.as_dict(),
-                config=config,
-                chart_vendor=series.vendor,
-                entry_pattern=entry_pattern,
-            )
+        position_input = _position_input(
+            candidate,
+            account_id=account_id,
+            user_id=user_id,
+            simulation=simulation.as_dict(),
+            config=config,
+            chart_vendor=series.vendor,
+            entry_pattern=entry_pattern,
         )
+        position_id = repo.record_paper_simulation_position(position_input)
         for event in simulation.events:
             repo.add_paper_simulation_event(
                 _event_input(
@@ -242,6 +241,7 @@ def _process_candidate(
                     user_id=user_id,
                     analysis_run_id=analysis_run_id,
                     ticker_code=ticker_code,
+                    position_metadata=position_input.metadata,
                 )
             )
         return PaperSimulationWorkerResult(
@@ -343,16 +343,15 @@ def _process_open_position(
                 error=simulation.message,
             )
 
-        repo.record_paper_simulation_position(
-            _position_input(
-                position,
-                account_id=account_id,
-                user_id=user_id,
-                simulation=simulation.as_dict(),
-                config=_config_for_position(position, config),
-                chart_vendor=series.vendor,
-            )
+        position_input = _position_input(
+            position,
+            account_id=account_id,
+            user_id=user_id,
+            simulation=simulation.as_dict(),
+            config=_config_for_position(position, config),
+            chart_vendor=series.vendor,
         )
+        repo.record_paper_simulation_position(position_input)
         if simulation.status == "closed":
             for event in simulation.events:
                 if event.get("type") != "exit":
@@ -365,6 +364,7 @@ def _process_open_position(
                         user_id=user_id,
                         analysis_run_id=analysis_run_id,
                         ticker_code=ticker_code,
+                        position_metadata=position_input.metadata,
                     )
                 )
             return PaperSimulationWorkerResult(
@@ -483,7 +483,179 @@ def _position_metadata(
         label = str(entry_pattern.get("label") or "").strip()
         if label:
             metadata["pattern_label"] = label
+    metadata["entry_reason"] = _entry_reason_metadata(candidate, entry_pattern=entry_pattern, config=config)
+    if simulation.get("status") == "closed":
+        metadata["exit_reason_detail"] = _exit_reason_metadata(simulation, config=config)
+    metadata["post_trade_evaluation"] = _post_trade_evaluation(simulation, config=config, entry_pattern=entry_pattern)
     return metadata
+
+
+def _entry_reason_metadata(
+    candidate: dict[str, Any],
+    *,
+    entry_pattern: dict[str, Any] | None,
+    config: PaperSimulationConfig,
+) -> dict[str, Any]:
+    rating = str(candidate.get("decision_rating") or "").strip()
+    action = str(candidate.get("decision_action") or "").strip()
+    target_weight = candidate.get("target_weight")
+    pattern_label = str((entry_pattern or {}).get("label") or "").strip()
+    decision = " / ".join(part for part in (rating, action) if part) or "AI 의견"
+    weight_text = f"{float(target_weight) * 100:.1f}%" if target_weight is not None else f"최대 {config.max_position_weight * 100:.0f}%"
+    summary = f"{decision} 의견을 기준으로 {weight_text} 한도에서 가상 진입했습니다."
+    detail = (
+        f"진입 패턴은 {pattern_label}입니다. "
+        "이 기록은 분석 요청 결과를 복기하기 위한 가상 체결이며 실제 주문과 연결되지 않습니다."
+        if pattern_label
+        else "가격 이력이 부족해 패턴 라벨은 보수적으로 비워두고, 분석 요청 결과만 기준으로 가상 진입했습니다."
+    )
+    return {
+        "decision": decision,
+        "target_weight": target_weight,
+        "pattern_label": pattern_label or None,
+        "summary": summary,
+        "detail": detail,
+        "execution_boundary": "simulation_only_no_orders",
+    }
+
+
+def _exit_reason_metadata(simulation: dict[str, Any], *, config: PaperSimulationConfig) -> dict[str, Any]:
+    reason = str(simulation.get("exit_reason") or "")
+    trade_return = simulation.get("trade_return")
+    holding_days = int(simulation.get("holding_days") or 0)
+    labels = {
+        "take_profit": "익절 기준 도달",
+        "stop_loss": "손절 기준 도달",
+        "max_holding_days": "보유 기간 종료",
+    }
+    thresholds = {
+        "take_profit": config.take_profit_pct,
+        "stop_loss": -config.stop_loss_pct,
+        "max_holding_days": config.max_holding_days,
+    }
+    if reason == "take_profit":
+        detail = f"종가 기준 수익률이 +{config.take_profit_pct * 100:.1f}% 익절선을 넘어서 가상 청산했습니다."
+    elif reason == "stop_loss":
+        detail = f"종가 기준 수익률이 -{config.stop_loss_pct * 100:.1f}% 손절선을 지나 가상 청산했습니다."
+    elif reason == "max_holding_days":
+        detail = f"{config.max_holding_days}거래일 보유 한도에 도달해 결과를 확정했습니다."
+    else:
+        detail = "가상 청산 기준을 확인한 뒤 결과를 확정했습니다."
+    return {
+        "reason": reason or None,
+        "label": labels.get(reason, reason or "청산 기준"),
+        "threshold": thresholds.get(reason),
+        "holding_days": holding_days,
+        "trade_return": trade_return,
+        "summary": f"{labels.get(reason, reason or '청산 기준')} · {holding_days}거래일 · {_signed_percent_text(trade_return)}",
+        "detail": detail,
+    }
+
+
+def _post_trade_evaluation(
+    simulation: dict[str, Any],
+    *,
+    config: PaperSimulationConfig,
+    entry_pattern: dict[str, Any] | None,
+) -> dict[str, Any]:
+    status = str(simulation.get("status") or "")
+    trade_return = simulation.get("trade_return")
+    unrealized_return = simulation.get("unrealized_return")
+    exit_reason = str(simulation.get("exit_reason") or "")
+    active_return = trade_return if status == "closed" else unrealized_return
+    if status == "open":
+        outcome = _open_outcome_label(unrealized_return)
+        summary = f"가상 보유 중 · 최근 평가 {_signed_percent_text(unrealized_return)}"
+    else:
+        outcome = _closed_outcome_label(exit_reason=exit_reason, trade_return=trade_return)
+        summary = f"{outcome} · 실현 수익률 {_signed_percent_text(trade_return)}"
+    notes = _evaluation_notes(
+        status=status,
+        exit_reason=exit_reason,
+        return_value=active_return,
+        entry_pattern=entry_pattern,
+        config=config,
+    )
+    return {
+        "status": status,
+        "outcome_label": outcome,
+        "summary": summary,
+        "holding_days": simulation.get("holding_days"),
+        "realized_return": trade_return,
+        "unrealized_return": unrealized_return,
+        "portfolio_return": simulation.get("portfolio_return"),
+        "mark_date": simulation.get("mark_date"),
+        "mark_price": simulation.get("mark_price"),
+        "exit_reason": exit_reason or None,
+        "notes": notes,
+        "execution_boundary": "simulation_only_no_orders",
+    }
+
+
+def _closed_outcome_label(*, exit_reason: str, trade_return: Any) -> str:
+    value = _float_or_none(trade_return)
+    if exit_reason == "take_profit":
+        return "목표 달성"
+    if exit_reason == "stop_loss":
+        return "위험 차단"
+    if value is None:
+        return "기간 종료"
+    if value > 0:
+        return "기간 종료 수익"
+    if value < 0:
+        return "기간 종료 손실"
+    return "기간 종료 보합"
+
+
+def _open_outcome_label(unrealized_return: Any) -> str:
+    value = _float_or_none(unrealized_return)
+    if value is None:
+        return "보유 평가 대기"
+    if value >= 0:
+        return "보유 평가 수익"
+    return "보유 평가 손실"
+
+
+def _evaluation_notes(
+    *,
+    status: str,
+    exit_reason: str,
+    return_value: Any,
+    entry_pattern: dict[str, Any] | None,
+    config: PaperSimulationConfig,
+) -> list[str]:
+    notes = ["실제 주문 없이 분석 요청 결과를 사후 복기하기 위한 가상 기록입니다."]
+    pattern_label = str((entry_pattern or {}).get("label") or "").strip()
+    if pattern_label:
+        notes.append(f"진입 시점 패턴: {pattern_label}.")
+    if status == "open":
+        notes.append(f"익절 +{config.take_profit_pct * 100:.1f}%, 손절 -{config.stop_loss_pct * 100:.1f}% 기준으로 계속 관찰합니다.")
+    elif exit_reason == "take_profit":
+        notes.append("익절 기준에 먼저 닿아 AI 진입 가정이 우호적으로 검증됐습니다.")
+    elif exit_reason == "stop_loss":
+        notes.append("손절 기준이 먼저 작동해 다음 분석에서 리스크 요인을 더 강하게 반영해야 합니다.")
+    elif exit_reason == "max_holding_days":
+        notes.append(f"{config.max_holding_days}거래일 안에 익절/손절 기준이 나오지 않아 기간 기준으로 평가했습니다.")
+    value = _float_or_none(return_value)
+    if value is not None:
+        notes.append(f"가격 기준 수익률: {_signed_percent_text(value)}.")
+    return notes
+
+
+def _signed_percent_text(value: Any) -> str:
+    parsed = _float_or_none(value)
+    if parsed is None:
+        return "-"
+    return f"{parsed * 100:+.2f}%"
+
+
+def _float_or_none(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _points_on_or_after(points: list[dict[str, Any]], start_date: date) -> list[dict[str, Any]]:
@@ -597,6 +769,7 @@ def _event_input(
     user_id: str,
     analysis_run_id: str,
     ticker_code: str,
+    position_metadata: Mapping[str, Any] | None = None,
 ) -> PaperSimulationEventInput:
     return PaperSimulationEventInput(
         account_id=account_id,
@@ -613,8 +786,31 @@ def _event_input(
         commission=_money(event.get("commission") or 0),
         transaction_tax=_money(event.get("transaction_tax") or 0),
         reason=event.get("reason"),
-        metadata={"source": "paper_simulation_worker"},
+        metadata=_event_metadata(event, position_metadata=position_metadata),
     )
+
+
+def _event_metadata(event: dict[str, Any], *, position_metadata: Mapping[str, Any] | None) -> dict[str, Any]:
+    metadata = {"source": "paper_simulation_worker"}
+    position_metadata = position_metadata or {}
+    event_type = str(event.get("type") or "")
+    if event_type == "entry":
+        entry_reason = position_metadata.get("entry_reason")
+        if isinstance(entry_reason, Mapping):
+            metadata["reason_label"] = "AI 분석 진입"
+            metadata["reason_summary"] = entry_reason.get("summary")
+            metadata["reason_detail"] = entry_reason.get("detail")
+    elif event_type == "exit":
+        exit_reason = position_metadata.get("exit_reason_detail")
+        evaluation = position_metadata.get("post_trade_evaluation")
+        if isinstance(exit_reason, Mapping):
+            metadata["reason_label"] = exit_reason.get("label")
+            metadata["reason_summary"] = exit_reason.get("summary")
+            metadata["reason_detail"] = exit_reason.get("detail")
+        if isinstance(evaluation, Mapping):
+            metadata["evaluation_summary"] = evaluation.get("summary")
+            metadata["outcome_label"] = evaluation.get("outcome_label")
+    return {key: value for key, value in metadata.items() if value is not None}
 
 
 def _event_by_type(events: list[dict[str, Any]], event_type: str) -> dict[str, Any] | None:

@@ -89,7 +89,15 @@ def test_paper_simulation_worker_persists_member_position(monkeypatch):
     assert payload["summary"]["learning"]["best_bucket"]["win_rate"] == 1
     assert payload["positions"][0]["analysis_run_id"] == run_id
     assert payload["positions"][0]["ticker_code"] == "005930"
+    assert payload["positions"][0]["metadata"]["entry_reason"]["execution_boundary"] == "simulation_only_no_orders"
+    assert "가상 진입" in payload["positions"][0]["metadata"]["entry_reason"]["summary"]
+    assert payload["positions"][0]["metadata"]["exit_reason_detail"]["reason"] == "take_profit"
+    assert payload["positions"][0]["metadata"]["exit_reason_detail"]["label"] == "익절 기준 도달"
+    assert payload["positions"][0]["metadata"]["post_trade_evaluation"]["outcome_label"] == "목표 달성"
+    assert "실현 수익률" in payload["positions"][0]["metadata"]["post_trade_evaluation"]["summary"]
     assert payload["events"][0]["event_type"] == "exit"
+    assert payload["events"][0]["metadata"]["reason_label"] == "익절 기준 도달"
+    assert payload["events"][0]["metadata"]["outcome_label"] == "목표 달성"
 
 
 def test_paper_simulation_worker_groups_learning_by_entry_pattern(monkeypatch):
@@ -193,5 +201,8 @@ def test_paper_simulation_worker_refreshes_open_positions_until_virtual_exit(mon
     assert closed_payload["summary"]["open_count"] == 0
     assert closed_payload["summary"]["closed_count"] == 1
     assert closed_payload["positions"][0]["status"] == "closed"
+    assert closed_payload["positions"][0]["metadata"]["exit_reason_detail"]["reason"] == "take_profit"
+    assert closed_payload["positions"][0]["metadata"]["post_trade_evaluation"]["outcome_label"] == "목표 달성"
     assert closed_payload["events"][0]["event_type"] == "exit"
+    assert closed_payload["events"][0]["metadata"]["evaluation_summary"].startswith("목표 달성")
     assert len(closed_payload["events"]) == 2

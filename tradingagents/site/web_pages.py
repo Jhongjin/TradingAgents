@@ -15288,8 +15288,14 @@ MEMBER_PAGE_JS = """
   function paperSimulationLines(row) {
     const lines = [];
     if (row.metadata?.pattern_label) lines.push(`진입 패턴 ${row.metadata.pattern_label}`);
+    if (row.metadata?.entry_reason?.summary) lines.push(`진입 이유 ${row.metadata.entry_reason.summary}`);
     if (row.entry_date) lines.push(`가상 매수 ${shortDate(row.entry_date)} @ ${money(row.entry_price)}`);
     if (row.exit_date) lines.push(`가상 청산 ${shortDate(row.exit_date)} @ ${money(row.exit_price)} / ${exitReasonLabel(row.exit_reason)}`);
+    if (row.metadata?.exit_reason_detail?.detail) lines.push(`청산 이유 ${row.metadata.exit_reason_detail.detail}`);
+    if (row.metadata?.post_trade_evaluation?.summary) lines.push(`사후 평가 ${row.metadata.post_trade_evaluation.summary}`);
+    (row.metadata?.post_trade_evaluation?.notes || []).slice(0, 2).forEach((note) => {
+      if (note) lines.push(note);
+    });
     if (!row.exit_date && row.metadata?.mark_date) lines.push(`최근 평가 ${shortDate(row.metadata.mark_date)} @ ${money(row.metadata.mark_price)} / ${signedPercent(row.metadata.unrealized_return)}`);
     if (row.target_price || row.stop_price) {
       lines.push(`목표 ${money(row.target_price)} / 손절 ${money(row.stop_price)}`);
@@ -15311,13 +15317,14 @@ MEMBER_PAGE_JS = """
     const currentPrice = row.exit_price || row.metadata?.mark_price;
     const currentDate = row.exit_date || row.metadata?.mark_date;
     const patternLabel = row.metadata?.pattern_label || "";
+    const evaluation = row.metadata?.post_trade_evaluation || {};
     node.append(
       cardHeader(title, meta, paperStatusLabel(status)),
       metricGrid([
         ["진입가", money(row.entry_price), shortDate(row.entry_date)],
         ["청산/평가", currentPrice ? money(currentPrice) : "-", currentDate ? shortDate(currentDate) : "보유 중"],
         ["손익", row.status === "open" ? signedPercent(row.metadata?.unrealized_return) : signedMoney(row.realized_pnl), row.status === "open" ? "평가 기준" : signedPercent(row.realized_return)],
-        ["패턴", patternLabel || exitReasonLabel(row.exit_reason), patternLabel ? "진입 시점" : "가상 기준"]
+        ["사후 평가", evaluation.outcome_label || patternLabel || exitReasonLabel(row.exit_reason), evaluation.summary || (patternLabel ? "진입 시점" : "가상 기준")]
       ]),
       miniList(paperSimulationLines(row), "AI 가상매매 상세 대기", "기록")
     );
@@ -15344,7 +15351,9 @@ MEMBER_PAGE_JS = """
       miniList([
         row.commission ? `수수료 ${money(row.commission)}` : "",
         row.transaction_tax ? `세금 ${money(row.transaction_tax)}` : "",
-        row.reason ? `기록 사유 ${paperEventReasonLabel(row.reason)}` : ""
+        row.metadata?.reason_summary ? `기록 사유 ${row.metadata.reason_summary}` : (row.reason ? `기록 사유 ${paperEventReasonLabel(row.reason)}` : ""),
+        row.metadata?.reason_detail ? `판정 기준 ${row.metadata.reason_detail}` : "",
+        row.metadata?.evaluation_summary ? `사후 평가 ${row.metadata.evaluation_summary}` : ""
       ].filter(Boolean), "이벤트 상세 대기", "이벤트")
     );
     if (actions.childElementCount) node.append(actions);
