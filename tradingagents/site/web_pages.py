@@ -2288,6 +2288,14 @@ def _chart_tools() -> str:
         <span>지표</span>
         {buttons}
       </div>
+      <div class="chart-tool-group chart-settings-group">
+        <span>설정</span>
+        <label class="chart-setting-field"><span>단기 MA</span><input type="number" min="2" max="60" step="1" value="5" data-chart-setting="maFast"></label>
+        <label class="chart-setting-field"><span>기준 MA</span><input type="number" min="5" max="120" step="1" value="20" data-chart-setting="maBase"></label>
+        <label class="chart-setting-field"><span>볼린저</span><input type="number" min="5" max="80" step="1" value="20" data-chart-setting="bollingerPeriod"></label>
+        <label class="chart-setting-field"><span>편차</span><input type="number" min="1" max="4" step="0.5" value="2" data-chart-setting="bollingerDeviation"></label>
+        <button type="button" class="chart-tool-button" data-chart-apply-settings>적용</button>
+      </div>
       <div class="chart-tool-group">
         <span>그리기</span>
         <button type="button" class="chart-tool-button" data-chart-draw-trend aria-pressed="false">추세선</button>
@@ -4948,6 +4956,41 @@ h3 {
 .chart-tool-group {
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.chart-settings-group {
+  gap: 8px;
+}
+
+.chart-setting-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.chart-setting-field span {
+  white-space: nowrap;
+}
+
+.chart-setting-field input {
+  width: 54px;
+  height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
 }
 
 .chart-tool-group > span,
@@ -8344,9 +8387,14 @@ h3 {
   }
 
   .chart-tab,
-  .chart-tool-button {
+  .chart-tool-button,
+  .chart-setting-field {
     flex: 1 1 auto;
     justify-content: center;
+  }
+
+  .chart-setting-field input {
+    width: 48px;
   }
 
   .data-source-strip,
@@ -10499,10 +10547,17 @@ button:disabled {
 .market-page .data-pill,
 .market-page .chart-tab,
 .market-page .chart-tool-button,
+.market-page .chart-setting-field,
 .market-page .chart-legend span {
   border-color: rgba(246, 243, 232, 0.16);
   background: rgba(246, 243, 232, 0.07);
   color: rgba(246, 243, 232, 0.72);
+}
+
+.market-page .chart-setting-field input {
+  border-color: rgba(246, 243, 232, 0.16);
+  background: rgba(9, 13, 11, 0.44);
+  color: var(--home-ink);
 }
 
 .market-page .chart-tools {
@@ -12351,6 +12406,8 @@ PAGE_JS = """
   const money = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 });
   const compact = new Intl.NumberFormat("ko-KR", { notation: "compact", maximumFractionDigits: 1 });
   const chartIndicatorStorageKey = "tradingagents.chart.indicators.v1";
+  const chartSettingsStorageKey = "tradingagents.chart.settings.v1";
+  const chartTrendStorageKey = `tradingagents.chart.trends.v1.${payload.code || chart.ticker_code || "stock"}.${chart.interval || "1d"}`;
 
   function showFallbackMessage(message) {
     if (chartNode) chartNode.hidden = true;
@@ -12410,6 +12467,36 @@ PAGE_JS = """
     } catch (_) {}
   }
 
+  function boundedNumber(value, fallback, min, max, step = 1) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    const clamped = Math.min(max, Math.max(min, parsed));
+    return step === 1 ? Math.round(clamped) : Math.round(clamped / step) * step;
+  }
+
+  function normalizeChartSettings(raw = {}) {
+    return {
+      maFast: boundedNumber(raw.maFast, 5, 2, 60),
+      maBase: boundedNumber(raw.maBase, 20, 5, 120),
+      bollingerPeriod: boundedNumber(raw.bollingerPeriod, 20, 5, 80),
+      bollingerDeviation: boundedNumber(raw.bollingerDeviation, 2, 1, 4, 0.5)
+    };
+  }
+
+  function readChartSettings() {
+    try {
+      return normalizeChartSettings(JSON.parse(window.localStorage.getItem(chartSettingsStorageKey) || "{}"));
+    } catch (_) {
+      return normalizeChartSettings();
+    }
+  }
+
+  function saveChartSettings(settings) {
+    try {
+      window.localStorage.setItem(chartSettingsStorageKey, JSON.stringify(settings));
+    } catch (_) {}
+  }
+
   const bars = points.map((point) => ({
     date: String(point.date || ""),
     time: chartTime(point.date),
@@ -12441,6 +12528,7 @@ PAGE_JS = """
     bollinger: false,
     volume: true
   });
+  const indicatorSettings = readChartSettings();
 
   function movingAverage(values, windowSize) {
     return values.map((_, index) => {
@@ -12450,25 +12538,68 @@ PAGE_JS = """
     });
   }
 
-  const ma5 = movingAverage(closes, 5);
-  const ma20 = movingAverage(closes, 20);
-  const ma60 = movingAverage(closes, 60);
-  const ma120 = movingAverage(closes, 120);
-  const ma5ByTime = new Map(bars.map((bar, index) => [String(bar.time), ma5[index]]));
-  const ma20ByTime = new Map(bars.map((bar, index) => [String(bar.time), ma20[index]]));
-  const ma60ByTime = new Map(bars.map((bar, index) => [String(bar.time), ma60[index]]));
-  const ma120ByTime = new Map(bars.map((bar, index) => [String(bar.time), ma120[index]]));
-  const bollinger = closes.map((_, index) => {
-    if (index + 1 < 20) return null;
-    const slice = closes.slice(index + 1 - 20, index + 1);
-    const avg = ma20[index];
-    const variance = slice.reduce((total, value) => total + ((value - avg) ** 2), 0) / slice.length;
-    const deviation = Math.sqrt(variance);
-    return { mid: avg, upper: avg + deviation * 2, lower: avg - deviation * 2 };
-  });
+  function bollingerBands(values, period, deviationMultiplier) {
+    const baseAverage = movingAverage(values, period);
+    return values.map((_, index) => {
+      if (index + 1 < period) return null;
+      const slice = values.slice(index + 1 - period, index + 1);
+      const avg = baseAverage[index];
+      const variance = slice.reduce((total, value) => total + ((value - avg) ** 2), 0) / slice.length;
+      const deviation = Math.sqrt(variance);
+      return {
+        mid: avg,
+        upper: avg + deviation * deviationMultiplier,
+        lower: avg - deviation * deviationMultiplier
+      };
+    });
+  }
+
+  let ma5 = [];
+  let ma20 = [];
+  let ma60 = [];
+  let ma120 = [];
+  let ma5ByTime = new Map();
+  let ma20ByTime = new Map();
+  let ma60ByTime = new Map();
+  let ma120ByTime = new Map();
+  let bollinger = [];
+  function recalculateIndicators() {
+    ma5 = movingAverage(closes, indicatorSettings.maFast);
+    ma20 = movingAverage(closes, indicatorSettings.maBase);
+    ma60 = movingAverage(closes, 60);
+    ma120 = movingAverage(closes, 120);
+    ma5ByTime = new Map(bars.map((bar, index) => [String(bar.time), ma5[index]]));
+    ma20ByTime = new Map(bars.map((bar, index) => [String(bar.time), ma20[index]]));
+    ma60ByTime = new Map(bars.map((bar, index) => [String(bar.time), ma60[index]]));
+    ma120ByTime = new Map(bars.map((bar, index) => [String(bar.time), ma120[index]]));
+    bollinger = bollingerBands(closes, indicatorSettings.bollingerPeriod, indicatorSettings.bollingerDeviation);
+  }
+  recalculateIndicators();
   let applySimulationMarkers = () => {};
   let refreshChartIndicators = () => {};
-  const trendLines = [];
+  function isStoredTrendPoint(point) {
+    return point && "time" in point && Number.isFinite(Number(point.price));
+  }
+
+  function readStoredTrendLines() {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(chartTrendStorageKey) || "[]");
+      if (!Array.isArray(saved)) return [];
+      return saved
+        .filter((line) => isStoredTrendPoint(line?.start) && isStoredTrendPoint(line?.end))
+        .slice(-20);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function saveTrendLines() {
+    try {
+      window.localStorage.setItem(chartTrendStorageKey, JSON.stringify(trendLines.slice(-20)));
+    } catch (_) {}
+  }
+
+  const trendLines = readStoredTrendLines();
   let pendingTrendPoint = null;
   let trendDrawMode = false;
   const isIntradayChart = /m$|h$/i.test(String(chart.interval || ""));
@@ -12495,11 +12626,11 @@ PAGE_JS = """
       `종가 ${money.format(bar.close)}원`,
       indicatorState.volume ? `거래량 ${compact.format(bar.volume)}` : "",
       `고저 ${money.format(periodHigh)} / ${money.format(periodLow)}`,
-      indicatorState.ma5 && latestMa5 ? `MA5 ${money.format(latestMa5)}` : "",
-      indicatorState.ma20 && latestMa20 ? `MA20 ${money.format(latestMa20)}` : "",
+      indicatorState.ma5 && latestMa5 ? `MA${indicatorSettings.maFast} ${money.format(latestMa5)}` : "",
+      indicatorState.ma20 && latestMa20 ? `MA${indicatorSettings.maBase} ${money.format(latestMa20)}` : "",
       indicatorState.ma60 && latestMa60 ? `MA60 ${money.format(latestMa60)}` : "",
       indicatorState.ma120 && latestMa120 ? `MA120 ${money.format(latestMa120)}` : "",
-      indicatorState.bollinger ? "볼린저 20/2" : ""
+      indicatorState.bollinger ? `볼린저 ${indicatorSettings.bollingerPeriod}/${indicatorSettings.bollingerDeviation}` : ""
     ];
     legend.replaceChildren(...chips.filter(Boolean).map(legendChip));
   }
@@ -12580,8 +12711,8 @@ PAGE_JS = """
     const latestMa60 = ma60ByTime.get(String(bar.time));
     const latestMa120 = ma120ByTime.get(String(bar.time));
     averages.textContent = [
-      `MA5 ${latestMa5 ? money.format(latestMa5) : "-"}`,
-      `MA20 ${latestMa20 ? money.format(latestMa20) : "-"}`,
+      `MA${indicatorSettings.maFast} ${latestMa5 ? money.format(latestMa5) : "-"}`,
+      `MA${indicatorSettings.maBase} ${latestMa20 ? money.format(latestMa20) : "-"}`,
       `MA60 ${latestMa60 ? money.format(latestMa60) : "-"}`,
       `MA120 ${latestMa120 ? money.format(latestMa120) : "-"}`
     ].join(" / ");
@@ -12602,7 +12733,23 @@ PAGE_JS = """
     if (node) node.textContent = message;
   }
 
+  function updateIndicatorButtonLabels() {
+    const labels = {
+      ma5: `MA${indicatorSettings.maFast}`,
+      ma20: `MA${indicatorSettings.maBase}`,
+      ma60: "MA60",
+      ma120: "MA120",
+      bollinger: `볼린저 ${indicatorSettings.bollingerPeriod}/${indicatorSettings.bollingerDeviation}`,
+      volume: "거래량"
+    };
+    Object.entries(labels).forEach(([key, label]) => {
+      const button = document.querySelector(`[data-chart-indicator="${key}"]`);
+      if (button) button.textContent = label;
+    });
+  }
+
   function bindIndicatorControls() {
+    updateIndicatorButtonLabels();
     document.querySelectorAll("[data-chart-indicator]").forEach((button) => {
       const key = button.getAttribute("data-chart-indicator");
       if (!key || !(key in indicatorState)) return;
@@ -12614,6 +12761,38 @@ PAGE_JS = """
         button.setAttribute("aria-pressed", indicatorState[key] ? "true" : "false");
         saveChartIndicatorState(indicatorState);
         refreshChartIndicators();
+      });
+    });
+  }
+
+  function bindChartSettingControls() {
+    const inputs = Array.from(document.querySelectorAll("[data-chart-setting]"));
+    if (!inputs.length) return;
+    inputs.forEach((input) => {
+      const key = input.getAttribute("data-chart-setting");
+      if (key && key in indicatorSettings) input.value = String(indicatorSettings[key]);
+    });
+    const applyButton = document.querySelector("[data-chart-apply-settings]");
+    const applySettings = () => {
+      inputs.forEach((input) => {
+        const key = input.getAttribute("data-chart-setting");
+        if (!key || !(key in indicatorSettings)) return;
+        const min = Number(input.getAttribute("min"));
+        const max = Number(input.getAttribute("max"));
+        const step = Number(input.getAttribute("step")) || 1;
+        indicatorSettings[key] = boundedNumber(input.value, indicatorSettings[key], min, max, step);
+        input.value = String(indicatorSettings[key]);
+      });
+      saveChartSettings(indicatorSettings);
+      recalculateIndicators();
+      updateIndicatorButtonLabels();
+      refreshChartIndicators();
+      setChartToolState(`지표 설정을 반영했습니다. MA${indicatorSettings.maFast}, MA${indicatorSettings.maBase}, 볼린저 ${indicatorSettings.bollingerPeriod}/${indicatorSettings.bollingerDeviation}`);
+    };
+    applyButton?.addEventListener("click", applySettings);
+    inputs.forEach((input) => {
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") applySettings();
       });
     });
   }
@@ -12652,6 +12831,7 @@ PAGE_JS = """
     clearButton?.addEventListener("click", () => {
       trendLines.splice(0, trendLines.length);
       pendingTrendPoint = null;
+      saveTrendLines();
       updateTrendLayer(chartApi, candleSeries);
       setChartToolState("추세선을 모두 지웠습니다.");
     });
@@ -12676,11 +12856,16 @@ PAGE_JS = """
       drawButton.classList.remove("is-active");
       drawButton.setAttribute("aria-pressed", "false");
       chartNode.classList.remove("is-drawing-trend");
+      saveTrendLines();
       updateTrendLayer(chartApi, candleSeries);
       setChartToolState("추세선을 추가했습니다.");
     });
     if (typeof chartApi.timeScale().subscribeVisibleTimeRangeChange === "function") {
       chartApi.timeScale().subscribeVisibleTimeRangeChange(() => updateTrendLayer(chartApi, candleSeries));
+    }
+    if (trendLines.length) {
+      setChartToolState(`저장된 추세선 ${trendLines.length}개를 불러왔습니다.`);
+      updateTrendLayer(chartApi, candleSeries);
     }
   }
 
@@ -12770,24 +12955,17 @@ PAGE_JS = """
       color: bar.close >= bar.open ? "rgba(255, 107, 77, 0.28)" : "rgba(109, 164, 255, 0.24)"
     })));
 
-    const ma5Data = bars
-      .map((bar, index) => (ma5[index] ? { time: bar.time, value: ma5[index] } : null))
-      .filter(Boolean);
-    const ma20Data = bars
-      .map((bar, index) => (ma20[index] ? { time: bar.time, value: ma20[index] } : null))
-      .filter(Boolean);
-    const ma60Data = bars
-      .map((bar, index) => (ma60[index] ? { time: bar.time, value: ma60[index] } : null))
-      .filter(Boolean);
-    const ma120Data = bars
-      .map((bar, index) => (ma120[index] ? { time: bar.time, value: ma120[index] } : null))
-      .filter(Boolean);
-    const bollUpperData = bars
-      .map((bar, index) => (bollinger[index] ? { time: bar.time, value: bollinger[index].upper } : null))
-      .filter(Boolean);
-    const bollLowerData = bars
-      .map((bar, index) => (bollinger[index] ? { time: bar.time, value: bollinger[index].lower } : null))
-      .filter(Boolean);
+    function indicatorLineData(values) {
+      return bars
+        .map((bar, index) => (Number.isFinite(values[index]) ? { time: bar.time, value: values[index] } : null))
+        .filter(Boolean);
+    }
+
+    function bollingerLineData(edge) {
+      return bars
+        .map((bar, index) => (bollinger[index] ? { time: bar.time, value: bollinger[index][edge] } : null))
+        .filter(Boolean);
+    }
 
     const ma5Series = chartApi.addSeries(TV.LineSeries, {
       color: "#d7ff3f",
@@ -12795,7 +12973,7 @@ PAGE_JS = """
       priceLineVisible: false,
       lastValueVisible: false
     });
-    ma5Series.setData(ma5Data);
+    ma5Series.setData([]);
 
     const ma20Series = chartApi.addSeries(TV.LineSeries, {
       color: "#c79a3a",
@@ -12804,7 +12982,7 @@ PAGE_JS = """
       priceLineVisible: false,
       lastValueVisible: false
     });
-    ma20Series.setData(ma20Data);
+    ma20Series.setData([]);
 
     const ma60Series = chartApi.addSeries(TV.LineSeries, {
       color: "#8fd8bd",
@@ -12847,12 +13025,12 @@ PAGE_JS = """
       color: bar.close >= bar.open ? "rgba(255, 107, 77, 0.28)" : "rgba(109, 164, 255, 0.24)"
     }));
     refreshChartIndicators = () => {
-      ma5Series.setData(indicatorState.ma5 ? ma5Data : []);
-      ma20Series.setData(indicatorState.ma20 ? ma20Data : []);
-      ma60Series.setData(indicatorState.ma60 ? ma60Data : []);
-      ma120Series.setData(indicatorState.ma120 ? ma120Data : []);
-      bollUpperSeries.setData(indicatorState.bollinger ? bollUpperData : []);
-      bollLowerSeries.setData(indicatorState.bollinger ? bollLowerData : []);
+      ma5Series.setData(indicatorState.ma5 ? indicatorLineData(ma5) : []);
+      ma20Series.setData(indicatorState.ma20 ? indicatorLineData(ma20) : []);
+      ma60Series.setData(indicatorState.ma60 ? indicatorLineData(ma60) : []);
+      ma120Series.setData(indicatorState.ma120 ? indicatorLineData(ma120) : []);
+      bollUpperSeries.setData(indicatorState.bollinger ? bollingerLineData("upper") : []);
+      bollLowerSeries.setData(indicatorState.bollinger ? bollingerLineData("lower") : []);
       volumeSeries.setData(indicatorState.volume ? volumeData : []);
       drawLegend();
     };
@@ -13139,6 +13317,7 @@ PAGE_JS = """
     }
     if (!chartRendered) renderCanvasFallback();
     bindIndicatorControls();
+    bindChartSettingControls();
 
     const simulationNode = document.getElementById("simulationPreview");
     if (simulationNode) {

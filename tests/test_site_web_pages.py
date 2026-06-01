@@ -189,7 +189,17 @@ def test_render_public_stock_page_contains_chart_and_payload(monkeypatch):
     assert 'data-chart-indicator="ma120"' in html
     assert "tradingagents.chart.indicators.v1" in html
     assert "readChartIndicatorState" in html
+    assert "tradingagents.chart.settings.v1" in html
+    assert 'data-chart-setting="maFast"' in html
+    assert 'data-chart-setting="maBase"' in html
+    assert 'data-chart-setting="bollingerPeriod"' in html
+    assert 'data-chart-setting="bollingerDeviation"' in html
+    assert "bindChartSettingControls" in html
+    assert "recalculateIndicators" in html
     assert 'data-chart-draw-trend' in html
+    assert "tradingagents.chart.trends.v1" in html
+    assert "readStoredTrendLines" in html
+    assert "saveTrendLines" in html
     assert "chartDrawingLayer" in html
     assert "setupTrendDrawing" in html
     assert "볼린저" in html
