@@ -791,11 +791,11 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied(monkeypat
     assert "requiresOperationToken" in html
     assert "운영 토큰을 먼저 입력하세요." in html
     assert "limitFromControl" in html
-    assert "실행 전 확인" in html
-    assert "리포트 생성" in html
+    assert "대상 미리보기" in html
+    assert "대기열 처리 시작" in html
     assert "data-admin-action=\"paper-dry-run\"" in html
     assert "data-admin-action=\"paper-process\"" in html
-    assert "가상매매 기록 생성" in html
+    assert "가상매매 기록 저장" in html
     assert "/api/admin/paper-simulations/process" in html
     assert "AI 가상매매" in html
     assert "가상 보유 재평가" in html
@@ -820,15 +820,15 @@ def test_render_admin_console_page_keeps_worker_secret_client_supplied(monkeypat
     assert "probe_vendors" in html
     assert "vendor_probes" in html
     assert "요청 제한 헤더" in html
-    assert "실행 전 확인" in html
+    assert "대상 미리보기" in html
     assert "AI 리포트 생성" in html
     assert "5일/20일 사후 결과" in html
-    assert "가상매매 기록 생성" in html
+    assert "가상매매 기록 저장" in html
     assert "실제 주문은 없습니다." in html
-    assert "실행 전 확인은 저장 없이 이번 후보만 보여줍니다." in html
-    assert "리포트 생성은 요청 상태를 처리 중으로 바꾸고 AI 리포트를 저장합니다." in html
-    assert "사후 결과 계산은 5일/20일 수익률과 시장 대비를 저장합니다." in html
-    assert "기록 생성은 실제 주문 없이 가상 매수·매도 기록만 저장합니다." in html
+    assert "대상 미리보기는 저장 없이 이번 후보만 보여줍니다." in html
+    assert "대기열 처리 시작은 요청 상태를 처리 중으로 바꾸고 AI 리포트를 저장합니다." in html
+    assert "성과 계산 저장은 5일/20일 수익률과 시장 대비를 저장합니다." in html
+    assert "기록 저장은 실제 주문 없이 가상 매수·매도와 복기 사유만 저장합니다." in html
     assert "대상 보는 중" not in html
     assert "확인 후 10분 동안 실행할 수 있습니다." in html
     assert "lastDryRunAt" in html

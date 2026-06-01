@@ -1608,7 +1608,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       </article>
       <article>
         <span>대기열</span>
-        <strong>실행 전 확인</strong>
+        <strong>대상 미리보기</strong>
         <small>저장 전에 어떤 항목이 처리될지 먼저 확인합니다.</small>
       </article>
       <article>
@@ -1626,13 +1626,13 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       </article>
       <article>
         <span>02</span>
-        <strong>실행 전 확인</strong>
+        <strong>대상 미리보기</strong>
         <small>저장 없이 이번 실행 후보와 제한값을 확인합니다.</small>
       </article>
       <article>
         <span>03</span>
-        <strong>작업 실행</strong>
-        <small>확인한 대상 중 제한된 건수만 실제로 저장합니다.</small>
+        <strong>처리 시작</strong>
+        <small>미리 본 대상 중 제한된 건수만 실제로 저장합니다.</small>
       </article>
       <article>
         <span>04</span>
@@ -1698,12 +1698,12 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
             <input id="adminRequestLimit" type="number" min="1" max="{analysis_worker_max}" value="{analysis_worker_max}">
           </label>
           <div class="button-row">
-            <button type="button" data-admin-action="requests-dry-run">실행 전 확인</button>
-            <button type="button" data-admin-action="requests-process">리포트 생성</button>
+            <button type="button" data-admin-action="requests-dry-run">대상 미리보기</button>
+            <button type="button" data-admin-action="requests-process">대기열 처리 시작</button>
           </div>
           <small class="admin-limit-hint" id="adminRequestLimitHint">현재 최대 {analysis_worker_max}건</small>
         </div>
-        <small class="admin-action-help">실행 전 확인은 저장 없이 이번 후보만 보여줍니다. 리포트 생성은 요청 상태를 처리 중으로 바꾸고 AI 리포트를 저장합니다.</small>
+        <small class="admin-action-help">대상 미리보기는 저장 없이 이번 후보만 보여줍니다. 대기열 처리 시작은 요청 상태를 처리 중으로 바꾸고 AI 리포트를 저장합니다.</small>
         <div class="admin-action-panel" id="adminRequestsPanel" aria-live="polite">
           <div class="action-cell is-waiting">
             <span>분석 리포트</span>
@@ -1728,12 +1728,12 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
             <input id="adminOutcomeLimit" type="number" min="1" max="{outcome_worker_max}" value="{outcome_default}">
           </label>
           <div class="button-row">
-            <button type="button" data-admin-action="outcomes-dry-run">실행 전 확인</button>
-            <button type="button" data-admin-action="outcomes-process">사후 결과 계산</button>
+            <button type="button" data-admin-action="outcomes-dry-run">대상 미리보기</button>
+            <button type="button" data-admin-action="outcomes-process">성과 계산 저장</button>
           </div>
           <small class="admin-limit-hint" id="adminOutcomeLimitHint">현재 최대 {outcome_worker_max}건</small>
         </div>
-        <small class="admin-action-help">실행 전 확인은 저장 없이 후보 리포트만 보여줍니다. 사후 결과 계산은 5일/20일 수익률과 시장 대비를 저장합니다.</small>
+        <small class="admin-action-help">대상 미리보기는 저장 없이 후보 리포트만 보여줍니다. 성과 계산 저장은 5일/20일 수익률과 시장 대비를 저장합니다.</small>
         <div class="admin-action-panel" id="adminOutcomesPanel" aria-live="polite">
           <div class="action-cell is-waiting">
             <span>사후 결과</span>
@@ -1748,7 +1748,7 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
         <div class="panel-heading">
           <div>
             <p class="eyebrow">AI 가상매매</p>
-            <h2>가상매매 기록 생성</h2>
+            <h2>가상매매 기록 저장</h2>
           </div>
           <span class="status-pill">주문 없음</span>
         </div>
@@ -1758,12 +1758,12 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
             <input id="adminPaperSimulationLimit" type="number" min="1" max="{paper_worker_max}" value="{paper_default}">
           </label>
           <div class="button-row">
-            <button type="button" data-admin-action="paper-dry-run">실행 전 확인</button>
-            <button type="button" data-admin-action="paper-process">가상매매 기록 생성</button>
+            <button type="button" data-admin-action="paper-dry-run">대상 미리보기</button>
+            <button type="button" data-admin-action="paper-process">가상매매 기록 저장</button>
           </div>
           <small class="admin-limit-hint" id="adminPaperSimulationLimitHint">현재 최대 {paper_worker_max}건</small>
         </div>
-        <small class="admin-action-help">실행 전 확인은 저장 없이 후보 리포트와 보유 중인 가상 포지션만 보여줍니다. 기록 생성은 실제 주문 없이 가상 매수·매도 기록만 저장합니다.</small>
+        <small class="admin-action-help">대상 미리보기는 저장 없이 후보 리포트와 보유 중인 가상 포지션만 보여줍니다. 기록 저장은 실제 주문 없이 가상 매수·매도와 복기 사유만 저장합니다.</small>
         <div class="admin-action-panel" id="adminPaperSimulationPanel" aria-live="polite">
           <div class="action-cell is-waiting">
             <span>AI 가상매매</span>
@@ -13461,7 +13461,7 @@ ADMIN_PAGE_JS = """
     });
     document.body.classList.toggle("admin-token-ready", hasToken);
     if (tokenState && !hasToken) {
-      tokenState.textContent = "운영 토큰을 입력하면 대기열 조회와 작업 실행 버튼이 활성화됩니다.";
+      tokenState.textContent = "운영 토큰을 입력하면 대기열 조회와 처리 버튼이 활성화됩니다.";
     }
   }
 
@@ -13617,7 +13617,7 @@ ADMIN_PAGE_JS = """
       pending: "보류",
       unavailable: "데이터 없음",
       skipped: "건너뜀",
-      dry_run: "실행 전 확인"
+      dry_run: "대상 미리보기"
     }[value] || value || "-";
   }
 
@@ -13804,11 +13804,11 @@ ADMIN_PAGE_JS = """
         const limitNote = payload?.notice || "완료된 분석 리포트 중 아직 가상매매 기록이 없는 항목입니다.";
         appendActionCell(fragment, "새 가상매매", String(payload?.candidate_count ?? rows.length), limitNote, rows.length ? "is-warn" : "is-ok");
         appendActionCell(fragment, "보유 재평가", String(payload?.open_position_count ?? openRows.length), "가상 보유 중인 기록을 최신 가격으로 다시 확인합니다.", openRows.length ? "is-warn" : "is-ok");
-        appendActionCell(fragment, "실행 경계", "가상매매", "실제 주문 없이, 분석 리포트 기준의 가상매매 기록만 저장합니다.", "is-ok");
+        appendActionCell(fragment, "실행 경계", "가상매매", "실제 주문 없이, 분석 리포트 기준의 가상매매 기록과 복기 사유만 저장합니다.", "is-ok");
       } else {
         const summary = payload?.summary || {};
         const results = Array.isArray(payload?.results) ? payload.results : [];
-        appendActionCell(fragment, "처리 결과", String(payload?.item_count || results.length || 0), "AI 가상매매 기록 생성 결과입니다.", "is-ok");
+        appendActionCell(fragment, "처리 결과", String(payload?.item_count || results.length || 0), "AI 가상매매 기록 저장 결과입니다.", "is-ok");
         appendActionCell(fragment, "새 기록", String(summary.created_count || 0), `평균 실현 수익률 ${percentLabel(summary.average_realized_return)}`, "is-ok");
         appendActionCell(fragment, "청산 완료", String(summary.closed_count || 0), `가상 보유 ${summary.still_open_count || 0}건 유지`, summary.closed_count ? "is-ok" : "is-waiting");
         appendActionCell(fragment, "보류", String(summary.unavailable_count || 0), "가격 데이터가 부족한 항목입니다.", summary.unavailable_count ? "is-warn" : "is-ok");
@@ -13837,7 +13837,7 @@ ADMIN_PAGE_JS = """
       }
     } else if (isDryRun || payload?.status === "dry_run") {
       const rows = Array.isArray(payload?.items) ? payload.items : [];
-      const limitNote = payload?.notice || "실행하면 이 대상부터 처리합니다.";
+      const limitNote = payload?.notice || "처리 시작을 누르면 이 대상부터 저장합니다.";
       appendActionCell(fragment, "대기 요청", String(payload?.item_count || rows.length || 0), limitNote, rows.length ? "is-warn" : "is-ok");
       appendActionCell(fragment, "실행 경계", "주문 없음", "분석 리포트 생성 대기열만 처리하고 주문 기능은 없습니다.", "is-ok");
     } else {
@@ -14074,17 +14074,17 @@ ADMIN_PAGE_JS = """
     const body = isOutcome
       ? { limit, dry_run: isDryRun, horizons: [5, 20] }
       : { limit, dry_run: isDryRun };
-    const actionLabel = isPaper ? "AI 가상매매 기록" : isOutcome ? "사후 결과 계산" : "AI 리포트 생성";
+    const actionLabel = isPaper ? "AI 가상매매 기록 저장" : isOutcome ? "사후 결과 저장" : "AI 리포트 생성";
     if (!isDryRun && Date.now() - (lastDryRunAt[actionGroup] || 0) > dryRunReadyMs) {
-      const message = "먼저 실행 전 확인을 눌러 이번 실행 후보를 확인하세요. 확인 후 10분 동안 실행할 수 있습니다.";
+      const message = "먼저 대상 미리보기를 눌러 이번 실행 후보를 확인하세요. 확인 후 10분 동안 실행할 수 있습니다.";
       setOutput(output, message);
       renderActionSummaryPending(summaryPanel, actionLabel, message);
       return;
     }
     try {
       setBusy(button, true);
-      setOutput(output, isDryRun ? "실행 전 확인 중" : "작업 실행 중");
-      renderActionSummaryPending(summaryPanel, actionLabel, isDryRun ? "저장 없이 이번 실행 후보를 확인하고 있습니다." : "선택한 대기열 작업을 저장하고 있습니다.");
+      setOutput(output, isDryRun ? "대상 미리보기 중" : "처리 시작 중");
+      renderActionSummaryPending(summaryPanel, actionLabel, isDryRun ? "저장 없이 이번 실행 후보를 확인하고 있습니다." : "미리 본 대기열 작업을 저장하고 있습니다.");
       const payload = await fetchJson(path, { method: "POST", body: JSON.stringify(body) }, true);
       renderAdminActionSummary(summaryPanel, payload, isOutcome, isDryRun, isPaper);
       setOutput(output, payload);
