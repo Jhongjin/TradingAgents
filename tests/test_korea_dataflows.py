@@ -109,6 +109,30 @@ def test_pykrx_korean_returns_calculates_benchmark_alpha(monkeypatch):
     fake_stock.get_index_ohlcv_by_date.assert_called_once()
 
 
+def test_pykrx_korean_returns_fall_back_to_yfinance_benchmark(monkeypatch):
+    fake_stock = MagicMock()
+    fake_stock.get_market_ohlcv_by_date.return_value = pd.DataFrame(
+        {"종가": [70_000, 71_000, 72_000]},
+        index=pd.to_datetime(["2026-01-02", "2026-01-05", "2026-01-06"]),
+    )
+    fake_stock.get_index_ohlcv_by_date.side_effect = RuntimeError("certificate verify failed")
+    monkeypatch.setattr(kr_returns, "_get_pykrx_stock_module", lambda: fake_stock)
+    calls = {}
+
+    def fake_benchmark(symbol, start, end):
+        calls["symbol"] = symbol
+        return pd.Series([2_700.0, 2_710.0, 2_720.0], index=pd.to_datetime(["2026-01-02", "2026-01-05", "2026-01-06"]), name="benchmark")
+
+    monkeypatch.setattr(kr_returns, "_yfinance_benchmark_close", fake_benchmark)
+
+    raw, alpha, days = kr_returns.fetch_korean_returns("005930", "2026-01-02", holding_days=2)
+
+    assert calls["symbol"] == "^KS11"
+    assert raw == pytest.approx((72_000 / 70_000) - 1)
+    assert alpha == pytest.approx(((72_000 / 70_000) - 1) - ((2_720 / 2_700) - 1))
+    assert days == 2
+
+
 def test_naver_news_adapter_uses_credentials_and_formats_items(monkeypatch):
     monkeypatch.setenv("NAVER_CLIENT_ID", "id")
     monkeypatch.setenv("NAVER_CLIENT_SECRET", "secret")

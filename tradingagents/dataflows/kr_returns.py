@@ -45,9 +45,16 @@ def fetch_korean_returns(
     stock = _get_pykrx_stock_module()
 
     stock_frame = stock.get_market_ohlcv_by_date(start_compact, end_compact, resolved.code)
-    index_frame = stock.get_index_ohlcv_by_date(start_compact, end_compact, index_code)
     stock_close = _close_series(stock_frame, "stock")
-    benchmark_close = _close_series(index_frame, "benchmark")
+    try:
+        index_frame = stock.get_index_ohlcv_by_date(start_compact, end_compact, index_code)
+        benchmark_close = _close_series(index_frame, "benchmark")
+    except Exception:
+        # pykrx index data comes from data.krx.co.kr, which is blocked on some
+        # networks (TLS interception, cloud IPs). Fall back to the Yahoo index.
+        benchmark_close = _yfinance_benchmark_close(resolved.benchmark_symbol, trade_date, end.strftime("%Y-%m-%d"))
+    if benchmark_close.empty:
+        benchmark_close = _yfinance_benchmark_close(resolved.benchmark_symbol, trade_date, end.strftime("%Y-%m-%d"))
     combined = pd.concat([stock_close, benchmark_close], axis=1, join="inner").dropna().sort_index()
     if len(combined) < 2:
         return None, None, None
@@ -76,7 +83,28 @@ def _close_series(frame: pd.DataFrame | None, name: str) -> pd.Series:
     return close
 
 
+def _yfinance_benchmark_close(symbol: str, start_date: str, end_date: str) -> pd.Series:
+    """Benchmark closes from Yahoo Finance (^KS11 / ^KQ11); empty series on failure."""
+
+    try:
+        import yfinance as yf
+
+        end_exclusive = (datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+        frame = yf.download(symbol, start=start_date, end=end_exclusive, progress=False, auto_adjust=False, multi_level_index=False)
+    except Exception:
+        return pd.Series(dtype="float64", name="benchmark")
+    if frame is None or frame.empty or "Close" not in frame.columns:
+        return pd.Series(dtype="float64", name="benchmark")
+    close = pd.to_numeric(frame["Close"], errors="coerce")
+    close.index = pd.to_datetime(close.index).tz_localize(None).normalize()
+    close.name = "benchmark"
+    return close.dropna()
+
+
 def _get_pykrx_stock_module():
+    from .http_trust import apply_system_truststore_if_available
+
+    apply_system_truststore_if_available()
     try:
         from pykrx import stock
     except Exception as exc:

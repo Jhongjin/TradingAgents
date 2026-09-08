@@ -21,17 +21,29 @@ class KISConfig:
 
     @classmethod
     def from_env(cls) -> "KISConfig":
+        """Read KIS credentials.
+
+        KIS issues separate app keys for 모의투자 (virtual) and real accounts.
+        When ``KIS_IS_PAPER`` is true, ``KIS_PAPER_APP_KEY`` /
+        ``KIS_PAPER_APP_SECRET`` / ``KIS_PAPER_ACCOUNT_NO`` /
+        ``KIS_PAPER_ACCOUNT_PRODUCT_CODE`` take precedence so both key sets can
+        live in the same ``.env`` without overwriting each other.
+        """
+
+        is_paper = os.getenv("KIS_IS_PAPER", "true").strip().lower() != "false"
+        paper_prefix = ("KIS_PAPER_",) if is_paper else ()
         return cls(
-            account_no=_env_value("KIS_ACCOUNT_NO", "KIS_ACCOUNT_NUMBER", "KIS_CANO"),
+            account_no=_env_value(*[f"{p}ACCOUNT_NO" for p in paper_prefix], "KIS_ACCOUNT_NO", "KIS_ACCOUNT_NUMBER", "KIS_CANO"),
             account_product_code=_env_value(
+                *[f"{p}ACCOUNT_PRODUCT_CODE" for p in paper_prefix],
                 "KIS_ACCOUNT_PRODUCT_CODE",
                 "KIS_ACCOUNT_PRODUCT_CD",
                 "KIS_ACNT_PRDT_CD",
                 "KIS_ACNT_PRDT_CODE",
             ),
-            app_key=_env_value("KIS_APP_KEY", "KIS_APPKEY"),
-            app_secret=_env_value("KIS_APP_SECRET", "KIS_APP_SECRET_KEY", "KIS_APPSECRET"),
-            is_paper=os.getenv("KIS_IS_PAPER", "true").strip().lower() != "false",
+            app_key=_env_value(*[f"{p}APP_KEY" for p in paper_prefix], "KIS_APP_KEY", "KIS_APPKEY"),
+            app_secret=_env_value(*[f"{p}APP_SECRET" for p in paper_prefix], "KIS_APP_SECRET", "KIS_APP_SECRET_KEY", "KIS_APPSECRET"),
+            is_paper=is_paper,
         )
 
     @property

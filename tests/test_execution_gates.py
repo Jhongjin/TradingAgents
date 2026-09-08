@@ -227,6 +227,28 @@ def test_kis_client_uses_paper_domain_and_tr_ids():
     assert sum(1 for entry in log if entry["url"].endswith("/oauth2/tokenP")) == 1
 
 
+def test_kis_config_prefers_paper_credentials_when_paper(monkeypatch):
+    monkeypatch.setenv("KIS_IS_PAPER", "true")
+    monkeypatch.setenv("KIS_APP_KEY", "live-key")
+    monkeypatch.setenv("KIS_APP_SECRET", "live-secret")
+    monkeypatch.setenv("KIS_ACCOUNT_NO", "11111111")
+    monkeypatch.setenv("KIS_PAPER_APP_KEY", "paper-key")
+    monkeypatch.setenv("KIS_PAPER_APP_SECRET", "paper-secret")
+    monkeypatch.setenv("KIS_PAPER_ACCOUNT_NO", "22222222")
+    monkeypatch.delenv("KIS_PAPER_ACCOUNT_PRODUCT_CODE", raising=False)
+    monkeypatch.setenv("KIS_ACCOUNT_PRODUCT_CODE", "01")
+    config = KISConfig.from_env()
+    assert config.app_key == "paper-key"
+    assert config.account_no == "22222222"
+    assert config.account_product_code == "01"  # falls through to the shared value
+
+    monkeypatch.setenv("KIS_IS_PAPER", "false")
+    monkeypatch.setenv("TRADINGAGENTS_ENABLE_LIVE_TRADING", "true")
+    live = KISConfig.from_env()
+    assert live.app_key == "live-key"
+    assert live.account_no == "11111111"
+
+
 def test_kis_client_surfaces_api_errors():
     def transport(method, url, headers, params, json_body):
         if url.endswith("/oauth2/tokenP"):
