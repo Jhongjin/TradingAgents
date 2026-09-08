@@ -6,6 +6,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+# Tests must never reach a real database. `cli.main` calls load_dotenv() at
+# import time (override=False), so pre-seeding an empty DATABASE_URL here
+# blocks .env from injecting the production Supabase URL into the process.
+# `create_storage_engine()` treats an empty value as "use in-memory SQLite".
+os.environ["DATABASE_URL"] = ""
+os.environ.setdefault("TRADINGAGENTS_STORAGE_ENABLED", "false")
+
+
 def pytest_configure(config):
     for marker in ("unit", "integration", "smoke"):
         config.addinivalue_line("markers", f"{marker}: {marker}-level tests")
@@ -35,6 +43,8 @@ _API_KEY_ENV_VARS = (
 def _dummy_api_keys(monkeypatch):
     for env_var in _API_KEY_ENV_VARS:
         monkeypatch.setenv(env_var, os.environ.get(env_var, "placeholder"))
+    # Re-assert per test in case a test or import mutated it.
+    monkeypatch.setenv("DATABASE_URL", "")
 
 
 @pytest.fixture()

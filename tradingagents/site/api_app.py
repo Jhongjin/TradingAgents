@@ -34,6 +34,7 @@ from .analysis_api import (
 from .auth import SUPABASE_API_KEY_ENV_NAMES, SUPABASE_URL_ENV_NAMES, resolve_member_user_id
 from .harness_api import (
     SUPPORTED_WEB_CONFIRMERS,
+    build_harness_outcomes_payload,
     build_harness_run_payload,
     build_harness_runs_payload,
     build_harness_ticker_history_payload,
@@ -83,6 +84,12 @@ class PaperSimulationWorkerRequestBody(BaseModel):
     limit: int = Field(default=20, ge=1)
     dry_run: bool = False
     as_of_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class HarnessOutcomeWorkerRequestBody(BaseModel):
+    limit: int = Field(default=50, ge=1, le=200)
+    horizons: list[int] = Field(default_factory=lambda: [5, 20])
+    dry_run: bool = False
 
 
 class HarnessRunRequestBody(BaseModel):
@@ -461,6 +468,56 @@ def create_app(
         if payload is None:
             raise HTTPException(status_code=404, detail="Harness run not found")
         return payload
+
+    @app.get("/api/harness/outcomes")
+    def harness_outcomes(
+        request: Request,
+        ticker: str | None = None,
+        status: Annotated[str | None, Query(pattern=r"^(pending|completed|unavailable)$")] = None,
+        limit: int = 50,
+    ) -> dict:
+        try:
+            return build_harness_outcomes_payload(
+                request.app.state.repository,
+                ticker_code=ticker,
+                status=status,
+                limit=limit,
+                max_limit=max(request.app.state.max_analysis_feed_limit, 200),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/admin/harness-outcomes/process", include_in_schema=False)
+    def process_harness_outcomes_admin(
+        body: HarnessOutcomeWorkerRequestBody,
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        _require_worker_token(request, x_tradingagents_worker_token)
+        _validate_outcome_horizons(body.horizons)
+        if body.dry_run:
+            decisions = repo.list_harness_decisions_for_outcomes(limit=body.limit)
+            return {
+                "status": "dry_run",
+                "decision_count": len(decisions),
+                "horizons": body.horizons,
+                "items": [{"id": str(d["id"]), "ticker_code": d["ticker_code"], "as_of_date": d["as_of_date"], "existing_outcomes": len(d.get("outcomes") or [])} for d in decisions],
+            }
+        return _process_harness_outcomes(repo, limit=body.limit, horizons=body.horizons)
+
+    @app.get("/api/cron/process-harness-outcomes", include_in_schema=False)
+    def process_harness_outcomes_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _process_harness_outcomes(repo, limit=_harness_outcome_cron_limit(), horizons=[5, 20])
 
     @app.get("/api/harness/tickers/{ticker}")
     def harness_ticker_history(ticker: str, request: Request, limit: int = 20) -> dict:
@@ -1608,6 +1665,28 @@ def _run_harness(
         )
     except (VendorUnavailableError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _process_harness_outcomes(repo: StorageRepository, *, limit: int, horizons: list[int]) -> dict:
+    from .harness_outcome_worker import evaluate_harness_outcomes, summarize_harness_outcome_results
+
+    results = evaluate_harness_outcomes(repo, limit=limit, horizons=horizons)
+    return {
+        "status": "processed",
+        "mode": "harness_outcomes",
+        "item_count": len(results),
+        "horizons": horizons,
+        "summary": summarize_harness_outcome_results(results),
+        "inspect_path": "/api/harness/outcomes",
+        "results": [result.__dict__ for result in results],
+    }
+
+
+def _harness_outcome_cron_limit() -> int:
+    raw = int(os.getenv("TRADINGAGENTS_HARNESS_OUTCOME_CRON_LIMIT", "50"))
+    if raw <= 0 or raw > 200:
+        raise HTTPException(status_code=400, detail="TRADINGAGENTS_HARNESS_OUTCOME_CRON_LIMIT must be between 1 and 200")
+    return raw
 
 
 def _harness_cron_confirmer() -> str:

@@ -71,6 +71,15 @@ def build_harness_run_payload(repo: StorageRepository | None, *, harness_run_id:
     if row is None:
         return None
     decisions = [_decision_item(item) for item in row.get("decisions", [])]
+    try:
+        outcome_rows = repo.list_harness_outcomes(harness_run_id=str(row["id"]), limit=500)
+    except Exception:
+        outcome_rows = []
+    by_decision: dict[str, list[dict[str, Any]]] = {}
+    for outcome in outcome_rows:
+        by_decision.setdefault(str(outcome.get("harness_decision_id")), []).append(_outcome_item(outcome))
+    for decision in decisions:
+        decision["outcomes"] = sorted(by_decision.get(decision["id"], []), key=lambda item: item["horizon_days"])
     return _json_ready(
         {
             "status": "available",
@@ -79,9 +88,78 @@ def build_harness_run_payload(repo: StorageRepository | None, *, harness_run_id:
             "run": _run_item(row),
             "decisions": decisions,
             "summary": _summary(decisions),
+            "outcome_summary": _outcome_summary(outcome_rows),
             "notices": HARNESS_NOTICES,
         }
     )
+
+
+def build_harness_outcomes_payload(
+    repo: StorageRepository | None,
+    *,
+    ticker_code: str | None = None,
+    status: str | None = None,
+    limit: int = 50,
+    max_limit: int = 200,
+) -> dict[str, Any]:
+    """Public track record of harness picks: realised 5D/20D return and alpha."""
+
+    if limit <= 0:
+        raise ValueError("limit must be positive")
+    if limit > max_limit:
+        raise ValueError(f"limit cannot exceed {max_limit}")
+    if status is not None and status not in {"pending", "completed", "unavailable"}:
+        raise ValueError("status must be pending, completed, or unavailable")
+    if repo is None:
+        return _json_ready({"status": "not_configured", "mode": "harness_outcomes", "items": [], "notices": HARNESS_NOTICES})
+    try:
+        rows = repo.list_harness_outcomes(ticker_code=ticker_code, status=status, limit=limit)
+    except Exception as exc:
+        return _json_ready(_storage_error_payload(exc, items=True))
+    return _json_ready(
+        {
+            "status": "available" if rows else "empty",
+            "mode": "harness_outcomes",
+            "execution_boundary": "dry_run_no_orders",
+            "ticker_code": ticker_code,
+            "filter_status": status,
+            "item_count": len(rows),
+            "items": [_outcome_item(row) for row in rows],
+            "summary": _outcome_summary(rows),
+            "notices": HARNESS_NOTICES,
+        }
+    )
+
+
+def _outcome_item(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(row.get("id") or ""),
+        "harness_decision_id": str(row.get("harness_decision_id") or ""),
+        "harness_run_id": str(row.get("harness_run_id") or ""),
+        "ticker_code": row.get("ticker_code"),
+        "ticker_name": row.get("ticker_name"),
+        "market": row.get("market"),
+        "entry_date": row.get("entry_date"),
+        "evaluated_at": row.get("evaluated_at"),
+        "horizon_days": row.get("horizon_days"),
+        "actual_holding_days": row.get("actual_holding_days"),
+        "benchmark_symbol": row.get("benchmark_symbol"),
+        "raw_return": row.get("raw_return"),
+        "benchmark_return": row.get("benchmark_return"),
+        "alpha_return": row.get("alpha_return"),
+        "confirmation_rating": row.get("confirmation_rating"),
+        "confirmation_source": row.get("confirmation_source"),
+        "status": row.get("status"),
+        "error": row.get("error"),
+        "run_path": f"/harness/{row.get('harness_run_id')}",
+        "stock_path": f"/stocks/{row.get('ticker_code')}",
+    }
+
+
+def _outcome_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    from .harness_outcome_worker import summarize_stored_harness_outcomes
+
+    return summarize_stored_harness_outcomes(rows)
 
 
 def build_harness_ticker_history_payload(

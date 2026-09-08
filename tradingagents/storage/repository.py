@@ -20,6 +20,7 @@ from .models import (
     AnalysisRequestInput,
     AnalysisRunInput,
     HarnessDecisionInput,
+    HarnessOutcomeInput,
     HarnessRunInput,
     ManualTradeInput,
     PAPER_SIMULATION_ACCOUNT_NAME,
@@ -36,6 +37,7 @@ from .tables import (
     analysis_refresh_requests,
     analysis_runs,
     harness_decisions,
+    harness_outcomes,
     harness_runs,
     manual_portfolios,
     manual_price_targets,
@@ -946,6 +948,108 @@ class StorageRepository:
         with self.engine.begin() as conn:
             rows = conn.execute(stmt).mappings().all()
         return [dict(row) for row in rows]
+
+    # ---------------------------------------------------- harness outcomes
+    def upsert_harness_outcome(self, data: HarnessOutcomeInput) -> str:
+        _validate_uuid(data.harness_decision_id, "harness_decision_id")
+        _validate_uuid(data.harness_run_id, "harness_run_id")
+        _validate_analysis_outcome_status(data.status)
+        if data.horizon_days <= 0:
+            raise ValueError("horizon_days must be positive")
+        values = {
+            "harness_decision_id": data.harness_decision_id,
+            "harness_run_id": data.harness_run_id,
+            "ticker_code": _normalize_ticker_code(data.ticker_code),
+            "ticker_name": data.ticker_name,
+            "market": data.market,
+            "entry_date": data.entry_date,
+            "evaluated_at": data.evaluated_at,
+            "horizon_days": data.horizon_days,
+            "actual_holding_days": data.actual_holding_days,
+            "benchmark_symbol": data.benchmark_symbol,
+            "raw_return": data.raw_return,
+            "benchmark_return": data.benchmark_return,
+            "alpha_return": data.alpha_return,
+            "confirmation_rating": data.confirmation_rating,
+            "confirmation_source": data.confirmation_source,
+            "status": data.status,
+            "error": data.error,
+            "metadata_json": dict(data.metadata),
+            "updated_at": datetime.now(timezone.utc),
+        }
+        with self.engine.begin() as conn:
+            existing = conn.execute(
+                select(harness_outcomes.c.id).where(
+                    and_(
+                        harness_outcomes.c.harness_decision_id == data.harness_decision_id,
+                        harness_outcomes.c.horizon_days == data.horizon_days,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing:
+                conn.execute(update(harness_outcomes).where(harness_outcomes.c.id == existing).values(**values))
+                return str(existing)
+            outcome_id = _id()
+            conn.execute(insert(harness_outcomes).values(id=outcome_id, **values))
+            return outcome_id
+
+    def list_harness_outcomes(
+        self,
+        *,
+        ticker_code: str | None = None,
+        status: str | None = None,
+        harness_run_id: str | None = None,
+        limit: int = 50,
+        public_only: bool = True,
+    ) -> list[dict[str, Any]]:
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        stmt = (
+            select(harness_outcomes)
+            .order_by(desc(harness_outcomes.c.entry_date), desc(harness_outcomes.c.updated_at))
+            .limit(limit)
+        )
+        if public_only:
+            stmt = stmt.where(
+                harness_outcomes.c.harness_run_id.in_(select(harness_runs.c.id).where(harness_runs.c.visibility == "public"))
+            )
+        if ticker_code:
+            stmt = stmt.where(harness_outcomes.c.ticker_code == _normalize_ticker_code(ticker_code))
+        if status:
+            stmt = stmt.where(harness_outcomes.c.status == status)
+        if harness_run_id:
+            _validate_uuid(harness_run_id, "harness_run_id")
+            stmt = stmt.where(harness_outcomes.c.harness_run_id == harness_run_id)
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+
+    def list_harness_decisions_for_outcomes(self, *, limit: int = 50, stages: tuple[str, ...] = ("ordered",)) -> list[dict[str, Any]]:
+        """Recent public harness picks (default: stage=ordered) with their existing outcome rows."""
+
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        stmt = (
+            select(harness_decisions)
+            .where(
+                harness_decisions.c.stage.in_(list(stages)),
+                harness_decisions.c.harness_run_id.in_(select(harness_runs.c.id).where(harness_runs.c.visibility == "public")),
+            )
+            .order_by(desc(harness_decisions.c.as_of_date), desc(harness_decisions.c.created_at))
+            .limit(limit)
+        )
+        with self.engine.begin() as conn:
+            decisions = [dict(row) for row in conn.execute(stmt).mappings().all()]
+            ids = [str(row["id"]) for row in decisions]
+            outcome_rows = []
+            if ids:
+                outcome_rows = [dict(row) for row in conn.execute(select(harness_outcomes).where(harness_outcomes.c.harness_decision_id.in_(ids))).mappings().all()]
+        by_decision: dict[str, list[dict[str, Any]]] = {}
+        for row in outcome_rows:
+            by_decision.setdefault(str(row["harness_decision_id"]), []).append(row)
+        for decision in decisions:
+            decision["outcomes"] = by_decision.get(str(decision["id"]), [])
+        return decisions
 
     def get_paper_simulation_account(
         self,

@@ -31,6 +31,10 @@ def test_vercel_json_routes_api_and_health_to_fastapi_entrypoint():
             "path": "/api/cron/run-harness",
             "schedule": "40 7 * * 1-5",
         },
+        {
+            "path": "/api/cron/process-harness-outcomes",
+            "schedule": "20 10 * * 1-5",
+        },
     ]
     assert {
         "source": "/harness",

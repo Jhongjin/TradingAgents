@@ -52,6 +52,20 @@ def render_harness_page(
         except (TypeError, ValueError):
             return "-"
 
+    def outcome_cell(outcomes: list[dict[str, Any]]) -> str:
+        if not outcomes:
+            return "-"
+        parts = []
+        for outcome in outcomes:
+            horizon = outcome.get("horizon_days")
+            if outcome.get("status") == "completed":
+                parts.append(f"{_h(horizon)}D {_h(fmt_pct(outcome.get('raw_return')))} <small>α {_h(fmt_pct(outcome.get('alpha_return')))}</small>")
+            elif outcome.get("status") == "pending":
+                parts.append(f"{_h(horizon)}D <small>대기</small>")
+            else:
+                parts.append(f"{_h(horizon)}D <small>데이터 없음</small>")
+        return "<br>".join(parts)
+
     decision_rows = "\n".join(
         f"""<tr>
           <td>{_h(item.get('screener_rank') or '-')}</td>
@@ -62,15 +76,23 @@ def render_harness_page(
           <td>{_h(item.get('confirmation_rating') or '-')}<br><small>{_h(fmt_num(item.get('confirmation_confidence'), 2))} · {_h(item.get('confirmation_source') or '-')}</small></td>
           <td>{_h(item.get('quantity') or '-')}<br><small>{_h(fmt_num(item.get('entry_price')))} / 손절 {_h(fmt_num(item.get('stop_price')))}</small></td>
           <td>{_h(item.get('order_status') or '-')}</td>
+          <td>{outcome_cell(item.get('outcomes') or [])}</td>
           <td class="harness-reasons">{_h('; '.join(str(r) for r in (item.get('reasons') or [])[:3]))}</td>
         </tr>"""
         for item in decisions
     )
     if not decision_rows:
         if storage_error:
-            decision_rows = f'<tr><td colspan="9">{_h(storage_error)}</td></tr>'
+            decision_rows = f'<tr><td colspan="10">{_h(storage_error)}</td></tr>'
         else:
-            decision_rows = '<tr><td colspan="9">아직 저장된 하네스 결정이 없습니다. 운영자가 <code>tradingagents pipeline --persist</code> 또는 크론을 실행하면 여기에 기록됩니다.</td></tr>'
+            decision_rows = '<tr><td colspan="10">아직 저장된 하네스 결정이 없습니다. 운영자가 <code>tradingagents pipeline --persist</code> 또는 크론을 실행하면 여기에 기록됩니다.</td></tr>'
+
+    outcome_summary = run_payload.get("outcome_summary") or {}
+    outcome_summary_html = " · ".join(
+        f"{horizon}D: 승률 {_h(fmt_pct(stats.get('hit_rate')) if stats.get('hit_rate') is not None else '-')}, "
+        f"평균 알파 {_h(fmt_pct(stats.get('average_alpha')))} ({_h(stats.get('completed'))}건 확정, {_h(stats.get('pending'))}건 대기)"
+        for horizon, stats in outcome_summary.items()
+    ) or "사후 결과는 5거래일/20거래일이 지난 뒤 자동 계산됩니다."
 
     run_rows = "\n".join(
         f"""<li><a href="{_h(item.get('detail_path'))}">{_h(item.get('as_of_date'))}</a> · {_h(item.get('confirmer'))} · 후보 {_h(item.get('candidate_count'))} · 가상주문 {_h(item.get('order_count'))} · {'dry-run' if item.get('dry_run') else _h(item.get('broker'))}</li>"""
@@ -141,10 +163,11 @@ def render_harness_page(
         <span class="status-pill">{'dry-run' if run.get('dry_run', True) else _h(run.get('broker'))}</span>
       </div>
       <p>유니버스 {_h(run.get('universe_size', '-'))} · 후보 {_h(run.get('candidate_count', '-'))} · 현금 {_h(fmt_num(run.get('cash_before')))} → {_h(fmt_num(run.get('cash_after')))} KRW</p>
+      <p class="asof">사후 결과 · {outcome_summary_html} · <a href="/api/harness/outcomes">전체 기록</a></p>
       <div class="harness-scroll">
         <table class="harness-table">
           <thead>
-            <tr><th>#</th><th>종목</th><th>단계</th><th>요인점수</th><th>예측(20일)</th><th>AI 확인</th><th>수량/가격</th><th>주문</th><th>사유</th></tr>
+            <tr><th>#</th><th>종목</th><th>단계</th><th>요인점수</th><th>예측(20일)</th><th>AI 확인</th><th>수량/가격</th><th>주문</th><th>사후 결과</th><th>사유</th></tr>
           </thead>
           <tbody>
             {decision_rows}

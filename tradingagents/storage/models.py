@@ -183,6 +183,28 @@ class HarnessDecisionInput:
 
 
 @dataclass(frozen=True)
+class HarnessOutcomeInput:
+    harness_decision_id: str
+    harness_run_id: str
+    ticker_code: str
+    entry_date: date
+    evaluated_at: date
+    horizon_days: int
+    ticker_name: str | None = None
+    market: str = "KR"
+    actual_holding_days: int | None = None
+    benchmark_symbol: str | None = None
+    raw_return: float | None = None
+    benchmark_return: float | None = None
+    alpha_return: float | None = None
+    confirmation_rating: str | None = None
+    confirmation_source: str | None = None
+    status: str = "pending"
+    error: str | None = None
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class PaperSimulationEventInput:
     account_id: str
     user_id: str

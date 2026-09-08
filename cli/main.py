@@ -1581,6 +1581,49 @@ def pipeline_command(
         console.print(f"[dim]saved {output}[/dim]")
 
 
+@app.command("process-harness-outcomes")
+def process_harness_outcomes_command(
+    limit: int = typer.Option(50, "--limit", min=1, max=200, help="Maximum harness picks to evaluate."),
+    horizons: str = typer.Option("5,20", "--horizons", help="Comma-separated holding periods in trading days."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="List harness picks without fetching returns."),
+):
+    """Evaluate 5D/20D realised returns and benchmark alpha for harness picks (stage=ordered)."""
+
+    import os
+
+    from tradingagents.site.harness_outcome_worker import evaluate_harness_outcomes, summarize_harness_outcome_results
+    from tradingagents.storage import StorageRepository, create_storage_engine
+
+    if not os.getenv("DATABASE_URL"):
+        raise typer.BadParameter("DATABASE_URL is required for the harness outcome worker")
+    horizon_values = _parse_horizon_csv(horizons)
+    repo = StorageRepository(create_storage_engine())
+    if dry_run:
+        decisions = repo.list_harness_decisions_for_outcomes(limit=limit)
+        if not decisions:
+            console.print("[yellow]No harness picks (stage=ordered) to evaluate.[/yellow]")
+            return
+        table = Table(title="Harness picks", box=box.SIMPLE_HEAD)
+        for column in ("Decision", "Ticker", "Entry", "Rating", "Existing outcomes"):
+            table.add_column(column)
+        for decision in decisions:
+            table.add_row(str(decision["id"])[:8], str(decision["ticker_code"]), str(decision["as_of_date"]), str(decision.get("confirmation_rating") or "-"), str(len(decision.get("outcomes") or [])))
+        console.print(table)
+        return
+    results = evaluate_harness_outcomes(repo, horizons=horizon_values, limit=limit)
+    summary = summarize_harness_outcome_results(results)
+    console.print(
+        f"[bold]Harness outcomes[/bold] results={summary['result_count']} completed={summary['completed_count']} "
+        f"pending={summary['pending_count']} unavailable={summary['unavailable_count']} skipped={summary['skipped_count']}"
+    )
+    if summary["hit_rate"] is not None:
+        console.print(f"hit rate {summary['hit_rate']:.1%} · average alpha {summary['average_alpha_return']:+.4f}")
+    for result in results:
+        colour = {"completed": "green", "pending": "yellow", "skipped": "dim"}.get(result.status, "red")
+        detail = f"raw={result.raw_return:+.4f} alpha={result.alpha_return:+.4f}" if result.status == "completed" else (result.error or "")
+        console.print(f"[{colour}]{result.status}[/{colour}] {result.ticker_code} {result.horizon_days}d: {detail}")
+
+
 @app.command("audit-verify")
 def audit_verify_command(
     path: Optional[Path] = typer.Option(None, "--path", help="Ledger path (default TRADINGAGENTS_AUDIT_LOG_PATH)."),

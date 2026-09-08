@@ -281,6 +281,33 @@ harness_decisions = Table(
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
 )
 
+harness_outcomes = Table(
+    "harness_outcomes",
+    metadata,
+    Column("id", Uuid(as_uuid=False), primary_key=True),
+    Column("harness_decision_id", Uuid(as_uuid=False), ForeignKey("harness_decisions.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("harness_run_id", Uuid(as_uuid=False), ForeignKey("harness_runs.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("ticker_code", String(12), nullable=False, index=True),
+    Column("ticker_name", String(120), nullable=True),
+    Column("market", String(32), nullable=False, default="KR"),
+    Column("entry_date", Date, nullable=False, index=True),
+    Column("evaluated_at", Date, nullable=False),
+    Column("horizon_days", Integer, nullable=False),
+    Column("actual_holding_days", Integer, nullable=True),
+    Column("benchmark_symbol", String(32), nullable=True),
+    Column("raw_return", Float, nullable=True),
+    Column("benchmark_return", Float, nullable=True),
+    Column("alpha_return", Float, nullable=True),
+    Column("confirmation_rating", String(32), nullable=True),
+    Column("confirmation_source", String(32), nullable=True),
+    Column("status", String(32), nullable=False, default="pending"),
+    Column("error", Text, nullable=True),
+    Column("metadata_json", JSON, nullable=False, default=dict),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    UniqueConstraint("harness_decision_id", "horizon_days", name="uq_harness_outcomes_decision_horizon"),
+)
+
 paper_simulation_events = Table(
     "paper_simulation_events",
     metadata,
