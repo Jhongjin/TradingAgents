@@ -24,6 +24,7 @@ TOP_NAV_ITEMS: tuple[tuple[str, str], ...] = (
     ("/", "종목 검색"),
     ("/analyses", "AI 리포트"),
     ("/outcomes", "사후 결과"),
+    ("/harness", "일일 하네스"),
     ("/features/methodology", "분석 기준"),
 )
 

@@ -67,6 +67,10 @@ DEFAULT_CONFIG = {
     "tool_vendors": {
         # Example: "get_stock_data": "alpha_vantage",  # Override category default
     },
+    # Harness settings (screener → forecast → confirm → size → gate → order).
+    "forecast_backend": os.getenv("TRADINGAGENTS_FORECAST_BACKEND", "naive"),
+    "audit_log_path": os.getenv("TRADINGAGENTS_AUDIT_LOG_PATH") or os.path.join(_TRADINGAGENTS_HOME, "audit", "audit.jsonl"),
+    "enable_live_trading": _env_bool("TRADINGAGENTS_ENABLE_LIVE_TRADING", False),
     "korea": {
         "timezone": "Asia/Seoul",
         "regular_session": "09:00-15:30",

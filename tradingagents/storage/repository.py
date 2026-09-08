@@ -19,6 +19,8 @@ from .models import (
     AnalysisOutcomeInput,
     AnalysisRequestInput,
     AnalysisRunInput,
+    HarnessDecisionInput,
+    HarnessRunInput,
     ManualTradeInput,
     PAPER_SIMULATION_ACCOUNT_NAME,
     PAPER_SIMULATION_LEGACY_ACCOUNT_NAME,
@@ -33,6 +35,8 @@ from .tables import (
     analysis_outcomes,
     analysis_refresh_requests,
     analysis_runs,
+    harness_decisions,
+    harness_runs,
     manual_portfolios,
     manual_price_targets,
     manual_trades,
@@ -819,6 +823,130 @@ class StorageRepository:
             ).mappings().all()
         return [dict(row) for row in rows]
 
+    # ------------------------------------------------------------ harness
+    def create_harness_run(self, data: HarnessRunInput) -> str:
+        _validate_visibility(data.visibility)
+        run_id = _id()
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(harness_runs).values(
+                    id=run_id,
+                    as_of_date=data.as_of_date,
+                    mode=data.mode,
+                    broker=data.broker,
+                    dry_run=1 if data.dry_run else 0,
+                    confirmer=data.confirmer,
+                    visibility=data.visibility,
+                    status=data.status,
+                    markets=data.markets,
+                    universe_size=data.universe_size,
+                    candidate_count=data.candidate_count,
+                    order_count=data.order_count,
+                    cash_before=data.cash_before,
+                    cash_after=data.cash_after,
+                    audit_sequence_start=data.audit_sequence_start,
+                    audit_sequence_end=data.audit_sequence_end,
+                    notes_json=list(data.notes),
+                    metadata_json=dict(data.metadata),
+                )
+            )
+        return run_id
+
+    def add_harness_decision(self, data: HarnessDecisionInput) -> str:
+        _validate_uuid(data.harness_run_id, "harness_run_id")
+        if not data.stage:
+            raise ValueError("harness decision stage cannot be empty")
+        ticker_code, ticker_name, market = _ticker_fields(data.ticker_code, data.ticker_name, data.market)
+        decision_id = _id()
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(harness_decisions).values(
+                    id=decision_id,
+                    harness_run_id=data.harness_run_id,
+                    as_of_date=data.as_of_date,
+                    ticker_code=ticker_code,
+                    ticker_name=ticker_name,
+                    market=market,
+                    stage=data.stage,
+                    screener_rank=data.screener_rank,
+                    composite_score=data.composite_score,
+                    forecast_expected_return=data.forecast_expected_return,
+                    forecast_probability_up=data.forecast_probability_up,
+                    confirmation_rating=data.confirmation_rating,
+                    confirmation_confidence=data.confirmation_confidence,
+                    confirmation_source=data.confirmation_source,
+                    quantity=data.quantity,
+                    entry_price=data.entry_price,
+                    stop_price=data.stop_price,
+                    take_profit_price=data.take_profit_price,
+                    order_status=data.order_status,
+                    reasons_json=list(data.reasons),
+                    detail_json=dict(data.detail),
+                )
+            )
+        return decision_id
+
+    def list_harness_runs(self, *, limit: int = 20, public_only: bool = True) -> list[dict[str, Any]]:
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        stmt = select(harness_runs).order_by(desc(harness_runs.c.as_of_date), desc(harness_runs.c.created_at)).limit(limit)
+        if public_only:
+            stmt = stmt.where(harness_runs.c.visibility == "public")
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [_harness_run_row(row) for row in rows]
+
+    def get_harness_run(self, harness_run_id: str, *, public_only: bool = True) -> dict[str, Any] | None:
+        _validate_uuid(harness_run_id, "harness_run_id")
+        stmt = select(harness_runs).where(harness_runs.c.id == harness_run_id)
+        if public_only:
+            stmt = stmt.where(harness_runs.c.visibility == "public")
+        with self.engine.begin() as conn:
+            row = conn.execute(stmt).mappings().first()
+            if row is None:
+                return None
+            decisions = conn.execute(
+                select(harness_decisions)
+                .where(harness_decisions.c.harness_run_id == harness_run_id)
+                .order_by(harness_decisions.c.screener_rank.is_(None), harness_decisions.c.screener_rank, harness_decisions.c.created_at)
+            ).mappings().all()
+        payload = _harness_run_row(row)
+        payload["decisions"] = [dict(item) for item in decisions]
+        return payload
+
+    def latest_harness_run(self, *, public_only: bool = True) -> dict[str, Any] | None:
+        runs = self.list_harness_runs(limit=1, public_only=public_only)
+        if not runs:
+            return None
+        return self.get_harness_run(str(runs[0]["id"]), public_only=public_only)
+
+    def list_harness_decisions(
+        self,
+        *,
+        ticker_code: str | None = None,
+        stage: str | None = None,
+        limit: int = 50,
+        public_only: bool = True,
+    ) -> list[dict[str, Any]]:
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        stmt = (
+            select(harness_decisions)
+            .order_by(desc(harness_decisions.c.as_of_date), desc(harness_decisions.c.created_at))
+            .limit(limit)
+        )
+        if public_only:
+            stmt = stmt.where(
+                harness_decisions.c.harness_run_id.in_(select(harness_runs.c.id).where(harness_runs.c.visibility == "public"))
+            )
+        if ticker_code:
+            stmt = stmt.where(harness_decisions.c.ticker_code == _normalize_ticker_code(ticker_code))
+        if stage:
+            stmt = stmt.where(harness_decisions.c.stage == stage)
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+
     def get_paper_simulation_account(
         self,
         *,
@@ -1209,6 +1337,12 @@ def _validate_paper_simulation_event(data: PaperSimulationEventInput) -> None:
             raise ValueError(f"paper simulation event {field_name} must be positive")
     if data.commission < 0 or data.transaction_tax < 0:
         raise ValueError("paper simulation event costs cannot be negative")
+
+
+def _harness_run_row(row: Any) -> dict[str, Any]:
+    payload = dict(row)
+    payload["dry_run"] = bool(payload.get("dry_run"))
+    return payload
 
 
 def _validate_optional_uuid(value: str | None, field_name: str) -> None:

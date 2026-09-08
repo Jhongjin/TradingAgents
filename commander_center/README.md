@@ -36,7 +36,10 @@ workstreams, verified through gates, and closed with a short evidence note.
 
 - Do not edit `.env`.
 - Do not commit API keys, passwords, tokens, account numbers, or secrets.
-- Do not implement live trading, broker order placement, or one-click orders.
+- Do not expose live trading, broker order placement, or one-click orders on
+  the public site or API. Broker orders live only in the operator CLI harness
+  (`tradingagents pipeline`): dry run by default, KIS 모의투자 before live, and
+  live only behind `TRADINGAGENTS_ENABLE_LIVE_TRADING=true` + `--confirm-live`.
 - Treat AI output as research content, not investment advice.
 - Keep Korean-market accuracy and provenance ahead of visual polish.
 - Preserve existing US-market fallback behavior unless a task explicitly says

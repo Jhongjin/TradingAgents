@@ -47,7 +47,8 @@ from tradingagents.agents.utils.agent_utils import (
     get_income_statement,
     get_news,
     get_insider_transactions,
-    get_global_news
+    get_global_news,
+    get_price_forecast,
 )
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
@@ -175,6 +176,8 @@ class TradingAgentsGraph:
                     get_stock_data,
                     # Technical indicators
                     get_indicators,
+                    # Statistical price forecast (TimesFM or naive fallback)
+                    get_price_forecast,
                 ]
             ),
             "social": ToolNode(
@@ -378,9 +381,13 @@ class TradingAgentsGraph:
         # Initialize state — inject memory log context for PM.
         past_context = self.memory_log.get_past_context(company_name)
         paper_learning_context = str(self.config.get("paper_learning_context") or "").strip()
-        if paper_learning_context:
+        # Deterministic harness evidence (screener rank, forecast band, risk
+        # metrics, playbook summaries) reaches the Portfolio Manager through the
+        # same past_context channel so the debate is grounded in recorded data.
+        harness_context = str(self.config.get("harness_context") or "").strip()
+        if paper_learning_context or harness_context:
             past_context = "\n\n".join(
-                part for part in (past_context, paper_learning_context) if part
+                part for part in (past_context, paper_learning_context, harness_context) if part
             )
         init_agent_state = self.propagator.create_initial_state(
             company_name, trade_date, past_context=past_context

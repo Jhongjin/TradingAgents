@@ -138,6 +138,51 @@ class PaperSimulationPositionInput:
 
 
 @dataclass(frozen=True)
+class HarnessRunInput:
+    as_of_date: date
+    mode: str = "paper"
+    broker: str = "paper"
+    dry_run: bool = True
+    confirmer: str = "none"
+    visibility: str = "public"
+    status: str = "completed"
+    markets: str = "KOSPI,KOSDAQ"
+    universe_size: int = 0
+    candidate_count: int = 0
+    order_count: int = 0
+    cash_before: Decimal | None = None
+    cash_after: Decimal | None = None
+    audit_sequence_start: int | None = None
+    audit_sequence_end: int | None = None
+    notes: list[str] = field(default_factory=list)
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class HarnessDecisionInput:
+    harness_run_id: str
+    as_of_date: date
+    ticker_code: str
+    stage: str
+    ticker_name: str | None = None
+    market: str = "KR"
+    screener_rank: int | None = None
+    composite_score: float | None = None
+    forecast_expected_return: float | None = None
+    forecast_probability_up: float | None = None
+    confirmation_rating: str | None = None
+    confirmation_confidence: float | None = None
+    confirmation_source: str | None = None
+    quantity: int | None = None
+    entry_price: Decimal | None = None
+    stop_price: Decimal | None = None
+    take_profit_price: Decimal | None = None
+    order_status: str | None = None
+    reasons: list[str] = field(default_factory=list)
+    detail: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class PaperSimulationEventInput:
     account_id: str
     user_id: str

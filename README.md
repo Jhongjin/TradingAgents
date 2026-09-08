@@ -116,6 +116,27 @@ KRX Open API keys also require service-level API approval. The KRX adapter is
 wired as a vendor boundary, but pykrx remains the default until the key and
 service approvals are in place.
 
+### Screener → Forecast → Harness → Paper/KIS Pipeline
+
+The fork now includes an end-to-end research-to-execution harness assembled
+from ideas in TimesFM, Vibe-Trading, Binance-Agent, AutoHedge, and
+FinceptTerminal (see `docs/integration-roadmap.md`):
+
+```powershell
+tradingagents screen --markets KOSPI,KOSDAQ --top 20          # rule-based factor screener
+tradingagents forecast 005930 --horizon 20                     # TimesFM or naive forecast band
+tradingagents playbook 005930                                  # 17-step analysis playbook (LLM); --core for the original ten
+tradingagents pipeline --confirmer debate --persist            # dry run: screen → forecast → bull/bear/judge/risk/PM debate → size → gate, stored for /harness
+tradingagents pipeline --confirmer playbook --execute          # local paper fills
+tradingagents pipeline --broker kis --execute                  # KIS 모의투자 orders (KIS_IS_PAPER=true)
+tradingagents audit-verify                                     # verify the hash-chained ledger
+```
+
+Install the optional TimesFM backend with `pip install "tradingagents[forecast]"`
+and set `TRADINGAGENTS_FORECAST_BACKEND=timesfm`. Without it the naive
+drift/volatility forecaster is used everywhere, including the public
+`/api/forecast/{ticker}` and `/api/screener` routes.
+
 See `docs/korea-market-ops.md` for the operating checklist, deployment notes,
 and Korean-market assumptions used by the paper/backtest layer.
 See `docs/product-scope.md` for the public-site product boundary: AI stock

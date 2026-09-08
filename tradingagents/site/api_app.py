@@ -32,10 +32,18 @@ from .analysis_api import (
     queue_analysis_refresh_request,
 )
 from .auth import SUPABASE_API_KEY_ENV_NAMES, SUPABASE_URL_ENV_NAMES, resolve_member_user_id
+from .harness_api import (
+    SUPPORTED_WEB_CONFIRMERS,
+    build_harness_run_payload,
+    build_harness_runs_payload,
+    build_harness_ticker_history_payload,
+)
+from .harness_pages import render_harness_page
 from .market_api import build_latest_prices_payload
 from .paper_simulation_api import EXECUTION_BOUNDARY_LABEL, build_member_paper_simulation_payload
 from .portfolio_api import build_manual_portfolio_list_payload, build_manual_portfolio_payload, normalize_portfolio_ticker
 from .public_api import build_public_stock_payload
+from .screener_api import build_forecast_payload, build_screener_payload
 from .seo import build_ads_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
 from .simulation_api import build_public_simulation_preview_payload
 from .ticker_api import build_ticker_search_payload
@@ -75,6 +83,15 @@ class PaperSimulationWorkerRequestBody(BaseModel):
     limit: int = Field(default=20, ge=1)
     dry_run: bool = False
     as_of_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class HarnessRunRequestBody(BaseModel):
+    confirmer: str = Field(default="none", pattern=r"^(none|playbook|debate)$")
+    confirm_top_n: int = Field(default=3, ge=1, le=10)
+    top_n: int = Field(default=20, ge=1, le=50)
+    markets: str = Field(default="KOSPI,KOSDAQ", pattern=r"^(?i:kospi|kosdaq)(,(?i:kospi|kosdaq))*$")
+    as_of_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    dry_run: bool = True
 
 
 WORKER_TOKEN_ENV_NAMES = (
@@ -174,6 +191,8 @@ def create_app(
             or request.url.path == "/analyses"
             or request.url.path.startswith("/analyses/")
             or request.url.path == "/outcomes"
+            or request.url.path == "/harness"
+            or request.url.path.startswith("/harness/")
             or request.url.path == "/stocks"
             or request.url.path.startswith("/stocks/")
             or request.url.path == "/features"
@@ -203,6 +222,12 @@ def create_app(
         elif request.url.path == "/api/tickers/search":
             response.headers.setdefault("Cache-Control", "public, max-age=300, stale-while-revalidate=600")
         elif request.url.path.startswith("/api/simulations/"):
+            seconds = request.app.state.public_cache_seconds
+            response.headers.setdefault(
+                "Cache-Control",
+                f"public, max-age={seconds}, stale-while-revalidate={seconds * 2}",
+            )
+        elif request.url.path == "/api/screener" or request.url.path.startswith("/api/forecast/") or request.url.path.startswith("/api/harness/"):
             seconds = request.app.state.public_cache_seconds
             response.headers.setdefault(
                 "Cache-Control",
@@ -393,6 +418,98 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return HTMLResponse(html)
 
+    @app.get("/harness", response_class=HTMLResponse, include_in_schema=False)
+    def harness_page(request: Request) -> HTMLResponse:
+        return HTMLResponse(render_harness_page(repo=request.app.state.repository, site_base_url=_request_site_base_url(request)))
+
+    @app.get("/harness/{harness_run_id}", response_class=HTMLResponse, include_in_schema=False)
+    def harness_detail_page(harness_run_id: str, request: Request) -> HTMLResponse:
+        try:
+            html = render_harness_page(
+                repo=request.app.state.repository,
+                harness_run_id=harness_run_id,
+                site_base_url=_request_site_base_url(request),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return HTMLResponse(html)
+
+    @app.get("/api/harness/runs")
+    def harness_runs(request: Request, limit: int = 20) -> dict:
+        try:
+            return build_harness_runs_payload(
+                request.app.state.repository,
+                limit=limit,
+                max_limit=request.app.state.max_analysis_feed_limit,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/harness/runs/latest")
+    def harness_latest_run(request: Request) -> dict:
+        payload = build_harness_run_payload(request.app.state.repository)
+        if payload is None:
+            raise HTTPException(status_code=404, detail="No harness runs yet")
+        return payload
+
+    @app.get("/api/harness/runs/{harness_run_id}")
+    def harness_run(harness_run_id: str, request: Request) -> dict:
+        try:
+            payload = build_harness_run_payload(request.app.state.repository, harness_run_id=harness_run_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if payload is None:
+            raise HTTPException(status_code=404, detail="Harness run not found")
+        return payload
+
+    @app.get("/api/harness/tickers/{ticker}")
+    def harness_ticker_history(ticker: str, request: Request, limit: int = 20) -> dict:
+        if not is_kr_ticker(ticker):
+            raise HTTPException(status_code=400, detail="6자리 한국 종목코드가 필요합니다.")
+        try:
+            return build_harness_ticker_history_payload(request.app.state.repository, ticker_code=ticker, limit=limit)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/admin/harness/run", include_in_schema=False)
+    def run_harness_admin(
+        body: HarnessRunRequestBody,
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        _require_worker_token(request, x_tradingagents_worker_token)
+        if not body.dry_run:
+            raise HTTPException(status_code=400, detail="web harness runs are dry-run only; use the CLI for paper/KIS execution")
+        return _run_harness(
+            repo,
+            confirmer=body.confirmer,
+            confirm_top_n=body.confirm_top_n,
+            top_n=body.top_n,
+            markets=body.markets,
+            as_of_date=body.as_of_date,
+        )
+
+    @app.get("/api/cron/run-harness", include_in_schema=False)
+    def run_harness_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _run_harness(
+            repo,
+            confirmer=_harness_cron_confirmer(),
+            confirm_top_n=_harness_cron_confirm_top_n(),
+            top_n=20,
+            markets=os.getenv("TRADINGAGENTS_HARNESS_MARKETS", "KOSPI,KOSDAQ"),
+            as_of_date=None,
+        )
+
     @app.get("/member", response_class=HTMLResponse, include_in_schema=False)
     def member_dashboard(request: Request) -> HTMLResponse:
         return HTMLResponse(render_member_dashboard_page(site_base_url=_request_site_base_url(request)))
@@ -516,6 +633,42 @@ def create_app(
                 slippage_bps=slippage_bps,
             )
         except (VendorUnavailableError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/screener")
+    def screener(
+        as_of_date: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None,
+        markets: Annotated[str, Query(pattern=r"^(?i:kospi|kosdaq)(,(?i:kospi|kosdaq))*$")] = "KOSPI,KOSDAQ",
+        top_n: Annotated[int, Query(ge=1, le=50)] = 20,
+        min_market_cap: Annotated[float | None, Query(ge=0)] = None,
+        max_per: Annotated[float | None, Query(gt=0)] = None,
+    ) -> dict:
+        try:
+            return build_screener_payload(
+                as_of_date=as_of_date,
+                markets=markets,
+                top_n=top_n,
+                min_market_cap=min_market_cap,
+                max_per=max_per,
+            )
+        except (VendorUnavailableError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/forecast/{ticker}")
+    def forecast(
+        ticker: str,
+        as_of_date: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None,
+        horizon_days: Annotated[int, Query(ge=1, le=60)] = 20,
+        chart_vendor: str | None = None,
+    ) -> dict:
+        try:
+            return build_forecast_payload(
+                ticker,
+                as_of_date=as_of_date,
+                horizon_days=horizon_days,
+                chart_vendor=chart_vendor,
+            )
+        except (VendorUnavailableError, ValueError, RuntimeError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/prices/latest")
@@ -1431,6 +1584,44 @@ def _process_paper_simulations(repo: StorageRepository, *, limit: int, as_of_dat
         "inspect_path": "/api/member/paper-simulations",
         "results": [result.__dict__ for result in results],
     }
+
+
+def _run_harness(
+    repo: StorageRepository,
+    *,
+    confirmer: str,
+    confirm_top_n: int,
+    top_n: int,
+    markets: str,
+    as_of_date: str | None,
+) -> dict:
+    from .harness_api import run_harness_for_web
+
+    try:
+        return run_harness_for_web(
+            repo,
+            confirmer=confirmer,
+            confirm_top_n=confirm_top_n,
+            top_n=top_n,
+            markets=markets,
+            as_of_date=as_of_date,
+        )
+    except (VendorUnavailableError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _harness_cron_confirmer() -> str:
+    value = os.getenv("TRADINGAGENTS_HARNESS_CRON_CONFIRMER", "none").strip().lower()
+    if value not in SUPPORTED_WEB_CONFIRMERS:
+        raise HTTPException(status_code=400, detail=f"TRADINGAGENTS_HARNESS_CRON_CONFIRMER must be one of {', '.join(SUPPORTED_WEB_CONFIRMERS)}")
+    return value
+
+
+def _harness_cron_confirm_top_n() -> int:
+    raw = int(os.getenv("TRADINGAGENTS_HARNESS_CRON_CONFIRM_TOP_N", "3"))
+    if raw <= 0 or raw > 10:
+        raise HTTPException(status_code=400, detail="TRADINGAGENTS_HARNESS_CRON_CONFIRM_TOP_N must be between 1 and 10")
+    return raw
 
 
 def _validate_outcome_horizons(horizons: list[int]) -> None:

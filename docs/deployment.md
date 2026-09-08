@@ -173,7 +173,14 @@ quota/rate-limit response headers the vendor provides. Absence of quota headers
 is reported as `headers_unavailable`; check each vendor dashboard for the
 authoritative quota ceiling.
 
-No live trading or broker order placement is exposed.
+Harness routes (`/harness`, `/api/harness/*`, `/api/screener`,
+`/api/forecast/{ticker}`, `POST /api/admin/harness/run`,
+`GET /api/cron/run-harness`) are read-only or dry-run-only on the web. See
+[`docs/harness-deployment-checklist.md`](harness-deployment-checklist.md) for
+the Git, Supabase, and Vercel steps and the new environment variables.
+
+No live trading or broker order placement is exposed through HTTP. Broker
+orders exist only in the operator CLI behind explicit gates.
 
 For Google AdSense, set `TRADINGAGENTS_ADSENSE_PUBLISHER_ID` to your `pub-...`
 publisher ID. The generated `ads.txt` line follows the AdSense format:

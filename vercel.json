@@ -18,6 +18,10 @@
     {
       "path": "/api/cron/process-analysis-outcomes",
       "schedule": "10 10 * * 1-5"
+    },
+    {
+      "path": "/api/cron/run-harness",
+      "schedule": "40 7 * * 1-5"
     }
   ],
   "rewrites": [
@@ -35,6 +39,14 @@
     },
     {
       "source": "/outcomes",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/harness",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/harness/:path*",
       "destination": "/api/index.py"
     },
     {

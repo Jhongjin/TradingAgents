@@ -18,6 +18,7 @@ from tradingagents.agents.utils.news_data_tools import (
     get_insider_transactions,
     get_global_news
 )
+from tradingagents.agents.utils.forecast_tools import get_price_forecast
 from tradingagents.dataflows.kr_tickers import is_kr_ticker, resolve_kr_ticker
 
 

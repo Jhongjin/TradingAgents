@@ -123,7 +123,7 @@ def test_public_stock_payload_combines_analysis_and_chart(monkeypatch):
     assert payload["chart"]["data_source_label"] == "pykrx"
     assert payload["chart"]["fallback_used"] is False
     assert payload["chart"]["points"][0]["close"] == 70500.0
-    assert len(payload["strategy_lenses"]) == 6
+    assert len(payload["strategy_lenses"]) == 7
     assert payload["strategy_lenses"][0]["id"] == "trend"
     assert payload["notices"] == [
         "AI 분석은 정보 제공용이며 투자 조언, 세무·법률 자문, 실거래 안내가 아닙니다.",

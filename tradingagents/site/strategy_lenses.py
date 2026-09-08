@@ -41,10 +41,51 @@ def build_korean_strategy_lenses(
         _momentum_lens(points),
         _liquidity_lens(points),
         _risk_lens(points, market=market),
+        _forecast_lens(points),
         _analysis_freshness_lens(analysis, analysis_refresh),
         _safety_lens(),
     ]
     return [lens.as_dict() for lens in lenses]
+
+
+def _forecast_lens(points: list[dict[str, float | str]]) -> StrategyLens:
+    if len(points) < 30:
+        return _unavailable("forecast", "통계 예측", "30거래일 이상 데이터가 있어야 20일 예측을 계산합니다.")
+    try:
+        from tradingagents.forecast import forecast_from_points
+
+        forecast = forecast_from_points(points, horizon=20)
+    except Exception as exc:
+        return _unavailable("forecast", "통계 예측", f"예측 계산 불가: {exc.__class__.__name__}")
+    probability = forecast.probability_up if forecast.probability_up is not None else 0.5
+    expected = forecast.expected_return or 0.0
+    if probability >= 0.6 and expected > 0.01:
+        status = "positive"
+        summary = f"통계 모델 기준 20일 상승 확률 {probability:.0%}, 기대수익률 {expected:+.1%}입니다."
+    elif probability <= 0.4 or expected < -0.02:
+        status = "caution"
+        summary = f"통계 모델 기준 20일 상승 확률 {probability:.0%}로 하방 위험이 우세합니다."
+    else:
+        status = "neutral"
+        summary = f"통계 모델 기준 20일 방향성은 중립({probability:.0%})입니다."
+    low = forecast.quantile_paths.get("0.1")
+    high = forecast.quantile_paths.get("0.9")
+    return StrategyLens(
+        id="forecast",
+        title="통계 예측",
+        status=status,
+        score=round(probability, 4),
+        summary=summary,
+        metrics={
+            "backend": forecast.backend,
+            "horizon": forecast.horizon,
+            "expected_return": round(expected, 4),
+            "probability_up": round(probability, 4),
+            "target_close": forecast.target_close,
+            "band_low": low[-1] if low else None,
+            "band_high": high[-1] if high else None,
+        },
+    )
 
 
 def _numeric_points(chart: dict[str, Any]) -> list[dict[str, float | str]]:

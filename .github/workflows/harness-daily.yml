@@ -1,0 +1,55 @@
+name: Daily harness (dry run, persisted)
+
+# Runs the screener → forecast → LLM debate → sizing → mandate pipeline as a
+# dry run and stores the decisions in Supabase so /harness can show them.
+# Vercel's 60s function limit is too short for LLM-confirmed runs, so the
+# heavier confirmers live here. Nothing in this workflow places orders.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmer:
+        description: "none | playbook | debate"
+        default: "debate"
+      confirm_top_n:
+        description: "Candidates sent to the LLM gate"
+        default: "5"
+  schedule:
+    # 07:50 KST on weekdays (22:50 UTC previous day) so results are ready before the 09:00 open.
+    - cron: "50 22 * * 0-4"
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TRADINGAGENTS_POSTGRES_DRIVER: pg8000
+      TRADINGAGENTS_FORECAST_BACKEND: naive
+      TRADINGAGENTS_SCREENER_UNIVERSE: ${{ vars.TRADINGAGENTS_SCREENER_UNIVERSE }}
+      TRADINGAGENTS_ENABLE_LIVE_TRADING: "false"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e .
+      - name: Run harness (dry run)
+        run: |
+          tradingagents pipeline \
+            --confirmer "${{ github.event.inputs.confirmer || 'debate' }}" \
+            --confirm "${{ github.event.inputs.confirm_top_n || '5' }}" \
+            --persist \
+            --audit-log ./harness-audit.jsonl \
+            --output ./harness-run.json
+      - name: Verify audit chain
+        run: tradingagents audit-verify --path ./harness-audit.jsonl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harness-run
+          path: |
+            harness-run.json
+            harness-audit.jsonl

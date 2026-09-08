@@ -121,15 +121,18 @@ When added, it should start as read-only account management:
 - Evaluation PnL
 - User-side target and stop calculations
 
-Still deferred:
+Still deferred on the public site:
 
 - Live orders
-- Automated trading
 - One-click buy/sell
 - Account password, certificate, OTP, or access-media collection
 
-Any live trading capability requires a separate legal, security, product, and
-risk review before implementation.
+Automated trading exists only as an operator CLI path
+(`tradingagents pipeline`, see `docs/integration-roadmap.md`) that progresses
+local paper → KIS 모의투자 → live. The live stage requires
+`TRADINGAGENTS_ENABLE_LIVE_TRADING=true` plus an explicit `--confirm-live`
+flag and stays outside every HTTP route. Any live trading rollout still
+requires a separate legal, security, product, and risk review.
 
 ## Recommended Build Order
 

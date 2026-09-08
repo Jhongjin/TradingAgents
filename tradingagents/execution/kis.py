@@ -1,7 +1,8 @@
 """Korea Investment & Securities configuration surface.
 
-This module deliberately does not place live orders. It only normalizes env
-configuration so a future KIS adapter can be added behind explicit safety gates.
+This module only normalizes env configuration. Order placement lives in
+``kis_client.KISBrokerAdapter``, which defaults to the 모의투자 server and
+refuses the live server unless every safety gate is open.
 """
 
 from __future__ import annotations
@@ -60,8 +61,8 @@ class KISConfig:
             errors.append("KIS_APP_KEY is required")
         if not self.app_secret:
             errors.append("KIS_APP_SECRET is required")
-        if not self.is_paper:
-            errors.append("Live KIS trading is disabled in this MVP")
+        if not self.is_paper and os.getenv("TRADINGAGENTS_ENABLE_LIVE_TRADING", "false").strip().lower() not in {"1", "true", "yes", "on"}:
+            errors.append("KIS_IS_PAPER=false requires TRADINGAGENTS_ENABLE_LIVE_TRADING=true (live trading is disabled)")
         return errors
 
     def validate_for_paper(self) -> None:

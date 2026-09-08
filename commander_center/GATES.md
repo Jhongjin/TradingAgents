@@ -4,7 +4,11 @@
 
 - The change supports Korean-stock AI analysis, member research workflow, or
   public trust.
-- The change does not introduce live trading or broker order placement.
+- The change does not expose live trading or broker order placement through
+  the public site or any HTTP route. Broker orders are limited to the operator
+  CLI harness (`tradingagents pipeline`), default to dry run, use the KIS
+  모의투자 server unless every live gate is open, and append to the audit
+  ledger.
 - User-facing copy avoids guaranteed-profit or personalized-advice claims.
 
 ## Gate 2: Data Provenance

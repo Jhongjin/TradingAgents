@@ -1344,6 +1344,288 @@ def process_analysis_outcomes(
             )
 
 
+@app.command("screen")
+def screen_command(
+    markets: str = typer.Option("KOSPI,KOSDAQ", "--markets", help="Comma-separated markets: KOSPI, KOSDAQ."),
+    top_n: int = typer.Option(20, "--top", min=1, max=50, help="Number of ranked candidates to print."),
+    as_of_date: Optional[str] = typer.Option(None, "--date", help="Snapshot date YYYY-MM-DD (default: latest trading day)."),
+    min_market_cap: Optional[float] = typer.Option(None, "--min-market-cap", help="Minimum market cap in KRW."),
+    max_per: Optional[float] = typer.Option(None, "--max-per", help="Maximum PER to keep."),
+    json_output: bool = typer.Option(False, "--json", help="Print the raw JSON payload instead of a table."),
+):
+    """Rank KOSPI/KOSDAQ candidates with the rule-based screener (no LLM, no orders)."""
+
+    import json
+
+    from tradingagents.site.screener_api import build_screener_payload
+
+    payload = build_screener_payload(
+        as_of_date=as_of_date,
+        markets=markets,
+        top_n=top_n,
+        min_market_cap=min_market_cap,
+        max_per=max_per,
+    )
+    if json_output:
+        console.print_json(json.dumps(payload, ensure_ascii=False, default=str))
+        return
+    table = Table(title=f"Screener {payload['as_of_date']} ({', '.join(payload['markets'])})", box=box.SIMPLE_HEAD)
+    for column in ("#", "Code", "Name", "Mkt", "Close", "Composite", "Mom20", "RSI", "Vol×", "Reasons"):
+        table.add_column(column)
+    for candidate in payload["candidates"]:
+        factors = candidate["factors"]
+        table.add_row(
+            str(candidate["rank"]),
+            candidate["code"],
+            candidate["name"],
+            candidate["market"],
+            f"{candidate['close']:,.0f}",
+            f"{factors['composite']:+.3f}",
+            _fmt_pct(factors.get("momentum_20d")),
+            _fmt_num(factors.get("rsi_14")),
+            _fmt_num(factors.get("volume_surge")),
+            ", ".join(candidate["reasons"][:3]),
+        )
+    console.print(table)
+    console.print(
+        f"[dim]universe={payload['universe_size']} prefiltered={payload['prefiltered_size']} scored={payload['scored_size']}[/dim]"
+    )
+    for notice in payload["notices"]:
+        console.print(f"[yellow]{notice}[/yellow]")
+
+
+@app.command("forecast")
+def forecast_command(
+    ticker: str = typer.Argument(..., help="Korean 6-digit ticker code, e.g. 005930."),
+    horizon: int = typer.Option(20, "--horizon", min=1, max=60, help="Forecast horizon in trading days."),
+    as_of_date: Optional[str] = typer.Option(None, "--date", help="As-of date YYYY-MM-DD."),
+    backend: Optional[str] = typer.Option(None, "--backend", help="naive, timesfm, or auto (default from TRADINGAGENTS_FORECAST_BACKEND)."),
+    json_output: bool = typer.Option(False, "--json", help="Print the raw JSON payload."),
+):
+    """Statistical close-price forecast (TimesFM when installed, naive fallback otherwise)."""
+
+    import json
+
+    from tradingagents.site.screener_api import build_forecast_payload
+
+    payload = build_forecast_payload(ticker, as_of_date=as_of_date, horizon_days=horizon, backend=backend)
+    if json_output:
+        console.print_json(json.dumps(payload, ensure_ascii=False, default=str))
+        return
+    if payload["status"] != "available":
+        console.print(f"[yellow]{payload['status']}[/yellow] ({payload.get('point_count', 0)} points)")
+        return
+    console.print(f"[bold]{payload['ticker']['name']} ({payload['ticker']['code']})[/bold] {payload['summary']}")
+    factors = payload["factors"]
+    console.print(f"factors: composite={factors['composite']:+.3f} labels={', '.join(factors['labels'])}")
+    risk = payload["risk_metrics"]
+    console.print(
+        f"risk: vol={_fmt_num(risk.get('annualized_volatility'))} mdd={_fmt_pct(risk.get('max_drawdown'))} "
+        f"VaR95={_fmt_pct(risk.get('value_at_risk_95'))} sharpe={_fmt_num(risk.get('sharpe_ratio'))}"
+    )
+    for notice in payload["notices"]:
+        console.print(f"[yellow]{notice}[/yellow]")
+
+
+@app.command("playbook")
+def playbook_command(
+    target: str = typer.Argument(..., help="Ticker code, company name, or sector to analyse, e.g. 005930 or 반도체."),
+    prompts: Optional[str] = typer.Option(None, "--prompts", help="Comma-separated prompt ids (default: all 17)."),
+    core_only: bool = typer.Option(False, "--core", help="Run only the operator's original ten prompts."),
+    list_only: bool = typer.Option(False, "--list", help="List the playbook prompts and exit."),
+    as_of_date: Optional[str] = typer.Option(None, "--date", help="As-of date YYYY-MM-DD for chart/forecast context."),
+    output: Optional[Path] = typer.Option(None, "--output", help="Write results JSON to this path."),
+    deep: bool = typer.Option(False, "--deep", help="Use the deep-think model instead of the quick-think model."),
+):
+    """Run the ten-step analysis playbook (market → diversification → risk → ... → global events)."""
+
+    import json
+
+    from tradingagents.harness import list_prompts, run_playbook
+    from tradingagents.harness.tasks import llm_from_config
+
+    if list_only:
+        table = Table(title="Playbook prompts", box=box.SIMPLE_HEAD)
+        table.add_column("#")
+        table.add_column("id")
+        table.add_column("title")
+        table.add_column("placeholders")
+        for prompt in list_prompts():
+            marker = "" if prompt.order <= 10 else " (추가)"
+            table.add_row(str(prompt.order), prompt.id, prompt.title + marker, ", ".join(prompt.placeholders) or "-")
+        console.print(table)
+        return
+
+    context = _playbook_context(target, as_of_date)
+    values = {"target": target, "strategy": "스크리너 후보 확인 후 손절/익절 규칙 기반 스윙", "financial_statements": target}
+    prompt_ids = [item.strip() for item in prompts.split(",") if item.strip()] if prompts else None
+    results = run_playbook(llm_from_config(deep=deep), values=values, context=context, prompt_ids=prompt_ids, extended=not core_only)
+    for result in results:
+        colour = "green" if result.status == "ok" else "red"
+        console.print(f"[{colour}]{result.title}[/{colour}] {result.status}")
+        if result.status == "ok":
+            console.print(Markdown(f"> {result.data.get('summary', '')}"))
+        elif result.error:
+            console.print(f"  {result.error}")
+    if output is not None:
+        output.write_text(json.dumps([r.as_dict() for r in results], ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        console.print(f"[dim]saved {output}[/dim]")
+
+
+@app.command("pipeline")
+def pipeline_command(
+    markets: str = typer.Option("KOSPI,KOSDAQ", "--markets", help="Comma-separated markets."),
+    top_n: int = typer.Option(20, "--top", min=1, max=50, help="Screener candidates to consider."),
+    confirm_top_n: int = typer.Option(5, "--confirm", min=1, max=20, help="How many candidates to send to the LLM gate."),
+    as_of_date: Optional[str] = typer.Option(None, "--date", help="As-of date YYYY-MM-DD."),
+    confirmer: str = typer.Option("playbook", "--confirmer", help="playbook, debate, graph, or none (deterministic only)."),
+    broker: str = typer.Option("paper", "--broker", help="paper (local) or kis (KIS 모의투자/live via env gates)."),
+    execute: bool = typer.Option(False, "--execute", help="Send orders. Default is a dry run that only logs intents."),
+    confirm_live: bool = typer.Option(False, "--confirm-live", help="Required together with KIS_IS_PAPER=false and TRADINGAGENTS_ENABLE_LIVE_TRADING=true."),
+    initial_cash: float = typer.Option(10_000_000.0, "--cash", help="Paper broker starting cash (KRW)."),
+    risk_per_trade: float = typer.Option(0.01, "--risk", help="Fraction of equity risked per trade."),
+    audit_log: Optional[Path] = typer.Option(None, "--audit-log", help="Hash-chained JSONL ledger path (default TRADINGAGENTS_AUDIT_LOG_PATH)."),
+    output: Optional[Path] = typer.Option(None, "--output", help="Write the run result JSON to this path."),
+    persist: bool = typer.Option(False, "--persist", help="Store the run and decisions in DATABASE_URL (Supabase) for the /harness page."),
+    debate_rounds: int = typer.Option(1, "--debate-rounds", min=1, max=3, help="Bull/bear rounds for --confirmer debate."),
+):
+    """Daily harness: screen → forecast → LLM confirm → size → mandate gate → order."""
+
+    import json
+    import os
+
+    from tradingagents.execution import AuditLedger, KISBrokerAdapter, KISConfig, KoreaTradingRules
+    from tradingagents.harness import PipelineConfig, run_daily_pipeline
+    from tradingagents.harness.pipeline import debate_confirmer, graph_confirmer, playbook_confirmer
+    from tradingagents.harness.tasks import llm_from_config
+    from tradingagents.screener import ScreenerConfig
+
+    market_tuple = tuple(part.strip().upper() for part in markets.split(",") if part.strip())
+    config = PipelineConfig(
+        markets=market_tuple,
+        screener=ScreenerConfig(markets=market_tuple, top_n=top_n),
+        confirm_top_n=confirm_top_n,
+        risk_percent_per_trade=risk_per_trade,
+        initial_cash=initial_cash,
+        dry_run=not execute,
+        require_llm_confirmation=confirmer.lower() != "none",
+    )
+    selected_confirmer = None
+    if confirmer.lower() == "playbook":
+        selected_confirmer = playbook_confirmer(llm_from_config())
+    elif confirmer.lower() == "debate":
+        selected_confirmer = debate_confirmer(llm_from_config(), rounds=debate_rounds)
+    elif confirmer.lower() == "graph":
+        def _graph_factory(harness_context: str = ""):
+            return TradingAgentsGraph(config={**DEFAULT_CONFIG, "harness_context": harness_context})
+
+        selected_confirmer = graph_confirmer(_graph_factory, trade_date=as_of_date)
+    elif confirmer.lower() != "none":
+        raise typer.BadParameter("--confirmer must be playbook, debate, graph, or none")
+
+    repo = None
+    if persist:
+        from tradingagents.storage import StorageRepository, create_storage_engine
+
+        if not os.getenv("DATABASE_URL"):
+            raise typer.BadParameter("--persist requires DATABASE_URL")
+        repo = StorageRepository(create_storage_engine())
+
+    broker_adapter = None
+    if broker.lower() == "kis":
+        kis_config = KISConfig.from_env()
+        errors = kis_config.validation_errors()
+        if errors:
+            raise typer.BadParameter("; ".join(errors))
+        broker_adapter = KISBrokerAdapter(config=kis_config, confirm_live=confirm_live, execution_rules=KoreaTradingRules())
+        console.print(f"[bold]KIS broker[/bold] mode={'모의투자(paper)' if broker_adapter.is_paper else 'LIVE'}")
+    elif broker.lower() != "paper":
+        raise typer.BadParameter("--broker must be paper or kis")
+
+    ledger = AuditLedger(audit_log) if audit_log else AuditLedger.from_env()
+    result = run_daily_pipeline(
+        as_of_date,
+        config=config,
+        confirmer=selected_confirmer,
+        broker=broker_adapter,
+        ledger=ledger,
+        repo=repo,
+        confirmer_name=confirmer.lower(),
+    )
+    if result.run_id:
+        console.print(f"[dim]persisted harness_run_id={result.run_id} → /harness/{result.run_id}[/dim]")
+
+    console.print(
+        f"[bold]Pipeline {result.as_of_date}[/bold] broker={result.broker} mode={result.mode} "
+        f"dry_run={result.dry_run} candidates={result.screener['candidate_count']}"
+    )
+    table = Table(box=box.SIMPLE_HEAD)
+    for column in ("Code", "Name", "Stage", "Qty", "Order", "Reasons"):
+        table.add_column(column)
+    for decision in result.decisions:
+        table.add_row(
+            decision.code,
+            decision.name,
+            decision.stage,
+            str((decision.sizing or {}).get("quantity") or (decision.order or {}).get("order", {}).get("quantity") or ""),
+            str((decision.order or {}).get("status") or ""),
+            "; ".join(decision.reasons)[:80],
+        )
+    console.print(table)
+    console.print(f"cash {result.account_before['cash']:,.0f} → {result.account_after['cash']:,.0f} KRW")
+    console.print(f"[dim]audit {ledger.path} seq {result.audit_sequence_start}-{result.audit_sequence_end}[/dim]")
+    for note in result.notes:
+        console.print(f"[yellow]{note}[/yellow]")
+    if output is not None:
+        output.write_text(json.dumps(result.as_dict(), ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        console.print(f"[dim]saved {output}[/dim]")
+
+
+@app.command("audit-verify")
+def audit_verify_command(
+    path: Optional[Path] = typer.Option(None, "--path", help="Ledger path (default TRADINGAGENTS_AUDIT_LOG_PATH)."),
+):
+    """Verify the hash chain of the harness audit ledger."""
+
+    from tradingagents.execution import AuditLedger
+
+    ledger = AuditLedger(path) if path else AuditLedger.from_env()
+    ok, error = ledger.verify_chain()
+    if ok:
+        console.print(f"[green]OK[/green] {ledger.path} records={ledger.sequence}")
+    else:
+        console.print(f"[red]BROKEN[/red] {ledger.path}: {error}")
+        raise typer.Exit(code=1)
+
+
+def _playbook_context(target: str, as_of_date: Optional[str]) -> dict:
+    """Best-effort deterministic context for playbook prompts (chart/forecast/risk)."""
+
+    from tradingagents.dataflows.kr_tickers import is_kr_ticker
+    from tradingagents.site.screener_api import build_forecast_payload
+
+    context: dict = {}
+    if is_kr_ticker(target):
+        try:
+            forecast_payload = build_forecast_payload(target, as_of_date=as_of_date, horizon_days=20)
+        except Exception as exc:  # pragma: no cover - network dependent
+            context["forecast_error"] = f"{exc.__class__.__name__}: {exc}"
+        else:
+            context["forecast"] = forecast_payload.get("forecast")
+            context["factors"] = forecast_payload.get("factors")
+            context["risk_metrics"] = forecast_payload.get("risk_metrics")
+            context["snapshot"] = forecast_payload.get("ticker")
+    return context
+
+
+def _fmt_pct(value) -> str:
+    return "-" if value is None else f"{float(value) * 100:+.1f}%"
+
+
+def _fmt_num(value) -> str:
+    return "-" if value is None else f"{float(value):.2f}"
+
+
 def _parse_horizon_csv(value: str) -> tuple[int, ...]:
     try:
         horizons = tuple(int(item.strip()) for item in value.split(",") if item.strip())

@@ -33,7 +33,10 @@ def test_korean_strategy_lenses_score_trend_momentum_and_safety():
     assert by_id["momentum"]["status"] == "positive"
     assert by_id["analysis_freshness"]["status"] == "positive"
     assert by_id["safety"]["metrics"]["live_trading"] == "disabled"
-    assert len(lenses) == 6
+    assert by_id["forecast"]["status"] in {"positive", "neutral", "caution"}
+    assert by_id["forecast"]["metrics"]["backend"] == "naive"
+    assert by_id["forecast"]["metrics"]["horizon"] == 20
+    assert len(lenses) == 7
 
 
 def test_korean_strategy_lenses_mark_missing_data_as_unavailable():
