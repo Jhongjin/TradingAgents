@@ -51,7 +51,7 @@ def test_size_position_flags_zero_quantity_and_low_reward_risk():
         PositionSizeRequest("005930", equity=100_000, entry_price=70_000, stop_price=35_000, take_profit_price=72_000)
     )
     assert plan.quantity == 0
-    assert any("0" in note for note in plan.notes)
+    assert any("리스크 예산" in note for note in plan.notes)
     plan = size_position(
         PositionSizeRequest("005930", equity=10_000_000, entry_price=70_000, stop_price=66_500, take_profit_price=72_000)
     )

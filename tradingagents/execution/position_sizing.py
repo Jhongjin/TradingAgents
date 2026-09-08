@@ -93,7 +93,13 @@ def size_position(request: PositionSizeRequest) -> PositionSizePlan:
         reward_risk = (request.take_profit_price - request.entry_price) / per_share_risk
     notes = []
     if quantity == 0:
-        notes.append("계산된 수량이 0입니다. 손절폭이 너무 넓거나 자본이 부족합니다.")
+        if by_risk == 0:
+            notes.append(
+                f"1주 손절 리스크 {per_share_risk:,.0f}가 거래당 리스크 예산 {risk_budget:,.0f}"
+                f"({request.risk_percent_per_trade:.1%})를 초과합니다. 자본을 늘리거나 손절폭/리스크 비율을 조정하세요."
+            )
+        else:
+            notes.append("계산된 수량이 0입니다. 비중 한도 또는 가용 현금이 1주 가격보다 작습니다.")
     if reward_risk is not None and reward_risk < 1.5:
         notes.append(f"손익비 {reward_risk:.2f}가 1.5 미만입니다. 진입 근거를 다시 확인하세요.")
     return PositionSizePlan(
