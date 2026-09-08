@@ -551,6 +551,9 @@ def playbook_confirmer(llm: LLMCallable, *, prompt_ids: Sequence[str] = ("techni
             task_context = {key: context[key] for key in prompt.context_keys if key in context}
             task_context["candidate"] = context.get("candidate")
             results[prompt_id] = run_task(HarnessTask(prompt=prompt, values=values, context=task_context), llm)
+        llm_errors = [result.error for result in results.values() if result.status == "llm_error" and result.error]
+        if results and len(llm_errors) == len(results):
+            raise RuntimeError(f"all playbook calls failed: {llm_errors[0][:300]}")
         technical = results.get("technical_analysis")
         risk = results.get("risk_management")
         rating = "Hold"
@@ -611,6 +614,12 @@ def debate_confirmer(
                 task_context["previous_conclusions"] = {r.task_id: r.data.get("summary") for r in results if r.status == "ok"}
             results.append(run_task(HarnessTask(prompt=prompt, values=values, context=task_context), llm))
         outcome = run_debate(llm, target=target, evidence=context, playbook_results=results, rounds=rounds)
+        turns = (outcome.bull, outcome.bear, outcome.judge, outcome.risk_panel, outcome.portfolio_manager)
+        llm_errors = [turn.error for turn in turns if turn.status == "llm_error" and turn.error]
+        if len(llm_errors) == len(turns):
+            # Every call failed (auth, quota, network): surface the real cause
+            # instead of a misleading "Hold" so operators can fix credentials.
+            raise RuntimeError(f"all debate turns failed: {llm_errors[0][:300]}")
         return Confirmation(
             rating=outcome.rating,
             confidence=outcome.confidence,

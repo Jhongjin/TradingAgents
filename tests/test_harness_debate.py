@@ -123,6 +123,20 @@ def test_debate_confirmer_runs_playbook_then_debate():
     assert len(calls) == 8
 
 
+def test_debate_confirmer_raises_when_every_llm_call_fails():
+    def broken(prompt):
+        raise RuntimeError("Error code: 401 - invalid_api_key")
+
+    candidate = _candidate()
+    with pytest.raises(RuntimeError, match="all debate turns failed: .*401"):
+        debate_confirmer(broken)(candidate, {"candidate": candidate.as_dict()})
+
+    from tradingagents.harness.pipeline import playbook_confirmer
+
+    with pytest.raises(RuntimeError, match="all playbook calls failed"):
+        playbook_confirmer(broken)(candidate, {"candidate": candidate.as_dict()})
+
+
 def test_build_harness_context_text_summarises_evidence():
     text = build_harness_context_text(
         {
