@@ -165,7 +165,13 @@ def _evaluate_one(
         raw, alpha, actual_days = returns_fetcher(ticker_code, entry_date.isoformat(), horizon_days)
         actual_holding_days = actual_days
         if raw is None or alpha is None or actual_days is None:
-            error = "return_data_unavailable"
+            # Fewer than two aligned closes: either the horizon has not started
+            # yet (entry today / yesterday) or data is genuinely missing.
+            if _horizon_may_still_elapse(entry_date, evaluated_at, horizon_days):
+                status = "pending"
+                error = "horizon_not_elapsed"
+            else:
+                error = "return_data_unavailable"
         elif actual_days < horizon_days:
             status = "pending"
             error = "insufficient_holding_days"
@@ -210,6 +216,13 @@ def _evaluate_one(
         alpha_return=alpha_return,
         error=error,
     )
+
+
+def _horizon_may_still_elapse(entry_date: date, evaluated_at: date, horizon_days: int) -> bool:
+    """True while fewer calendar days than a generous horizon window have passed."""
+
+    calendar_window = int(horizon_days * 1.6) + 7
+    return (evaluated_at - entry_date).days <= calendar_window
 
 
 def _benchmark_symbol(ticker_code: str) -> str | None:

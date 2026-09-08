@@ -67,6 +67,14 @@ def test_evaluate_harness_outcomes_completes_pending_and_unavailable():
 
     results = evaluate_harness_outcomes(repo, limit=10, as_of_date="2026-08-21", returns_fetcher=failing)
     assert [(r.horizon_days, r.status) for r in results] == [(5, "skipped"), (20, "unavailable")]
+
+    # no data yet on the entry day itself → pending, not unavailable
+    repo2 = _repo()
+    _seed(repo2)
+    results = evaluate_harness_outcomes(repo2, limit=10, as_of_date="2026-08-01", returns_fetcher=lambda c, e, h: (None, None, None))
+    assert [(r.horizon_days, r.status, r.error) for r in results] == [(5, "pending", "horizon_not_elapsed"), (20, "pending", "horizon_not_elapsed")]
+    results = evaluate_harness_outcomes(repo2, limit=10, as_of_date="2026-10-01", returns_fetcher=lambda c, e, h: (None, None, None))
+    assert [r.status for r in results] == ["unavailable", "unavailable"]
     summary = summarize_harness_outcome_results(results)
     assert summary["skipped_count"] == 1 and summary["unavailable_count"] == 1
     with pytest.raises(ValueError):
