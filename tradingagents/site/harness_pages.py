@@ -35,7 +35,10 @@ def render_harness_page(
         "available": "기록 있음",
         "empty": "기록 없음",
         "not_configured": "저장소 미연결",
+        "not_migrated": "마이그레이션 필요",
+        "unavailable": "저장소 오류",
     }.get(str(run_payload.get("status") or runs_payload.get("status")), "기록 없음")
+    storage_error = run_payload.get("error") or runs_payload.get("error")
 
     def fmt_pct(value: Any) -> str:
         try:
@@ -64,7 +67,10 @@ def render_harness_page(
         for item in decisions
     )
     if not decision_rows:
-        decision_rows = '<tr><td colspan="9">아직 저장된 하네스 결정이 없습니다. 운영자가 <code>tradingagents pipeline --persist</code> 또는 크론을 실행하면 여기에 기록됩니다.</td></tr>'
+        if storage_error:
+            decision_rows = f'<tr><td colspan="9">{_h(storage_error)}</td></tr>'
+        else:
+            decision_rows = '<tr><td colspan="9">아직 저장된 하네스 결정이 없습니다. 운영자가 <code>tradingagents pipeline --persist</code> 또는 크론을 실행하면 여기에 기록됩니다.</td></tr>'
 
     run_rows = "\n".join(
         f"""<li><a href="{_h(item.get('detail_path'))}">{_h(item.get('as_of_date'))}</a> · {_h(item.get('confirmer'))} · 후보 {_h(item.get('candidate_count'))} · 가상주문 {_h(item.get('order_count'))} · {'dry-run' if item.get('dry_run') else _h(item.get('broker'))}</li>"""

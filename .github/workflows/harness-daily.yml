@@ -39,10 +39,12 @@ jobs:
         run: pip install -e .
       - name: Run harness (dry run)
         run: |
+          PERSIST=""
+          if [ -n "$DATABASE_URL" ]; then PERSIST="--persist"; else echo "::warning::DATABASE_URL secret not set; running without --persist"; fi
           tradingagents pipeline \
             --confirmer "${{ github.event.inputs.confirmer || 'debate' }}" \
             --confirm "${{ github.event.inputs.confirm_top_n || '5' }}" \
-            --persist \
+            $PERSIST \
             --audit-log ./harness-audit.jsonl \
             --output ./harness-run.json
       - name: Verify audit chain

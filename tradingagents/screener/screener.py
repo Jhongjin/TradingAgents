@@ -37,6 +37,11 @@ class ScreenerConfig:
     factor_weights: dict[str, float] = field(default_factory=dict)
     min_composite: float = 0.0
     allow_fallback_universe: bool = True
+    # "auto": try whole-market pykrx frames, fall back to the bounded universe.
+    # "fallback": skip whole-market frames entirely (serverless/blocked networks).
+    snapshot_mode: str = "auto"
+    # Stop fetching history after this many seconds and rank what was scored.
+    time_budget_seconds: float | None = None
 
     def __post_init__(self) -> None:
         if self.top_n <= 0:
@@ -109,22 +114,40 @@ def screen_korean_market(
     the harness feeds the ranked list into the multi-agent confirmation step.
     """
 
+    import time
+
     config = config or ScreenerConfig()
+    started = time.monotonic()
     fetcher = history_fetcher or _chart_history_fetcher
     fallback_note: str | None = None
+    history_cache: dict[str, Sequence[Mapping[str, Any]]] = {}
+
+    def cached_fetcher(code: str, start: str, end: str) -> Sequence[Mapping[str, Any]]:
+        if code not in history_cache:
+            history_cache[code] = fetcher(code, start, end)
+        return history_cache[code]
+
+    snapshot_mode = _resolve_snapshot_mode(config.snapshot_mode)
     if snapshot is None:
-        loader = snapshot_loader or load_market_snapshot
-        try:
-            snapshot = loader(as_of_date, markets=config.markets)
-        except VendorUnavailableError as exc:
+        if snapshot_mode == "fallback":
             if not config.allow_fallback_universe:
-                raise
+                raise VendorUnavailableError("snapshot_mode=fallback requires allow_fallback_universe=True")
             codes = fallback_universe_codes()
-            snapshot = build_snapshot_from_history(codes, as_of_date, fetcher, markets=config.markets)
-            fallback_note = (
-                f"whole-market snapshot unavailable ({str(exc)[:120]}); "
-                f"used fallback universe of {len(codes)} tickers (market cap/PER filters skipped)"
-            )
+            snapshot = build_snapshot_from_history(codes, as_of_date, cached_fetcher, markets=config.markets, lookback_days=int(config.history_days * 1.6) + 10)
+            fallback_note = f"snapshot_mode=fallback: used bounded universe of {len(codes)} tickers (market cap/PER filters skipped)"
+        else:
+            loader = snapshot_loader or load_market_snapshot
+            try:
+                snapshot = loader(as_of_date, markets=config.markets)
+            except VendorUnavailableError as exc:
+                if not config.allow_fallback_universe:
+                    raise
+                codes = fallback_universe_codes()
+                snapshot = build_snapshot_from_history(codes, as_of_date, cached_fetcher, markets=config.markets, lookback_days=int(config.history_days * 1.6) + 10)
+                fallback_note = (
+                    f"whole-market snapshot unavailable ({str(exc)[:120]}); "
+                    f"used fallback universe of {len(codes)} tickers (market cap/PER filters skipped)"
+                )
     end_date = datetime.strptime(snapshot.as_of_date, "%Y-%m-%d").date()
     start_date = end_date - timedelta(days=int(config.history_days * 1.6) + 10)
 
@@ -137,9 +160,13 @@ def screen_korean_market(
         notes.append(fallback_note)
     scored: list[tuple[MarketSnapshotRow, FactorScores]] = []
     failures = 0
-    for row in prefiltered:
+    skipped_for_time = 0
+    for index, row in enumerate(prefiltered):
+        if config.time_budget_seconds is not None and (time.monotonic() - started) > config.time_budget_seconds and row.code not in history_cache:
+            skipped_for_time = len(prefiltered) - index
+            break
         try:
-            points = fetcher(row.code, start_date.isoformat(), end_date.isoformat())
+            points = cached_fetcher(row.code, start_date.isoformat(), end_date.isoformat())
         except Exception:
             failures += 1
             continue
@@ -149,6 +176,8 @@ def screen_korean_market(
         scored.append((row, factors))
     if failures:
         notes.append(f"history unavailable for {failures} rows")
+    if skipped_for_time:
+        notes.append(f"time budget {config.time_budget_seconds}s reached; {skipped_for_time} rows not scored")
 
     scored.sort(key=lambda item: item[1].composite, reverse=True)
     candidates: list[ScreenerCandidate] = []
@@ -183,6 +212,17 @@ def screen_korean_market(
         config=config,
         notes=notes,
     )
+
+
+def _resolve_snapshot_mode(value: str | None) -> str:
+    import os
+
+    selected = (value or "auto").strip().lower()
+    if selected == "auto":
+        selected = (os.getenv("TRADINGAGENTS_SCREENER_SNAPSHOT_MODE") or "auto").strip().lower()
+    if selected not in {"auto", "fallback"}:
+        raise ValueError("snapshot_mode must be 'auto' or 'fallback'")
+    return selected
 
 
 def _prefilter(rows: Sequence[MarketSnapshotRow], config: ScreenerConfig) -> list[MarketSnapshotRow]:

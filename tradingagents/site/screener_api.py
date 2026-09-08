@@ -50,6 +50,7 @@ def build_screener_payload(
         overrides["min_market_cap"] = float(min_market_cap)
     if max_per is not None:
         overrides["max_per"] = float(max_per)
+    overrides["time_budget_seconds"] = _web_time_budget_seconds()
     config = ScreenerConfig(**overrides)
     runner = screener_runner or screen_korean_market
     result = runner(as_of_date, config=config)
@@ -105,6 +106,21 @@ def build_forecast_payload(
             "risk_metrics": risk_summary(closes).as_dict(),
         }
     )
+
+
+def _web_time_budget_seconds() -> float:
+    """Keep synchronous web screens inside serverless limits (default 40s)."""
+
+    import os
+
+    raw = os.getenv("TRADINGAGENTS_SCREENER_TIME_BUDGET_SECONDS", "40")
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError("TRADINGAGENTS_SCREENER_TIME_BUDGET_SECONDS must be a number") from exc
+    if value <= 0:
+        raise ValueError("TRADINGAGENTS_SCREENER_TIME_BUDGET_SECONDS must be positive")
+    return value
 
 
 def _default_history_fetcher(chart_vendor: str | None):

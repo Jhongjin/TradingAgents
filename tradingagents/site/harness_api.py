@@ -33,6 +33,9 @@ STAGE_LABELS = {
 SUPPORTED_WEB_CONFIRMERS = ("none", "playbook", "debate")
 
 
+NOT_MIGRATED_MESSAGE = "harness_runs 테이블이 없습니다. supabase/migrations/202609080001_harness_runs.sql을 적용하세요."
+
+
 def build_harness_runs_payload(repo: StorageRepository | None, *, limit: int = 20, max_limit: int = 50) -> dict[str, Any]:
     if limit <= 0:
         raise ValueError("limit must be positive")
@@ -40,7 +43,10 @@ def build_harness_runs_payload(repo: StorageRepository | None, *, limit: int = 2
         raise ValueError(f"limit cannot exceed {max_limit}")
     if repo is None:
         return _json_ready({"status": "not_configured", "mode": "harness", "items": [], "notices": HARNESS_NOTICES})
-    rows = repo.list_harness_runs(limit=limit)
+    try:
+        rows = repo.list_harness_runs(limit=limit)
+    except Exception as exc:
+        return _json_ready(_storage_error_payload(exc, items=True))
     return _json_ready(
         {
             "status": "available" if rows else "empty",
@@ -56,7 +62,12 @@ def build_harness_runs_payload(repo: StorageRepository | None, *, limit: int = 2
 def build_harness_run_payload(repo: StorageRepository | None, *, harness_run_id: str | None = None) -> dict[str, Any] | None:
     if repo is None:
         return _json_ready({"status": "not_configured", "mode": "harness", "notices": HARNESS_NOTICES})
-    row = repo.get_harness_run(harness_run_id) if harness_run_id else repo.latest_harness_run()
+    try:
+        row = repo.get_harness_run(harness_run_id) if harness_run_id else repo.latest_harness_run()
+    except ValueError:
+        raise
+    except Exception as exc:
+        return _json_ready(_storage_error_payload(exc))
     if row is None:
         return None
     decisions = [_decision_item(item) for item in row.get("decisions", [])]
@@ -81,7 +92,10 @@ def build_harness_ticker_history_payload(
 ) -> dict[str, Any]:
     if repo is None:
         return _json_ready({"status": "not_configured", "mode": "harness", "items": []})
-    rows = repo.list_harness_decisions(ticker_code=ticker_code, limit=limit)
+    try:
+        rows = repo.list_harness_decisions(ticker_code=ticker_code, limit=limit)
+    except Exception as exc:
+        return _json_ready(_storage_error_payload(exc, items=True))
     return _json_ready(
         {
             "status": "available" if rows else "empty",
@@ -120,9 +134,11 @@ def run_harness_for_web(
     if selected not in SUPPORTED_WEB_CONFIRMERS:
         raise ValueError(f"confirmer must be one of {', '.join(SUPPORTED_WEB_CONFIRMERS)}")
     market_tuple = tuple(part.strip().upper() for part in markets.split(",") if part.strip())
+    from .screener_api import _web_time_budget_seconds
+
     config = PipelineConfig(
         markets=market_tuple,
-        screener=ScreenerConfig(markets=market_tuple, top_n=top_n),
+        screener=ScreenerConfig(markets=market_tuple, top_n=top_n, time_budget_seconds=_web_time_budget_seconds()),
         confirm_top_n=confirm_top_n,
         dry_run=True,
         require_llm_confirmation=selected != "none",
@@ -146,6 +162,22 @@ def run_harness_for_web(
     payload["inspect_path"] = f"/api/harness/runs/{result.run_id}" if result.run_id else "/api/harness/runs"
     payload["notices"] = HARNESS_NOTICES
     return _json_ready(payload)
+
+
+def _storage_error_payload(exc: Exception, *, items: bool = False) -> dict[str, Any]:
+    message = str(exc).lower()
+    missing_table = "harness_runs" in message or "harness_decisions" in message or "no such table" in message or "does not exist" in message
+    payload: dict[str, Any] = {
+        "status": "not_migrated" if missing_table else "unavailable",
+        "mode": "harness",
+        "execution_boundary": "dry_run_no_orders",
+        "error": NOT_MIGRATED_MESSAGE if missing_table else f"{exc.__class__.__name__}",
+        "notices": HARNESS_NOTICES,
+    }
+    if items:
+        payload["items"] = []
+        payload["item_count"] = 0
+    return payload
 
 
 def _web_ledger():
