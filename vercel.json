@@ -78,6 +78,10 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/pricing",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/disclaimer",
       "destination": "/api/index.py"
     },

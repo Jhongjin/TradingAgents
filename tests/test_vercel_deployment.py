@@ -152,3 +152,11 @@ def test_site_package_import_stays_lightweight(monkeypatch):
 
     assert "tradingagents.site.analysis_runner" not in sys.modules
     assert "tradingagents.graph.trading_graph" not in sys.modules
+
+
+def test_vercel_json_routes_pricing_page_to_fastapi_entrypoint():
+    import json
+    from pathlib import Path
+
+    config = json.loads(Path("vercel.json").read_text(encoding="utf-8"))
+    assert {"source": "/pricing", "destination": "/api/index.py"} in config["rewrites"]
