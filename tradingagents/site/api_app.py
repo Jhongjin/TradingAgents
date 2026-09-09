@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import hmac
 import time
@@ -39,8 +40,25 @@ from .harness_api import (
     build_harness_runs_payload,
     build_harness_ticker_history_payload,
 )
+from .billing import (
+    PLANS,
+    PortOneClient,
+    PortOneConfig,
+    PortOneError,
+    RESEARCH_TOOL_NOTICES,
+    build_checkout_payload,
+    cancel_at_period_end,
+    gate_harness_payload,
+    handle_portone_webhook,
+    latest_visible_run_id,
+    process_subscription_renewals,
+    resolve_plan_access,
+    start_trial,
+    verify_webhook_signature,
+)
 from .harness_pages import render_harness_page
 from .home_page import render_home_page
+from .pricing_page import render_pricing_page
 from .market_api import build_latest_prices_payload
 from .paper_simulation_api import EXECUTION_BOUNDARY_LABEL, build_member_paper_simulation_payload
 from .portfolio_api import build_manual_portfolio_list_payload, build_manual_portfolio_payload, normalize_portfolio_ticker
@@ -62,6 +80,10 @@ from .web_pages import (
     render_public_outcomes_page,
     render_public_stock_page,
 )
+
+
+class CheckoutBody(BaseModel):
+    plan: str = Field(pattern=r"^(daily|pro)$")
 
 
 class AnalysisRefreshRequestBody(BaseModel):
@@ -192,7 +214,10 @@ def create_app(
         response.headers.setdefault("Content-Security-Policy", _content_security_policy())
         if _request_is_https(request):
             response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-        if request.url.path in {"/member", "/mypage", "/admin"}:
+        if request.headers.get("Authorization") or request.headers.get("X-TradingAgents-User-Id") or request.url.path.startswith("/api/billing/"):
+            # Plan-gated and member responses must never be shared through a public cache.
+            response.headers.setdefault("Cache-Control", "private, no-store")
+        elif request.url.path in {"/member", "/mypage", "/admin"}:
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif (
             request.url.path == "/"
@@ -205,7 +230,7 @@ def create_app(
             or request.url.path.startswith("/stocks/")
             or request.url.path == "/features"
             or request.url.path.startswith("/features/")
-            or request.url.path in {"/privacy", "/terms", "/disclaimer"}
+            or request.url.path in {"/privacy", "/terms", "/disclaimer", "/pricing"}
             or request.url.path in {"/ads.txt", "/robots.txt", "/sitemap.xml"}
         ):
             seconds = request.app.state.public_cache_seconds
@@ -457,21 +482,146 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/harness/runs/latest")
-    def harness_latest_run(request: Request) -> dict:
-        payload = build_harness_run_payload(request.app.state.repository)
+    def harness_latest_run(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        access = resolve_plan_access(repo, _optional_member_user_id(request, x_tradingagents_user_id))
+        run_id = latest_visible_run_id(repo, access)
+        payload = build_harness_run_payload(repo, harness_run_id=run_id) if run_id else build_harness_run_payload(repo)
         if payload is None:
             raise HTTPException(status_code=404, detail="No harness runs yet")
-        return payload
+        return gate_harness_payload(payload, access)
 
     @app.get("/api/harness/runs/{harness_run_id}")
-    def harness_run(harness_run_id: str, request: Request) -> dict:
+    def harness_run(
+        harness_run_id: str,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
         try:
-            payload = build_harness_run_payload(request.app.state.repository, harness_run_id=harness_run_id)
+            payload = build_harness_run_payload(repo, harness_run_id=harness_run_id)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         if payload is None:
             raise HTTPException(status_code=404, detail="Harness run not found")
-        return payload
+        access = resolve_plan_access(repo, _optional_member_user_id(request, x_tradingagents_user_id))
+        return gate_harness_payload(payload, access)
+
+    # ------------------------------------------------------------ billing
+    @app.get("/pricing", response_class=HTMLResponse, include_in_schema=False)
+    def pricing_page(request: Request) -> HTMLResponse:
+        return HTMLResponse(render_pricing_page(site_base_url=_request_site_base_url(request)))
+
+    @app.get("/api/billing/plans")
+    def billing_plans() -> dict:
+        return {
+            "status": "available",
+            "mode": "research_tool",
+            "plans": [PLANS[name].as_dict() for name in ("free", "daily", "pro")],
+            "payment_configured": PortOneConfig.from_env().is_configured(),
+            "notices": RESEARCH_TOOL_NOTICES,
+        }
+
+    @app.get("/api/billing/me")
+    def billing_me(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        access = resolve_plan_access(repo, user_id)
+        events = repo.list_billing_events(user_id=user_id, limit=10) if repo is not None else []
+        return {
+            "status": "available",
+            "access": access.as_dict(),
+            "events": [
+                {"event_type": item.get("event_type"), "status": item.get("status"), "amount": item.get("amount"), "created_at": item.get("created_at"), "message": item.get("message")}
+                for item in events
+            ],
+            "notices": RESEARCH_TOOL_NOTICES,
+        }
+
+    @app.post("/api/billing/trial")
+    def billing_trial(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        try:
+            return start_trial(repo, user_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/billing/checkout")
+    def billing_checkout(
+        body: CheckoutBody,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        try:
+            return build_checkout_payload(user_id, body.plan, PortOneConfig.from_env(), redirect_url=f"{_request_site_base_url(request)}/mypage?billing=return")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except PortOneError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @app.post("/api/billing/cancel")
+    def billing_cancel(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        try:
+            return cancel_at_period_end(repo, user_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/billing/portone/webhook")
+    async def portone_webhook(request: Request) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        raw = await request.body()
+        config = PortOneConfig.from_env()
+        try:
+            verify_webhook_signature(request.headers, raw, config.webhook_secret)
+        except PortOneError as exc:
+            raise HTTPException(status_code=401, detail=str(exc)) from exc
+        try:
+            event = json.loads(raw.decode("utf-8") or "{}")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="invalid JSON body") from exc
+        client = getattr(request.app.state, "portone_client", None) or PortOneClient(config)
+        try:
+            return handle_portone_webhook(repo, event, client)
+        except PortOneError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    @app.post("/api/admin/subscriptions/renew")
+    def admin_subscription_renewals(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _process_subscription_renewals(request)
+
+    @app.get("/api/cron/process-subscription-renewals")
+    def process_subscription_renewals_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _process_subscription_renewals(request)
 
     @app.get("/api/harness/outcomes")
     def harness_outcomes(
@@ -2409,6 +2559,31 @@ def _paper_simulation_cron_worker_limit() -> int:
     if raw > max_limit:
         raise HTTPException(status_code=400, detail=f"paper simulation cron limit cannot exceed {max_limit}")
     return raw
+
+
+def _optional_member_user_id(request: Request, header_token: str | None) -> str | None:
+    """Resolve a member when credentials are present; anonymous visitors get None."""
+
+    if not request.headers.get("Authorization") and not header_token:
+        return None
+    try:
+        return resolve_member_user_id(request, header_token)
+    except HTTPException as exc:
+        if exc.status_code in {401, 403}:
+            return None
+        raise
+
+
+def _process_subscription_renewals(request: Request) -> dict:
+    repo = request.app.state.repository
+    if repo is None:
+        raise HTTPException(status_code=503, detail="Storage repository is not configured")
+    config = PortOneConfig.from_env()
+    client = getattr(request.app.state, "portone_client", None) or PortOneClient(config)
+    if client.transport is None and not config.api_secret:
+        return {"status": "not_configured", "due_count": 0, "charged_count": 0, "results": []}
+    result = process_subscription_renewals(repo, client)
+    return {"status": "completed", **result}
 
 
 def _require_worker_token(request: Request, header_token: str | None) -> None:

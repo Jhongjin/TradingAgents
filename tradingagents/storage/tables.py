@@ -281,6 +281,45 @@ harness_decisions = Table(
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
 )
 
+subscriptions = Table(
+    "subscriptions",
+    metadata,
+    Column("id", Uuid(as_uuid=False), primary_key=True),
+    Column("user_id", Uuid(as_uuid=False), nullable=False, unique=True),
+    Column("plan", String(16), nullable=False, default="free"),
+    Column("status", String(24), nullable=False, default="inactive"),
+    Column("provider", String(24), nullable=False, default="portone"),
+    Column("customer_key", String(120), nullable=True),
+    Column("billing_key", String(200), nullable=True),
+    Column("trial_ends_at", DateTime(timezone=True), nullable=True),
+    Column("current_period_start", DateTime(timezone=True), nullable=True),
+    Column("current_period_end", DateTime(timezone=True), nullable=True),
+    Column("cancel_at_period_end", Integer, nullable=False, default=0),
+    Column("last_payment_id", String(120), nullable=True),
+    Column("last_payment_at", DateTime(timezone=True), nullable=True),
+    Column("failure_count", Integer, nullable=False, default=0),
+    Column("metadata_json", JSON, nullable=False, default=dict),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+)
+
+billing_events = Table(
+    "billing_events",
+    metadata,
+    Column("id", Uuid(as_uuid=False), primary_key=True),
+    Column("subscription_id", Uuid(as_uuid=False), ForeignKey("subscriptions.id", ondelete="SET NULL"), nullable=True),
+    Column("user_id", Uuid(as_uuid=False), nullable=True, index=True),
+    Column("provider", String(24), nullable=False, default="portone"),
+    Column("event_type", String(64), nullable=False),
+    Column("payment_id", String(120), nullable=True, index=True),
+    Column("amount", Numeric(18, 2), nullable=True),
+    Column("currency", String(8), nullable=False, default="KRW"),
+    Column("status", String(24), nullable=True),
+    Column("message", Text, nullable=True),
+    Column("payload_json", JSON, nullable=False, default=dict),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+)
+
 harness_outcomes = Table(
     "harness_outcomes",
     metadata,

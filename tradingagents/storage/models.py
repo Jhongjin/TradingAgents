@@ -221,3 +221,35 @@ class PaperSimulationEventInput:
     transaction_tax: Decimal = Decimal("0")
     reason: str | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class SubscriptionInput:
+    user_id: str
+    plan: str = "free"
+    status: str = "inactive"
+    provider: str = "portone"
+    customer_key: str | None = None
+    billing_key: str | None = None
+    trial_ends_at: datetime | None = None
+    current_period_start: datetime | None = None
+    current_period_end: datetime | None = None
+    cancel_at_period_end: bool = False
+    last_payment_id: str | None = None
+    last_payment_at: datetime | None = None
+    failure_count: int = 0
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class BillingEventInput:
+    event_type: str
+    user_id: str | None = None
+    subscription_id: str | None = None
+    provider: str = "portone"
+    payment_id: str | None = None
+    amount: Decimal | None = None
+    currency: str = "KRW"
+    status: str | None = None
+    message: str | None = None
+    payload: Mapping[str, Any] = field(default_factory=dict)

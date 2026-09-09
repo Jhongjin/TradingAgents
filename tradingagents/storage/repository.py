@@ -20,7 +20,9 @@ from .models import (
     AnalysisRequestInput,
     AnalysisRunInput,
     HarnessDecisionInput,
+    BillingEventInput,
     HarnessOutcomeInput,
+    SubscriptionInput,
     HarnessRunInput,
     ManualTradeInput,
     PAPER_SIMULATION_ACCOUNT_NAME,
@@ -37,7 +39,9 @@ from .tables import (
     analysis_refresh_requests,
     analysis_runs,
     harness_decisions,
+    billing_events,
     harness_outcomes,
+    subscriptions,
     harness_runs,
     manual_portfolios,
     manual_price_targets,
@@ -1093,6 +1097,113 @@ class StorageRepository:
                 latest[ticker_code] = value
         return latest
 
+    # ------------------------------------------------------------ billing
+    def get_subscription(self, user_id: str) -> dict[str, Any] | None:
+        _validate_uuid(user_id, "user_id")
+        with self.engine.begin() as conn:
+            row = conn.execute(select(subscriptions).where(subscriptions.c.user_id == user_id)).mappings().first()
+        return _subscription_row(row) if row else None
+
+    def get_subscription_by_customer_key(self, customer_key: str) -> dict[str, Any] | None:
+        if not customer_key:
+            return None
+        with self.engine.begin() as conn:
+            row = conn.execute(select(subscriptions).where(subscriptions.c.customer_key == customer_key)).mappings().first()
+        return _subscription_row(row) if row else None
+
+    def upsert_subscription(self, data: SubscriptionInput) -> str:
+        """Insert or update the single subscription row a member owns."""
+
+        _validate_uuid(data.user_id, "user_id")
+        _validate_subscription_plan(data.plan)
+        _validate_subscription_status(data.status)
+        values = {
+            "plan": data.plan,
+            "status": data.status,
+            "provider": data.provider,
+            "customer_key": data.customer_key,
+            "billing_key": data.billing_key,
+            "trial_ends_at": data.trial_ends_at,
+            "current_period_start": data.current_period_start,
+            "current_period_end": data.current_period_end,
+            "cancel_at_period_end": 1 if data.cancel_at_period_end else 0,
+            "last_payment_id": data.last_payment_id,
+            "last_payment_at": data.last_payment_at,
+            "failure_count": int(data.failure_count),
+            "metadata_json": dict(data.metadata),
+            "updated_at": datetime.now(timezone.utc),
+        }
+        with self.engine.begin() as conn:
+            existing = conn.execute(select(subscriptions.c.id).where(subscriptions.c.user_id == data.user_id)).scalar_one_or_none()
+            if existing:
+                conn.execute(update(subscriptions).where(subscriptions.c.id == existing).values(**values))
+                return str(existing)
+            subscription_id = _id()
+            conn.execute(insert(subscriptions).values(id=subscription_id, user_id=data.user_id, **values))
+            return subscription_id
+
+    def list_subscriptions_due(self, *, before: datetime, limit: int = 100) -> list[dict[str, Any]]:
+        """Active paid subscriptions whose period ends before ``before`` (renewal candidates)."""
+
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        stmt = (
+            select(subscriptions)
+            .where(
+                subscriptions.c.status == "active",
+                subscriptions.c.plan != "free",
+                subscriptions.c.current_period_end.is_not(None),
+                subscriptions.c.current_period_end <= before,
+            )
+            .order_by(subscriptions.c.current_period_end)
+            .limit(limit)
+        )
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [_subscription_row(row) for row in rows]
+
+    def record_billing_event(self, data: BillingEventInput) -> str:
+        _validate_optional_uuid(data.user_id, "user_id")
+        _validate_optional_uuid(data.subscription_id, "subscription_id")
+        if not data.event_type:
+            raise ValueError("event_type is required")
+        event_id = _id()
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(billing_events).values(
+                    id=event_id,
+                    subscription_id=data.subscription_id,
+                    user_id=data.user_id,
+                    provider=data.provider,
+                    event_type=data.event_type,
+                    payment_id=data.payment_id,
+                    amount=data.amount,
+                    currency=data.currency,
+                    status=data.status,
+                    message=data.message,
+                    payload_json=dict(data.payload),
+                )
+            )
+        return event_id
+
+    def billing_event_exists(self, *, payment_id: str, event_type: str) -> bool:
+        if not payment_id:
+            return False
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(billing_events.c.id).where(billing_events.c.payment_id == payment_id, billing_events.c.event_type == event_type).limit(1)
+            ).first()
+        return row is not None
+
+    def list_billing_events(self, *, user_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        _validate_uuid(user_id, "user_id")
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        stmt = select(billing_events).where(billing_events.c.user_id == user_id).order_by(desc(billing_events.c.created_at)).limit(limit)
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+
     def get_paper_simulation_account(
         self,
         *,
@@ -1489,6 +1600,26 @@ def _harness_run_row(row: Any) -> dict[str, Any]:
     payload = dict(row)
     payload["dry_run"] = bool(payload.get("dry_run"))
     return payload
+
+
+SUBSCRIPTION_PLANS = ("free", "daily", "pro")
+SUBSCRIPTION_STATUSES = ("inactive", "trialing", "active", "past_due", "canceled")
+
+
+def _subscription_row(row: Any) -> dict[str, Any]:
+    payload = dict(row)
+    payload["cancel_at_period_end"] = bool(payload.get("cancel_at_period_end"))
+    return payload
+
+
+def _validate_subscription_plan(value: str) -> None:
+    if value not in SUBSCRIPTION_PLANS:
+        raise ValueError(f"plan must be one of {', '.join(SUBSCRIPTION_PLANS)}")
+
+
+def _validate_subscription_status(value: str) -> None:
+    if value not in SUBSCRIPTION_STATUSES:
+        raise ValueError(f"status must be one of {', '.join(SUBSCRIPTION_STATUSES)}")
 
 
 def _validate_optional_uuid(value: str | None, field_name: str) -> None:
