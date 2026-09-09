@@ -128,3 +128,15 @@ GitHub Actions workflow both run dry runs; see
   backend using the same audit ledger.
 - Extend the screener universe loader to US tickers only after the Korean
   loop is stable.
+
+
+## 유니버스: 코스피200 + 코스닥150 (2026-09-09)
+
+`TRADINGAGENTS_SCREENER_SNAPSHOT_MODE=index`가 기본 운영 모드입니다.
+
+- 코스피200: 네이버 금융 구성종목 페이지에서 실제 구성종목(약 200)을 현재가·거래대금·시가총액과 함께 읽습니다.
+- 코스닥150: KRX 데이터포털 계정(`KRX_ID`/`KRX_PW`)이 있으면 pykrx로 실제 구성종목을 가져오고, 없으면
+  코스닥 시가총액 상위 150종목을 대리 유니버스로 씁니다. `TRADINGAGENTS_KOSDAQ150_CODES`(CSV)로 직접
+  지정할 수도 있습니다. 스냅샷 `vendor` 문자열에 어느 쪽을 썼는지 기록됩니다.
+- 사전 필터 상한(`prefilter_limit`)은 400으로 올려 전 종목이 채점 대상이 되며, Vercel에서는 40초 시간 예산 안에
+  받은 이력만 채점하고 나머지는 노트에 남깁니다. LLM 토론이 붙는 본 실행은 GitHub Actions에서 전체를 채점합니다.
