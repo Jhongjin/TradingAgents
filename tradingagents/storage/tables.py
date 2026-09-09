@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sqlalchemy import (
+    Boolean,
     Column,
     JSON,
     Date,
@@ -294,7 +295,7 @@ subscriptions = Table(
     Column("trial_ends_at", DateTime(timezone=True), nullable=True),
     Column("current_period_start", DateTime(timezone=True), nullable=True),
     Column("current_period_end", DateTime(timezone=True), nullable=True),
-    Column("cancel_at_period_end", Integer, nullable=False, default=0),
+    Column("cancel_at_period_end", Boolean, nullable=False, default=False),
     Column("last_payment_id", String(120), nullable=True),
     Column("last_payment_at", DateTime(timezone=True), nullable=True),
     Column("failure_count", Integer, nullable=False, default=0),
@@ -331,7 +332,7 @@ notification_channels = Table(
     Column("link_code", String(32), nullable=True, index=True),
     Column("link_code_expires_at", DateTime(timezone=True), nullable=True),
     Column("linked_at", DateTime(timezone=True), nullable=True),
-    Column("enabled", Integer, nullable=False, default=1),
+    Column("enabled", Boolean, nullable=False, default=True),
     Column("metadata_json", JSON, nullable=False, default=dict),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),

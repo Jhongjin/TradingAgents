@@ -1118,7 +1118,7 @@ class StorageRepository:
             "link_code": data.link_code,
             "link_code_expires_at": data.link_code_expires_at,
             "linked_at": data.linked_at,
-            "enabled": 1 if data.enabled else 0,
+            "enabled": bool(data.enabled),
             "metadata_json": dict(data.metadata),
             "updated_at": datetime.now(timezone.utc),
         }
@@ -1159,7 +1159,7 @@ class StorageRepository:
         stmt = (
             select(notification_channels, subscriptions.c.plan.label("plan"), subscriptions.c.status.label("subscription_status"), subscriptions.c.current_period_end, subscriptions.c.trial_ends_at)
             .select_from(notification_channels.outerjoin(subscriptions, subscriptions.c.user_id == notification_channels.c.user_id))
-            .where(notification_channels.c.channel == channel, notification_channels.c.enabled == 1, notification_channels.c.external_id.is_not(None))
+            .where(notification_channels.c.channel == channel, notification_channels.c.enabled.is_(True), notification_channels.c.external_id.is_not(None))
             .order_by(notification_channels.c.linked_at)
             .limit(limit)
         )
@@ -1205,7 +1205,7 @@ class StorageRepository:
             "trial_ends_at": data.trial_ends_at,
             "current_period_start": data.current_period_start,
             "current_period_end": data.current_period_end,
-            "cancel_at_period_end": 1 if data.cancel_at_period_end else 0,
+            "cancel_at_period_end": bool(data.cancel_at_period_end),
             "last_payment_id": data.last_payment_id,
             "last_payment_at": data.last_payment_at,
             "failure_count": int(data.failure_count),
