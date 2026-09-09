@@ -246,6 +246,9 @@ class KISClient:
     ) -> Mapping[str, Any]:
         import requests
 
+        from tradingagents.dataflows.http_trust import apply_system_truststore_if_available
+
+        apply_system_truststore_if_available()
         response = requests.request(method, url, headers=dict(headers), params=params, json=json, timeout=self.timeout)
         try:
             payload = response.json()

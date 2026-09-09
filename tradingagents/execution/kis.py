@@ -11,13 +11,26 @@ from dataclasses import dataclass
 import os
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class KISConfig:
     account_no: str | None
     account_product_code: str | None
     app_key: str | None
     app_secret: str | None
     is_paper: bool = True
+
+    def __repr__(self) -> str:
+        """Never echo credentials into tracebacks, logs, or REPL output."""
+
+        account = self.account_no or ""
+        masked_account = (account[:2] + "*" * max(len(account) - 4, 0) + account[-2:]) if len(account) >= 4 else ("***" if account else None)
+        return (
+            f"KISConfig(account_no={masked_account!r}, account_product_code={self.account_product_code!r}, "
+            f"app_key={'***' if self.app_key else None!r}, app_secret={'***' if self.app_secret else None!r}, "
+            f"is_paper={self.is_paper!r})"
+        )
+
+    __str__ = __repr__
 
     @classmethod
     def from_env(cls) -> "KISConfig":

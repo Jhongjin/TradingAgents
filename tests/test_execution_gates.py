@@ -294,3 +294,13 @@ def test_kis_adapter_refuses_live_without_every_gate(monkeypatch):
     assert live.validation_errors() == []
     monkeypatch.setenv("TRADINGAGENTS_ENABLE_LIVE_TRADING", "false")
     assert any("TRADINGAGENTS_ENABLE_LIVE_TRADING" in error for error in live.validation_errors())
+
+
+def test_kis_config_repr_masks_credentials():
+    config = KISConfig(account_no="12345678", account_product_code="01", app_key="real-app-key", app_secret="real-secret", is_paper=True)
+    text = f"{config!r} {config}"
+    assert "real-app-key" not in text
+    assert "real-secret" not in text
+    assert "12345678" not in text
+    assert "12****78" in text
+    assert "is_paper=True" in text

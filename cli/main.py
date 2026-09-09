@@ -37,6 +37,9 @@ app = typer.Typer(
     name="TradingAgents",
     help="TradingAgents CLI: Multi-Agents LLM Financial Trading Framework",
     add_completion=True,  # Enable shell completion
+    # Never dump local variables into tracebacks: broker configs and API
+    # payloads carry credentials.
+    pretty_exceptions_show_locals=False,
 )
 
 
