@@ -124,14 +124,19 @@ def test_home_sources_are_memoised_per_repo(monkeypatch):
 
 
 def test_home_shows_free_view_with_today_teaser():
+    # the free-view gate compares against the real Seoul date, so seed relative to it
+    from datetime import timedelta
+
+    now = datetime.now(ZoneInfo("Asia/Seoul"))
+    today, yesterday = now.date(), now.date() - timedelta(days=1)
     repo = _repo()
-    _seed(repo, date(2026, 9, 8))
-    repo.create_harness_run(HarnessRunInput(as_of_date=date(2026, 9, 9), confirmer="debate", candidate_count=20, order_count=2))
-    model = build_home_view_model(repo, now=NOW)
-    assert model["run"]["as_of_date"] == "2026-09-08"  # free view: previous day
-    assert model["teaser"] == {"as_of_date": "2026-09-09", "candidate_count": 20, "order_count": 2, "confirmer": "debate"}
+    _seed(repo, yesterday)
+    repo.create_harness_run(HarnessRunInput(as_of_date=today, confirmer="debate", candidate_count=20, order_count=2))
+    model = build_home_view_model(repo, now=now)
+    assert model["run"]["as_of_date"] == yesterday.isoformat()  # free view: previous day
+    assert model["teaser"] == {"as_of_date": today.isoformat(), "candidate_count": 20, "order_count": 2, "confirmer": "debate"}
     assert [item["role"] for item in model["debate"]] == ["bull", "bear", "judge", "risk_panel"]  # excerpts only
-    html = render_home_page(repo=repo, now=NOW)
+    html = render_home_page(repo=repo, now=now)
     assert "오늘" in html and "데일리 패스" in html and "후보 20개 중 2개 통과" in html
 
 

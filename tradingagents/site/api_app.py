@@ -63,6 +63,7 @@ from .billing import (
 from .billing_page import render_billing_page
 from .harness_pages import render_harness_page
 from .brand import favicon_ico, favicon_svg, icon_png, web_manifest
+from .design_system import rating_label
 from .home_page import build_home_view_model, render_home_page
 from .og_image import og_stats, render_og_image
 from .ticker_history_page import build_ticker_history_model, render_ticker_history_page
@@ -501,7 +502,7 @@ def create_app(
             raise HTTPException(status_code=404, detail="Not found")
         model = build_ticker_history_model(request.app.state.repository, ticker=ticker, site_base_url=_request_site_base_url(request))
         latest = model.get("latest") or {}
-        stats = og_stats([("선별 등장", f"{len(model['items'])}회"), ("AI 토론 통과", f"{len(model['passed'])}회"), ("마지막 판정", str(latest.get("confirmation_rating") or latest.get("stage_label") or "–")), ("판정일", str(latest.get("as_of_date") or "–"))])
+        stats = og_stats([("선별 등장", f"{len(model['items'])}회"), ("AI 토론 통과", f"{len(model['passed'])}회"), ("마지막 판정", rating_label(latest.get("confirmation_rating")) or str(latest.get("stage_label") or "–")), ("판정일", str(latest.get("as_of_date") or "–"))])
         png = render_og_image(f"{model['name']}({ticker}) AI 판정 이력", model["answer"], f"{model['market']} 종목", stats, _og_footer(request))
         return Response(png, media_type="image/png", headers=_OG_HEADERS)
 

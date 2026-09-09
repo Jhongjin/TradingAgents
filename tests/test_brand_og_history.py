@@ -58,7 +58,7 @@ def test_ticker_history_model_and_page():
     run_id = _seed(repo)
     model = build_ticker_history_model(repo, ticker=TICKER, site_base_url="https://example.com")
     assert model["name"] == "SK하이닉스" and len(model["items"]) == 1 and len(model["passed"]) == 1
-    assert model["answer"].startswith("SK하이닉스(000660)는 최근 1회 선별에서 1회 통과했습니다. 마지막 판정은 2026-09-08 Overweight")
+    assert model["answer"].startswith("SK하이닉스(000660)는 최근 1회 선별에서 1회 통과했습니다. 마지막 판정은 2026-09-08 비중 확대")
 
     html = render_ticker_history_page(TICKER, repo=repo, site_base_url="https://example.com")
     assert "<title>SK하이닉스(000660) AI 판정 이력 | TradingAgents Korea</title>" in html

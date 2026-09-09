@@ -10,7 +10,7 @@ from typing import Any
 
 from tradingagents.storage import StorageRepository
 
-from .design_system import badge, h, icon, icon_tile, render_shell, stat_tile
+from .design_system import badge, h, icon, icon_tile, rating_label, render_shell, stat_tile
 from .harness_api import build_harness_outcomes_payload, build_harness_ticker_history_payload
 from .seo import canonical_url
 
@@ -56,7 +56,7 @@ def build_ticker_history_model(repo: StorageRepository | None, *, ticker: str, s
     summary = outcomes.get("summary") or {}
     five, twenty = summary.get("5") or {}, summary.get("20") or {}
     if latest:
-        verdict = latest.get("confirmation_rating") or latest.get("stage_label") or "-"
+        verdict = rating_label(latest.get("confirmation_rating")) or latest.get("stage_label") or "-"
         answer = f"{name}({ticker})는 최근 {len(items)}회 선별에서 {len(passed)}회 통과했습니다. 마지막 판정은 {latest.get('as_of_date')} {verdict}입니다."
     else:
         answer = f"{name}({ticker})는 아직 종목 선별에 오른 기록이 없습니다. 선별 대상에 들어오면 이 페이지에 판정이 쌓입니다."
@@ -112,7 +112,7 @@ def render_ticker_history_page(ticker: str, *, repo: StorageRepository | None = 
           <td>{badge(str(item.get('stage_label') or stage), tone, icon_name=ic)}</td>
           <td class="num">{h(f"{float(item['composite_score']):.2f}") if item.get('composite_score') is not None else '-'}</td>
           <td class="num">{h(_pct(item.get('forecast_expected_return')))}<small>상승 확률 {h(_pct(item.get('forecast_probability_up'), 0)) if item.get('forecast_probability_up') is not None else '-'}</small></td>
-          <td>{badge(str(item.get('confirmation_rating')), 'b-violet') if item.get('confirmation_rating') else '<span class="muted">-</span>'}<small class="num">{('신뢰도 ' + f"{float(item['confirmation_confidence']):.2f}") if item.get('confirmation_confidence') is not None else ''}</small></td>
+          <td>{badge(rating_label(item.get('confirmation_rating')), 'b-violet') if item.get('confirmation_rating') else '<span class="muted">-</span>'}<small class="num">{('신뢰도 ' + f"{float(item['confirmation_confidence']):.2f}") if item.get('confirmation_confidence') is not None else ''}</small></td>
           <td>{'<br>'.join(outcome_bits) or '<span class="muted">-</span>'}</td>
           <td class="small ink2" style="max-width: 240px;">{h('; '.join(str(r) for r in (item.get('reasons') or [])[:2]))}</td>
         </tr>"""

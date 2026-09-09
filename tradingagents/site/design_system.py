@@ -485,6 +485,16 @@ def pct(value: float | None, *, digits: int = 2, sign: bool = True) -> str:
     return f'<span class="num {cls}">{txt}</span>'
 
 
+RATING_LABELS = {"overweight": "비중 확대", "underweight": "비중 축소", "neutral": "중립", "buy": "매수", "sell": "매도", "hold": "보유", "strong buy": "적극 매수", "strong sell": "적극 매도"}
+
+
+def rating_label(value: Any) -> str:
+    """Korean label for an AI rating (Overweight → 비중 확대); unknown values pass through."""
+
+    text = str(value or "").strip()
+    return RATING_LABELS.get(text.lower(), text)
+
+
 def money(value: float | int | None, unit: str = "원") -> str:
     if value is None:
         return "–"

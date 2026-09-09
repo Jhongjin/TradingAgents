@@ -6,7 +6,7 @@ from typing import Any
 
 from tradingagents.storage import StorageRepository
 
-from .design_system import badge, h, icon, icon_tile, render_shell, stat_tile
+from .design_system import badge, h, icon, icon_tile, rating_label, render_shell, stat_tile
 from .harness_api import HARNESS_NOTICES, build_harness_run_payload, build_harness_runs_payload
 from .seo import canonical_url
 
@@ -117,7 +117,7 @@ def render_harness_page(
           <td>{badge(str(item.get('stage_label') or stage), tone, icon_name=ic)}</td>
           <td class="num">{h(_fmt_num(item.get('composite_score'), 3))}</td>
           <td class="num">{h(_fmt_pct(item.get('forecast_expected_return')))}<small>상승 {h(_fmt_pct(item.get('forecast_probability_up')) if item.get('forecast_probability_up') is not None else '-')}</small></td>
-          <td>{badge(str(item.get('confirmation_rating')), 'b-violet') if item.get('confirmation_rating') else '<span class="muted">-</span>'}<small class="num">{h(_fmt_num(item.get('confirmation_confidence'), 2))} · {h(item.get('confirmation_source') or '-')}</small></td>
+          <td>{badge(rating_label(item.get('confirmation_rating')), 'b-violet') if item.get('confirmation_rating') else '<span class="muted">-</span>'}<small class="num">{h(_fmt_num(item.get('confirmation_confidence'), 2))} · {h(item.get('confirmation_source') or '-')}</small></td>
           <td class="num">{h(item.get('quantity') or '-')}<small>{h(_fmt_num(item.get('entry_price')))} / 손절 {h(_fmt_num(item.get('stop_price')))}</small></td>
           <td>{h(item.get('order_status') or '-')}</td>
           <td>{_outcome_cell(item.get('outcomes') or [])}</td>

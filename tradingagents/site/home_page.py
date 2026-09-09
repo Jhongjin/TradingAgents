@@ -343,7 +343,7 @@ def render_home_page(*, repo: StorageRepository | None = None, site_base_url: st
 
 from .design_system import THEMES as DS_THEMES  # noqa: E402
 from .design_system import THEME_LABELS as DS_THEME_LABELS  # noqa: E402
-from .design_system import badge, icon, icon_tile, render_shell, sparkline_svg, stat_tile  # noqa: E402
+from .design_system import badge, icon, icon_tile, rating_label, render_shell, sparkline_svg, stat_tile  # noqa: E402
 
 THEMES = DS_THEMES
 THEME_LABELS = DS_THEME_LABELS
@@ -479,7 +479,7 @@ def _pick_row(index: int, item: Mapping[str, Any]) -> str:
       <td class="spark"><span data-spark="{_h(code)}" data-w="104" data-h="32"><span class="tiny muted">불러오는 중</span></span></td>
       <td><div class="num" style="font-weight: 600;">{_h(_num(score, 2)) if score is not None else '-'}</div><div class="bar" style="width: 60px; margin-top: 5px;"><i style="width: {score_width}%; background: var(--blue);"></i></div></td>
       <td><div class="num"><span class="{_sign_class(item.get('forecast_expected_return'))}" style="font-weight: 700;">{_h(_pct(item.get('forecast_expected_return')))}</span> <span class="muted tiny">/ {_h(_pct(prob, 0, signed=False))}</span></div><div class="bar" style="width: 60px; margin-top: 5px;"><i style="width: {prob_pct}%; background: var(--violet);"></i></div></td>
-      <td>{badge(str(rating), 'b-violet') if rating else '<span class="muted">-</span>'}<div class="tiny muted num" style="margin-top: 4px;">{'신뢰도 ' + _h(_num(confidence, 2)) if confidence is not None else ''}</div></td>
+      <td>{badge(rating_label(rating), 'b-violet') if rating else '<span class="muted">-</span>'}<div class="tiny muted num" style="margin-top: 4px;">{'신뢰도 ' + _h(_num(confidence, 2)) if confidence is not None else ''}</div></td>
       <td>{_stage_badge(item)}<div class="tiny muted num" style="margin-top: 4px;">{'@ ' + _h(_num(price)) if price else ''}</div></td>
     </tr>"""
 
@@ -585,7 +585,7 @@ def _render(model: dict[str, Any]) -> str:
         debate_html = f"""<div class="card">
       <div class="card-h"><h2>{icon_tile("brain", "b-violet", small=True)}{_h(featured.get('ticker_name') or featured.get('ticker_code'))}, 이렇게 결정됐습니다</h2>{lock}</div>
       <div class="card-b"><div class="quotes">{quotes}</div></div>
-      <div class="card-f"><span>포트폴리오 매니저: <b style="color: var(--ink);">{_h(featured.get('confirmation_rating') or '-')} · 확신 {_h(_num(featured.get('confirmation_confidence'), 2))}{' · 비중 ' + _h(_pct(weight, 0, signed=False)) if weight is not None else ''}</b></span><a class="link" href="{_h((run or {}).get('detail_path') or '/harness')}">토론 전문 보기 →</a></div>
+      <div class="card-f"><span>포트폴리오 매니저: <b style="color: var(--ink);">{_h(rating_label(featured.get('confirmation_rating')) or '-')} · 확신 {_h(_num(featured.get('confirmation_confidence'), 2))}{' · 비중 ' + _h(_pct(weight, 0, signed=False)) if weight is not None else ''}</b></span><a class="link" href="{_h((run or {}).get('detail_path') or '/harness')}">토론 전문 보기 →</a></div>
     </div>"""
 
     # sidebar: account ----------------------------------------------------------
