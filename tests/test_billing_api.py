@@ -183,5 +183,6 @@ def test_csp_allows_payment_sdk_and_web_fonts(monkeypatch):
     csp = client.get("/pricing").headers["content-security-policy"]
     assert "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.portone.io" in csp
     assert "https://fonts.googleapis.com" in csp and "https://fonts.gstatic.com" in csp
-    assert "frame-src 'self' https://*.portone.io https://*.tosspayments.com" in csp
+    assert "frame-src 'self' https://*.portone.io https://*.iamport.co" in csp
+    assert "https://*.iamport.co" in csp.split("connect-src", 1)[1]
     assert "frame-ancestors 'none'" in csp
