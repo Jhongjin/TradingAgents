@@ -77,7 +77,7 @@ def test_render_home_page_escapes_debate_text_and_offers_themes():
     assert "토론 기록 — SK하이닉스는 이렇게 결정됐다" in html
     for theme in THEMES:
         assert f'data-theme="{theme}"' in html
-    assert ':root[data-theme="dark"]' in html and ':root[data-theme="sepia"]' in html
+    assert ':root[data-theme="dark"]' in html and ':root[data-theme="paper"]' in html
     assert "prefers-color-scheme: dark" in html
     assert "localStorage.getItem('ta-theme')" in html
     assert 'data-rail-tickers="005930,000660,035420,373220,086520,196170"' in html

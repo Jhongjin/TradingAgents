@@ -364,10 +364,7 @@ def test_render_public_home_page_is_usable_analysis_explorer():
     assert 'href="/member?mode=signup"' in html
     assert 'href="/" aria-current="page">종목 검색</a>' in html
     assert 'href="/features/research"' in html
-    assert 'href="/outcomes">사후 결과</a>' in html
     assert 'href="/mypage"' in html
-    assert 'data-auth-visible="signed-out"' in html
-    assert 'data-auth-visible="signed-in" hidden' in html
     assert "분석 흐름" in html
     assert "하나의 차트 위로 융합되는 5대 핵심 시그널 맵" in html
     assert "내 리서치 공간이 열립니다" in html
@@ -443,14 +440,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "align-items: center;" in html
     assert "display: inline-flex;" in html
     assert "display: flex;" in html
-    assert "gap: 0.375rem;" in html
-    assert "align-items: flex-end;" in html
-    assert "font-weight: 950;" in html
-    assert "color: #dcfc13;" in html
-    assert "border: 1px solid rgba(220, 252, 19, 0.42);" in html
     assert "*01*" not in html
-    assert "background: var(--home-acid);" in html
-    assert "color: #10130f;" in html
     assert "첫 매매 일지를 만들어 보세요" in html
     assert "실제 계좌 주문과 연결되지 않는 조회 전용 기록 공간입니다." in html
     assert "매매 일지 시작" in html
@@ -476,7 +466,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "data-admin-token-visible hidden" not in html
     assert "운영 콘솔" in html
     assert "adminTokenItems" not in html
-    assert 'class="top-admin-link" href="/admin" data-auth-visible="admin" hidden>운영 콘솔</a>' in html
+    assert 'class="member-admin-link" href="/admin" data-admin-only hidden>운영 콘솔</a>' in html
+    assert 'data-theme="dark"' in html and "Pretendard" in html
     assert 'storageGet("tradingagents.admin.worker_token")' in html
     assert 'node.hidden = !(signedIn || storageGet("tradingagents.admin.worker_token") || window.location.pathname === "/admin")' in html
     assert 'data-member-jump="portfolio"' in html
@@ -509,26 +500,14 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "tickerFromForm" in html
     assert "매수/매도 기록" in html
     assert "목표/손절 메모" in html
-    assert "--member-form-control-height: 44px;" in html
-    assert ".member-page #portfolioForm" in html
-    assert "align-items: stretch;" in html
-    assert "gap: 0.5rem;" in html
     assert "grid-template-columns: repeat(4, minmax(0, 1fr));" in html
-    assert "grid-column: span 4 / span 4;" in html
-    assert "grid-column: span 3 / span 3;" in html
-    assert "grid-column: span 1 / span 1;" in html
-    assert "align-self: stretch;" in html
-    assert "align-self: center;" in html
     assert "display: inline-flex;" in html
     assert 'href="#portfolio-section"' in html
     assert 'id="watchlist-section"' in html
     assert "새 관심그룹" in html
     assert "그룹 만들기" in html
     assert "종목 담기" in html
-    assert ".member-page #watchlistForm" in html
-    assert ".member-page #watchlistItemForm" in html
     assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in html
-    assert "gap: 0.75rem;" in html
     assert "새 관심그룹 생성 가동" in html
     assert "그룹 이름 입력" not in html
     assert "그룹 이름 수정" in html
@@ -539,11 +518,8 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert 'method: "PATCH"' in html
     assert 'id="memberAuthLanding"' in html
     assert 'id="memberWorkspace" hidden' in html
-    assert 'class="member-page is-member-checking"' in html
-    assert 'data-auth-visible="signed-out"' in html
-    assert 'data-auth-visible="signed-in" hidden' in html
-    assert 'href="/">종목 검색</a>' in html
-    assert 'href="/outcomes">사후 결과</a>' in html
+    assert 'data-auth="signed-out"' in html and 'data-auth="signed-in"' in html
+    assert 'member-page is-member-checking"' in html
     assert 'href="/mypage"' in html
     assert 'href="/stocks/005930">삼성전자</a>' not in html
     assert "/api/portfolios" in html
@@ -610,11 +586,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert "종목명이나 6자리 코드만 입력하면 최근 기준일로 요청합니다" in html
     assert "analysis-queue-overview" in html
     assert "analysis-queue-meters" in html
-    assert ".member-page #analysisRequestList" in html
     assert "margin-top: 8px;" in html
-    assert ".analysis-request-form #analysisWatchlistTickerSelect" in html
-    assert "grid-column: span 3 / span 3;" in html
-    assert "grid-column: span 1 / span 1;" in html
     assert "새로운 종목 분석 대기열 가동" in html
     assert "요청 종목 입력" not in html
     assert "letter-spacing: -0.02em;" in html
@@ -683,7 +655,7 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert '"configured":true' in html
     assert "anon-key" in html
     assert "service-role-secret" not in html
-    assert '<meta name="robots" content="noindex,nofollow">' in html
+    assert '<meta name="robots" content="noindex, nofollow">' in html
 
 
 def test_render_feature_index_page_guides_first_visit():

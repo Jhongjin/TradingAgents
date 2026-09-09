@@ -76,7 +76,7 @@ from .notifications import (
     unlink_channel,
 )
 from .pricing_page import render_pricing_page
-from .market_api import build_latest_prices_payload
+from .market_api import build_latest_prices_payload, build_sparkline_payload
 from .paper_simulation_api import EXECUTION_BOUNDARY_LABEL, build_member_paper_simulation_payload
 from .portfolio_api import build_manual_portfolio_list_payload, build_manual_portfolio_payload, normalize_portfolio_ticker
 from .public_api import build_public_stock_payload
@@ -1134,6 +1134,17 @@ def create_app(
         except (VendorUnavailableError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @app.get("/api/prices/sparkline")
+    def price_sparklines(
+        request: Request,
+        tickers: Annotated[str, Query(description="Comma-separated Korean ticker codes")],
+        days: int = 60,
+    ) -> dict:
+        try:
+            return build_sparkline_payload(tickers.split(","), days=days, max_tickers=request.app.state.max_price_tickers)
+        except (VendorUnavailableError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.get("/api/tickers/search")
     def ticker_search(
         q: Annotated[str, Query(min_length=1, max_length=80)],
@@ -2164,9 +2175,9 @@ def _content_security_policy() -> str:
         "frame-ancestors 'none'; "
         "form-action 'self'; "
         "img-src 'self' data: https://*.portone.io https://*.iamport.co https://*.iamport.kr; "
-        "font-src 'self' data: https://fonts.gstatic.com; "
+        "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
         "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.portone.io https://cdn.iamport.kr; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
         "frame-src 'self' https://*.portone.io https://*.iamport.co https://*.iamport.kr https://*.tosspayments.com https://*.kakao.com https://*.kakaopay.com https://*.naver.com https://*.inicis.com https://*.nicepay.co.kr; "
         "connect-src 'self' https://*.supabase.co https://*.supabase.com https://*.portone.io https://*.iamport.co https://*.iamport.kr https://*.tosspayments.com"
     )

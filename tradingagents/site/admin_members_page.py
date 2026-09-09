@@ -2,38 +2,15 @@
 
 from __future__ import annotations
 
-import html
-from typing import Any
-
-from .home_page import HOME_CSS, HOME_JS, THEMES, THEME_LABELS
-from .seo import canonical_url
-
-
-def _h(value: Any) -> str:
-    return html.escape("" if value is None else str(value), quote=True)
-
+from .design_system import badge, h, icon, icon_tile, render_shell
 
 MEMBERS_CSS = """
-.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:18px}
-.stat{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:12px 14px}
-.stat .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-.stat .v{font-family:"IBM Plex Mono",monospace;font-size:22px}
-.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
-.toolbar input{padding:9px 12px;border:1px solid var(--line-strong);border-radius:6px;background:var(--panel);color:var(--ink);font:inherit;min-width:260px}
-.members{width:100%;border-collapse:collapse;font-size:13px;min-width:960px}
-.members th{text-align:left;font-size:11px;letter-spacing:.04em;color:var(--muted);font-weight:600;padding:0 8px 8px;border-bottom:1px solid var(--line-strong)}
-.members td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
-.members .mono{font-size:12px}
-.pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;background:var(--bg2);color:var(--ink2);border:1px solid var(--line)}
-.pill.paid{background:var(--accent-soft);color:var(--accent-ink);border-color:transparent}
-.pill.trial{background:var(--brass-soft);color:var(--brass);border-color:transparent}
-.pill.admin{background:var(--ink);color:var(--bg);border-color:transparent}
-.row-actions{display:flex;flex-wrap:wrap;gap:6px}
-.row-actions button{font:inherit;font-size:12px;padding:5px 8px;border-radius:5px;border:1px solid var(--line-strong);background:var(--panel);color:var(--ink);cursor:pointer}
-.row-actions button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
-.msg{font-size:13px;color:var(--ink2);min-height:18px;margin:8px 0}
-.msg.error{color:var(--gain)}
-@media (max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}}
+.members-head { padding: 26px 0 18px; }
+.members-head h1 { font-size: 24px; }
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.toolbar .field { width: 280px; }
+.members { min-width: 960px; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 """
 
 MEMBERS_JS = """
@@ -56,6 +33,7 @@ MEMBERS_JS = """
     return body;
   }
   function fmt(v){if(!v)return '-';try{return new Date(v).toLocaleDateString('ko-KR');}catch(e){return v;}}
+  function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   var members=[];
   function render(){
     var q=(el('search').value||'').trim().toLowerCase();
@@ -63,26 +41,26 @@ MEMBERS_JS = """
     var tb=el('members-body');tb.innerHTML='';
     rows.forEach(function(m){
       var tr=document.createElement('tr');
-      var planClass=m.status==='trialing'?'trial':(m.status==='active'&&m.plan!=='free'?'paid':'');
+      var planTone=m.status==='trialing'?'b-amber':(m.status==='active'&&m.plan!=='free'?'b-teal':'b-grey');
       var statusText={free:'무료',trialing:'체험 중',active:'이용 중',past_due:'결제 실패',canceled:'해지',anonymous:'-'}[m.status]||m.status;
+      var initial=esc((m.email||'?').slice(0,1).toUpperCase());
       tr.innerHTML=
-        '<td>'+esc(m.email||'-')+'<br><span class="mono" style="color:var(--muted)">'+m.user_id.slice(0,8)+'…</span></td>'+
-        '<td>'+(m.role==='admin'?'<span class="pill admin">관리자</span>':'<span class="pill">회원</span>')+'</td>'+
-        '<td><span class="pill '+planClass+'">'+esc(m.plan_name)+'</span><br><small>'+statusText+'</small></td>'+
-        '<td class="mono">'+(m.remaining_days==null?'-':m.remaining_days+'일')+'<br><small>'+fmt(m.period_end)+'</small></td>'+
-        '<td class="mono">'+fmt(m.created_at)+'<br><small>최근 '+fmt(m.last_sign_in_at)+'</small></td>'+
-        '<td>'+(m.telegram_linked?'연결':'-')+(m.has_billing_key?'<br><small>결제수단 등록</small>':'')+(m.failure_count?'<br><small style="color:var(--gain)">실패 '+m.failure_count+'</small>':'')+'</td>'+
+        '<td><div class="row" style="gap:10px"><span class="avatar b-navy">'+initial+'</span><div><b style="font-weight:700">'+esc(m.email||'-')+'</b><br><span class="tiny muted num">'+m.user_id.slice(0,8)+'…</span></div></div></td>'+
+        '<td>'+(m.role==='admin'?'<span class="badge b-navy">관리자</span>':'<span class="badge b-grey">회원</span>')+'</td>'+
+        '<td><span class="badge '+planTone+'">'+esc(m.plan_name)+'</span><br><small class="muted">'+statusText+'</small></td>'+
+        '<td class="num">'+(m.remaining_days==null?'<span class="muted">-</span>':'<b style="font-weight:700">'+m.remaining_days+'일</b>')+'<br><small class="muted">'+fmt(m.period_end)+'</small>'+(m.remaining_days==null?'':'<div class="bar" style="width:72px;margin-top:5px"><i style="width:'+Math.max(0,Math.min(100,m.remaining_days/30*100))+'%"></i></div>')+'</td>'+
+        '<td class="num">'+fmt(m.created_at)+'<br><small class="muted">최근 '+fmt(m.last_sign_in_at)+'</small></td>'+
+        '<td>'+(m.telegram_linked?'<span class="badge b-teal">텔레그램</span>':'<span class="muted">-</span>')+(m.has_billing_key?'<br><small class="muted">결제수단 등록</small>':'')+(m.failure_count?'<br><small class="up">실패 '+m.failure_count+'</small>':'')+'</td>'+
         '<td><div class="row-actions">'+
-          '<button data-act="plan" data-plan="daily" data-days="30" data-user="'+m.user_id+'" class="primary">데일리 30일</button>'+
-          '<button data-act="plan" data-plan="pro" data-days="30" data-user="'+m.user_id+'">프로 30일</button>'+
-          '<button data-act="plan" data-plan="free" data-days="0" data-user="'+m.user_id+'">무료로</button>'+
-          (m.role==='admin'?'<button data-act="role" data-role="member" data-user="'+m.user_id+'">관리자 해제</button>':'<button data-act="role" data-role="admin" data-user="'+m.user_id+'">관리자 지정</button>')+
+          '<button data-act="plan" data-plan="daily" data-days="30" data-user="'+m.user_id+'" class="btn sm primary">데일리 30일</button>'+
+          '<button data-act="plan" data-plan="pro" data-days="30" data-user="'+m.user_id+'" class="btn sm">프로 30일</button>'+
+          '<button data-act="plan" data-plan="free" data-days="0" data-user="'+m.user_id+'" class="btn sm">무료로</button>'+
+          (m.role==='admin'?'<button data-act="role" data-role="member" data-user="'+m.user_id+'" class="btn sm ghost">관리자 해제</button>':'<button data-act="role" data-role="admin" data-user="'+m.user_id+'" class="btn sm ghost">관리자 지정</button>')+
         '</div></td>';
       tb.appendChild(tr);
     });
-    if(!rows.length){tb.innerHTML='<tr><td colspan="7">표시할 회원이 없습니다.</td></tr>';}
+    if(!rows.length){tb.innerHTML='<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">표시할 회원이 없습니다.</td></tr>';}
   }
-  function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   async function load(){
     say('불러오는 중…');
     try{
@@ -116,56 +94,47 @@ MEMBERS_JS = """
 """
 
 
+def _tile(icon_name: str, tone: str, label: str, stat_id: str) -> str:
+    return f'<div class="card tile">{icon_tile(icon_name, tone)}<div><p class="label">{h(label)}</p><p class="v num" id="{stat_id}">-</p></div></div>'
+
+
 def render_admin_members_page(*, site_base_url: str | None = None) -> str:
-    theme_buttons = "".join(
-        f'<button type="button" class="{name}" data-theme="{name}" aria-pressed="false" aria-label="{_h(THEME_LABELS[name])} 테마" title="{_h(THEME_LABELS[name])}"></button>'
-        for name in THEMES
-    )
-    return f"""<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow">
-<title>회원 관리 | TradingAgents Korea</title>
-<link rel="canonical" href="{_h(canonical_url('/admin/members', site_base_url=site_base_url))}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<script>(function(){{try{{var t=localStorage.getItem('ta-theme');if(t==='paper'||t==='dark'||t==='sepia'){{document.documentElement.setAttribute('data-theme',t);}}}}catch(e){{}}}})();</script>
-<style>{HOME_CSS}{MEMBERS_CSS}</style>
-</head>
-<body>
-<header class="masthead">
-  <div class="shell">
-    <a class="brand" href="/"><span class="brand-name">TradingAgents Korea</span><span class="brand-sub">회원 관리</span></a>
-    <nav class="nav" aria-label="운영 메뉴"><a href="/admin">운영 콘솔</a><a href="/admin/members" aria-current="page">회원 관리</a><a href="/harness">일일 하네스</a><a href="/billing">내 구독</a></nav>
-    <div class="mast-right"><div class="theme-switch" role="group" aria-label="페이지 테마">{theme_buttons}</div><a class="btn" href="/mypage">내 공간</a></div>
+    body = f"""
+<section class="hero members-head">
+  <div class="shell row between wrap">
+    <div>{badge("운영자 전용", "b-navy", icon_name="shield")}<h1 style="margin-top: 8px;">회원 관리</h1><p class="small ink2" style="margin-top: 4px;">관리자 계정 세션 또는 운영 토큰이 필요합니다. 플랜 부여는 결제 없이 기간을 여는 운영자 조치이며 이력에 남습니다.</p></div>
+    <div class="row"><a class="btn sm" href="/admin">{icon("settings", 14)}운영 콘솔</a><a class="btn sm" href="/harness">일일 하네스</a></div>
   </div>
-</header>
-<main id="main-content">
-<section class="block">
-  <div class="shell">
-    <div class="block-head"><h2>회원과 플랜</h2><p class="meta">관리자 계정(app_metadata.role=admin) 세션 또는 운영 토큰이 필요합니다. 플랜 부여는 결제 없이 기간을 여는 운영자 조치이며 이력에 남습니다.</p></div>
-    <div class="stats">
-      <div class="stat"><div class="k">회원</div><div class="v" id="stat-members">-</div></div>
-      <div class="stat"><div class="k">유료 이용 중</div><div class="v" id="stat-paid">-</div></div>
-      <div class="stat"><div class="k">체험 중</div><div class="v" id="stat-trial">-</div></div>
-      <div class="stat"><div class="k">관리자</div><div class="v" id="stat-admin">-</div></div>
-      <div class="stat"><div class="k">텔레그램 연결</div><div class="v" id="stat-tg">-</div></div>
+</section>
+<section class="block" style="padding-bottom: 28px;">
+  <div class="shell stack">
+    <div class="grid-4" style="grid-template-columns: repeat(5, minmax(0, 1fr));">
+      {_tile("users", "b-navy", "회원", "stat-members")}
+      {_tile("card", "b-teal", "유료 이용 중", "stat-paid")}
+      {_tile("zap", "b-amber", "체험 중", "stat-trial")}
+      {_tile("shield", "b-violet", "관리자", "stat-admin")}
+      {_tile("send", "b-blue", "텔레그램 연결", "stat-tg")}
     </div>
-    <div class="toolbar"><input id="search" type="search" placeholder="이메일 또는 ID 검색"><button class="btn" type="button" id="reload">새로고침</button></div>
-    <div class="msg" id="members-msg"></div>
-    <div class="ledger-wrap">
-      <table class="members">
-        <thead><tr><th>회원</th><th>역할</th><th>플랜 · 상태</th><th>남은 기간</th><th>가입 · 최근 로그인</th><th>연결</th><th>조치</th></tr></thead>
-        <tbody id="members-body"><tr><td colspan="7">불러오는 중…</td></tr></tbody>
-      </table>
+    <div class="card">
+      <div class="card-h"><h2>{icon_tile("users", "b-navy", small=True)}회원과 플랜</h2><div class="toolbar"><input id="search" class="field" type="search" placeholder="이메일 또는 ID 검색" style="height: 34px;"><button class="btn sm" type="button" id="reload">새로고침</button></div></div>
+      <div class="msg" id="members-msg" style="padding: 8px 18px 0;"></div>
+      <div class="table-wrap">
+        <table class="members">
+          <thead><tr><th>회원</th><th>역할</th><th>플랜 · 상태</th><th>남은 기간</th><th>가입 · 최근 로그인</th><th>연결</th><th>조치</th></tr></thead>
+          <tbody id="members-body"><tr><td colspan="7" class="muted" style="text-align:center;padding:24px">불러오는 중…</td></tr></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </section>
-</main>
-<footer><div class="shell"><span>© 2026 TradingAgents Korea · 운영자 전용</span></div></footer>
-<script>{HOME_JS}</script>
-<script>{MEMBERS_JS}</script>
-</body>
-</html>"""
+"""
+    return render_shell(
+        title="회원 관리 | TradingAgents Korea",
+        body=body,
+        canonical_path="/admin/members",
+        site_base_url=site_base_url,
+        noindex=True,
+        extra_css=MEMBERS_CSS,
+        extra_js=MEMBERS_JS,
+        search=False,
+    )

@@ -8,10 +8,9 @@ page never triggers analysis, orders, or vendor calls in the request path.
 Prices for the stock rail are fetched by the browser from ``/api/prices/latest``
 after load so the HTML itself renders in one database round trip.
 
-Themes: ``paper`` (light), ``dark``, ``sepia``. The choice is stored in
-``localStorage`` under ``ta-theme``; without a stored choice the page follows
-``prefers-color-scheme``. Colors are CSS custom properties on ``:root`` so a
-theme switch is one attribute change.
+Layout and themes come from ``design_system`` (slate light default, IDE-style
+selectable themes stored under ``ta-theme``). Sparklines are fetched by the
+browser from ``/api/prices/sparkline`` after load.
 """
 
 from __future__ import annotations
@@ -36,8 +35,6 @@ RAIL_TICKERS: tuple[tuple[str, str], ...] = (
     ("196170", "알테오젠"),
 )
 
-THEMES = ("paper", "dark", "sepia")
-THEME_LABELS = {"paper": "종이", "dark": "다크", "sepia": "세피아"}
 
 ROLE_LABELS = {
     "bull": ("강세 연구원", "accent"),
@@ -338,141 +335,165 @@ def render_home_page(*, repo: StorageRepository | None = None, site_base_url: st
 
 
 # --------------------------------------------------------------------------
-# template
+# template (v3 slate system; see design_system.py)
 # --------------------------------------------------------------------------
 
+from .design_system import THEMES as DS_THEMES  # noqa: E402
+from .design_system import THEME_LABELS as DS_THEME_LABELS  # noqa: E402
+from .design_system import badge, icon, icon_tile, render_shell, sparkline_svg, stat_tile  # noqa: E402
+
+THEMES = DS_THEMES
+THEME_LABELS = DS_THEME_LABELS
+
+STAGE_TONE = {
+    "ordered": ("b-teal", "check"),
+    "exit": ("b-orange", "logout"),
+    "sized": ("b-blue", "target"),
+    "gate_rejected": ("b-amber", "shield"),
+    "forecast_rejected": ("b-grey", "trend"),
+    "confirmation_rejected": ("b-grey", "brain"),
+    "screened": ("b-grey", "filter"),
+}
+
+ROLE_TONE = {"bull": ("b-gain", "강"), "bear": ("b-loss", "약"), "judge": ("b-violet", "판"), "risk_panel": ("b-amber", "리")}
+
 HOME_CSS = """
-:root{--bg:#fbfaf4;--bg2:#f2f0e6;--panel:#ffffff;--ink:#17201f;--ink2:#4b5654;--muted:#7a847f;--line:#d9ddd3;--line-strong:#b9c0b6;--accent:#146b63;--accent-ink:#0f4e49;--accent-soft:#dcefe9;--brass:#a87d24;--brass-soft:#f4ead2;--gain:#b42318;--loss:#1d4ed8;--on-accent:#ffffff;--shadow:0 12px 32px -20px rgba(23,32,31,.35);color-scheme:light}
-:root[data-theme="dark"]{--bg:#10130f;--bg2:#171a16;--panel:#171a16;--ink:#f6f3e8;--ink2:#c9cec3;--muted:#9aa39b;--line:#2a2e28;--line-strong:#3d423a;--accent:#8fd8bd;--accent-ink:#b9ead6;--accent-soft:#1b2a26;--brass:#d6b25d;--brass-soft:#2b2418;--gain:#ff6b57;--loss:#6bb7ff;--on-accent:#10130f;--shadow:0 12px 32px -20px rgba(0,0,0,.8);color-scheme:dark}
-:root[data-theme="sepia"]{--bg:#f3ead9;--bg2:#eadfc9;--panel:#fbf6ec;--ink:#2b2418;--ink2:#5a4d38;--muted:#8a7a5e;--line:#d9cbb0;--line-strong:#c1ad89;--accent:#7a5a1e;--accent-ink:#5c4315;--accent-soft:#eedfbf;--brass:#8f6a1c;--brass-soft:#ecdcb4;--gain:#a8281c;--loss:#2b4f9e;--on-accent:#fbf6ec;color-scheme:light}
-@media (prefers-color-scheme: dark){:root:not([data-theme]){--bg:#10130f;--bg2:#171a16;--panel:#171a16;--ink:#f6f3e8;--ink2:#c9cec3;--muted:#9aa39b;--line:#2a2e28;--line-strong:#3d423a;--accent:#8fd8bd;--accent-ink:#b9ead6;--accent-soft:#1b2a26;--brass:#d6b25d;--brass-soft:#2b2418;--gain:#ff6b57;--loss:#6bb7ff;--on-accent:#10130f;--shadow:0 12px 32px -20px rgba(0,0,0,.8);color-scheme:dark}}
-*{box-sizing:border-box}
-[hidden]{display:none!important}
-html{background:var(--bg)}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;font-size:15px;line-height:1.55}
-a{color:var(--accent-ink)}a:hover{color:var(--accent)}
-h1,h2,h3{font-family:"Noto Serif KR","Apple SD Gothic Neo",serif;margin:0;font-weight:700;line-height:1.25;text-wrap:balance}
-.serif{font-family:"Noto Serif KR","Apple SD Gothic Neo",serif}
-.mono{font-family:"IBM Plex Mono",Consolas,monospace;font-variant-numeric:tabular-nums}
-.up{color:var(--gain)}.down{color:var(--loss)}.muted{color:var(--muted)}
-.shell{max-width:1180px;margin:0 auto;padding:0 24px}
-.skip-link{position:absolute;left:-9999px}.skip-link:focus{left:16px;top:8px;background:var(--panel);padding:8px 12px;z-index:10}
-.masthead{border-bottom:2px solid var(--ink)}
-.masthead .shell{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px 24px;flex-wrap:wrap}
-.brand{display:flex;align-items:baseline;gap:10px;text-decoration:none;color:var(--ink)}
-.brand-name{font-family:"Noto Serif KR",serif;font-size:22px;font-weight:700}
-.brand-sub{font-size:12px;color:var(--muted)}
-.nav{display:flex;gap:20px;font-size:14px;font-weight:500}
-.nav a{text-decoration:none;color:var(--ink2);padding:4px 0;border-bottom:2px solid transparent}
-.nav a[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accent)}
-.mast-right{display:flex;gap:10px;align-items:center}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:6px;border:1px solid var(--line-strong);background:transparent;color:var(--ink);font:inherit;font-weight:500;text-decoration:none;cursor:pointer}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
-.btn:focus-visible,.theme-switch button:focus-visible,.search input:focus-visible,.nav a:focus-visible,.stock:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.theme-switch{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--line-strong);border-radius:999px;background:var(--panel)}
-.theme-switch button{width:22px;height:22px;border-radius:50%;border:1px solid var(--line-strong);cursor:pointer;padding:0}
-.theme-switch button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--accent)}
-.theme-switch .paper{background:#fbfaf4}.theme-switch .dark{background:#10130f}.theme-switch .sepia{background:#f3ead9}
-.tape{background:var(--bg2);border-bottom:1px solid var(--line);font-size:13px}
-.tape .shell{display:flex;flex-wrap:wrap;gap:6px 28px;padding:8px 24px}
-.tape .date{font-weight:600;color:var(--ink2)}
-.hero{padding:44px 0 28px;border-bottom:1px solid var(--line)}
-.hero .shell{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:40px;align-items:end}
-.issue{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.1em;color:var(--muted)}
-.hero h1{font-size:clamp(28px,3.6vw,40px);letter-spacing:-.015em;margin:12px 0 14px}
-.hero .deck{max-width:34em;color:var(--ink2);font-size:16px;margin:0 0 22px}
-.teaser{margin:0 0 18px;padding:10px 14px;border:1px solid var(--brass);border-radius:8px;background:var(--brass-soft);color:var(--ink);font-size:14px;max-width:34em}
-.teaser a{font-weight:600}
-.search{display:flex;border:1px solid var(--line-strong);border-radius:8px;background:var(--panel);overflow:hidden;max-width:560px}
-.search input{flex:1;border:0;padding:14px 16px;font:inherit;font-size:16px;background:transparent;color:var(--ink);min-width:0}
-.search input::placeholder{color:var(--muted)}
-.search button{border:0;background:var(--accent);color:var(--on-accent);font:inherit;font-weight:600;padding:0 20px;cursor:pointer}
-.proof{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:var(--shadow);overflow:hidden}
-.proof>div{padding:16px 18px;border-left:1px solid var(--line)}.proof>div:first-child{border-left:0}
-.proof .label{font-size:12px;color:var(--muted);font-weight:600}
-.proof .value{font-family:"IBM Plex Mono",monospace;font-size:26px;line-height:1.15;margin:4px 0 2px;font-variant-numeric:tabular-nums}
-.proof .sub{font-size:12px;color:var(--ink2)}
-section.block{padding:36px 0;border-bottom:1px solid var(--line)}
-.block-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
-.block-head h2{font-size:24px}.block-head .meta{font-size:13px;color:var(--muted)}
-.two-col{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);gap:28px;align-items:start}
-.funnel{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel);margin-bottom:18px}
-.funnel div{padding:10px 12px;border-left:1px solid var(--line)}.funnel div:first-child{border-left:0}
-.funnel .k{font-size:11px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
-.funnel .v{font-family:"IBM Plex Mono",monospace;font-size:20px}
-.ledger-wrap{overflow-x:auto}
-.ledger{width:100%;border-collapse:collapse;font-size:14px;min-width:640px}
-.ledger th{text-align:left;font-size:12px;letter-spacing:.04em;color:var(--muted);font-weight:600;padding:0 10px 10px;border-bottom:1px solid var(--line-strong)}
-.ledger td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top}
-.ledger .r{text-align:right}.ledger .code{color:var(--muted);font-size:12px;margin-left:6px}.ledger .why{color:var(--ink2);font-size:13px;line-height:1.5}
-.stage{display:inline-block;font-size:12px;font-weight:600;padding:3px 8px;border-radius:4px;white-space:nowrap}
-.stage.ordered{background:var(--accent-soft);color:var(--accent-ink)}
-.stage.rejected{background:var(--bg2);color:var(--ink2);border:1px solid var(--line)}
-.stage.gate{background:var(--brass-soft);color:var(--brass)}
-.debate{margin-top:18px;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:20px 22px;display:flex;flex-direction:column;gap:14px}
-.debate h3{font-size:18px}
-.debate-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 24px}
-.quote{border-left:3px solid var(--line-strong);padding:2px 0 2px 16px}
-.quote .who{font-size:12px;font-weight:700}
-.quote p{margin:4px 0 0;font-family:"Noto Serif KR",serif;font-size:16px;line-height:1.6}
-.quote.accent{border-left-color:var(--accent)}.quote.accent .who{color:var(--accent-ink)}
-.quote.loss{border-left-color:var(--loss)}.quote.loss .who{color:var(--loss)}
-.quote.ink{border-left-color:var(--ink)}.quote.ink .who{color:var(--ink)}
-.quote.brass{border-left-color:var(--brass)}.quote.brass .who{color:var(--brass)}
-.debate-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-top:12px;border-top:1px dashed var(--line-strong);font-size:13px;flex-wrap:wrap}
-.record{border:1px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:var(--shadow);padding:18px 20px;display:flex;flex-direction:column;gap:12px}
-.record h3{font-size:17px}.record .sub{font-size:13px;color:var(--muted);margin:0}
-.record dl{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;margin:0}
-.record dt{font-size:12px;color:var(--muted)}.record dd{margin:0;font-family:"IBM Plex Mono",monospace;font-size:20px;font-variant-numeric:tabular-nums}
-.record dd small{font-size:12px;font-family:"IBM Plex Sans KR",sans-serif;color:var(--muted);margin-left:6px}
-.record svg{display:block;width:100%;height:auto}
-.record .rows{border-top:1px dashed var(--line-strong);padding-top:12px;display:flex;flex-direction:column;gap:6px;font-size:13px}
-.record .row{display:flex;justify-content:space-between;gap:12px}
-.prev{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px;font-size:14px}
-.prev a{text-decoration:none}
-.process{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
-.step{padding:14px 16px;border-left:3px solid var(--line-strong)}.step:first-child{border-left-color:var(--accent)}
-.step h3{font-family:"IBM Plex Sans KR",sans-serif;font-size:15px;font-weight:600;margin-bottom:4px}
-.step p{margin:0;font-size:13px;color:var(--ink2)}
-.rail{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
-.stock{display:block;text-decoration:none;color:var(--ink);padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
-.stock:hover{border-color:var(--accent)}
-.stock .n{font-weight:600;font-size:14px}.stock .c{font-size:11px;color:var(--muted);margin-left:4px}
-.stock .p{font-family:"IBM Plex Mono",monospace;font-size:15px;margin-top:6px;display:flex;justify-content:space-between;min-height:22px;font-variant-numeric:tabular-nums}
-.trust{padding:22px 0 36px;font-size:13px;color:var(--ink2)}
-.trust .shell{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-.trust strong{display:block;color:var(--ink);margin-bottom:4px}
-footer{border-top:1px solid var(--line);padding:18px 0 40px;font-size:12px;color:var(--muted)}
-footer .shell{display:flex;flex-wrap:wrap;gap:8px 20px}
-.empty{padding:18px;border:1px dashed var(--line-strong);border-radius:8px;color:var(--ink2);font-size:14px}
-@media (max-width:960px){.hero .shell,.two-col{grid-template-columns:1fr}.nav{display:none}.process,.rail{grid-template-columns:repeat(2,1fr)}.trust .shell{grid-template-columns:1fr}.debate-grid{grid-template-columns:1fr}}
-@media (max-width:560px){.proof{grid-template-columns:1fr}.proof>div{border-left:0;border-top:1px solid var(--line)}.proof>div:first-child{border-top:0}.process,.rail,.funnel{grid-template-columns:1fr 1fr}}
-@media (prefers-reduced-motion:no-preference){.stock,.btn{transition:border-color .15s ease,background-color .15s ease}}
+.home-hero { padding: 28px 0 22px; }
+.home-hero .shell { display: grid; grid-template-columns: minmax(0, 1fr) 520px; gap: 28px; align-items: center; }
+.home-hero h1 { font-size: 32px; margin-top: 12px; }
+.home-hero h1 em { font-style: normal; color: var(--accent); }
+.home-hero .deck { margin-top: 10px; max-width: 560px; font-size: 15px; color: var(--ink2); }
+.home-hero .actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+.funnel-bar { display: flex; gap: 3px; }
+.funnel-bar > div { height: 10px; }
+.funnel-labels { display: flex; margin-top: 10px; }
+.funnel-labels p.v { font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+.picks td.spark { width: 120px; }
+.picks .why { font-size: 12px; color: var(--ink2); margin-top: 3px; max-width: 260px; }
+.picks .empty { padding: 28px 18px; color: var(--muted); text-align: center; }
+.quotes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.quotes .card { padding: 14px 16px; }
+.quotes p.text { margin-top: 8px; font-size: 13px; color: var(--ink2); }
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.steps .soft { padding: 14px; }
+.steps p.t { font-weight: 700; margin-top: 10px; }
+.steps p.d { font-size: 13px; color: var(--ink2); margin-top: 3px; }
+.alpha-bars { display: flex; gap: 4px; align-items: flex-end; height: 44px; margin-top: 14px; }
+.alpha-bars > div { flex: 1; border-radius: 3px 3px 0 0; min-height: 3px; }
+.market .kv .spark-wrap { display: inline-flex; align-items: center; gap: 10px; }
+.teaser-card { margin-top: 0; }
+@media (max-width: 960px) {
+  .home-hero .shell { grid-template-columns: 1fr; }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .quotes { grid-template-columns: 1fr; }
+  .home-hero h1 { font-size: 26px; }
+}
 """
 
-HOME_JS = """
+# Supabase auth links (magic link, signup confirmation, recovery) may land on the site root; the member page owns session handling.
+AUTH_FORWARD_SCRIPT = "<script>(function(){var h=location.hash||'';if(h.indexOf('access_token=')>=0||h.indexOf('type=recovery')>=0||h.indexOf('error_description=')>=0){location.replace('/member'+h);}})();</script>"
+
+HOME_JS = r"""
 (function(){
-  var KEY='ta-theme';
-  var root=document.documentElement;
-  function apply(name,persist){
-    if(name==='system'){root.removeAttribute('data-theme');}else{root.setAttribute('data-theme',name);}
-    var buttons=document.querySelectorAll('.theme-switch button');
-    for(var i=0;i<buttons.length;i++){buttons[i].setAttribute('aria-pressed',buttons[i].getAttribute('data-theme')===name?'true':'false');}
-    if(persist){try{localStorage.setItem(KEY,name);}catch(e){}}
+  function fmtNum(v){ return Number(v).toLocaleString('ko-KR'); }
+  function spark(closes, w, h, color, area){
+    if(!closes || closes.length < 2) return '';
+    var lo = Math.min.apply(null, closes), hi = Math.max.apply(null, closes), span = (hi - lo) || 1, n = closes.length;
+    var pts = closes.map(function(y, i){ return [ (i/(n-1))*(w-2)+1, h-2-((y-lo)/span)*(h-4) ]; });
+    var line = pts.map(function(p){ return p[0].toFixed(1)+','+p[1].toFixed(1); }).join(' ');
+    var fill = area ? '<path d="M'+pts[0][0].toFixed(1)+','+h+' L'+pts.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' L')+' L'+pts[n-1][0].toFixed(1)+','+h+' Z" fill="'+color+'" opacity="0.12"/>' : '';
+    var last = pts[n-1];
+    return '<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" aria-hidden="true">'+fill+'<polyline points="'+line+'" fill="none" stroke="'+color+'" stroke-width="1.6" stroke-linejoin="round"/><circle cx="'+last[0].toFixed(1)+'" cy="'+last[1].toFixed(1)+'" r="2.2" fill="'+color+'"/></svg>';
   }
-  var stored=null;try{stored=localStorage.getItem(KEY);}catch(e){}
-  if(stored==='paper'||stored==='dark'||stored==='sepia'){apply(stored,false);}
-  var switchEl=document.querySelector('.theme-switch');
-  if(switchEl){switchEl.addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;apply(b.getAttribute('data-theme'),true);});}
-  var rail=document.querySelector('[data-rail-tickers]');
-  if(rail&&window.fetch){
-    fetch('/api/prices/latest?tickers='+encodeURIComponent(rail.getAttribute('data-rail-tickers')),{credentials:'same-origin'})
-      .then(function(r){return r.ok?r.json():null})
-      .then(function(d){if(!d||!d.items)return;var items=d.items;Object.keys(items).forEach(function(code){var el=rail.querySelector('[data-code="'+code+'"] .p');if(!el)return;var q=items[code]||{};if(q.close==null)return;var chg=q.change_rate;var cls=chg>0?'up':(chg<0?'down':'');el.innerHTML='<span>'+Number(q.close).toLocaleString('ko-KR')+'</span><span class="'+cls+'">'+(chg==null?'':(chg>0?'+':'')+(chg*100).toFixed(2)+'%')+'</span>';});})
-      .catch(function(){});
+  function colorFor(closes){ return closes[closes.length-1] >= closes[0] ? 'var(--gain)' : 'var(--loss)'; }
+
+  // 60-day sparklines for the picks table and the market widget
+  var targets = Array.prototype.slice.call(document.querySelectorAll('[data-spark]'));
+  var codes = targets.map(function(n){ return n.getAttribute('data-spark'); }).filter(function(c, i, a){ return c && a.indexOf(c) === i; });
+  if (codes.length) {
+    fetch('/api/prices/sparkline?tickers=' + encodeURIComponent(codes.join(',')) + '&days=60').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+      if(!d || !d.series) return;
+      targets.forEach(function(node){
+        var s = d.series[node.getAttribute('data-spark')];
+        if(!s || !s.closes || s.closes.length < 2) { node.innerHTML = '<span class="tiny muted">차트 없음</span>'; return; }
+        var w = parseInt(node.getAttribute('data-w') || '104', 10), h = parseInt(node.getAttribute('data-h') || '32', 10);
+        node.innerHTML = spark(s.closes, w, h, colorFor(s.closes), node.getAttribute('data-area') !== 'no');
+        var chg = node.parentElement && node.parentElement.querySelector('[data-spark-change]');
+        if (chg) { var c = s.closes, p = (c[c.length-1]/c[0]-1)*100; chg.textContent = (p>=0?'+':'') + p.toFixed(1) + '%'; chg.className = 'num ' + (p>=0?'up':'down'); }
+      });
+    }).catch(function(){});
+  }
+
+  // latest prices for the market widget
+  var rail = document.querySelector('[data-rail-tickers]');
+  if (rail) {
+    fetch('/api/prices/latest?tickers=' + encodeURIComponent(rail.getAttribute('data-rail-tickers'))).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+      if(!d || !d.prices) return;
+      rail.querySelectorAll('[data-code]').forEach(function(node){
+        var p = d.prices[node.getAttribute('data-code')];
+        var price = node.querySelector('[data-price]');
+        if (p && price) { price.textContent = fmtNum(p.close); price.title = (p.date || '') + ' ' + (p.vendor || ''); }
+      });
+    }).catch(function(){});
   }
 })();
 """
+
+
+def _stage_badge(item: Mapping[str, Any]) -> str:
+    stage = str(item.get("stage") or "")
+    tone, ic = STAGE_TONE.get(stage, ("b-grey", "filter"))
+    label = str(item.get("stage_label") or stage or "-")
+    if stage == "ordered" and item.get("quantity"):
+        label = f"{label} {item.get('quantity')}주"
+    return badge(label, tone, icon_name=ic)
+
+
+def _pick_row(index: int, item: Mapping[str, Any]) -> str:
+    code = str(item.get("ticker_code") or "")
+    name = str(item.get("ticker_name") or code)
+    market = str(item.get("market") or "")
+    market_tone = "b-orange" if market.upper() == "KOSDAQ" else "b-navy"
+    score = item.get("composite_score")
+    score_width = 0
+    try:
+        score_width = max(0, min(100, int(float(score) / 2.5 * 100))) if score is not None else 0
+    except (TypeError, ValueError):
+        score_width = 0
+    prob = item.get("forecast_probability_up")
+    prob_pct = 0
+    try:
+        prob_pct = max(0, min(100, int(float(prob) * 100))) if prob is not None else 0
+    except (TypeError, ValueError):
+        prob_pct = 0
+    reasons = "; ".join(str(reason) for reason in (item.get("reasons") or [])[:2])
+    rating = item.get("confirmation_rating")
+    confidence = item.get("confirmation_confidence")
+    price = item.get("entry_price")
+    return f"""<tr>
+      <td class="muted num tiny">{_h(item.get('screener_rank') or index + 1)}</td>
+      <td><div class="row" style="gap: 10px; align-items: flex-start;"><span class="avatar {market_tone}">{_h(name[:2])}</span><div><a href="{_h(item.get('stock_path') or '#')}"><b style="font-weight: 700;">{_h(name)}</b></a> <span class="muted tiny num">{_h(code)}</span> {badge(market or '-', market_tone, xs=True)}<div class="why">{_h(reasons)}</div></div></div></td>
+      <td class="spark"><span data-spark="{_h(code)}" data-w="104" data-h="32"><span class="tiny muted">불러오는 중</span></span></td>
+      <td><div class="num" style="font-weight: 600;">{_h(_num(score, 2)) if score is not None else '-'}</div><div class="bar" style="width: 60px; margin-top: 5px;"><i style="width: {score_width}%; background: var(--blue);"></i></div></td>
+      <td><div class="num"><span class="{_sign_class(item.get('forecast_expected_return'))}" style="font-weight: 700;">{_h(_pct(item.get('forecast_expected_return')))}</span> <span class="muted tiny">/ {_h(_pct(prob, 0, signed=False))}</span></div><div class="bar" style="width: 60px; margin-top: 5px;"><i style="width: {prob_pct}%; background: var(--violet);"></i></div></td>
+      <td>{badge(str(rating), 'b-violet') if rating else '<span class="muted">-</span>'}<div class="tiny muted num" style="margin-top: 4px;">{'신뢰도 ' + _h(_num(confidence, 2)) if confidence is not None else ''}</div></td>
+      <td>{_stage_badge(item)}<div class="tiny muted num" style="margin-top: 4px;">{'@ ' + _h(_num(price)) if price else ''}</div></td>
+    </tr>"""
+
+
+def _funnel_html(steps: list[Mapping[str, Any]]) -> str:
+    if not steps:
+        return ""
+    colors = ["var(--line-strong)", "var(--blue)", "var(--violet)", "var(--amber)", "var(--accent)"]
+    widths = [40, 24, 18, 18] if len(steps) == 4 else [40, 20, 14, 13, 13]
+    bars, labels = [], []
+    for index, step in enumerate(steps):
+        color = colors[index % len(colors)]
+        width = widths[index] if index < len(widths) else 10
+        radius = "999px 0 0 999px" if index == 0 else ("0 999px 999px 0" if index == len(steps) - 1 else "0")
+        bars.append(f'<div style="width: {width}%; background: {color}; border-radius: {radius};"></div>')
+        labels.append(f'<div style="width: {width}%;"><p class="v num" style="color: {color};">{_h(_num(step["value"]))}</p><p class="tiny muted">{_h(step["label"])}</p></div>')
+    return f'<div class="funnel-bar">{"".join(bars)}</div><div class="funnel-labels">{"".join(labels)}</div>'
 
 
 def _render(model: dict[str, Any]) -> str:
@@ -480,254 +501,206 @@ def _render(model: dict[str, Any]) -> str:
     outcomes = model["outcomes"]
     five, twenty = outcomes["five"], outcomes["twenty"]
     account = model["account"]
+    decisions = model["decisions"]
+    ordered = [item for item in decisions if item.get("stage") in {"ordered", "exit"}]
+    title_date = model["run_date_text"] or "오늘"
+    teaser = model.get("teaser")
 
-    def stage_class(stage: str) -> str:
-        return STAGE_STYLE.get(stage, "rejected")
-
-    ledger_rows = "\n".join(
-        f"""<tr>
-          <td class="mono">{_h(item.get('screener_rank') or index + 1)}</td>
-          <td><a href="{_h(item.get('stock_path'))}"><strong>{_h(item.get('ticker_name') or item.get('ticker_code'))}</strong></a><span class="code">{_h(item.get('ticker_code'))} · {_h(item.get('market'))}</span></td>
-          <td><span class="stage {stage_class(str(item.get('stage')))}">{_h(item.get('stage_label'))}{' ' + _h(item.get('quantity')) + '주' if item.get('stage') == 'ordered' and item.get('quantity') else ''}</span></td>
-          <td class="r mono">{_h(_num(item.get('composite_score'), 2) if item.get('composite_score') is not None else '-')}</td>
-          <td class="r mono {_sign_class(item.get('forecast_expected_return'))}">{_h(_pct(item.get('forecast_expected_return')))} <span class="muted">/ {_h(_pct(item.get('forecast_probability_up'), 0, signed=False))}</span></td>
-          <td>{_h(item.get('confirmation_rating') or '-')}{' <span class="mono">' + _h(_num(item.get('confirmation_confidence'), 2)) + '</span>' if item.get('confirmation_confidence') is not None else ''}</td>
-          <td class="why">{_h('; '.join(str(reason) for reason in (item.get('reasons') or [])[:2]))}</td>
-        </tr>"""
-        for index, item in enumerate(model["decisions"][:8])
-    )
-    if not ledger_rows:
-        ledger_rows = '<tr><td colspan="7" class="empty">아직 저장된 하네스 결정이 없습니다. 첫 실행 후 이곳에 후보별 단계와 근거가 실립니다.</td></tr>'
-
-    funnel_html = "".join(f'<div><div class="k">{_h(step["label"])}</div><div class="v">{_h(_num(step["value"]))}</div></div>' for step in model["funnel"])
-
-    debate_html = ""
-    if model["debate"]:
-        featured = model["featured"] or {}
-        quotes = "".join(
-            f'<div class="quote {_h(item["tone"])}"><div class="who">{_h(item["label"])}</div><p>“{_h(item["text"])}”</p></div>' for item in model["debate"]
-        )
-        confirmation = ((featured.get("detail") or {}).get("confirmation") or {})
-        weight = confirmation.get("position_weight")
-        debate_html = f"""
-        <div class="debate">
-          <div class="block-head" style="margin:0">
-            <h3>토론 기록 — {_h(featured.get('ticker_name') or featured.get('ticker_code'))}는 이렇게 결정됐다</h3>
-            <span class="meta mono">bull → bear → judge → risk → PM</span>
-          </div>
-          <div class="debate-grid">{quotes}</div>
-          <div class="debate-foot">
-            <span>포트폴리오 매니저: <strong>{_h(featured.get('confirmation_rating') or '-')} · 확신 {_h(_num(featured.get('confirmation_confidence'), 2))}{' · 비중 ' + _h(_pct(weight, 0, signed=False)) if weight is not None else ''}</strong></span>
-            <a href="{_h((run or {}).get('detail_path') or '/harness')}">토론 전문과 근거 데이터 →</a>
-          </div>
-        </div>"""
-
-    bars = outcomes["alpha_bars"]
-    chart_html = ""
-    if bars:
-        max_abs = max(abs(value) for value in bars) or 0.01
-        rects = []
-        for index, value in enumerate(bars):
-            height = min(48.0, abs(value) / max_abs * 48.0)
-            x = 8 + index * 10
-            if value >= 0:
-                rects.append(f'<rect x="{x}" y="{64 - height:.1f}" width="7" height="{height:.1f}" fill="var(--gain)"></rect>')
-            else:
-                rects.append(f'<rect x="{x}" y="64" width="7" height="{height:.1f}" fill="var(--loss)"></rect>')
-        chart_html = f"""<svg viewBox="0 0 320 110" role="img" aria-label="최근 {len(bars)}건의 20일 알파">
-          <line x1="8" y1="64" x2="312" y2="64" stroke="var(--line-strong)" stroke-width="1"></line>
-          <text x="8" y="12" font-size="10" fill="var(--muted)" font-family="IBM Plex Mono, monospace">20일 알파 · 최근 {len(bars)}건</text>
-          {''.join(rects)}
-        </svg>"""
-    else:
-        chart_html = '<p class="sub">20일 성과가 확정되면 초과수익 막대가 여기에 쌓입니다.</p>'
-
-    def hit(bucket: Mapping[str, Any]) -> str:
+    def hit(bucket: Mapping[str, Any]) -> tuple[str, str]:
         completed = int(bucket.get("completed") or 0)
         rate = bucket.get("hit_rate")
         if not completed or rate is None:
             pending = int(bucket.get("pending") or 0)
-            return f'<span class="muted">대기 {pending}건</span>' if pending else "-"
+            return "–", (f"대기 {pending}건" if pending else "확정 후 표시")
         wins = round(float(rate) * completed)
-        return f"{_h(_pct(rate, 0, signed=False))}<small>{wins}/{completed}</small>"
+        return _pct(rate, 0, signed=False), f"{wins}/{completed} 적중"
 
-    def alpha(bucket: Mapping[str, Any]) -> str:
+    def alpha(bucket: Mapping[str, Any]) -> tuple[str, str]:
         value = bucket.get("average_alpha")
-        return f'<span class="{_sign_class(value)}">{_h(_pct(value))}</span>' if value is not None else "-"
+        completed = int(bucket.get("completed") or 0)
+        if value is None:
+            return "–", f"확정 {completed}건"
+        return f'<span class="{_sign_class(value)}">{_h(_pct(value))}</span>', f"확정 {completed}건"
 
+    five_hit, five_sub = hit(five)
+    twenty_alpha, twenty_sub = alpha(twenty)
+    pending_total = int(five.get("pending") or 0) + int(twenty.get("pending") or 0)
+
+    # hero -------------------------------------------------------------------
+    if run:
+        chips = badge(f"{title_date} 실행", "b-teal") + " " + badge("다음 07:50 · 10:05 · 16:40", "b-grey", icon_name="clock")
+        headline = _h(model["headline"])
+        if ordered:
+            headline = headline.replace(f"{len(ordered)}개가 통과", f"<em>{len(ordered)}개</em>가 통과", 1)
+    else:
+        chips = badge("첫 실행 대기", "b-grey", icon_name="clock")
+        headline = _h(model["headline"])
+    hero_actions = (
+        f'<a class="btn primary" href="{_h((run or {}).get("detail_path") or "/harness")}">{icon("layers", 16)}하네스 전체 보기</a>'
+        f'<a class="btn" href="/outcomes">{icon("target", 16)}검증 성과</a>'
+        f'<a class="btn ghost" href="/features/methodology">분석 기준 →</a>'
+    )
+    tiles = "".join(
+        [
+            stat_tile("layers", "b-navy", "유니버스", _num((run or {}).get("universe_size")) if run else "–", "코스피200 · 코스닥150"),
+            stat_tile("check", "b-teal", "통과 · 가상 주문", str(len(ordered)) if run else "–", f"{len(decisions)}개 후보 중" if run else "실행 전"),
+            stat_tile("clock", "b-amber", "채점 대기", f"{pending_total}건" if pending_total else "–", "5 · 20거래일 뒤 확정"),
+            stat_tile("target", "b-violet", "5일 승률", five_hit, five_sub),
+        ]
+    )
+
+    # teaser (today's locked run) --------------------------------------------
+    teaser_html = ""
+    if teaser:
+        teaser_html = f"""<div class="card grad" style="padding: 18px 20px;">
+      <div class="row between"><span class="badge" style="background: rgba(255,255,255,.16); color: #fff;">{icon("lock", 12)}오늘 {_h(_korean_date(teaser["as_of_date"]))}</span><span class="tiny muted">실행 완료</span></div>
+      <p style="font-size: 17px; font-weight: 700; margin-top: 10px; letter-spacing: -0.01em;">후보 {_h(teaser["candidate_count"])}개 중 {_h(teaser["order_count"])}개 통과</p>
+      <p class="small muted" style="margin-top: 4px;">종목과 토론 전문은 데일리 패스에서 지금 열립니다. 무료 플랜은 다음 거래일 아침에 공개됩니다.</p>
+      <div class="row" style="gap: 8px; margin-top: 14px;"><a class="btn sm" style="background: #fff; color: #115e59; border-color: #fff;" href="/pricing">월 10,000원</a><a class="btn sm" style="background: transparent; color: #fff; border-color: rgba(255,255,255,.4); box-shadow: none;" href="/member?mode=signup&amp;plan=daily">14일 무료 체험</a></div>
+    </div>"""
+
+    # picks table ---------------------------------------------------------------
+    rows = "\n".join(_pick_row(index, item) for index, item in enumerate(decisions[:8]))
+    if not rows:
+        rows = '<tr><td colspan="7" class="empty">아직 저장된 하네스 결정이 없습니다. 첫 실행 후 이곳에 후보별 단계와 근거가 실립니다.</td></tr>'
+    run_meta = ""
+    if run:
+        run_meta = f"{'토론 확인기' if run.get('confirmer') == 'debate' else _h(run.get('confirmer'))} · {'KIS 모의투자' if run.get('broker') == 'kis' else '로컬 가상계좌'}{' · dry-run' if run.get('dry_run') else ''}"
+
+    # debate excerpts ----------------------------------------------------------
+    debate_html = ""
+    if model["debate"]:
+        featured = model["featured"] or {}
+        confirmation = ((featured.get("detail") or {}).get("confirmation") or {})
+        weight = confirmation.get("position_weight")
+        quotes = "".join(
+            f'<div class="card"><div class="row" style="gap: 10px;"><span class="avatar {ROLE_TONE.get(item["role"], ("b-grey", "·"))[0]}">{ROLE_TONE.get(item["role"], ("b-grey", "·"))[1]}</span><p style="font-weight: 700; font-size: 13px;">{_h(item["label"])}</p></div><p class="text">“{_h(item["text"])}”</p></div>'
+            for item in model["debate"]
+        )
+        gate = model.get("plan_gate") or {}
+        lock = badge("전문은 데일리 패스", "b-amber", icon_name="lock") if gate.get("plan") == "free" or not gate else ""
+        debate_html = f"""<div class="card">
+      <div class="card-h"><h2>{icon_tile("brain", "b-violet", small=True)}토론 기록 — {_h(featured.get('ticker_name') or featured.get('ticker_code'))}는 이렇게 결정됐다</h2>{lock}</div>
+      <div class="card-b"><div class="quotes">{quotes}</div></div>
+      <div class="card-f"><span>포트폴리오 매니저: <b style="color: var(--ink);">{_h(featured.get('confirmation_rating') or '-')} · 확신 {_h(_num(featured.get('confirmation_confidence'), 2))}{' · 비중 ' + _h(_pct(weight, 0, signed=False)) if weight is not None else ''}</b></span><a class="link" href="{_h((run or {}).get('detail_path') or '/harness')}">토론 전문과 근거 데이터 →</a></div>
+    </div>"""
+
+    # sidebar: account ----------------------------------------------------------
     account_html = ""
     if account:
         change = account.get("change")
-        account_html = f"""<div class="rows">
-          <div class="row"><span>모의투자 계좌 ({_h(str(account.get('broker') or '').upper())})</span><span class="mono">{_h(_num(account['cash_after']))}원</span></div>
-          <div class="row"><span>이번 실행 현금 변화</span><span class="mono {_sign_class(change)}">{_h(_pct(change, 2))}</span></div>
-          <div class="row"><span>실계좌 주문</span><span>없음 · 사이트에서 불가</span></div>
-        </div>"""
+        account_html = f"""<div class="card">
+      <div class="card-h"><h2>{icon_tile("wallet", "b-teal", small=True)}가상계좌</h2>{badge("KIS 모의투자" if account.get("broker") == "kis" else str(account.get("broker") or "가상"), "b-grey")}</div>
+      <div class="card-b">
+        <div class="row between" style="align-items: flex-end;"><div><p class="label">현금</p><p class="num" style="font-size: 24px; font-weight: 700; letter-spacing: -0.02em;">{_h(_num(account['cash_after']))}<span class="muted" style="font-size: 13px; font-weight: 500;">원</span></p></div>{badge(_pct(change, 2), 'b-gain' if (change or 0) >= 0 else 'b-loss')}</div>
+        <p class="tiny muted" style="margin-top: 8px;">이번 실행 전 {_h(_num(account['cash_before']))}원 · 실계좌 주문 없음</p>
+      </div>
+    </div>"""
 
-    prev_html = "".join(
-        f'<div><a href="{_h(item.get("detail_path"))}"><span class="serif" style="font-weight:700">{_h(_korean_date(item.get("as_of_date")))}</span></a> — 후보 {_h(item.get("candidate_count"))} · 가상주문 {_h(item.get("order_count"))} <span class="mono muted">{"dry-run" if item.get("dry_run") else _h(item.get("broker"))}</span></div>'
-        for item in model["previous_runs"]
-    )
-    prev_block = f'<div class="prev"><div class="issue">지난 호</div>{prev_html}</div>' if prev_html else ""
+    # sidebar: outcomes ---------------------------------------------------------
+    bars = outcomes["alpha_bars"]
+    if bars:
+        max_abs = max(abs(value) for value in bars) or 0.01
+        bar_html = "".join(f'<div style="height: {max(6, abs(v) / max_abs * 100):.0f}%; background: var(--{"gain" if v >= 0 else "loss"});" title="{_h(_pct(v))}"></div>' for v in bars[:24])
+        chart_html = f'<div class="alpha-bars" role="img" aria-label="최근 {len(bars)}건의 20일 알파">{bar_html}</div><p class="tiny muted" style="margin-top: 6px;">20일 알파 · 최근 {len(bars)}건</p>'
+    else:
+        chart_html = f'<div class="alpha-bars" aria-hidden="true">{"".join(f"<div style=\"height: {h}%; background: var(--line);\"></div>" for h in (30, 45, 25, 60, 40, 55, 35, 50))}</div><p class="tiny muted" style="margin-top: 6px;">20일 성과가 확정되면 초과수익 막대가 여기에 쌓입니다.</p>'
+    outcomes_html = f"""<div class="card">
+      <div class="card-h"><h2>{icon_tile("target", "b-violet", small=True)}검증 성과</h2><span class="tiny muted">지수 대비 초과수익</span></div>
+      <div class="card-b">
+        <div class="grid-2">
+          <div class="soft" style="padding: 12px 14px;"><p class="label">5일 승률</p><p class="num" style="font-size: 22px; font-weight: 700;">{five_hit}</p><p class="tiny muted">{_h(five_sub)}</p></div>
+          <div class="soft" style="padding: 12px 14px;"><p class="label">20일 평균 알파</p><p class="num" style="font-size: 22px; font-weight: 700;">{twenty_alpha}</p><p class="tiny muted">{_h(twenty_sub)}</p></div>
+        </div>
+        {chart_html}
+      </div>
+      <div class="card-f"><span>모든 가상 주문은 5 · 20거래일 뒤 채점됩니다.</span><a class="link" href="/outcomes">전체 성과 →</a></div>
+    </div>"""
 
+    # sidebar: market widget ------------------------------------------------------
     rail_codes = ",".join(item["code"] for item in model["rail"])
-    rail_html = "".join(
-        f'<a class="stock" href="{_h(item["path"])}" data-code="{_h(item["code"])}"><span class="n">{_h(item["name"])}</span><span class="c">{_h(item["code"])}</span><div class="p"><span class="muted">가격 불러오는 중</span></div></a>'
+    rail_rows = "".join(
+        f'<div class="kv" data-code="{_h(item["code"])}"><span><a href="{_h(item["path"])}"><b style="font-weight: 700;">{_h(item["name"])}</b></a> <span class="tiny muted num" data-price>—</span></span><span class="spark-wrap"><span data-spark="{_h(item["code"])}" data-w="70" data-h="22" data-area="no"></span><span class="num muted" data-spark-change>·</span></span></div>'
         for item in model["rail"]
     )
+    market_html = f"""<div class="card market">
+      <div class="card-h"><h2>{icon_tile("trend", "b-blue", small=True)}종목 분석실</h2><span class="tiny muted">{_h(model['now_text'])}</span></div>
+      <div class="card-b" style="padding-top: 6px;" data-rail-tickers="{_h(rail_codes)}">{rail_rows}</div>
+      <div class="card-f"><span>60일 흐름 · 종가 기준</span><form action="/stocks" method="get" role="search" class="row"><input class="field" name="ticker" placeholder="종목명 또는 코드" aria-label="종목 검색" style="height: 30px; width: 150px; font-size: 12px;"><button class="btn sm primary" type="submit">분석실 열기</button></form></div>
+    </div>"""
 
-    theme_buttons = "".join(
-        f'<button type="button" class="{name}" data-theme="{name}" aria-pressed="false" aria-label="{_h(THEME_LABELS[name])} 테마" title="{_h(THEME_LABELS[name])}"></button>'
-        for name in THEMES
+    # previous runs ------------------------------------------------------------
+    prev_html = "".join(
+        f'<div class="kv"><span><a href="{_h(item.get("detail_path"))}"><b style="font-weight: 600;">{_h(_korean_date(item.get("as_of_date")))}</b></a></span><span class="tiny muted num">후보 {_h(item.get("candidate_count"))} · 가상주문 {_h(item.get("order_count"))} · {"dry-run" if item.get("dry_run") else _h(item.get("broker"))}</span></div>'
+        for item in model["previous_runs"]
     )
+    prev_block = f'<div class="card"><div class="card-h"><h2>{icon_tile("clock", "b-grey", small=True)}지난 실행</h2><a class="link tiny" href="/harness">전체 →</a></div><div class="card-b" style="padding-top: 4px;">{prev_html}</div></div>' if prev_html else ""
 
-    run_meta = ""
-    if run:
-        run_meta = f"{'토론 확인기' if run.get('confirmer') == 'debate' else _h(run.get('confirmer'))} · {'KIS 모의투자' if run.get('broker') == 'kis' else '로컬 가상계좌'}{' · dry-run' if run.get('dry_run') else ''} · <a href=\"{_h(run.get('detail_path'))}\">실행 상세와 감사 원장</a>"
-
-    title_date = model["run_date_text"] or "오늘"
-    proof_completed = outcomes["completed_total"]
-    teaser = model.get("teaser")
-    teaser_html = ""
-    if teaser:
-        teaser_html = (
-            f'<p class="teaser"><strong>오늘 {_h(_korean_date(teaser["as_of_date"]))} 실행 완료</strong> — 후보 {_h(teaser["candidate_count"])}개 중 {_h(teaser["order_count"])}개 통과. '
-            f'종목과 토론 전문은 <a href="/pricing">데일리 패스</a>에서 즉시, 무료 플랜은 다음 거래일에 열립니다.</p>'
-        )
-
-    return f"""<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TradingAgents Korea — 오늘 고른 종목과 지난 선택의 성적표</title>
-<meta name="description" content="KOSPI·KOSDAQ 상위 종목을 규칙으로 거르고 AI 토론으로 확인한 뒤 모의투자로 검증합니다. 모든 선택은 5·20거래일 뒤 지수 대비 수익률로 채점됩니다.">
-<link rel="canonical" href="{_h(model['canonical'])}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<script>(function(){{try{{var t=localStorage.getItem('ta-theme');if(t==='paper'||t==='dark'||t==='sepia'){{document.documentElement.setAttribute('data-theme',t);}}}}catch(e){{}}
-/* Supabase auth links (magic link, signup confirmation, recovery) may land on the site root; the member page owns session handling. */
-var h=location.hash||'';if(h.indexOf('access_token=')>=0||h.indexOf('type=recovery')>=0||h.indexOf('error_description=')>=0){{location.replace('/member'+h);}}}})();</script>
-<style>{HOME_CSS}</style>
-</head>
-<body class="public-home">
-<a class="skip-link" href="#main-content">본문 바로가기</a>
-<header class="masthead">
-  <div class="shell">
-    <a class="brand" href="/"><span class="brand-name">TradingAgents Korea</span><span class="brand-sub">한국 주식 AI 리서치 데일리</span></a>
-    <nav class="nav" aria-label="주요 메뉴">
-      <a href="/" aria-current="page">오늘</a>
-      <a href="/harness">일일 하네스</a>
-      <a href="/outcomes">검증 성과</a>
-      <a href="/analyses">AI 리포트</a>
-      <a href="/features/methodology">분석 기준</a>
-    </nav>
-    <div class="mast-right">
-      <div class="theme-switch" role="group" aria-label="페이지 테마">{theme_buttons}</div>
-      <a class="btn" href="/member">로그인</a>
-      <a class="btn primary" href="/member?mode=signup">내 공간 만들기</a>
-    </div>
-  </div>
-</header>
-<div class="tape" aria-label="실행 요약">
-  <div class="shell">
-    <span class="date">{_h(model['now_text'])}</span>
-    {f'<span>최근 실행 <span class="mono">{_h(title_date)}</span></span>' if run else ''}
-    {f'<span>스크리닝 <span class="mono">{_h(_num(run.get("universe_size")))} → 후보 {_h(_num(run.get("candidate_count")))}</span></span>' if run else ''}
-    <span>다음 실행 07:50 · 10:05 · 16:40 KST</span>
-  </div>
-</div>
-<main id="main-content">
-<section class="hero">
+    body = f"""
+<section class="hero home-hero">
   <div class="shell">
     <div>
-      <div class="issue">제 {_h(model['issue_number'])}호 · 매일 아침, 규칙과 AI 토론으로 고른 종목과 그 결과까지</div>
-      <h1>{_h(model['headline'])}</h1>
+      <div class="row wrap">{chips}</div>
+      <h1>{headline}</h1>
       <p class="deck">{_h(model['deck'])}</p>
-      {teaser_html}
-      <form class="search" action="/stocks" method="get" role="search">
-        <label class="skip-link" for="home-ticker">종목코드 또는 종목명</label>
-        <input id="home-ticker" name="ticker" placeholder="종목명 또는 6자리 코드 — 예: 삼성전자, 005930" autocomplete="off" required>
-        <button type="submit">분석실 열기</button>
-      </form>
+      <div class="actions">{hero_actions}</div>
     </div>
-    <div class="proof" aria-label="누적 성과 요약">
-      <div><div class="label">5일 승률</div><div class="value">{hit(five)}</div><div class="sub">지수 대비 초과수익 기준</div></div>
-      <div><div class="label">20일 평균 알파</div><div class="value">{alpha(twenty)}</div><div class="sub">확정 {_h(twenty.get('completed') or 0)}건</div></div>
-      <div><div class="label">채점 완료</div><div class="value mono">{_h(proof_completed)}</div><div class="sub">5일·20일 결과 합계</div></div>
+    <div class="grid-2">{tiles}</div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="shell">
+    <div class="card" style="padding: 16px 18px;">
+      <div class="row between wrap" style="margin-bottom: 10px;"><h2>{icon_tile("filter", "b-blue", small=True)}오늘의 깔때기 · {_h(title_date)}</h2><span class="tiny muted">07:50 스크리닝 → 10:05 가상 주문 · {run_meta}</span></div>
+      {_funnel_html(model["funnel"]) or '<p class="muted small">첫 실행 뒤 유니버스 → 요인 상위 → 통과 → 가상 주문 수가 여기에 표시됩니다.</p>'}
     </div>
   </div>
 </section>
 
-<section class="block" aria-labelledby="today-title">
-  <div class="shell">
-    <div class="block-head">
-      <h2 id="today-title">{'오늘의 하네스 — ' + _h(title_date) + ' 실행' if run else '오늘의 하네스'}</h2>
-      <p class="meta">{run_meta}</p>
-    </div>
-    <div class="two-col">
-      <div>
-        {f'<div class="funnel" aria-label="선정 깔때기">{funnel_html}</div>' if funnel_html else ''}
-        <div class="ledger-wrap">
-          <table class="ledger">
-            <thead><tr><th>#</th><th>종목</th><th>단계</th><th class="r">요인</th><th class="r">20일 예측 / 상승확률</th><th>AI 토론</th><th>근거</th></tr></thead>
-            <tbody>{ledger_rows}</tbody>
+<section class="block">
+  <div class="shell grid-main">
+    <div class="stack" style="gap: 20px;">
+      <div class="card" style="overflow: hidden;">
+        <div class="card-h"><h2>{icon_tile("trend", "b-teal", small=True)}선정 종목 {badge(str(len(decisions)), "b-grey")}</h2><div class="row"><a class="btn ghost sm" href="{_h((run or {}).get('detail_path') or '/harness')}">실행 상세와 감사 원장 →</a></div></div>
+        <div class="table-wrap">
+          <table class="picks">
+            <thead><tr><th>#</th><th>종목 · 근거</th><th>60일 흐름</th><th>요인</th><th>20일 예측 / 확률</th><th>AI 토론</th><th>단계</th></tr></thead>
+            <tbody>{rows}</tbody>
           </table>
         </div>
-        {debate_html}
+        <div class="card-f"><span>차트: 60일 종가 · 요인: 추세·모멘텀·거래대금 합산 · 예측: TimesFM 20일</span><span>가격 출처 pykrx · Naver</span></div>
       </div>
-      <aside class="record" aria-label="검증 성과">
-        <h3>선택은 채점됩니다</h3>
-        <p class="sub">모든 가상 주문은 5·20거래일 뒤 지수 대비 초과수익으로 확정됩니다.</p>
-        <dl>
-          <dt>5일 승률</dt><dd>{hit(five)}</dd>
-          <dt>20일 승률</dt><dd>{hit(twenty)}</dd>
-          <dt>5일 평균 알파</dt><dd>{alpha(five)}</dd>
-          <dt>20일 평균 알파</dt><dd>{alpha(twenty)}</dd>
-        </dl>
-        {chart_html}
-        {account_html}
-        {prev_block}
-      </aside>
+      {debate_html}
+      <div class="card">
+        <div class="card-h"><h2>{icon_tile("zap", "b-amber", small=True)}매일 아침 이렇게 고릅니다</h2><a class="link tiny" href="/features/methodology">분석 기준 전문 →</a></div>
+        <div class="card-b steps">
+          <div class="soft">{icon_tile("filter", "b-blue", small=True)}<p class="t">1 · 스크리닝</p><p class="d">코스피200 · 코스닥150을 추세·모멘텀·거래대금 요인으로 거릅니다. ETF·스팩 제외.</p></div>
+          <div class="soft">{icon_tile("trend", "b-violet", small=True)}<p class="t">2 · 확률 예측</p><p class="d">20거래일 가격 밴드와 상승 확률을 계산해 기대수익 2%·확률 55% 미만이면 멈춥니다.</p></div>
+          <div class="soft">{icon_tile("brain", "b-amber", small=True)}<p class="t">3 · AI 토론</p><p class="d">강세·약세 연구원이 근거로 다투고, 판정관과 리스크 패널이 등급과 손절·익절을 정합니다.</p></div>
+          <div class="soft">{icon_tile("check", "b-teal", small=True)}<p class="t">4 · 수량 · 가상 주문 · 채점</p><p class="d">거래당 계좌의 1%만 잃도록 수량을 정하고, 모의투자 주문 뒤 5·20거래일 성과를 공개합니다.</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="stack">
+      {teaser_html}
+      {account_html}
+      {outcomes_html}
+      {market_html}
+      {prev_block}
     </div>
   </div>
 </section>
-
-<section class="block" aria-labelledby="how-title">
-  <div class="shell">
-    <div class="block-head"><h2 id="how-title">한 종목이 여기까지 오는 다섯 단계</h2><p class="meta">각 단계는 감사 원장에 해시로 묶여 기록됩니다 · <a href="/features/methodology">분석 기준 전문</a></p></div>
-    <div class="process">
-      <div class="step"><h3>스크리닝</h3><p>시가총액 상위 300종목을 모멘텀·추세·RSI·거래량·변동성 점수로 정렬합니다.</p></div>
-      <div class="step"><h3>확률 예측</h3><p>20거래일 가격 밴드와 상승 확률을 계산해 기대수익 2%·확률 55% 미만이면 멈춥니다.</p></div>
-      <div class="step"><h3>AI 토론</h3><p>강세·약세 연구원이 근거로 다투고, 판정관과 리스크 패널이 등급과 손절·익절을 정합니다.</p></div>
-      <div class="step"><h3>수량과 한도</h3><p>거래당 계좌의 1%만 잃도록 수량을 계산하고, 종목 20%·총노출·일손실 한도를 검사합니다.</p></div>
-      <div class="step"><h3>가상 주문과 채점</h3><p>KIS 모의투자에 지정가로 넣고, 5·20거래일 뒤 지수 대비 성과를 공개합니다.</p></div>
-    </div>
-  </div>
-</section>
-
-<section class="block" aria-labelledby="rail-title">
-  <div class="shell">
-    <div class="block-head"><h2 id="rail-title">종목 분석실</h2><p class="meta">차트·공시·뉴스·AI 토론·가상매매 기록을 한 화면에서 봅니다.</p></div>
-    <div class="rail" data-rail-tickers="{_h(rail_codes)}">{rail_html}</div>
-  </div>
-</section>
-
-<section class="trust" aria-label="운영 원칙">
-  <div class="shell">
-    <div><strong>실계좌 주문은 이 사이트에서 일어나지 않습니다.</strong>공개 페이지와 API는 조회 전용이며, 모의투자 주문은 운영자 파이프라인에서만 실행됩니다.</div>
-    <div><strong>모든 숫자는 출처와 시각을 답니다.</strong>pykrx·Naver·DART·KIS 중 어느 데이터인지, 언제 값인지, 대체 데이터를 썼는지 표시합니다.</div>
-    <div><strong>AI 의견은 연구 자료입니다.</strong>투자 판단과 책임은 이용자에게 있으며, 수익을 보장하지 않습니다.</div>
-  </div>
-</section>
-</main>
-<footer>
-  <div class="shell">
-    <span>© 2026 TradingAgents Korea</span>
-    <a href="/features/methodology">분석 기준</a><a href="/disclaimer">면책</a><a href="/privacy">개인정보</a><a href="/terms">약관</a>
-    <span>데이터: pykrx · Naver 금융 · DART · KIS Open API</span>
-  </div>
-</footer>
-<script>{HOME_JS}</script>
-</body>
-</html>"""
+"""
+    return render_shell(
+        title="TradingAgents Korea — 오늘 고른 종목과 지난 선택의 성적표",
+        description="KOSPI·KOSDAQ 상위 종목을 규칙으로 거르고 AI 토론으로 확인한 뒤 모의투자로 검증합니다. 모든 선택은 5·20거래일 뒤 지수 대비 수익률로 채점됩니다.",
+        body=body,
+        active="/",
+        canonical_path="/",
+        site_base_url=model["site_base_url"],
+        extra_head=AUTH_FORWARD_SCRIPT,
+        extra_css=HOME_CSS,
+        extra_js=HOME_JS,
+        body_class="public-home",
+    )
