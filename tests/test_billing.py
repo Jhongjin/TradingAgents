@@ -210,3 +210,34 @@ def test_plans_table_is_consistent():
     assert PLANS["free"].price_krw == 0 and PLANS["daily"].price_krw == 10_000 and PLANS["pro"].price_krw == 30_000
     assert not PLANS["free"].same_day_harness and PLANS["daily"].same_day_harness
     assert PLANS["free"].analysis_requests_per_day < PLANS["daily"].analysis_requests_per_day < PLANS["pro"].analysis_requests_per_day
+
+
+def test_billing_key_issued_webhook_without_customer_looks_up_the_key():
+    """PortOne's Issued webhook carries only the key; customData comes back double-encoded."""
+
+    repo = _repo()
+    payments: dict = {}
+    calls: list = []
+    custom = json.dumps(json.dumps({"user_id": USER, "plan": "pro", "customer_key": f"ta-{USER}"}))
+
+    def transport(method, url, headers, body):
+        calls.append(url)
+        if url.endswith("/billing-keys/bk-2"):
+            return 200, {"status": "ISSUED", "billingKey": "bk-2", "customer": {"id": f"ta-{USER}"}, "customData": custom}
+        if url.endswith("/billing-key"):
+            payment_id = url.split("/payments/")[1].split("/")[0]
+            payments[payment_id] = {"status": "PAID", "amount": {"total": body["amount"]["total"]}, "customer": body["customer"], "customData": body.get("customData")}
+            return 200, {"payment": {}}
+        if "/payments/" in url:
+            return 200, payments[url.rsplit("/", 1)[1]]
+        raise AssertionError(url)
+
+    client = PortOneClient(PortOneConfig(api_secret="secret", store_id="store", channel_key="ch", webhook_secret=SECRET), transport=transport)
+    issued = handle_portone_webhook(repo, {"type": "BillingKey.Issued", "data": {"storeId": "store", "billingKey": "bk-2"}}, client, now=NOW)
+    assert issued["handled"] is True and issued["charge"]["charged"] is True
+    assert any(url.endswith("/billing-keys/bk-2") for url in calls)
+    row = repo.get_subscription(USER)
+    assert row["billing_key"] == "bk-2" and row["plan"] == "pro"
+    paid = handle_portone_webhook(repo, {"type": "Transaction.Paid", "data": {"paymentId": issued["charge"]["payment_id"]}}, client, now=NOW)
+    assert paid["plan"] == "pro" and repo.get_subscription(USER)["status"] == "active"
+    assert handle_portone_webhook(repo, {"type": "BillingKey.Issued", "data": {}}, client, now=NOW)["handled"] is False

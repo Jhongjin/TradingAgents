@@ -365,6 +365,14 @@ class PortOneClient:
             raise PortOneError(f"PortOne GET /payments/{payment_id} -> {status}: {_message(body)}")
         return body
 
+    def get_billing_key(self, billing_key: str) -> Mapping[str, Any]:
+        """Billing key detail (customer id, customData) — the Issued webhook carries only the key."""
+
+        status, body = self._request("GET", f"/billing-keys/{billing_key}", None)
+        if status >= 400:
+            raise PortOneError(f"PortOne GET /billing-keys/{billing_key} -> {status}: {_message(body)}")
+        return body
+
     def pay_with_billing_key(self, *, payment_id: str, billing_key: str, amount: int, order_name: str, customer_id: str, custom_data: str | None = None) -> Mapping[str, Any]:
         body = {
             "billingKey": billing_key,
@@ -482,12 +490,21 @@ def handle_portone_webhook(repo: StorageRepository, event: Mapping[str, Any], cl
 
 def _on_billing_key_issued(repo: StorageRepository, data: Mapping[str, Any], client: PortOneClient, *, now: datetime) -> dict[str, Any]:
     billing_key = str(data.get("billingKey") or "")
+    if not billing_key:
+        return {"handled": False, "event_type": "BillingKey.Issued", "reason": "missing billing key"}
     custom = _parse_custom_data(data.get("customData"))
     customer_id = str(((data.get("customer") or {}).get("id")) or custom.get("customer_key") or "")
+    if not customer_id and not custom.get("user_id"):
+        # PortOne's webhook body carries only the key: read customer/customData from the API.
+        info = client.get_billing_key(billing_key)
+        custom = _parse_custom_data(info.get("customData"))
+        customer_id = str(((info.get("customer") or {}).get("id")) or custom.get("customer_key") or "")
+        if str(info.get("status") or "ISSUED").upper() not in {"ISSUED", "READY"}:
+            return {"handled": False, "event_type": "BillingKey.Issued", "reason": f"billing key status {info.get('status')}"}
     user_id = custom.get("user_id") or _user_from_customer_key(customer_id)
     plan_id = custom.get("plan") or "daily"
-    if not billing_key or not user_id:
-        return {"handled": False, "event_type": "BillingKey.Issued", "reason": "missing billing key or user"}
+    if not user_id:
+        return {"handled": False, "event_type": "BillingKey.Issued", "reason": "billing key has no member"}
     existing = repo.get_subscription(user_id) or {}
     subscription_id = repo.upsert_subscription(
         _merge_input(existing, user_id=user_id, plan=plan_id, status=str(existing.get("status") or "inactive") if existing.get("status") in {"active", "trialing"} else "inactive", customer_key=customer_id or _customer_key(user_id), billing_key=billing_key)
@@ -619,10 +636,15 @@ def _parse_custom_data(value: Any) -> dict[str, str]:
         return {}
     if isinstance(value, Mapping):
         return {str(k): str(v) for k, v in value.items()}
-    try:
-        parsed = json.loads(str(value))
-    except ValueError:
-        return {}
+    parsed: Any = value
+    # PortOne stores customData as a string and may return it JSON-encoded twice.
+    for _ in range(3):
+        if isinstance(parsed, Mapping):
+            break
+        try:
+            parsed = json.loads(str(parsed))
+        except ValueError:
+            return {}
     return {str(k): str(v) for k, v in parsed.items()} if isinstance(parsed, Mapping) else {}
 
 
