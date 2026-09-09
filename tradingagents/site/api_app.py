@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import hmac
+from uuid import UUID
 import time
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -32,7 +33,9 @@ from .analysis_api import (
     build_public_analysis_outcomes_payload,
     queue_analysis_refresh_request,
 )
-from .auth import SUPABASE_API_KEY_ENV_NAMES, SUPABASE_URL_ENV_NAMES, resolve_member_user_id
+from .admin_members import SupabaseAdminClient, SupabaseAdminError, grant_member_plan, list_members, set_member_role
+from .admin_members_page import render_admin_members_page
+from .auth import SUPABASE_API_KEY_ENV_NAMES, SUPABASE_URL_ENV_NAMES, resolve_member_profile, resolve_member_user_id
 from .harness_api import (
     SUPPORTED_WEB_CONFIRMERS,
     build_harness_outcomes_payload,
@@ -138,6 +141,15 @@ class HarnessRunRequestBody(BaseModel):
     dry_run: bool = True
 
 
+class MemberPlanBody(BaseModel):
+    plan: str = Field(pattern=r"^(free|daily|pro)$")
+    days: int = Field(default=30, ge=0, le=366)
+
+
+class MemberRoleBody(BaseModel):
+    role: str = Field(pattern=r"^(admin|member)$")
+
+
 WORKER_TOKEN_ENV_NAMES = (
     "TRADINGAGENTS_WORKER_TOKEN",
     "DASHBOARD_ADMIN_TOKEN",
@@ -231,7 +243,7 @@ def create_app(
         if request.headers.get("Authorization") or request.headers.get("X-TradingAgents-User-Id") or request.url.path.startswith("/api/billing/"):
             # Plan-gated and member responses must never be shared through a public cache.
             response.headers.setdefault("Cache-Control", "private, no-store")
-        elif request.url.path in {"/member", "/mypage", "/admin", "/billing"}:
+        elif request.url.path in {"/member", "/mypage", "/admin", "/admin/members", "/billing"}:
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif (
             request.url.path == "/"
@@ -545,12 +557,15 @@ def create_app(
         x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
     ) -> dict:
         repo = request.app.state.repository
-        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        profile = resolve_member_profile(request, x_tradingagents_user_id)
+        user_id = profile["id"]
         access = resolve_plan_access(repo, user_id)
         events = repo.list_billing_events(user_id=user_id, limit=10) if repo is not None else []
         return {
             "status": "available",
             "access": access.as_dict(),
+            "role": profile["role"],
+            "is_admin": bool(profile["is_admin"]),
             "events": [
                 {"event_type": item.get("event_type"), "status": item.get("status"), "amount": item.get("amount"), "created_at": item.get("created_at"), "message": item.get("message")}
                 for item in events
@@ -642,6 +657,56 @@ def create_app(
     @app.get("/billing", response_class=HTMLResponse, include_in_schema=False)
     def billing_page(request: Request) -> HTMLResponse:
         return HTMLResponse(render_billing_page(site_base_url=_request_site_base_url(request)))
+
+    # ------------------------------------------------------ member management (operators)
+    @app.get("/admin/members", response_class=HTMLResponse, include_in_schema=False)
+    def admin_members_page(request: Request) -> HTMLResponse:
+        return HTMLResponse(render_admin_members_page(site_base_url=_request_site_base_url(request)))
+
+    @app.get("/api/admin/members")
+    def admin_members_list(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_operator(request, x_tradingagents_worker_token)
+        repo = _require_repository(request)
+        try:
+            return list_members(repo, _supabase_admin_client(request))
+        except SupabaseAdminError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @app.post("/api/admin/members/{user_id}/plan")
+    def admin_members_plan(
+        user_id: str,
+        body: MemberPlanBody,
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        actor = _require_operator(request, x_tradingagents_worker_token)
+        repo = _require_repository(request)
+        _validate_uuid_param(user_id)
+        try:
+            result = grant_member_plan(repo, user_id, plan=body.plan, days=body.days, actor=actor)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "ok", **result}
+
+    @app.post("/api/admin/members/{user_id}/role")
+    def admin_members_role(
+        user_id: str,
+        body: MemberRoleBody,
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_operator(request, x_tradingagents_worker_token)
+        _validate_uuid_param(user_id)
+        try:
+            result = set_member_role(_supabase_admin_client(request), user_id, body.role)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except SupabaseAdminError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return {"status": "ok", **result}
 
     # ------------------------------------------------------ notifications
     @app.post("/api/notifications/telegram/link")
@@ -2818,14 +2883,55 @@ def _process_subscription_renewals(request: Request) -> dict:
 
 
 def _require_worker_token(request: Request, header_token: str | None) -> None:
+    _require_operator(request, header_token)
+
+
+def _require_operator(request: Request, header_token: str | None) -> str:
+    """Allow a worker token (header or bearer) or a signed-in admin member; return the actor label."""
+
     expected_tokens = _expected_worker_tokens()
+    bearer = _bearer_token(request.headers.get("Authorization"))
+    token = header_token or bearer
+    if not token:
+        if not expected_tokens:
+            raise HTTPException(status_code=503, detail="Operation token is not configured")
+        raise HTTPException(status_code=401, detail="Missing operation token")
+    if any(hmac.compare_digest(token, expected) for expected in expected_tokens):
+        return "worker"
+    if bearer and token == bearer:
+        profile = _admin_profile_or_none(request)
+        if profile is not None:
+            return str(profile.get("email") or profile.get("id") or "admin")
     if not expected_tokens:
         raise HTTPException(status_code=503, detail="Operation token is not configured")
-    token = header_token or _bearer_token(request.headers.get("Authorization"))
-    if not token:
-        raise HTTPException(status_code=401, detail="Missing operation token")
-    if not any(hmac.compare_digest(token, expected) for expected in expected_tokens):
-        raise HTTPException(status_code=403, detail="Invalid operation token")
+    raise HTTPException(status_code=403, detail="Invalid operation token")
+
+
+def _admin_profile_or_none(request: Request) -> dict | None:
+    try:
+        profile = resolve_member_profile(request, None)
+    except HTTPException:
+        return None
+    return profile if profile.get("is_admin") else None
+
+
+def _supabase_admin_client(request: Request) -> SupabaseAdminClient:
+    client = getattr(request.app.state, "supabase_admin_client", None)
+    return client if client is not None else SupabaseAdminClient.from_env()
+
+
+def _require_repository(request: Request) -> StorageRepository:
+    repo = request.app.state.repository
+    if repo is None:
+        raise HTTPException(status_code=503, detail="Storage repository is not configured")
+    return repo
+
+
+def _validate_uuid_param(value: str) -> None:
+    try:
+        UUID(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="user_id must be a UUID") from exc
 
 
 def _expected_worker_token() -> str:

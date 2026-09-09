@@ -28,7 +28,41 @@ def resolve_member_user_id(request: Request, trusted_user_header: str | None) ->
     return _validate_user_uuid(trusted_user_header, "X-TradingAgents-User-Id")
 
 
+ADMIN_EMAILS_ENV = "TRADINGAGENTS_ADMIN_EMAILS"
+
+
+def resolve_member_profile(request: Request, trusted_user_header: str | None) -> dict:
+    """Like ``resolve_member_user_id`` but returns id, email, and role.
+
+    Role comes from Supabase ``app_metadata.role`` (set by an operator through
+    the admin API) or from ``TRADINGAGENTS_ADMIN_EMAILS``. Header-trust mode
+    yields a member profile without email.
+    """
+
+    authorization = request.headers.get("authorization")
+    if authorization:
+        payload = _supabase_user_payload(authorization)
+        user_id = _validate_user_uuid(payload.get("id"), "Supabase user id")
+        email = str(payload.get("email") or "").strip().lower()
+        role = str(((payload.get("app_metadata") or {}).get("role")) or "member").lower()
+        if email and email in admin_emails():
+            role = "admin"
+        return {"id": user_id, "email": email or None, "role": role, "is_admin": role == "admin"}
+    user_id = resolve_member_user_id(request, trusted_user_header)
+    return {"id": user_id, "email": None, "role": "member", "is_admin": False}
+
+
+def admin_emails() -> frozenset[str]:
+    raw = os.getenv(ADMIN_EMAILS_ENV, "")
+    return frozenset(part.strip().lower() for part in raw.split(",") if part.strip())
+
+
 def _resolve_from_supabase_bearer(authorization: str) -> str:
+    payload = _supabase_user_payload(authorization)
+    return _validate_user_uuid(payload.get("id"), "Supabase user id")
+
+
+def _supabase_user_payload(authorization: str) -> dict:
     scheme, _, token = authorization.partition(" ")
     if scheme.lower() != "bearer" or not token.strip():
         raise HTTPException(status_code=401, detail="Authorization must use Bearer token")
@@ -60,7 +94,7 @@ def _resolve_from_supabase_bearer(authorization: str) -> str:
     except ValueError as exc:
         raise HTTPException(status_code=503, detail="Supabase Auth returned invalid JSON") from exc
 
-    return _validate_user_uuid(payload.get("id"), "Supabase user id")
+    return payload if isinstance(payload, dict) else {}
 
 
 def _validate_user_uuid(value: str | None, label: str) -> str:

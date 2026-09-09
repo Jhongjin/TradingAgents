@@ -1590,7 +1590,8 @@ def render_admin_console_page(*, site_base_url: str | None = None) -> str:
       <div>
         <p class="home-kicker">운영 콘솔 / 비밀값 저장 없음</p>
         <h1 id="admin-title">운영 작업을 확인하고 실행합니다</h1>
-        <p>운영 토큰은 브라우저 세션에만 보관되고 운영 API 호출 헤더로만 전송됩니다.</p>
+        <p>운영 토큰은 브라우저 세션에만 보관되고 운영 API 호출 헤더로만 전송됩니다. 관리자 계정으로 로그인한 경우 토큰 없이도 실행할 수 있습니다.</p>
+        <p><a class="member-admin-link" href="/admin/members">회원 관리 (등급 · 플랜 · 남은 기간) →</a></p>
       </div>
       <form class="admin-token-panel" id="adminTokenForm">
         <label>
@@ -1933,6 +1934,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           if(!d||!d.access){{badge.textContent='무료';return;}}
           var s=d.access.status;var name=d.access.plan.name;
           badge.textContent=s==='trialing'?name+' 체험':(s==='active'?name:'무료');
+          if(d.is_admin){{document.querySelectorAll('[data-admin-only]').forEach(function(n){{n.hidden=false;}});}}
         }}).catch(function(){{badge.textContent='무료';}});
       }})();
       </script>
@@ -2012,7 +2014,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <div class="member-home-links" aria-label="보조 이동">
             <a class="member-report-link" href="/analyses">AI 리포트 보기</a>
             <a class="member-report-link" href="/outcomes">사후 결과 보기</a>
-            <a class="member-admin-link" href="/admin">운영 콘솔</a>
+            <a class="member-admin-link" href="/admin" data-admin-only hidden>운영 콘솔</a>
+            <a class="member-admin-link" href="/admin/members" data-admin-only hidden>회원 관리</a>
           </div>
         </section>
 
@@ -13470,12 +13473,20 @@ ADMIN_PAGE_JS = """
     return (tokenInput?.value || "").trim() || savedToken();
   }
 
+  function memberSessionToken() {
+    try {
+      return localStorage.getItem("tradingagents.member.access_token") || sessionStorage.getItem("tradingagents.member.access_token") || "";
+    } catch (error) {
+      return "";
+    }
+  }
+
   function requiresOperationToken(button) {
     return Boolean(button?.matches("[data-admin-action], [data-admin-ops-summary]"));
   }
 
   function syncAdminAccessControls() {
-    const hasToken = Boolean(currentToken());
+    const hasToken = Boolean(currentToken() || memberSessionToken());
     document.querySelectorAll("[data-admin-action], [data-admin-ops-summary]").forEach((button) => {
       if (button.getAttribute("aria-busy") === "true") return;
       button.disabled = !hasToken;
@@ -13997,8 +14008,10 @@ ADMIN_PAGE_JS = """
     };
     if (requireToken) {
       const token = currentToken();
-      if (!token) throw new Error("운영 토큰을 입력하세요.");
-      headers["X-TradingAgents-Worker-Token"] = token;
+      const memberToken = memberSessionToken();
+      if (!token && !memberToken) throw new Error("운영 토큰을 입력하거나 관리자 계정으로 로그인하세요.");
+      if (token) headers["X-TradingAgents-Worker-Token"] = token;
+      else headers["Authorization"] = `Bearer ${memberToken}`;
     }
     const response = await fetch(path, { ...options, headers });
     const payload = await response.json().catch(() => ({}));

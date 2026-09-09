@@ -73,10 +73,15 @@ RLS는 본인 행 읽기만 허용, 쓰기는 서버(DATABASE_URL)만.
 - 텔레그램: 봇 웹훅(`/start 코드` 연결, `/stop` 해제), 발행 푸시
   (`/api/cron/notify-harness-issue` 07:56·10:25 KST, 유료는 종목·등급, 무료는 발행 안내).
 
+- 환불(7일 이내 전액, 이후 일할)·손절/익절·5D/20D 확정 알림·마이페이지 플랜 배지.
+- 관리자 역할과 회원 관리(2026-09-09): Supabase `app_metadata.role=admin`(또는
+  `TRADINGAGENTS_ADMIN_EMAILS`)이면 운영 API를 운영 토큰 없이 회원 세션으로 호출.
+  `/admin/members`는 회원별 등급·플랜·남은 기간·텔레그램 연결·결제수단 유무를 보여주고
+  플랜 부여(결제 없이 N일, `billing_events`에 `operator.plan_granted`로 기록)와
+  관리자 지정/해제를 지원. 회원 목록은 `SUPABASE_SERVICE_ROLE_KEY`로 Auth 관리 API를 읽음.
+
 남은 것:
-- 환불 자동화(포트원 취소 API)와 영수증 메일.
-- 손절·익절 발동, 5D/20D 확정 알림(현재는 발행 알림만).
-- 마이페이지(`/mypage`) 안에 `/billing` 진입 링크와 플랜 배지.
+- 영수증 메일, 회원 검색 필터 고도화(가입 경로·이탈).
 
 ## 7. 출시 체크리스트
 

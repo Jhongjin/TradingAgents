@@ -102,6 +102,10 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/admin/members",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/disclaimer",
       "destination": "/api/index.py"
     },
