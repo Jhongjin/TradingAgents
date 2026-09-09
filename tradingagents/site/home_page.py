@@ -106,17 +106,14 @@ def build_home_view_model(repo: StorageRepository | None, *, site_base_url: str 
     """Assemble everything the template needs from stored harness data."""
 
     now = now or datetime.now(ZoneInfo("Asia/Seoul"))
-    latest = build_harness_run_payload(repo) if repo is not None else None
-    runs = build_harness_runs_payload(repo, limit=4) if repo is not None else {"items": []}
-    outcomes = build_harness_outcomes_payload(repo, limit=200) if repo is not None else {"summary": {}, "items": []}
+    latest, runs, outcomes = _load_sources(repo)
 
     run = (latest or {}).get("run") if isinstance(latest, dict) else None
     decisions = list((latest or {}).get("decisions") or []) if isinstance(latest, dict) else []
     ordered = [item for item in decisions if item.get("stage") in {"ordered", "exit"}]
     featured = ordered[0] if ordered else (decisions[0] if decisions else None)
     debate = _debate_excerpts(featured)
-    issue_number = int(runs.get("item_count") or len(runs.get("items") or []) or 0)
-    total_runs = _count_runs(repo) if repo is not None else issue_number
+    total_runs = int(runs.get("item_count") or len(runs.get("items") or []) or 0)
 
     summary = (outcomes or {}).get("summary") or {}
     five = summary.get("5") or {}
@@ -152,11 +149,35 @@ def build_home_view_model(repo: StorageRepository | None, *, site_base_url: str 
     }
 
 
-def _count_runs(repo: StorageRepository) -> int:
-    try:
-        return len(repo.list_harness_runs(limit=500))
-    except Exception:
-        return 0
+SOURCE_CACHE_SECONDS = 60
+_source_cache: dict[int, tuple[float, tuple[Any, Any, Any]]] = {}
+
+
+def _load_sources(repo: StorageRepository | None) -> tuple[Any, dict[str, Any], dict[str, Any]]:
+    """Four database round trips, memoised per process for a minute.
+
+    Serverless instances stay warm between requests and the CDN caches the
+    rendered page, so a short in-process cache removes most origin latency
+    (each Supabase query costs a cross-region round trip).
+    """
+
+    import time
+
+    if repo is None:
+        return None, {"items": [], "item_count": 0}, {"summary": {}, "items": []}
+    key = id(repo)
+    cached = _source_cache.get(key)
+    if cached and time.monotonic() - cached[0] < SOURCE_CACHE_SECONDS:
+        return cached[1]
+    latest = build_harness_run_payload(repo)
+    runs = build_harness_runs_payload(repo, limit=50)
+    outcomes = build_harness_outcomes_payload(repo, limit=120)
+    _source_cache[key] = (time.monotonic(), (latest, runs, outcomes))
+    return latest, runs, outcomes
+
+
+def clear_home_cache() -> None:
+    _source_cache.clear()
 
 
 def _debate_excerpts(decision: Mapping[str, Any] | None) -> list[dict[str, str]]:

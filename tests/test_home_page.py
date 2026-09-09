@@ -104,3 +104,20 @@ def test_api_app_serves_new_home_and_legacy_home():
     legacy = client.get("/?legacy=1")
     assert legacy.status_code == 200
     assert "한국 주식 AI 관제 시스템" in legacy.text
+
+
+def test_home_sources_are_memoised_per_repo(monkeypatch):
+    from tradingagents.site import home_page
+
+    repo = _repo()
+    _seed(repo)
+    home_page.clear_home_cache()
+    calls = []
+    original = home_page.build_harness_run_payload
+    monkeypatch.setattr(home_page, "build_harness_run_payload", lambda r: (calls.append(1), original(r))[1])
+    build_home_view_model(repo, now=NOW)
+    build_home_view_model(repo, now=NOW)
+    assert len(calls) == 1
+    home_page.clear_home_cache()
+    build_home_view_model(repo, now=NOW)
+    assert len(calls) == 2
