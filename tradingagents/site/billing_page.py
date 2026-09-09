@@ -33,7 +33,7 @@ BILLING_JS = """
   function say(id,text,isError){var n=el(id);if(!n)return;n.textContent=text||'';n.className='msg'+(isError?' error':'');}
   async function api(path,options){
     var t=token();
-    if(!t){throw new Error('로그인이 필요합니다. 내 공간에서 로그인한 뒤 다시 열어 주세요.');}
+    if(!t){throw new Error('로그인이 필요합니다. 마이페이지에서 로그인한 뒤 다시 열어 주세요.');}
     var opts=Object.assign({headers:{}},options||{});
     opts.headers=Object.assign({'Authorization':'Bearer '+t,'Content-Type':'application/json'},opts.headers||{});
     var r=await fetch(path,opts);
@@ -125,8 +125,8 @@ def render_billing_page(*, site_base_url: str | None = None) -> str:
     body = f"""
 <section class="hero billing-head">
   <div class="shell row between wrap">
-    <div>{badge("내 공간 · 구독 관리", "b-teal")}<h1 style="margin-top: 8px;">구독 관리</h1><p class="small ink2" style="margin-top: 4px;">로그인한 회원의 브라우저 세션을 사용합니다. 카드 정보는 결제사(포트원)에만 저장됩니다.</p></div>
-    <div class="row"><a class="btn sm" href="/mypage">{icon("users", 14)}내 공간</a><a class="btn sm" href="/pricing">요금제 비교</a></div>
+    <div>{badge("마이페이지 · 구독 관리", "b-teal")}<h1 style="margin-top: 8px;">구독 관리</h1><p class="small ink2" style="margin-top: 4px;">로그인한 회원의 브라우저 세션을 사용합니다. 카드 정보는 결제사(포트원)에만 저장됩니다.</p></div>
+    <div class="row"><a class="btn sm" href="/mypage">{icon("users", 14)}마이페이지</a><a class="btn sm" href="/pricing">요금제 비교</a></div>
   </div>
 </section>
 <section class="block" style="padding-bottom: 28px;">
@@ -159,7 +159,7 @@ def render_billing_page(*, site_base_url: str | None = None) -> str:
       <div class="card">
         <div class="card-h"><h2>{icon_tile("send", "b-blue", small=True)}텔레그램 알림</h2><span class="badge b-grey" id="tg-status">확인 중…</span></div>
         <div class="card-b">
-          <p class="small ink2">평일 아침 하네스가 발행되면 알려드립니다. 데일리 패스는 종목과 등급까지, 무료는 발행 안내만 받습니다.</p>
+          <p class="small ink2">평일 아침 종목 선별이 발행되면 알려드립니다. 데일리 패스는 종목과 등급까지, 무료는 발행 안내만 받습니다.</p>
           <div class="actions" style="margin-top: 12px;">
             <button class="btn primary sm" type="button" data-action="tg-link">연결 코드 받기</button>
             <a class="btn sm" id="tg-open" href="#" target="_blank" rel="noopener" hidden>텔레그램에서 열기</a>

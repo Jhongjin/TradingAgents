@@ -202,7 +202,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
   <div class="shell">
     {badge("세션 확인", "b-grey", icon_name="clock")}
     <h1 id="memberSessionTitle">세션을 확인하고 있습니다</h1>
-    <p class="small ink2" id="memberSessionMessage" style="margin-top: 6px;">로그인 상태가 남아 있으면 바로 내 공간으로 이동하고, 없으면 로그인/가입 화면을 엽니다.</p>
+    <p class="small ink2" id="memberSessionMessage" style="margin-top: 6px;">로그인 상태가 남아 있으면 바로 마이페이지로 이동하고, 없으면 로그인/가입 화면을 엽니다.</p>
     <div class="member-session-meter" aria-hidden="true"><span></span></div>
   </div>
 </section>
@@ -211,13 +211,13 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
   <div class="member-auth-copy grad">
     <div>{badge("회원 전용 공간 · 조회 전용", "b-grey").replace('class="badge b-grey"', 'class="badge" style="background: rgba(255,255,255,.16); color: #fff;"')}</div>
     <h1 id="member-auth-title">나만의 AI 리서치 공간을 시작하세요</h1>
-    <p class="member-auth-lead">매매 일지, 관심그룹, AI 분석 요청, 가상매매 복기 요약을 내 공간에서 함께 관리합니다.</p>
+    <p class="member-auth-lead">매매 일지, 관심그룹, AI 분석 요청, 모의매매 복기를 마이페이지에서 한곳에 모아 봅니다.</p>
     <div class="member-auth-points" aria-label="회원 영역 원칙">
       <article><span>01</span><strong>주문 없음 원칙</strong><small>실거래 주문 기능은 차단하고 기록과 조회 흐름만 제공합니다.</small></article>
       <article><span>02</span><strong>공식 출처 기준</strong><small>KRX, DART, 공개 뉴스 흐름을 분리해 분석 근거를 남깁니다.</small></article>
-      <article><span>03</span><strong>내 공간</strong><small>로그인한 사용자에게만 저장 기록과 분석 요청 상태를 보여줍니다.</small></article>
+      <article><span>03</span><strong>마이페이지</strong><small>로그인한 사용자에게만 저장 기록과 분석 요청 상태를 보여줍니다.</small></article>
     </div>
-    <p class="member-auth-preview">가입 즉시 무료 플랜으로 전일 하네스와 토론 발췌를 볼 수 있고, 14일 체험으로 당일 전문까지 열립니다.</p>
+    <p class="member-auth-preview">가입 즉시 무료 플랜으로 전일 종목 선별과 토론 발췌를 볼 수 있고, 14일 체험으로 당일 전문까지 열립니다.</p>
   </div>
   <section class="member-panel auth-panel" aria-labelledby="auth-panel-title">
     <div class="auth-heading">
@@ -231,8 +231,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <button type="button" data-auth-action="signin">로그인</button>
         <button type="button" data-auth-action="signup">가입하기</button>
       </div>
-      <p class="auth-form-note">처음이라면 가입하기로 내 공간을 열 수 있습니다.</p>
-      <div class="member-empty auth-status" id="authStatus" role="status" aria-live="polite">내 공간 진입을 위해 인증이 필요합니다.</div>
+      <p class="auth-form-note">처음이라면 가입하기로 마이페이지를 열 수 있습니다.</p>
+      <div class="member-empty auth-status" id="authStatus" role="status" aria-live="polite">마이페이지 진입을 위해 인증이 필요합니다.</div>
     </form>
     <p class="tiny muted" style="margin-top: 16px;">계속하면 <a class="link" href="/terms">이용약관</a>과 <a class="link" href="/privacy">개인정보 처리방침</a>에 동의하게 됩니다. AI 의견은 연구 자료이며 투자 판단의 책임은 이용자에게 있습니다.</p>
   </section>
@@ -244,9 +244,9 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <section class="member-summary-band" aria-labelledby="member-title">
         <div>
           <p class="eyebrow">회원 공간</p>
-          <h1 id="member-title">내 공간</h1>
+          <h1 id="member-title">마이페이지</h1>
           <p class="small ink2" id="memberStatus" style="margin-top: 4px;">로그인 상태 확인 중</p>
-          <p class="member-workspace-lede">홈에서 오늘 할 일을 보고, 필요한 기록과 요청을 이어갑니다.</p>
+          <p class="member-workspace-lede">오늘의 선정 종목을 보고, 기록과 요청을 이어갑니다.</p>
         </div>
         <div class="row wrap">
           <div class="member-signed-in" id="memberSignedIn" hidden>
@@ -255,10 +255,10 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
             <small id="memberSignedInMeta">대시보드를 불러오고 있습니다.</small>
             <button class="ghost-button" id="signOutButton" type="button">{icon("logout", 14)} 로그아웃</button>
           </div>
-          <div class="decision-box"><span class="decision-label">거래 기능</span><strong>OFF</strong><span>조회/기록 전용</span></div>
+          <div class="decision-box"><span class="decision-label">실계좌 주문</span><strong>없음</strong><span>조회·기록 전용</span></div>
         </div>
       </section>
-      <nav class="member-tab-strip" role="tablist" aria-label="내 공간 섹션">
+      <nav class="member-tab-strip" role="tablist" aria-label="마이페이지 섹션">
         <a id="home-tab" class="is-active" href="#member-home-section" role="tab" data-member-tab="home" aria-controls="member-home-section" aria-selected="true">홈 <span id="memberHomeStatus">준비됨</span></a>
         <a id="portfolio-tab" href="#portfolio-section" role="tab" data-member-tab="portfolio" aria-controls="portfolio-section" aria-selected="false">매매 일지 <span id="portfolioTabCount">0</span></a>
         <a id="watchlist-tab" href="#watchlist-section" role="tab" data-member-tab="watchlist" aria-controls="watchlist-section" aria-selected="false">관심그룹 <span id="watchlistTabCount">0</span></a>
@@ -288,10 +288,10 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
   <section class="member-grid" aria-label="회원 기능">
     <section class="member-panel member-home-panel" id="member-home-section" role="tabpanel" data-member-panel="home" aria-labelledby="home-tab">
       <div class="panel-heading">
-        <div><p class="eyebrow">내 공간</p><h2>홈</h2><p class="panel-copy">오늘 이어갈 항목입니다.</p></div>
+        <div><p class="eyebrow">마이페이지</p><h2>홈</h2><p class="panel-copy">오늘 이어갈 항목입니다.</p></div>
         <span class="status-pill">조회/기록 전용</span>
       </div>
-      <section class="member-overview-strip" id="memberOverview" aria-label="내 공간 요약">
+      <section class="member-overview-strip" id="memberOverview" aria-label="마이페이지 요약">
         <article><span>매매 일지</span><strong id="memberOverviewPortfolios">0</strong><small>일지</small></article>
         <article><span>관심그룹</span><strong id="memberOverviewWatchlists">0</strong><small>종목 목록</small></article>
         <article><span>대기 중 요청</span><strong id="memberOverviewActiveRequests">0</strong><small>대기/처리 중</small></article>
@@ -314,9 +314,9 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <article class="member-home-card member-paper-card"><span>04</span><strong>AI 가상매매</strong><small>AI의 가상 매수·매도 기록을 봅니다.</small><button class="ghost-button" type="button" data-member-jump="paper">가상매매 보기</button></article>
       </div>
       <div class="member-home-links" aria-label="보조 이동">
-        <a class="member-report-link" href="/harness">오늘의 하네스</a>
+        <a class="member-report-link" href="/harness">오늘의 선별 기록</a>
         <a class="member-report-link" href="/analyses">AI 리포트 보기</a>
-        <a class="member-report-link" href="/outcomes">사후 결과 보기</a>
+        <a class="member-report-link" href="/outcomes">검증 결과 보기</a>
         <a class="member-report-link" href="/billing">구독 관리</a>
         <a class="member-admin-link" href="/admin" data-admin-only hidden>운영 콘솔</a>
         <a class="member-admin-link" href="/admin/members" data-admin-only hidden>회원 관리</a>
@@ -414,12 +414,12 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
 
     <section class="member-panel" id="paper-simulation-section" role="tabpanel" data-member-panel="paper" aria-labelledby="paper-simulation-tab" hidden>
       <div class="panel-heading">
-        <div><p class="eyebrow">AI 가상매매</p><h2>가상매매 기록</h2><p class="panel-copy">완료된 AI 리포트 기준으로 가상 매수·매도 기록을 보여줍니다.</p></div>
+        <div><p class="eyebrow">AI 가상매매</p><h2>가상매매 기록</h2><p class="panel-copy">완료된 AI 리포트 기준으로 모의 매수·매도 기록을 보여줍니다.</p></div>
         <span class="status-pill">주문 없음</span>
       </div>
       <ol class="paper-simulation-flow" aria-label="AI 가상매매 흐름">
         <li><span>01</span><strong>리포트</strong><small>AI 의견 저장</small></li>
-        <li><span>02</span><strong>매수</strong><small>가상 매수 기록</small></li>
+        <li><span>02</span><strong>매수</strong><small>모의 매수 기록</small></li>
         <li><span>03</span><strong>평가</strong><small>보유·청산 추적</small></li>
         <li><span>04</span><strong>복기</strong><small>승률과 손익 확인</small></li>
       </ol>

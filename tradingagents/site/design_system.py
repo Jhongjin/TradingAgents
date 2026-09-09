@@ -249,7 +249,10 @@ def placeholder_series(seed: int, n: int = 40) -> list[float]:
     return out
 
 
-NAV_ITEMS: tuple[tuple[str, str], ...] = (("/", "오늘"), ("/harness", "하네스"), ("/outcomes", "검증 성과"), ("/analyses", "AI 리포트"), ("/pricing", "요금제"))
+NAV_ITEMS: tuple[tuple[str, str], ...] = (("/", "오늘"), ("/harness", "선별 기록"), ("/outcomes", "성과 검증"), ("/analyses", "AI 리포트"), ("/pricing", "요금제"))
+
+SITE_NAME = "TradingAgents Korea"
+SITE_DESCRIPTION = "코스피200·코스닥150을 매일 아침 규칙으로 거르고 AI 토론으로 확인한 뒤 모의투자로 검증하는 한국 주식 리서치 도구입니다."
 
 TOKEN_STORAGE_KEY = "tradingagents.member.access_token"
 
@@ -326,7 +329,7 @@ def render_header(*, active: str | None = None, search: bool = True) -> str:
       {search_html}
       {_theme_menu()}
       <span data-auth="signed-out" hidden><a class="btn ghost sm" href="/member">로그인</a> <a class="btn primary sm" href="/member?mode=signup">무료로 시작</a></span>
-      <span data-auth="signed-in" hidden class="row"><a class="badge plan-badge b-grey" href="/billing" data-plan-badge title="구독 관리">플랜 확인 중</a><a class="avatar" href="/mypage" data-avatar style="background: var(--accent); color: var(--on-accent);" aria-label="내 공간">M</a></span>
+      <span data-auth="signed-in" hidden class="row"><a class="badge plan-badge b-grey" href="/billing" data-plan-badge title="구독 관리">플랜 확인 중</a><a class="avatar" href="/mypage" data-avatar style="background: var(--accent); color: var(--on-accent);" aria-label="마이페이지" title="마이페이지">M</a></span>
     </div>
   </div>
 </header>"""
@@ -340,9 +343,60 @@ def render_footer() -> str:
       <div>{icon_tile("layers", "b-blue", small=True)}<div><b>모든 숫자는 출처와 시각을 답니다.</b>pykrx · Naver · DART · KIS 중 어느 데이터인지 표시합니다.</div></div>
       <div>{icon_tile("brain", "b-violet", small=True)}<div><b>AI 의견은 연구 자료입니다.</b>투자 판단과 책임은 이용자에게 있으며 수익을 보장하지 않습니다.</div></div>
     </div>
-    <div class="links"><span>© 2026 TradingAgents Korea</span><a href="/features">분석 기준</a><a href="/pricing">요금제</a><a href="/terms">이용약관</a><a href="/privacy">개인정보 처리방침</a><a href="/admin" data-admin-only hidden>운영 콘솔</a><a href="/admin/members" data-admin-only hidden>회원 관리</a></div>
+    <div class="links"><span>© 2026 TradingAgents Korea</span><a href="/features">서비스 소개</a><a href="/features/methodology">분석 기준</a><a href="/harness">선별 기록</a><a href="/outcomes">성과 검증</a><a href="/pricing">요금제</a><a href="/terms">이용약관</a><a href="/privacy">개인정보 처리방침</a><a href="/disclaimer">투자 유의사항</a><a href="/admin" data-admin-only hidden>운영 콘솔</a><a href="/admin/members" data-admin-only hidden>회원 관리</a></div>
   </div>
 </footer>"""
+
+
+def site_graph(*, site_base_url: str | None = None) -> list[dict[str, Any]]:
+    """Organization + WebSite nodes shared by every page (stable @id so entities never split)."""
+
+    from .seo import normalize_site_base_url
+
+    base = normalize_site_base_url(site_base_url) or ""
+    org_id = f"{base}/#organization"
+    site_id = f"{base}/#website"
+    return [
+        {
+            "@type": "Organization",
+            "@id": org_id,
+            "name": SITE_NAME,
+            "url": f"{base}/" if base else "/",
+            "description": SITE_DESCRIPTION,
+            "sameAs": ["https://github.com/Jhongjin/TradingAgents", "https://t.me/TradingAgentsKRbot"],
+        },
+        {
+            "@type": "WebSite",
+            "@id": site_id,
+            "name": SITE_NAME,
+            "url": f"{base}/" if base else "/",
+            "inLanguage": "ko-KR",
+            "publisher": {"@id": org_id},
+            "potentialAction": {"@type": "SearchAction", "target": {"@type": "EntryPoint", "urlTemplate": f"{base}/stocks?ticker={{search_term_string}}"}, "query-input": "required name=search_term_string"},
+        },
+    ]
+
+
+def structured_data_script(nodes: Sequence[Mapping[str, Any]], *, site_base_url: str | None = None, include_site: bool = True) -> str:
+    """One JSON-LD block: shared Organization/WebSite graph plus page nodes."""
+
+    graph: list[Any] = list(site_graph(site_base_url=site_base_url)) if include_site else []
+    graph.extend(dict(node) for node in nodes)
+    payload = json.dumps({"@context": "https://schema.org", "@graph": graph}, ensure_ascii=False)
+    return f'<script type="application/ld+json">{payload.replace("</", "<\\/")}</script>'
+
+
+def _verification_meta() -> str:
+    import os
+
+    tags = []
+    google = (os.getenv("TRADINGAGENTS_GOOGLE_SITE_VERIFICATION") or "").strip()
+    naver = (os.getenv("TRADINGAGENTS_NAVER_SITE_VERIFICATION") or "").strip()
+    if google:
+        tags.append(f'<meta name="google-site-verification" content="{h(google)}">')
+    if naver:
+        tags.append(f'<meta name="naver-site-verification" content="{h(naver)}">')
+    return "".join(tags)
 
 
 def render_shell(
@@ -359,9 +413,22 @@ def render_shell(
     noindex: bool = False,
     search: bool = True,
     body_class: str = "",
+    structured_data: Sequence[Mapping[str, Any]] | None = None,
+    og_type: str = "website",
+    og_image: str | None = None,
 ) -> str:
     robots = '<meta name="robots" content="noindex, nofollow">' if noindex else ""
     desc = f'<meta name="description" content="{h(description)}">' if description else ""
+    canonical = canonical_url(canonical_path, site_base_url=site_base_url)
+    social = (
+        f'<meta property="og:type" content="{h(og_type)}"><meta property="og:locale" content="ko_KR"><meta property="og:site_name" content="{h(SITE_NAME)}">'
+        f'<meta property="og:title" content="{h(title)}"><meta property="og:url" content="{h(canonical)}">'
+        + (f'<meta property="og:description" content="{h(description)}">' if description else "")
+        + (f'<meta property="og:image" content="{h(og_image)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="{h(og_image)}">' if og_image else '<meta name="twitter:card" content="summary">')
+        + f'<meta name="twitter:title" content="{h(title)}">'
+        + (f'<meta name="twitter:description" content="{h(description)}">' if description else "")
+    )
+    ld = "" if noindex else structured_data_script(structured_data or [], site_base_url=site_base_url)
     js = DS_JS.replace("__THEMES__", json.dumps(list(THEMES), ensure_ascii=False)).replace("__TOKEN_KEY__", TOKEN_STORAGE_KEY)
     return f"""<!doctype html>
 <html lang="ko">
@@ -371,10 +438,13 @@ def render_shell(
 <title>{h(title)}</title>
 {desc}
 {robots}
-<link rel="canonical" href="{h(canonical_url(canonical_path, site_base_url=site_base_url))}">
+<link rel="canonical" href="{h(canonical)}">
+{social}
+{_verification_meta()}
 <link rel="stylesheet" href="{FONT_STYLESHEET}">
 {theme_init_script()}
 <style>{theme_css()}{DS_COMPONENT_CSS}{extra_css}</style>
+{ld}
 {extra_head}
 </head>
 <body class="ds {h(body_class)}">

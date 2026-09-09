@@ -103,7 +103,7 @@ def render_admin_members_page(*, site_base_url: str | None = None) -> str:
 <section class="hero members-head">
   <div class="shell row between wrap">
     <div>{badge("운영자 전용", "b-navy", icon_name="shield")}<h1 style="margin-top: 8px;">회원 관리</h1><p class="small ink2" style="margin-top: 4px;">관리자 계정 세션 또는 운영 토큰이 필요합니다. 플랜 부여는 결제 없이 기간을 여는 운영자 조치이며 이력에 남습니다.</p></div>
-    <div class="row"><a class="btn sm" href="/admin">{icon("settings", 14)}운영 콘솔</a><a class="btn sm" href="/harness">일일 하네스</a></div>
+    <div class="row"><a class="btn sm" href="/admin">{icon("settings", 14)}운영 콘솔</a><a class="btn sm" href="/harness">선별 기록</a></div>
   </div>
 </section>
 <section class="block" style="padding-bottom: 28px;">

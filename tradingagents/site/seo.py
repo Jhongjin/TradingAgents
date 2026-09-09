@@ -58,19 +58,60 @@ def stock_canonical_url(ticker: str, *, site_base_url: str | None = None) -> str
     return canonical_url(f"/stocks/{ticker}", site_base_url=site_base_url)
 
 
+AI_CRAWLERS = (
+    # training corpora, AI search indexes, and on-demand fetchers; citations need all three
+    "GPTBot", "OAI-SearchBot", "ChatGPT-User",
+    "ClaudeBot", "Claude-SearchBot", "Claude-User",
+    "PerplexityBot", "Perplexity-User",
+    "Google-Extended", "Applebot-Extended", "CCBot",
+    "Yeti",  # Naver
+)
+PRIVATE_PATHS = ("/api/", "/member", "/mypage", "/admin", "/billing")
+
+
 def build_robots_txt(*, site_base_url: str | None = None) -> str:
-    lines = [
-        "User-agent: *",
-        "Allow: /",
-        "Disallow: /api/",
-        "Disallow: /member",
-        "Disallow: /mypage",
-        "Disallow: /admin",
-    ]
+    """Allow every crawler (including AI search/fetch agents) on public pages; keep member and API paths out."""
+
+    lines = ["User-agent: *", "Allow: /"]
+    lines.extend(f"Disallow: {path}" for path in PRIVATE_PATHS)
+    for agent in AI_CRAWLERS:
+        lines.append("")
+        lines.append(f"User-agent: {agent}")
+        lines.append("Allow: /")
+        lines.extend(f"Disallow: {path}" for path in PRIVATE_PATHS)
     sitemap_url = canonical_url("/sitemap.xml", site_base_url=site_base_url)
     if sitemap_url.startswith("http"):
+        lines.append("")
         lines.append(f"Sitemap: {sitemap_url}")
     return "\n".join(lines) + "\n"
+
+
+def build_llms_txt(*, site_base_url: str | None = None, latest_run_date: str | None = None) -> str:
+    """Markdown guide for generative engines: what the site is the primary source for."""
+
+    def link(path: str) -> str:
+        return canonical_url(path, site_base_url=site_base_url)
+
+    updated = latest_run_date or datetime.utcnow().date().isoformat()
+    return f"""# TradingAgents Korea
+
+> 코스피200·코스닥150 종목을 매일 아침 규칙으로 거르고, 강세·약세 AI 토론으로 확인한 뒤, 모의투자로 5·20거래일 성과를 검증해 공개하는 한국 주식 리서치 도구입니다. 실계좌 주문은 없으며 투자 조언이 아닙니다.
+
+## 핵심 페이지
+- [오늘의 선정 종목]({link('/')}): 최근 선별 실행의 통과 종목, 규칙 점수, 20일 예상 수익률, AI 토론 판정, 모의 주문 내역
+- [선별 기록]({link('/harness')}): 날짜별 선별 실행 전체 기록 (대상 종목 수, 후보, 통과, 모의 주문, 검증 결과)
+- [성과 검증]({link('/outcomes')}): 선정 종목의 5거래일·20거래일 수익률과 지수 대비 초과수익
+- [AI 리포트]({link('/analyses')}): 종목별 AI 분석 리포트
+- [분석 기준]({link('/features/methodology')}): 선별 규칙, 예측 모델, 토론 절차, 리스크 한도
+- [요금제]({link('/pricing')}): 무료 · 데일리 패스(월 10,000원) · 프로(월 30,000원)
+
+## 데이터 정책
+- 출처: pykrx(KRX 시세), Naver 금융, DART 공시, 한국투자증권 Open API(모의투자). 페이지마다 출처와 기준 시각을 표시합니다.
+- 갱신: 평일 07:50 선별, 10:05 모의 주문, 16:40 재검토. 5·20거래일 뒤 성과 확정. 최근 갱신 {updated}.
+- 자체 산출 지표: 규칙 점수(추세·모멘텀·거래대금 합산), 20일 상승 확률(TimesFM), AI 토론 신뢰도, 지수 대비 초과수익.
+- 인용 시 표기: TradingAgents Korea ({link('/')})
+- JSON: {link('/api/harness/runs')}, {link('/api/harness/outcomes')}
+"""
 
 
 def build_ads_txt(
@@ -108,6 +149,7 @@ def build_sitemap_xml(
     site_base_url: str | None = None,
     tickers: Iterable[str] | None = None,
     analysis_paths: Iterable[str] | None = None,
+    harness_paths: Iterable[str] | None = None,
     generated_date: str | None = None,
 ) -> str:
     base = normalize_site_base_url(site_base_url)
@@ -117,10 +159,13 @@ def build_sitemap_xml(
     date_value = generated_date or datetime.utcnow().date().isoformat()
     urls = [
         (canonical_url("/", site_base_url=base), "daily", "1.0"),
-        (canonical_url("/features", site_base_url=base), "weekly", "0.8"),
-        (canonical_url("/analyses", site_base_url=base), "hourly", "0.8"),
+        (canonical_url("/harness", site_base_url=base), "daily", "0.9"),
         (canonical_url("/outcomes", site_base_url=base), "hourly", "0.8"),
+        (canonical_url("/analyses", site_base_url=base), "hourly", "0.8"),
+        (canonical_url("/features", site_base_url=base), "weekly", "0.8"),
+        (canonical_url("/pricing", site_base_url=base), "weekly", "0.6"),
     ]
+    urls.extend((canonical_url(path, site_base_url=base), "weekly", "0.7") for path in _sitemap_harness_paths(harness_paths))
     urls.extend(
         (canonical_url(path, site_base_url=base), "daily", "0.7")
         for path in _sitemap_analysis_paths(analysis_paths)
@@ -173,6 +218,18 @@ def _sitemap_analysis_paths(paths: Iterable[str] | None) -> tuple[str, ...]:
     for raw in paths or ():
         path = str(raw).strip()
         if not path.startswith("/analyses/") or path in seen:
+            continue
+        cleaned.append(path)
+        seen.add(path)
+    return tuple(cleaned)
+
+
+def _sitemap_harness_paths(paths: Iterable[str] | None) -> tuple[str, ...]:
+    cleaned = []
+    seen = set()
+    for raw in paths or ():
+        path = str(raw).strip()
+        if not path.startswith("/harness/") or path in seen:
             continue
         cleaned.append(path)
         seen.add(path)

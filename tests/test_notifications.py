@@ -89,7 +89,7 @@ def test_compose_messages_separate_paid_and_free():
     from tradingagents.site.harness_api import build_harness_run_payload
 
     messages = compose_issue_messages(build_harness_run_payload(repo), issue_number=7, site_base_url="https://example.com")
-    assert "SK하이닉스(000660)" in messages["paid"] and "Overweight 0.78" in messages["paid"] and "가상 3주" in messages["paid"]
+    assert "SK하이닉스(000660)" in messages["paid"] and "Overweight 0.78" in messages["paid"] and "모의 3주" in messages["paid"]
     assert "https://example.com/harness/" in messages["paid"] and "매매 권유가 아닙니다" in messages["paid"]
     assert "SK하이닉스" not in messages["free"] and "데일리 패스" in messages["free"]
 

@@ -81,7 +81,7 @@ from .paper_simulation_api import EXECUTION_BOUNDARY_LABEL, build_member_paper_s
 from .portfolio_api import build_manual_portfolio_list_payload, build_manual_portfolio_payload, normalize_portfolio_ticker
 from .public_api import build_public_stock_payload
 from .screener_api import build_forecast_payload, build_screener_payload
-from .seo import build_ads_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
+from .seo import build_ads_txt, build_llms_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
 from .simulation_api import build_public_simulation_preview_payload
 from .ticker_api import build_ticker_search_payload
 from .watchlist_api import build_watchlist_list_payload, build_watchlist_payload
@@ -257,7 +257,7 @@ def create_app(
             or request.url.path == "/features"
             or request.url.path.startswith("/features/")
             or request.url.path in {"/privacy", "/terms", "/disclaimer", "/pricing"}
-            or request.url.path in {"/ads.txt", "/robots.txt", "/sitemap.xml"}
+            or request.url.path in {"/ads.txt", "/robots.txt", "/sitemap.xml", "/llms.txt"}
         ):
             seconds = request.app.state.public_cache_seconds
             response.headers.setdefault(
@@ -392,6 +392,19 @@ def create_app(
     def robots_txt(request: Request) -> PlainTextResponse:
         return PlainTextResponse(build_robots_txt(site_base_url=_request_site_base_url(request)))
 
+    @app.get("/llms.txt", response_class=PlainTextResponse, include_in_schema=False)
+    def llms_txt(request: Request) -> PlainTextResponse:
+        latest = None
+        repo = request.app.state.repository
+        if repo is not None:
+            try:
+                rows = repo.list_harness_runs(limit=1)
+                if rows:
+                    latest = str(rows[0].get("as_of_date") or "")[:10] or None
+            except Exception:  # storage trouble must not break a text file
+                latest = None
+        return PlainTextResponse(build_llms_txt(site_base_url=_request_site_base_url(request), latest_run_date=latest), media_type="text/markdown; charset=utf-8")
+
     @app.get("/ads.txt", response_class=PlainTextResponse, include_in_schema=False)
     def ads_txt() -> PlainTextResponse:
         try:
@@ -410,6 +423,7 @@ def create_app(
                 site_base_url=_request_site_base_url(request),
                 tickers=_sitemap_tickers(request.app.state.repository),
                 analysis_paths=_sitemap_analysis_paths(request.app.state.repository),
+                harness_paths=_sitemap_harness_paths(request.app.state.repository),
             )
         except ValueError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -1840,6 +1854,16 @@ def _sitemap_analysis_paths(repo: StorageRepository | None) -> tuple[str, ...]:
     except Exception:
         return ()
     return tuple(f"/analyses/{row['id']}" for row in rows if row.get("id"))
+
+
+def _sitemap_harness_paths(repo: StorageRepository | None) -> tuple[str, ...]:
+    if repo is None:
+        return ()
+    try:
+        rows = repo.list_harness_runs(limit=60)
+    except Exception:
+        return ()
+    return tuple(f"/harness/{row['id']}" for row in rows if row.get("id"))
 
 
 def _sitemap_max_analysis_tickers() -> int:

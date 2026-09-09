@@ -16,18 +16,18 @@ from .public_api import _json_ready
 
 
 HARNESS_NOTICES = [
-    "하네스 결과는 스크리너·통계 예측·AI 토론·리스크 게이트를 거친 리서치 기록이며 매수 추천이나 투자 조언이 아닙니다.",
-    "웹에서 실행되는 하네스는 항상 dry-run이며 실제 주문이나 브로커 주문과 연결되지 않습니다.",
+    "선별 결과는 스크리너·통계 예측·AI 토론·리스크 게이트를 거친 리서치 기록이며 매수 추천이나 투자 조언이 아닙니다.",
+    "웹에서 실행되는 종목 선별은 항상 dry-run이며 실제 주문이나 브로커 주문과 연결되지 않습니다.",
 ]
 
 STAGE_LABELS = {
-    "screened": "스크리닝",
-    "forecast_rejected": "예측 게이트 탈락",
-    "confirmation_rejected": "AI 확인 탈락",
-    "sized": "사이징",
-    "gate_rejected": "만다트 게이트 탈락",
-    "ordered": "가상 주문",
-    "exit": "가상 청산",
+    "screened": "1차 선별",
+    "forecast_rejected": "예측 기준 미달",
+    "confirmation_rejected": "AI 토론 탈락",
+    "sized": "수량 산정",
+    "gate_rejected": "한도 초과",
+    "ordered": "모의 주문",
+    "exit": "모의 청산",
 }
 
 SUPPORTED_WEB_CONFIRMERS = ("none", "playbook", "debate")

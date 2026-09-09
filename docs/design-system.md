@@ -36,6 +36,34 @@ Claude Design 캔버스 "TradingAgents Korea 통일 시안 v2"의 v3 페이지�
 | `/pricing` | `pricing_page.py` |
 | `/billing` | `billing_page.py` |
 | `/admin/members` | `admin_members_page.py` |
+| `/analyses`, `/analyses/{id}`, `/outcomes` | `analysis_pages.py` (데이터 헬퍼는 `web_pages`에서 재사용) |
+| `/stocks/{code}` | `stock_page.py` (차트 엔진 `PAGE_JS`는 그대로, CSS만 토큰으로 이식) |
+| `/features`, `/features/{slug}`, `/privacy`, `/terms`, `/disclaimer` | `info_pages.py` |
+| `/admin` | `admin_console_page.py` (`ADMIN_PAGE_JS` 그대로) |
 
-아직 옛 시스템(`web_pages.PAGE_CSS`)에 남은 페이지: `/analyses`, `/outcomes`, `/stocks/{code}`,
-`/features`, 정책 페이지, `/admin` 운영 콘솔, `/?legacy=1`. 2단계에서 같은 셸로 옮깁니다.
+`web_pages.py`의 같은 이름 함수는 위 모듈로 위임만 합니다. 옛 시스템(`PAGE_CSS`)은 `/?legacy=1`과
+`PAGE_JS`(종목 차트·검색 자동완성)에만 남아 있습니다.
+
+## 한글 표기 규칙 (2026-09-09, epoko77-ai/im-not-ai 규칙 참고)
+
+화면 용어는 아래로 통일합니다. URL·API 필드명(`/harness`, `harness_runs`)은 그대로입니다.
+
+| 쓰지 않는 말 | 쓰는 말 |
+|---|---|
+| 하네스, 일일 하네스 | 종목 선별, 선별 기록 |
+| 유니버스 | 대상 종목 |
+| 깔때기 | 선별 과정 |
+| 요인 점수 / 요인 상위 | 규칙 점수 / 후보 |
+| 예측·토론 통과 | AI 토론 통과 |
+| 가상 주문·가상 매수·가상계좌 | 모의 주문·모의 매수·모의투자 계좌 (회원 기능명 "AI 가상매매"는 유지) |
+| 채점 | 성과 검증 (검증 대기·검증 완료) |
+| 감사 원장, 실행 상세 | 실행 기록 |
+| 강세/약세 연구원, 판정관, 리스크 패널 | 강세 의견/약세 의견, 판정, 리스크 점검 |
+| 내 공간 | 마이페이지 |
+| 검증 성과, 사후 결과 | 성과 검증, 검증 결과 |
+| 알파 | 초과수익 |
+| 원문 데이터, 종목 분석실 | JSON 데이터, 종목 분석 |
+| 60일 흐름, 20일 예측 / 확률 | 60일 주가, 20일 예상 / 상승 확률 |
+
+문장 규칙: 합니다체, 한 문장 20자 안팎, "~를 통해/~에 대해/~에 있어서" 금지, 영어 buzzword·이모지 금지,
+수치에는 단위와 기준일을 붙입니다("+3.2% (2026-09-08 기준)").

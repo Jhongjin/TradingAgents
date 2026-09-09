@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .billing import PAID_PLANS, PLANS, RESEARCH_TOOL_NOTICES, TRIAL_DAYS
 from .design_system import badge, h, icon, icon_tile, render_shell
+from .seo import canonical_url
 
 PRICING_CSS = """
 .pricing-hero { padding: 36px 0 26px; text-align: center; }
@@ -58,18 +59,30 @@ def render_pricing_page(*, site_base_url: str | None = None) -> str:
         )
     notices = "".join(f'<div class="soft">{icon_tile("shield", "b-teal", small=True)}<span>{h(item)}</span></div>' for item in RESEARCH_TOOL_NOTICES)
     faqs = [
-        ("무료와 유료의 차이는 무엇인가요?", "같은 데이터를 보되 시점과 깊이가 다릅니다. 무료는 다음 거래일부터 원장을 볼 수 있고, 유료는 07:50·10:05 실행 직후 토론 전문까지 봅니다."),
-        ("결제는 어떻게 되나요?", "포트원을 통한 카드·카카오페이·네이버페이 정기결제입니다. 카드 정보는 결제사에만 저장되며 서비스는 결제 참조키만 보관합니다."),
+        ("무료와 유료의 차이는 무엇인가요?", "같은 데이터를 보되 시점과 깊이가 다릅니다. 무료는 다음 거래일부터 결과를 볼 수 있고, 유료는 07:50·10:05 선별 직후 토론 전문까지 봅니다."),
+        ("결제는 어떻게 되나요?", "포트원으로 결제하는 카드·카카오페이·네이버페이 정기결제입니다. 카드 정보는 결제사에만 저장되며 서비스는 결제 참조키만 보관합니다."),
         ("해지와 환불은요?", "구독 관리에서 언제든 해지할 수 있고 남은 기간은 그대로 이용합니다. 결제 후 7일 이내 전액 환불, 이후는 남은 기간 일할 환불입니다."),
         ("실계좌 자동매매도 되나요?", "아니요. 모의투자 자동화는 운영 검증용이며, 어떤 플랜에도 실계좌 주문이나 투자일임은 포함되지 않습니다."),
     ]
     faq_html = "".join(f'<div class="card"><dt>{h(q)}</dt><dd>{h(a)}</dd></div>' for q, a in faqs)
+    structured = [
+        {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in faqs]},
+        {
+            "@type": "Product",
+            "name": "TradingAgents Korea 리서치 플랜",
+            "description": "당일 종목 선별 열람, AI 토론 전문, 분석 요청 횟수를 넓히는 리서치 도구 구독",
+            "offers": [
+                {"@type": "Offer", "name": PLANS[pid].name, "price": str(PLANS[pid].price_krw), "priceCurrency": "KRW", "availability": "https://schema.org/InStock", "url": canonical_url("/pricing", site_base_url=site_base_url)}
+                for pid in ("free", "daily", "pro")
+            ],
+        },
+    ]
     body = f"""
 <section class="hero pricing-hero">
   <div class="shell">
     {badge("요금제 · 리서치 도구 이용 범위", "b-teal")}
-    <h1>오늘의 하네스를 언제, 얼마나 깊이 볼지 고르세요</h1>
-    <p class="deck">무료는 전일 실행까지, 데일리 패스는 당일 실행 즉시와 AI 토론 전문까지 열립니다. 어느 플랜도 종목을 권유하거나 주문을 대신 내지 않습니다.</p>
+    <h1>오늘의 선별 결과를 언제, 얼마나 깊이 볼지 고르세요</h1>
+    <p class="deck">무료는 전날 결과까지, 데일리 패스는 당일 결과와 AI 토론 전문까지 열립니다. 어느 플랜도 종목을 권유하거나 주문을 대신 내지 않습니다.</p>
   </div>
 </section>
 <section class="block"><div class="shell" style="padding-top: 14px;"><div class="plans">{''.join(cards)}</div></div></section>
@@ -84,12 +97,13 @@ def render_pricing_page(*, site_base_url: str | None = None) -> str:
 """
     return render_shell(
         title="요금제 | TradingAgents Korea",
-        description="무료, 데일리 패스(월 10,000원), 프로(월 30,000원). 당일 하네스 열람, AI 토론 전문, 분석 요청 횟수를 넓히는 리서치 도구 요금제입니다.",
+        description="무료, 데일리 패스(월 10,000원), 프로(월 30,000원). 당일 종목 선별 열람, AI 토론 전문, 분석 요청 횟수를 넓히는 리서치 도구 요금제입니다.",
         body=body,
         active="/pricing",
         canonical_path="/pricing",
         site_base_url=site_base_url,
         extra_css=PRICING_CSS,
+        structured_data=structured,
     )
 
 

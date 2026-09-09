@@ -75,7 +75,7 @@ def test_harness_payloads_from_repository():
     assert detail["run"]["confirmer"] == "playbook"
     assert detail["summary"] == {"decision_count": 2, "stage_counts": {"ordered": 1, "forecast_rejected": 1}, "ordered_count": 1, "exit_count": 0, "rejected_count": 1}
     assert detail["decisions"][0]["ticker_name"] == "삼성전자"
-    assert detail["decisions"][0]["stage_label"] == "가상 주문"
+    assert detail["decisions"][0]["stage_label"] == "모의 주문"
     assert detail["execution_boundary"] == "dry_run_no_orders"
     assert build_harness_run_payload(repo)["run"]["id"] == run_id
     assert build_harness_runs_payload(None)["status"] == "not_configured"
@@ -110,8 +110,8 @@ def test_api_app_serves_harness_routes_and_page():
     assert page.status_code == 200
     assert page.headers["cache-control"].startswith("public")
     assert "삼성전자" in page.text
-    assert "가상 주문" in page.text
-    assert "일일 하네스" in page.text
+    assert "모의 주문" in page.text
+    assert "선별 기록" in page.text
     assert client.get(f"/harness/{run_id}").status_code == 200
     assert client.get("/harness/00000000-0000-0000-0000-000000000009").status_code == 404
 

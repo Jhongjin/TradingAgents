@@ -59,9 +59,9 @@ def test_home_view_model_from_seeded_run_builds_headline_debate_and_funnel():
     model = build_home_view_model(repo, site_base_url="https://example.com", now=NOW)
     assert model["headline"] == "2개 후보 중 1개가 떨어졌다. SK하이닉스만 남은 이유"
     assert model["deck"].startswith("분할 진입")
-    assert [item["label"] for item in model["debate"]] == ["강세 연구원", "약세 연구원", "판정관", "리스크 패널"]
+    assert [item["label"] for item in model["debate"]] == ["강세 의견", "약세 의견", "판정", "리스크 점검"]
     assert "손절 -8%" in model["debate"][3]["text"] and "익절 +12%" in model["debate"][3]["text"]
-    assert [(step["label"], step["value"]) for step in model["funnel"]] == [("유니버스", 198), ("요인 상위", 4), ("예측·토론 통과", 1), ("가상 주문", 1)]
+    assert [(step["label"], step["value"]) for step in model["funnel"]] == [("대상 종목", 198), ("후보", 4), ("AI 토론 통과", 1), ("모의 주문", 1)]
     assert model["account"]["cash_after"] == 44_443_220
     assert model["issue_number"] == 1
     assert model["canonical"] == "https://example.com/"
@@ -74,7 +74,7 @@ def test_render_home_page_escapes_debate_text_and_offers_themes():
     assert "<script>alert(1)</script>" not in html
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
     assert "SK하이닉스만 남은 이유" in html
-    assert "토론 기록 — SK하이닉스는 이렇게 결정됐다" in html
+    assert "SK하이닉스, 이렇게 결정됐습니다" in html
     for theme in THEMES:
         assert f'data-theme="{theme}"' in html
     assert ':root[data-theme="dark"]' in html and ':root[data-theme="paper"]' in html
@@ -88,8 +88,8 @@ def test_render_home_page_escapes_debate_text_and_offers_themes():
 
 def test_render_home_page_without_repo_shows_empty_states():
     html = render_home_page(repo=None, now=NOW)
-    assert "첫 하네스 실행을 기다리고 있습니다" in html
-    assert "아직 저장된 하네스 결정이 없습니다" in html
+    assert "첫 종목 선별을 기다리고 있습니다" in html
+    assert "아직 저장된 선별 결과가 없습니다" in html
     assert "20일 성과가 확정되면" in html
 
 

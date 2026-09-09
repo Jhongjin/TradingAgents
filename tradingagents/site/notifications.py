@@ -184,7 +184,7 @@ def handle_telegram_update(repo: StorageRepository, update: Mapping[str, Any], c
                     metadata={**dict(row.get("metadata_json") or {}), "telegram_username": chat.get("username")},
                 )
             )
-            reply = "연결되었습니다. 평일 아침 하네스 호가 발행되면 이 대화로 알려드립니다. 중단하려면 /stop 을 보내세요."
+            reply = "연결되었습니다. 평일 아침 선별 결과가 나오면 이 대화로 알려드립니다. 중단하려면 /stop 을 보내세요."
             result["linked"] = True
     elif command == "/stop":
         row = repo.find_notification_channel_by_external_id(chat_id)
@@ -193,7 +193,7 @@ def handle_telegram_update(repo: StorageRepository, update: Mapping[str, Any], c
         reply = "알림을 중단했습니다. 다시 받으려면 마이페이지에서 새 코드로 /start 하세요."
         result["linked"] = False
     else:
-        reply = "이 봇은 TradingAgents Korea 하네스 알림 전용입니다. 마이페이지의 연결 코드로 /start 하세요."
+        reply = "이 봇은 TradingAgents Korea 선별 결과 알림 전용입니다. 마이페이지의 연결 코드로 /start 하세요."
         result["handled"] = False
     if client is not None and reply:
         try:
@@ -223,7 +223,7 @@ def compose_issue_messages(run_payload: Mapping[str, Any], *, issue_number: int,
         conf = item.get("confirmation_confidence")
         conf_text = f" {float(conf):.2f}" if conf is not None else ""
         qty = item.get("quantity")
-        lines.append(f"• {item.get('ticker_name') or item.get('ticker_code')} — {rating}{conf_text}{f' · 가상 {qty}주' if qty else ''}")
+        lines.append(f"• {item.get('ticker_name') or item.get('ticker_code')} — {rating}{conf_text}{f' · 모의 {qty}주' if qty else ''}")
     paid = head + ("\n" + "\n".join(lines) if lines else "") + f"\n토론 전문: {link}\n\nAI 분석 자료이며 매매 권유가 아닙니다."
     free = (
         f"<b>제 {issue_number}호 · {date_text}</b>\n{total}개 후보 중 {len(ordered)}개가 통과했습니다. "
@@ -290,8 +290,8 @@ def notify_exit_alerts(repo: StorageRepository, client: TelegramClient, *, site_
         reasons = item.get("reasons_json") or []
         label = {"stop_loss": "손절", "take_profit": "익절", "max_holding_days": "보유기간 종료"}.get(str(reasons[0]) if reasons else "", "청산")
         qty = item.get("quantity")
-        lines.append(f"• {item.get('ticker_name') or item.get('ticker_code')}({item.get('ticker_code')}) — {label}{f' · 가상 {qty}주' if qty else ''} · {item.get('as_of_date')}")
-    text = "<b>가상 포지션 청산 알림</b>\n" + "\n".join(lines) + f"\n{base}/harness\n\n모의투자 기록이며 매매 권유가 아닙니다."
+        lines.append(f"• {item.get('ticker_name') or item.get('ticker_code')}({item.get('ticker_code')}) — {label}{f' · 모의 {qty}주' if qty else ''} · {item.get('as_of_date')}")
+    text = "<b>모의 포지션 청산 알림</b>\n" + "\n".join(lines) + f"\n{base}/harness\n\n모의투자 기록이며 매매 권유가 아닙니다."
     recipients = [r for r in repo.list_notification_recipients("telegram") if resolve_plan_access(repo, str(r["user_id"]), now=now).is_paid]
     sent = failed = 0
     for recipient in recipients:
@@ -321,7 +321,7 @@ def notify_outcome_results(repo: StorageRepository, client: TelegramClient, *, s
         raw_text = f"{float(raw) * 100:+.1f}%" if raw is not None else "-"
         alpha_text = f"α {float(alpha) * 100:+.1f}%" if alpha is not None else ""
         lines.append(f"• {row.get('ticker_name') or row.get('ticker_code')} {row.get('horizon_days')}D {raw_text} {alpha_text} (진입 {row.get('entry_date')})")
-    text = "<b>성적표 확정</b>\n" + "\n".join(lines) + f"\n{base}/outcomes\n\n지수 대비 초과수익(α)으로 채점한 공개 기록입니다."
+    text = "<b>성적표 확정</b>\n" + "\n".join(lines) + f"\n{base}/outcomes\n\n지수 대비 초과수익으로 검증한 공개 기록입니다."
     recipients = repo.list_notification_recipients("telegram")
     sent = failed = 0
     for recipient in recipients:

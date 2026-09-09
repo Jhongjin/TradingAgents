@@ -131,7 +131,7 @@ def test_private_run_outcomes_hidden_and_routes(monkeypatch):
 
     page = client.get(f"/harness/{run_id}")
     assert page.status_code == 200
-    assert "사후 결과" in page.text
+    assert "검증 결과" in page.text
     assert "5D +5.0%" in page.text
 
     assert client.post("/api/admin/harness-outcomes/process", json={"dry_run": True}).status_code == 401

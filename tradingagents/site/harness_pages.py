@@ -8,6 +8,7 @@ from tradingagents.storage import StorageRepository
 
 from .design_system import badge, h, icon, icon_tile, render_shell, stat_tile
 from .harness_api import HARNESS_NOTICES, build_harness_run_payload, build_harness_runs_payload
+from .seo import canonical_url
 
 STAGE_TONE = {
     "ordered": ("b-teal", "check"),
@@ -87,12 +88,12 @@ def render_harness_page(
     if plan_gate.get("locked"):
         gate_notice = f'<div class="soft harness-gate" style="padding: 12px 14px; margin-top: 12px; display: flex; gap: 10px; align-items: center; font-size: 13px;">{icon_tile("lock", "b-amber", small=True)}<span>{h(plan_gate.get("reason"))} <a class="link" href="/pricing">요금제 보기</a></span></div>'
     elif run_payload.get("run"):
-        gate_notice = f'<div class="soft harness-gate" style="padding: 12px 14px; margin-top: 12px; display: flex; gap: 10px; align-items: center; font-size: 13px;">{icon_tile("lock", "b-amber", small=True)}<span>강세·약세·판정관·리스크 패널 토론 전문은 데일리 패스 회원에게 열립니다. <a class="link" href="/pricing">요금제 보기</a></span></div>'
+        gate_notice = f'<div class="soft harness-gate" style="padding: 12px 14px; margin-top: 12px; display: flex; gap: 10px; align-items: center; font-size: 13px;">{icon_tile("lock", "b-amber", small=True)}<span>강세·약세·판정·리스크 점검 토론 전문은 데일리 패스 회원에게 열립니다. <a class="link" href="/pricing">요금제 보기</a></span></div>'
     run = run_payload.get("run") or {}
     decisions = run_payload.get("decisions") or []
     summary = run_payload.get("summary") or {}
     path = f"/harness/{harness_run_id}" if harness_run_id else "/harness"
-    title = "AI 하네스 파이프라인 기록" if not run else f"하네스 {run.get('as_of_date')} 기록"
+    title = "종목 선별 기록" if not run else f"종목 선별 {run.get('as_of_date')} 기록"
     description = "스크리너, 통계 예측, AI 토론, 리스크 게이트를 거친 일일 종목 선별 기록입니다. 모든 웹 실행은 dry-run이며 실제 주문과 연결되지 않습니다."
 
     status_text = {
@@ -128,17 +129,17 @@ def render_harness_page(
         if storage_error:
             decision_rows = f'<tr><td colspan="10" class="muted" style="text-align: center; padding: 24px;">{h(storage_error)}</td></tr>'
         else:
-            decision_rows = '<tr><td colspan="10" class="muted" style="text-align: center; padding: 24px;">아직 저장된 하네스 결정이 없습니다. 운영자가 <code>tradingagents pipeline --persist</code> 또는 크론을 실행하면 여기에 기록됩니다.</td></tr>'
+            decision_rows = '<tr><td colspan="10" class="muted" style="text-align: center; padding: 24px;">아직 저장된 선별 결과가 없습니다. 운영자가 <code>tradingagents pipeline --persist</code> 또는 크론을 실행하면 여기에 기록됩니다.</td></tr>'
 
     outcome_summary = run_payload.get("outcome_summary") or {}
     outcome_summary_html = " · ".join(
         f"{horizon}D: 승률 {h(_fmt_pct(stats.get('hit_rate')) if stats.get('hit_rate') is not None else '-')}, "
-        f"평균 알파 {h(_fmt_pct(stats.get('average_alpha')))} ({h(stats.get('completed'))}건 확정, {h(stats.get('pending'))}건 대기)"
+        f"평균 초과수익 {h(_fmt_pct(stats.get('average_alpha')))} ({h(stats.get('completed'))}건 확정, {h(stats.get('pending'))}건 대기)"
         for horizon, stats in outcome_summary.items()
-    ) or "사후 결과는 5거래일/20거래일이 지난 뒤 자동 계산됩니다."
+    ) or "검증 결과는 5거래일/20거래일이 지난 뒤 자동 계산됩니다."
 
     run_rows = "".join(
-        f'<div class="kv"><span><a class="link" href="{h(item.get("detail_path"))}">{h(item.get("as_of_date"))}</a> <span class="muted">· {h(item.get("confirmer"))}</span></span><span class="num muted">후보 {h(item.get("candidate_count"))} · 가상주문 {h(item.get("order_count"))} · {"dry-run" if item.get("dry_run") else h(item.get("broker"))}</span></div>'
+        f'<div class="kv"><span><a class="link" href="{h(item.get("detail_path"))}">{h(item.get("as_of_date"))}</a> <span class="muted">· {h(item.get("confirmer"))}</span></span><span class="num muted">후보 {h(item.get("candidate_count"))} · 모의 주문 {h(item.get("order_count"))} · {"dry-run" if item.get("dry_run") else h(item.get("broker"))}</span></div>'
         for item in runs_payload.get("items") or []
     ) or '<p class="muted small">저장된 실행 기록이 없습니다.</p>'
 
@@ -148,9 +149,9 @@ def render_harness_page(
 
     tiles = "".join(
         [
-            stat_tile("layers", "b-navy", "유니버스", _fmt_num(run.get("universe_size")) if run else "–", str(run.get("markets") or "KOSPI · KOSDAQ")),
-            stat_tile("filter", "b-blue", "후보", str(summary.get("decision_count", 0)), "요인 상위"),
-            stat_tile("check", "b-teal", "가상 주문", str(summary.get("ordered_count", 0)), f"탈락 {summary.get('rejected_count', 0)}"),
+            stat_tile("layers", "b-navy", "대상 종목", _fmt_num(run.get("universe_size")) if run else "–", str(run.get("markets") or "KOSPI · KOSDAQ")),
+            stat_tile("filter", "b-blue", "후보", str(summary.get("decision_count", 0)), "후보"),
+            stat_tile("check", "b-teal", "모의 주문", str(summary.get("ordered_count", 0)), f"탈락 {summary.get('rejected_count', 0)}"),
             stat_tile("wallet", "b-amber", "현금", _fmt_num(run.get("cash_after")) if run.get("cash_after") is not None else "–", f"실행 전 {_fmt_num(run.get('cash_before'))}" if run.get("cash_before") is not None else "기록 없음"),
         ]
     )
@@ -160,12 +161,12 @@ def render_harness_page(
   <div class="shell">
     <div class="row between wrap">
       <div>
-        <div class="row wrap">{badge("일일 하네스", "b-teal", icon_name="layers")}{badge(status_text, "b-grey")}{broker_badge}</div>
+        <div class="row wrap">{badge("선별 기록", "b-teal", icon_name="layers")}{badge(status_text, "b-grey")}{broker_badge}</div>
         <h1>{h(title)}</h1>
         <p class="small ink2" style="margin-top: 6px; max-width: 720px;">{h(description)}</p>
         {gate_notice}
       </div>
-      <div class="row wrap"><a class="btn sm" href="/harness">최근 실행</a><a class="btn sm" href="/api/harness/runs">원문 데이터</a><a class="btn sm ghost" href="/features/methodology">분석 기준 →</a></div>
+      <div class="row wrap"><a class="btn sm" href="/harness">최근 실행</a><a class="btn sm" href="/api/harness/runs">JSON 데이터</a><a class="btn sm ghost" href="/features/methodology">분석 기준 →</a></div>
     </div>
     <div class="grid-4" style="margin-top: 18px;">{tiles}</div>
   </div>
@@ -173,18 +174,18 @@ def render_harness_page(
 <section class="block" style="padding-bottom: 28px;">
   <div class="shell stack" style="gap: 20px;">
     <div class="card" style="overflow: hidden;">
-      <div class="card-h"><h2>{icon_tile("trend", "b-teal", small=True)}실행 요약 · {h(run.get('as_of_date') or '최근 실행')} <span class="muted" style="font-weight: 500;">· {h(run.get('confirmer') or '-')} · {h(run.get('markets') or '-')}</span></h2><span class="tiny muted">사후 결과 · {outcome_summary_html} · <a class="link" href="/api/harness/outcomes">전체 기록</a></span></div>
+      <div class="card-h"><h2>{icon_tile("trend", "b-teal", small=True)}실행 요약 · {h(run.get('as_of_date') or '최근 실행')} <span class="muted" style="font-weight: 500;">· {h(run.get('confirmer') or '-')} · {h(run.get('markets') or '-')}</span></h2><span class="tiny muted">검증 결과 · {outcome_summary_html} · <a class="link" href="/api/harness/outcomes">전체 기록</a></span></div>
       <div class="table-wrap">
         <table class="harness-table">
-          <thead><tr><th>#</th><th>종목</th><th>단계</th><th>요인점수</th><th>예측(20일)</th><th>AI 확인</th><th>수량/가격</th><th>주문</th><th>사후 결과</th><th>사유</th></tr></thead>
+          <thead><tr><th>#</th><th>종목</th><th>단계</th><th>요인점수</th><th>예측(20일)</th><th>AI 확인</th><th>수량/가격</th><th>주문</th><th>검증 결과</th><th>사유</th></tr></thead>
           <tbody>{decision_rows}</tbody>
         </table>
       </div>
-      <div class="card-f"><span>각 단계는 감사 원장에 해시로 묶여 기록됩니다.</span><span>{icon("shield", 12)} 웹 실행은 항상 dry-run</span></div>
+      <div class="card-f"><span>각 단계는 실행 기록에 해시로 묶여 기록됩니다.</span><span>{icon("shield", 12)} 웹 실행은 항상 dry-run</span></div>
     </div>
     <div class="grid-main">
       <div class="card">
-        <div class="card-h"><h2>{icon_tile("clock", "b-grey", small=True)}최근 하네스 실행</h2><a class="link tiny" href="/api/harness/runs">JSON →</a></div>
+        <div class="card-h"><h2>{icon_tile("clock", "b-grey", small=True)}최근 종목 선별</h2><a class="link tiny" href="/api/harness/runs">JSON →</a></div>
         <div class="card-b runs" style="padding-top: 4px;">{run_rows}</div>
       </div>
       <div class="soft" style="padding: 16px 18px;">
@@ -196,6 +197,24 @@ def render_harness_page(
 </section>
 <script id="harness-payload" type="application/json">{payload_json}</script>
 """
+    structured: list[dict[str, Any]] = [
+        {"@type": "BreadcrumbList", "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "오늘", "item": canonical_url("/", site_base_url=site_base_url)},
+            {"@type": "ListItem", "position": 2, "name": "선별 기록", "item": canonical_url("/harness", site_base_url=site_base_url)},
+        ] + ([{"@type": "ListItem", "position": 3, "name": str(run.get("as_of_date")), "item": canonical_url(path, site_base_url=site_base_url)}] if harness_run_id and run else [])},
+    ]
+    if run:
+        structured.append({
+            "@type": "Article",
+            "headline": title,
+            "description": f"{run.get('as_of_date')} 종목 선별: 대상 {run.get('universe_size') or '-'}개, 후보 {summary.get('decision_count', 0)}개, 모의 주문 {summary.get('ordered_count', 0)}개.",
+            "datePublished": str(run.get("as_of_date")),
+            "dateModified": str(run.get("created_at") or run.get("as_of_date"))[:19],
+            "inLanguage": "ko-KR",
+            "author": {"@id": f"{(site_base_url or '').rstrip('/')}/#organization"},
+            "publisher": {"@id": f"{(site_base_url or '').rstrip('/')}/#organization"},
+            "mainEntityOfPage": canonical_url(path, site_base_url=site_base_url),
+        })
     return render_shell(
         title=f"{title} | TradingAgents Korea",
         description=description,
@@ -204,5 +223,6 @@ def render_harness_page(
         canonical_path=path,
         site_base_url=site_base_url,
         extra_css=HARNESS_CSS,
-        extra_head='<meta property="og:type" content="website"><meta property="og:locale" content="ko_KR"><meta property="og:site_name" content="TradingAgents Korea">',
+        structured_data=structured,
+        og_type="article" if run else "website",
     )
