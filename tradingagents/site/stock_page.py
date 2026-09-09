@@ -261,6 +261,7 @@ def _render_body(model: dict[str, Any], payload: dict[str, Any], legacy: Any, *,
       <p class="stock-lede ink2">{h(lede)}</p>
       <div class="row wrap stock-hero-actions">
         <a class="btn primary" href="/analyses?ticker={h(code)}">{icon("book", 16)}리포트 보기</a>
+        <a class="btn" href="/stocks/{h(code)}/history">{icon("brain", 16)}AI 판정 이력</a>
         <a class="btn" href="{request_href}">{icon("send", 16)}새 분석 요청</a>
       </div>
       <form class="ticker-search" action="/stocks" method="get" role="search">

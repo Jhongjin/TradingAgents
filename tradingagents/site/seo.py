@@ -150,6 +150,7 @@ def build_sitemap_xml(
     tickers: Iterable[str] | None = None,
     analysis_paths: Iterable[str] | None = None,
     harness_paths: Iterable[str] | None = None,
+    history_paths: Iterable[str] | None = None,
     generated_date: str | None = None,
 ) -> str:
     base = normalize_site_base_url(site_base_url)
@@ -166,6 +167,7 @@ def build_sitemap_xml(
         (canonical_url("/pricing", site_base_url=base), "weekly", "0.6"),
     ]
     urls.extend((canonical_url(path, site_base_url=base), "weekly", "0.7") for path in _sitemap_harness_paths(harness_paths))
+    urls.extend((canonical_url(path, site_base_url=base), "daily", "0.7") for path in _sitemap_prefixed_paths(history_paths, "/stocks/", "/history"))
     urls.extend(
         (canonical_url(path, site_base_url=base), "daily", "0.7")
         for path in _sitemap_analysis_paths(analysis_paths)
@@ -230,6 +232,69 @@ def _sitemap_harness_paths(paths: Iterable[str] | None) -> tuple[str, ...]:
     for raw in paths or ():
         path = str(raw).strip()
         if not path.startswith("/harness/") or path in seen:
+            continue
+        cleaned.append(path)
+        seen.add(path)
+    return tuple(cleaned)
+
+
+INDEXNOW_KEY_ENV = "TRADINGAGENTS_INDEXNOW_KEY"
+INDEXNOW_ENDPOINT = "https://api.indexnow.org/indexnow"
+
+
+def indexnow_key(value: str | None = None) -> str | None:
+    raw = (value if value is not None else os.getenv(INDEXNOW_KEY_ENV, "")).strip()
+    if not raw:
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9-]{8,128}", raw):
+        raise ValueError("IndexNow key must be 8-128 letters, digits, or dashes")
+    return raw
+
+
+def indexnow_key_location(key: str, *, site_base_url: str | None = None) -> str:
+    return canonical_url(f"/indexnow/{key}.txt", site_base_url=site_base_url)
+
+
+def submit_indexnow(paths: Iterable[str], *, site_base_url: str | None = None, key: str | None = None, transport=None, timeout: float = 10.0) -> dict:
+    """Ping IndexNow (Bing, Naver, Yandex consume it) with absolute URLs for ``paths``.
+
+    Never raises: returns ``{"status": "skipped"|"sent"|"failed", ...}`` so callers in
+    the harness pipeline cannot be broken by a search-engine outage.
+    """
+
+    resolved_key = indexnow_key(key)
+    base = normalize_site_base_url(site_base_url)
+    urls = []
+    seen = set()
+    for raw in paths:
+        path = str(raw).strip()
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        urls.append(canonical_url(path, site_base_url=base))
+    if not resolved_key or not base or not urls:
+        return {"status": "skipped", "reason": "key, site base URL, and paths are required", "urls": urls}
+    host = base.split("://", 1)[1].split("/", 1)[0]
+    payload = {"host": host, "key": resolved_key, "keyLocation": indexnow_key_location(resolved_key, site_base_url=base), "urlList": urls[:10000]}
+    try:
+        if transport is None:
+            import requests
+
+            response = requests.post(INDEXNOW_ENDPOINT, json=payload, timeout=timeout)
+            status_code = response.status_code
+        else:
+            status_code = int(transport(INDEXNOW_ENDPOINT, payload))
+    except Exception as exc:  # network trouble is not fatal
+        return {"status": "failed", "error": f"{exc.__class__.__name__}: {exc}", "urls": urls}
+    return {"status": "sent" if status_code in (200, 202) else "failed", "http_status": status_code, "urls": urls}
+
+
+def _sitemap_prefixed_paths(paths: Iterable[str] | None, prefix: str, suffix: str = "") -> tuple[str, ...]:
+    cleaned = []
+    seen = set()
+    for raw in paths or ():
+        path = str(raw).strip()
+        if not path.startswith(prefix) or (suffix and not path.endswith(suffix)) or path in seen:
             continue
         cleaned.append(path)
         seen.add(path)

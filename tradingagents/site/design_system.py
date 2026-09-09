@@ -14,6 +14,7 @@ import json
 import random
 from typing import Any, Iterable, Mapping, Sequence
 
+from .brand import ICON_HEAD_LINKS, logo_svg
 from .seo import canonical_url
 
 FONT_STYLESHEET = "https://cdnjs.cloudflare.com/ajax/libs/pretendard/1.3.9/static/pretendard-dynamic-subset.min.css"
@@ -322,7 +323,7 @@ def render_header(*, active: str | None = None, search: bool = True) -> str:
     return f"""<header class="topbar">
   <div class="shell">
     <div class="row" style="gap: 24px;">
-      <a class="brand" href="/" aria-label="TradingAgents Korea 홈"><span class="ico sm grad">{icon("trend")}</span><span>TradingAgents <em>Korea</em></span></a>
+      <a class="brand" href="/" aria-label="TradingAgents Korea 홈">{logo_svg(28)}<span>TradingAgents <em>Korea</em></span></a>
       <nav class="nav" aria-label="주요 메뉴">{nav}</nav>
     </div>
     <div class="top-right">
@@ -420,6 +421,9 @@ def render_shell(
     robots = '<meta name="robots" content="noindex, nofollow">' if noindex else ""
     desc = f'<meta name="description" content="{h(description)}">' if description else ""
     canonical = canonical_url(canonical_path, site_base_url=site_base_url)
+    if og_image is None and not noindex:
+        default_og = canonical_url("/og/default.png", site_base_url=site_base_url)
+        og_image = default_og if default_og.startswith("http") else None
     social = (
         f'<meta property="og:type" content="{h(og_type)}"><meta property="og:locale" content="ko_KR"><meta property="og:site_name" content="{h(SITE_NAME)}">'
         f'<meta property="og:title" content="{h(title)}"><meta property="og:url" content="{h(canonical)}">'
@@ -429,6 +433,7 @@ def render_shell(
         + (f'<meta name="twitter:description" content="{h(description)}">' if description else "")
     )
     ld = "" if noindex else structured_data_script(structured_data or [], site_base_url=site_base_url)
+
     js = DS_JS.replace("__THEMES__", json.dumps(list(THEMES), ensure_ascii=False)).replace("__TOKEN_KEY__", TOKEN_STORAGE_KEY)
     return f"""<!doctype html>
 <html lang="ko">
@@ -439,6 +444,7 @@ def render_shell(
 {desc}
 {robots}
 <link rel="canonical" href="{h(canonical)}">
+{ICON_HEAD_LINKS}
 {social}
 {_verification_meta()}
 <link rel="stylesheet" href="{FONT_STYLESHEET}">

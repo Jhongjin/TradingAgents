@@ -130,6 +130,30 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/og/:path*",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/indexnow/:path*",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/favicon.svg",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/apple-touch-icon.png",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/icon-:size.png",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/site.webmanifest",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/ads.txt",
       "destination": "/api/index.py"
     },

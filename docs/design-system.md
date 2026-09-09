@@ -40,6 +40,8 @@ Claude Design 캔버스 "TradingAgents Korea 통일 시안 v2"의 v3 페이지�
 | `/stocks/{code}` | `stock_page.py` (차트 엔진 `PAGE_JS`는 그대로, CSS만 토큰으로 이식) |
 | `/features`, `/features/{slug}`, `/privacy`, `/terms`, `/disclaimer` | `info_pages.py` |
 | `/admin` | `admin_console_page.py` (`ADMIN_PAGE_JS` 그대로) |
+| `/stocks/{code}/history` | `ticker_history_page.py` (종목별 AI 판정 이력, 질문 하나 = 페이지 하나) |
+| 아이콘·OG | `brand.py`(로고·파비콘·매니페스트), `og_image.py`(1200×630 PNG, Pretendard OTF) |
 
 `web_pages.py`의 같은 이름 함수는 위 모듈로 위임만 합니다. 옛 시스템(`PAGE_CSS`)은 `/?legacy=1`과
 `PAGE_JS`(종목 차트·검색 자동완성)에만 남아 있습니다.

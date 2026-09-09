@@ -40,7 +40,7 @@ def test_shell_pages_carry_social_meta_and_site_graph():
     repo.create_harness_run(HarnessRunInput(as_of_date=date(2026, 9, 8), confirmer="debate", candidate_count=3, order_count=1))
     client = TestClient(create_app(repo=repo, load_repo_from_env=False))
     home = client.get("/").text
-    assert '<meta property="og:title"' in home and '<meta name="twitter:card" content="summary">' in home
+    assert '<meta property="og:title"' in home and '<meta name="twitter:card" content="summary_large_image">' in home and '/og/home.png' in home
     graph = json.loads(home.split('<script type="application/ld+json">', 1)[1].split("</script>", 1)[0])
     types = [node["@type"] for node in graph["@graph"]]
     assert types[:2] == ["Organization", "WebSite"] and "WebPage" in types

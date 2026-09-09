@@ -276,7 +276,26 @@ def run_daily_pipeline(
         else:
             _audit(ledger, "persisted", {"harness_run_id": run_id})
             result = PipelineRunResult(**{**result.__dict__, "run_id": run_id})
+            _ping_search_engines(run_id, decisions, notes)
     return result
+
+
+def _ping_search_engines(run_id: str, decisions: list, notes: list[str]) -> None:
+    """IndexNow ping for the new run page and affected ticker history pages (best effort)."""
+
+    try:
+        from tradingagents.site.seo import submit_indexnow
+
+        paths = ["/", "/harness", f"/harness/{run_id}"]
+        for decision in decisions:
+            code = getattr(decision, "ticker_code", None) or (decision.get("ticker_code") if isinstance(decision, dict) else None)
+            if code:
+                paths.append(f"/stocks/{code}/history")
+        outcome = submit_indexnow(paths)
+        if outcome.get("status") != "skipped":
+            notes.append(f"indexnow {outcome.get('status')}: {len(outcome.get('urls') or [])} urls")
+    except Exception as exc:  # never let SEO pings affect trading
+        notes.append(f"indexnow error: {exc.__class__.__name__}")
 
 
 def persist_pipeline_result(repo: Any, result: PipelineRunResult, *, config: PipelineConfig, visibility: str = "public") -> str:

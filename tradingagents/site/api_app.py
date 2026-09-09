@@ -62,7 +62,10 @@ from .billing import (
 )
 from .billing_page import render_billing_page
 from .harness_pages import render_harness_page
-from .home_page import render_home_page
+from .brand import favicon_ico, favicon_svg, icon_png, web_manifest
+from .home_page import build_home_view_model, render_home_page
+from .og_image import og_stats, render_og_image
+from .ticker_history_page import build_ticker_history_model, render_ticker_history_page
 from .notifications import (
     TelegramClient,
     TelegramConfig,
@@ -81,7 +84,7 @@ from .paper_simulation_api import EXECUTION_BOUNDARY_LABEL, build_member_paper_s
 from .portfolio_api import build_manual_portfolio_list_payload, build_manual_portfolio_payload, normalize_portfolio_ticker
 from .public_api import build_public_stock_payload
 from .screener_api import build_forecast_payload, build_screener_payload
-from .seo import build_ads_txt, build_llms_txt, build_robots_txt, build_sitemap_xml, sitemap_tickers_from_env
+from .seo import build_ads_txt, build_llms_txt, build_robots_txt, build_sitemap_xml, indexnow_key, sitemap_tickers_from_env, submit_indexnow
 from .simulation_api import build_public_simulation_preview_payload
 from .ticker_api import build_ticker_search_payload
 from .watchlist_api import build_watchlist_list_payload, build_watchlist_payload
@@ -139,6 +142,10 @@ class HarnessRunRequestBody(BaseModel):
     markets: str = Field(default="KOSPI,KOSDAQ", pattern=r"^(?i:kospi|kosdaq)(,(?i:kospi|kosdaq))*$")
     as_of_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     dry_run: bool = True
+
+
+class IndexNowBody(BaseModel):
+    paths: list[str] = Field(min_length=1, max_length=500)
 
 
 class MemberPlanBody(BaseModel):
@@ -257,7 +264,9 @@ def create_app(
             or request.url.path == "/features"
             or request.url.path.startswith("/features/")
             or request.url.path in {"/privacy", "/terms", "/disclaimer", "/pricing"}
-            or request.url.path in {"/ads.txt", "/robots.txt", "/sitemap.xml", "/llms.txt"}
+            or request.url.path in {"/ads.txt", "/robots.txt", "/sitemap.xml", "/llms.txt", "/site.webmanifest"}
+            or request.url.path.startswith("/og/")
+            or request.url.path.endswith("/history")
         ):
             seconds = request.app.state.public_cache_seconds
             response.headers.setdefault(
@@ -414,7 +423,106 @@ def create_app(
 
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon() -> Response:
-        return Response(status_code=204)
+        return Response(favicon_ico(), media_type="image/x-icon", headers={"Cache-Control": "public, max-age=604800"})
+
+    @app.get("/favicon.svg", include_in_schema=False)
+    def favicon_svg_route() -> Response:
+        return Response(favicon_svg(), media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=604800"})
+
+    @app.get("/apple-touch-icon.png", include_in_schema=False)
+    def apple_touch_icon() -> Response:
+        return Response(icon_png(180), media_type="image/png", headers={"Cache-Control": "public, max-age=604800"})
+
+    @app.get("/icon-{size}.png", include_in_schema=False)
+    def app_icon(size: int) -> Response:
+        if size not in {32, 64, 96, 128, 192, 256, 512}:
+            raise HTTPException(status_code=404, detail="icon size not available")
+        return Response(icon_png(size), media_type="image/png", headers={"Cache-Control": "public, max-age=604800"})
+
+    @app.get("/site.webmanifest", include_in_schema=False)
+    def site_webmanifest(request: Request) -> Response:
+        return Response(json.dumps(web_manifest(site_base_url=_request_site_base_url(request)), ensure_ascii=False), media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=86400"})
+
+    @app.get("/indexnow/{key}.txt", response_class=PlainTextResponse, include_in_schema=False)
+    def indexnow_key_file(key: str) -> PlainTextResponse:
+        configured = indexnow_key()
+        if not configured or key != configured:
+            raise HTTPException(status_code=404, detail="Not found")
+        return PlainTextResponse(configured)
+
+    @app.post("/api/admin/seo/indexnow", include_in_schema=False)
+    def indexnow_ping(
+        body: IndexNowBody,
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_operator(request, x_tradingagents_worker_token)
+        return submit_indexnow(body.paths, site_base_url=_request_site_base_url(request))
+
+    # ------------------------------------------------------ Open Graph images
+    _OG_HEADERS = {"Cache-Control": "public, max-age=3600, stale-while-revalidate=86400"}
+
+    def _og_footer(request: Request) -> str:
+        base = _request_site_base_url(request)
+        return base.split("://", 1)[-1].rstrip("/")
+
+    @app.get("/og/default.png", include_in_schema=False)
+    def og_default(request: Request) -> Response:
+        png = render_og_image("코스피200·코스닥150을 매일 아침 규칙과 AI 토론으로 거르고, 모의투자로 검증합니다", "실계좌 주문 없음 · 5·20거래일 성과 공개 · 투자 조언 아님", "한국 주식 AI 리서치", (), _og_footer(request))
+        return Response(png, media_type="image/png", headers=_OG_HEADERS)
+
+    @app.get("/og/home.png", include_in_schema=False)
+    def og_home(request: Request) -> Response:
+        model = build_home_view_model(request.app.state.repository, site_base_url=_request_site_base_url(request))
+        run = model.get("run") or {}
+        decisions = model.get("decisions") or []
+        ordered = [d for d in decisions if d.get("stage") in {"ordered", "exit"}]
+        stats = og_stats([("대상 종목", f"{int(run.get('universe_size') or 0):,}" if run else "–"), ("후보", str(len(decisions)) if run else "–"), ("AI 토론 통과", str(len(ordered)) if run else "–"), ("모의 주문", str(int(run.get("order_count") or 0)) if run else "–")])
+        png = render_og_image(str(model.get("headline") or "오늘의 선정 종목"), f"{model.get('run_date_text') or ''} 선별 · 강세·약세 AI 토론 · 모의투자 검증".strip(" ·"), "오늘의 선정 종목", stats, _og_footer(request))
+        return Response(png, media_type="image/png", headers=_OG_HEADERS)
+
+    @app.get("/og/harness.png", include_in_schema=False)
+    @app.get("/og/harness/{harness_run_id}.png", include_in_schema=False)
+    def og_harness(request: Request, harness_run_id: str | None = None) -> Response:
+        payload = build_harness_run_payload(request.app.state.repository, harness_run_id=harness_run_id) if request.app.state.repository is not None else None
+        run = (payload or {}).get("run") or {}
+        summary = (payload or {}).get("summary") or {}
+        if run:
+            title = f"{run.get('as_of_date')} 종목 선별: 후보 {summary.get('decision_count', 0)}개 중 {summary.get('ordered_count', 0)}개 모의 주문"
+            stats = og_stats([("대상 종목", f"{int(run.get('universe_size') or 0):,}"), ("후보", str(summary.get("decision_count", 0))), ("모의 주문", str(summary.get("ordered_count", 0))), ("탈락", str(summary.get("rejected_count", 0)))])
+        else:
+            title, stats = "종목 선별 기록", ()
+        png = render_og_image(title, "규칙 점수 → 20일 예상 → AI 토론 → 모의 주문 → 5·20일 검증", "선별 기록", stats, _og_footer(request))
+        return Response(png, media_type="image/png", headers=_OG_HEADERS)
+
+    @app.get("/og/stocks/{ticker}.png", include_in_schema=False)
+    def og_stock(ticker: str, request: Request) -> Response:
+        if not is_kr_ticker(ticker):
+            raise HTTPException(status_code=404, detail="Not found")
+        model = build_ticker_history_model(request.app.state.repository, ticker=ticker, site_base_url=_request_site_base_url(request))
+        latest = model.get("latest") or {}
+        stats = og_stats([("선별 등장", f"{len(model['items'])}회"), ("AI 토론 통과", f"{len(model['passed'])}회"), ("마지막 판정", str(latest.get("confirmation_rating") or latest.get("stage_label") or "–")), ("판정일", str(latest.get("as_of_date") or "–"))])
+        png = render_og_image(f"{model['name']}({ticker}) AI 판정 이력", model["answer"], f"{model['market']} 종목", stats, _og_footer(request))
+        return Response(png, media_type="image/png", headers=_OG_HEADERS)
+
+    @app.get("/og/{page}.png", include_in_schema=False)
+    def og_page(page: str, request: Request) -> Response:
+        titles = {
+            "pricing": ("무료 · 데일리 패스 월 10,000원 · 프로 월 30,000원", "당일 선별 결과와 AI 토론 전문, 분석 요청 횟수를 넓히는 리서치 도구 요금제", "요금제"),
+            "outcomes": ("선정 종목의 5·20거래일 성과 검증", "지수 대비 초과수익으로 확정한 공개 성적표", "성과 검증"),
+            "analyses": ("종목별 AI 분석 리포트", "강세·약세 의견, 판정, 리스크 점검을 담은 공개 리포트", "AI 리포트"),
+            "features": ("서비스 소개와 분석 기준", "선별 규칙, 예측 모델, 토론 절차, 리스크 한도", "분석 기준"),
+        }
+        if page not in titles:
+            raise HTTPException(status_code=404, detail="Not found")
+        title, subtitle, kicker = titles[page]
+        return Response(render_og_image(title, subtitle, kicker, (), _og_footer(request)), media_type="image/png", headers=_OG_HEADERS)
+
+    @app.get("/stocks/{ticker}/history", response_class=HTMLResponse, include_in_schema=False)
+    def stock_history_page(ticker: str, request: Request) -> HTMLResponse:
+        if not is_kr_ticker(ticker):
+            raise HTTPException(status_code=404, detail="6자리 한국 종목코드가 필요합니다.")
+        return HTMLResponse(render_ticker_history_page(ticker, repo=request.app.state.repository, site_base_url=_request_site_base_url(request)))
 
     @app.get("/sitemap.xml", include_in_schema=False)
     def sitemap_xml(request: Request) -> Response:
@@ -424,6 +532,7 @@ def create_app(
                 tickers=_sitemap_tickers(request.app.state.repository),
                 analysis_paths=_sitemap_analysis_paths(request.app.state.repository),
                 harness_paths=_sitemap_harness_paths(request.app.state.repository),
+                history_paths=_sitemap_history_paths(request.app.state.repository),
             )
         except ValueError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -1864,6 +1973,21 @@ def _sitemap_harness_paths(repo: StorageRepository | None) -> tuple[str, ...]:
     except Exception:
         return ()
     return tuple(f"/harness/{row['id']}" for row in rows if row.get("id"))
+
+
+def _sitemap_history_paths(repo: StorageRepository | None) -> tuple[str, ...]:
+    if repo is None:
+        return ()
+    try:
+        rows = repo.list_harness_decisions(limit=400)
+    except Exception:
+        return ()
+    codes = []
+    for row in rows:
+        code = str(row.get("ticker_code") or "")
+        if code and code not in codes:
+            codes.append(code)
+    return tuple(f"/stocks/{code}/history" for code in codes[:200])
 
 
 def _sitemap_max_analysis_tickers() -> int:

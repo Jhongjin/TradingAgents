@@ -113,7 +113,7 @@ def render_harness_page(
         rows.append(
             f"""<tr>
           <td class="muted num">{h(item.get('screener_rank') or '-')}</td>
-          <td><a href="{h(item.get('stock_path'))}"><b style="font-weight: 700;">{h(item.get('ticker_name') or item.get('ticker_code'))}</b></a><small class="num">{h(item.get('ticker_code'))} · {h(market)}</small></td>
+          <td><a href="{h(item.get('stock_path'))}"><b style="font-weight: 700;">{h(item.get('ticker_name') or item.get('ticker_code'))}</b></a><small class="num">{h(item.get('ticker_code'))} · {h(market)} · <a class="link" href="/stocks/{h(item.get('ticker_code'))}/history">판정 이력</a></small></td>
           <td>{badge(str(item.get('stage_label') or stage), tone, icon_name=ic)}</td>
           <td class="num">{h(_fmt_num(item.get('composite_score'), 3))}</td>
           <td class="num">{h(_fmt_pct(item.get('forecast_expected_return')))}<small>상승 {h(_fmt_pct(item.get('forecast_probability_up')) if item.get('forecast_probability_up') is not None else '-')}</small></td>
@@ -225,4 +225,5 @@ def render_harness_page(
         extra_css=HARNESS_CSS,
         structured_data=structured,
         og_type="article" if run else "website",
+        og_image=canonical_url(f"/og/harness/{harness_run_id}.png" if harness_run_id and run else "/og/harness.png", site_base_url=site_base_url),
     )

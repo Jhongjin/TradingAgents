@@ -104,6 +104,7 @@ def render_pricing_page(*, site_base_url: str | None = None) -> str:
         site_base_url=site_base_url,
         extra_css=PRICING_CSS,
         structured_data=structured,
+        og_image=canonical_url("/og/pricing.png", site_base_url=site_base_url),
     )
 
 

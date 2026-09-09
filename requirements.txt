@@ -2,3 +2,4 @@
 pg8000>=1.31.0
 psycopg[binary]>=3.2.0
 truststore>=0.10.0; platform_system == "Windows"
+pillow>=10.0

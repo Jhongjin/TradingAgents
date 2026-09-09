@@ -150,7 +150,7 @@ def build_home_view_model(repo: StorageRepository | None, *, site_base_url: str 
 
 
 SOURCE_CACHE_SECONDS = 60
-_source_cache: dict[int, tuple[float, tuple[Any, Any, Any]]] = {}
+_source_cache: dict[int, tuple[float, tuple[Any, Any, Any], Any]] = {}
 
 
 def _load_sources(repo: StorageRepository | None) -> tuple[Any, dict[str, Any], dict[str, Any]]:
@@ -165,9 +165,12 @@ def _load_sources(repo: StorageRepository | None) -> tuple[Any, dict[str, Any], 
 
     if repo is None:
         return None, {"items": [], "item_count": 0}, {"summary": {}, "items": []}
+    import weakref
+
     key = id(repo)
     cached = _source_cache.get(key)
-    if cached and time.monotonic() - cached[0] < SOURCE_CACHE_SECONDS:
+    # id() can be recycled after a repo is garbage collected; the weakref guards against a stale hit
+    if cached and time.monotonic() - cached[0] < SOURCE_CACHE_SECONDS and cached[2]() is repo:
         return cached[1]
     from .billing import gate_harness_payload, latest_visible_run_id, resolve_plan_access
 
@@ -180,7 +183,7 @@ def _load_sources(repo: StorageRepository | None) -> tuple[Any, dict[str, Any], 
     latest = build_harness_run_payload(repo, harness_run_id=visible_id) if visible_id else build_harness_run_payload(repo)
     latest = gate_harness_payload(latest, free_access) if latest else latest
     outcomes = build_harness_outcomes_payload(repo, limit=120)
-    _source_cache[key] = (time.monotonic(), (latest, runs, outcomes))
+    _source_cache[key] = (time.monotonic(), (latest, runs, outcomes), weakref.ref(repo))
     return latest, runs, outcomes
 
 
@@ -717,4 +720,5 @@ def _render(model: dict[str, Any]) -> str:
         extra_js=HOME_JS,
         body_class="public-home",
         structured_data=structured,
+        og_image=canonical_url("/og/home.png", site_base_url=model["site_base_url"]),
     )

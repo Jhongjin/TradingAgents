@@ -29,10 +29,19 @@
 4. 배포 후 Google Rich Results Test / schema.org validator로 `/`, `/pricing`, `/harness` JSON-LD 확인.
 5. 2주 뒤 재측정: GSC·Bing·네이버 노출/클릭, Perplexity·ChatGPT 검색에 "코스피200 종목 선별 검증" 류 질문을 던져 출처 표시 여부 기록.
 
+## 2026-09-09 추가 적용
+
+| 항목 | 내용 |
+|---|---|
+| 브랜드 | `brand.py`: SVG 마크(청록 라운드 사각형 + 상승선), `/favicon.svg`, `/favicon.ico`(16·32·48), `/apple-touch-icon.png`, `/icon-{192,512}.png`, `/site.webmanifest`. 헤더 로고와 OG 이미지 푸터에 같은 마크 사용 |
+| OG 이미지 | `og_image.py`: Pillow + Pretendard(`site/assets/fonts`)로 1200×630 PNG를 요청 시 생성·메모. `/og/default.png`, `/og/home.png`(오늘의 결론·선별 과정 수치), `/og/harness.png`, `/og/harness/{id}.png`, `/og/stocks/{code}.png`(판정 이력 요약), `/og/{pricing,outcomes,analyses,features}.png`. 셸이 기본 이미지를 자동 지정하고 페이지가 덮어씀. `twitter:card=summary_large_image` |
+| IndexNow | `seo.submit_indexnow`: 키는 `TRADINGAGENTS_INDEXNOW_KEY`(8~128자 영숫자), 키 파일 `/indexnow/{key}.txt`. 선별 실행이 저장되면 파이프라인이 `/`, `/harness`, `/harness/{id}`, 관련 `/stocks/{code}/history`를 자동 핑(실패해도 매매에 영향 없음). 수동 핑: `POST /api/admin/seo/indexnow {"paths":[...]}`(운영 토큰 또는 관리자 세션) |
+| 질문 = 페이지 | `/stocks/{code}/history` "○○ AI 판정 이력": 첫 문장이 직답("최근 N회 선별에서 M회 통과, 마지막 판정 …"), 판정 이력 표(날짜→선별 기록 링크, 결과, 규칙 점수, 20일 예상, AI 판정, 검증 결과), FAQ 3문답 + FAQPage/Article/Breadcrumb JSON-LD, 전용 OG 이미지. 종목 페이지·선별 기록 표에서 링크, 사이트맵 자동 포함 |
+
+운영자 할 일 추가: IndexNow 키를 하나 정해(예: 32자 영숫자) Vercel 환경변수 `TRADINGAGENTS_INDEXNOW_KEY`에 넣고 재배포하면 핑이 켜집니다.
+
 ## 다음 단계 (코드)
 
-- OG 이미지: 페이지 유형별 1200×630 이미지 생성 라우트(`/og/{page}.png`). 지금은 이미지 없이 `summary` 카드.
-- IndexNow: 선별 실행 완료 시 새 `/harness/{id}` URL을 Bing·네이버에 핑(발행 파이프라인에 내장).
-- 질문 = 페이지: "○○ 종목 AI 판정", "코스피200 오늘 선정 종목" 같은 검색 질문별 안정 URL(종목 페이지에 선별 이력 섹션 추가).
 - `lastmod` 정확성: 사이트맵의 lastmod를 생성일이 아니라 각 실행·리포트의 갱신 시각으로.
 - About 페이지(운영 주체·연락처)와 `Organization.contactPoint`.
+- "코스피200 오늘 선정 종목" 같은 날짜별 질문 페이지(`/harness/{date}` 별칭).

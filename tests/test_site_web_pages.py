@@ -858,7 +858,7 @@ def test_api_app_serves_robots_sitemap_and_ads_txt(monkeypatch):
     assert ads_response.status_code == 200
     assert ads_response.headers["content-type"].startswith("text/plain")
     assert "google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0" in ads_response.text
-    assert favicon_response.status_code == 204
+    assert favicon_response.status_code == 200 and favicon_response.headers["content-type"] == "image/x-icon"
 
 
 def test_api_app_sitemap_prefers_public_request_host_over_vercel_branch_env(monkeypatch):
