@@ -64,6 +64,7 @@ BILLING_JS = """
       (me.events||[]).forEach(function(e){var d=document.createElement('div');d.innerHTML='<span>'+e.event_type+(e.message?' · '+e.message:'')+'</span><span>'+fmtDate(e.created_at)+'</span>';ev.appendChild(d);});
       if(!(me.events||[]).length){ev.textContent='아직 결제 이력이 없습니다.';}
       el('btn-cancel').hidden=!(a.status==='active'||a.status==='trialing');
+      el('btn-refund').hidden=!(a.status==='active');
       el('btn-trial').hidden=!(a.status==='free');
       say('billing-msg','');
     }catch(e){say('billing-msg',e.message,true);}
@@ -92,10 +93,26 @@ BILLING_JS = """
       if(action==='trial'){await api('/api/billing/trial',{method:'POST'});say('billing-msg','14일 체험이 시작되었습니다.');refresh();}
       else if(action==='checkout'){checkout(b.getAttribute('data-plan'));}
       else if(action==='cancel'){if(!confirm('기간 종료 시 해지됩니다. 계속할까요?'))return;await api('/api/billing/cancel',{method:'POST'});say('billing-msg','기간 종료 시 해지되도록 예약했습니다.');refresh();}
+      else if(action==='refund'){if(!confirm('결제 후 7일 이내면 전액, 이후에는 남은 기간만큼 환불되며 유료 플랜은 즉시 종료됩니다. 계속할까요?'))return;var r=await api('/api/billing/refund',{method:'POST'});say('billing-msg','환불 처리: '+Number(r.refunded_amount).toLocaleString('ko-KR')+'원 ('+r.basis+'). 카드사 반영까지 3~5영업일이 걸릴 수 있습니다.');refresh();}
       else if(action==='tg-link'){var r=await api('/api/notifications/telegram/link',{method:'POST'});el('tg-code').textContent=r.code;var a=el('tg-open');if(r.link_url){a.href=r.link_url;a.hidden=false;}el('tg-help').textContent=r.instructions;}
       else if(action==='tg-unlink'){await api('/api/notifications/telegram/link',{method:'DELETE'});refresh();}
     }catch(e){say('billing-msg',e.message,true);}
   });
+  var form=el('password-form');
+  if(form){form.addEventListener('submit',async function(ev){
+    ev.preventDefault();
+    var p1=el('pw1').value,p2=el('pw2').value;
+    if(p1.length<8){say('pw-msg','8자 이상 입력해 주세요.',true);return;}
+    if(p1!==p2){say('pw-msg','두 비밀번호가 다릅니다.',true);return;}
+    var cfgEl=document.getElementById('billing-config');var cfg={};try{cfg=JSON.parse(cfgEl.textContent||'{}');}catch(e){}
+    if(!cfg.supabase_url||!cfg.supabase_anon_key){say('pw-msg','인증 설정이 없어 변경할 수 없습니다.',true);return;}
+    try{
+      var r=await fetch(cfg.supabase_url+'/auth/v1/user',{method:'PUT',headers:{'apikey':cfg.supabase_anon_key,'Authorization':'Bearer '+token(),'Content-Type':'application/json'},body:JSON.stringify({password:p1})});
+      var body=null;try{body=await r.json();}catch(e){}
+      if(!r.ok){throw new Error((body&&(body.msg||body.message||body.error_description))||('변경 실패 ('+r.status+')'));}
+      el('pw1').value='';el('pw2').value='';say('pw-msg','비밀번호를 변경했습니다. 다음 로그인부터 새 비밀번호를 사용하세요.');
+    }catch(e){say('pw-msg',e.message,true);}
+  });}
   refresh();
   var params=new URLSearchParams(location.search);
   if(params.get('plan')==='daily'||params.get('plan')==='pro'){var btn=document.querySelector('button[data-action="checkout"][data-plan="'+params.get('plan')+'"]');if(btn){btn.focus();}}
@@ -104,6 +121,10 @@ BILLING_JS = """
 
 
 def render_billing_page(*, site_base_url: str | None = None) -> str:
+    from .web_pages import _public_supabase_config, _script_json
+
+    config = _public_supabase_config()
+    config_json = _script_json({"supabase_url": config.get("supabase_url"), "supabase_anon_key": config.get("supabase_anon_key")})
     theme_buttons = "".join(
         f'<button type="button" class="{name}" data-theme="{name}" aria-pressed="false" aria-label="{_h(THEME_LABELS[name])} 테마" title="{_h(THEME_LABELS[name])}"></button>'
         for name in THEMES
@@ -145,6 +166,7 @@ def render_billing_page(*, site_base_url: str | None = None) -> str:
         <button class="btn primary" type="button" data-action="checkout" data-plan="daily">{_h(daily.name)} 구독 · 월 {daily.price_krw:,}원</button>
         <button class="btn" type="button" data-action="checkout" data-plan="pro">{_h(pro.name)} 구독 · 월 {pro.price_krw:,}원</button>
         <button class="btn" type="button" id="btn-cancel" data-action="cancel" hidden>기간 종료 시 해지</button>
+        <button class="btn" type="button" id="btn-refund" data-action="refund" hidden>환불 요청</button>
       </div>
       <div class="msg" id="billing-msg"></div>
       <h3 style="font-size:16px;margin-top:6px">결제 이력</h3>
@@ -164,6 +186,16 @@ def render_billing_page(*, site_base_url: str | None = None) -> str:
         <div class="msg" id="tg-help">코드는 30분 동안 유효합니다.</div>
       </div>
       <div class="card">
+        <h2>비밀번호 변경</h2>
+        <p class="sub">로그인 세션으로 바로 변경됩니다. 8자 이상을 권장합니다.</p>
+        <form id="password-form" style="display:flex;flex-direction:column;gap:10px" autocomplete="off">
+          <label style="font-size:13px;color:var(--ink2)">새 비밀번호<br><input id="pw1" type="password" minlength="8" required style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:6px;background:var(--panel);color:var(--ink);font:inherit"></label>
+          <label style="font-size:13px;color:var(--ink2)">새 비밀번호 확인<br><input id="pw2" type="password" minlength="8" required style="width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:6px;background:var(--panel);color:var(--ink);font:inherit"></label>
+          <div class="actions"><button class="btn primary" type="submit">비밀번호 변경</button></div>
+          <div class="msg" id="pw-msg"></div>
+        </form>
+      </div>
+      <div class="card">
         <h2>이용 원칙</h2>
         <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--ink2);display:flex;flex-direction:column;gap:6px">{notices}</ul>
         <p class="sub"><a href="/terms">이용약관</a> · <a href="/pricing">요금제 비교</a></p>
@@ -173,6 +205,7 @@ def render_billing_page(*, site_base_url: str | None = None) -> str:
 </section>
 </main>
 <footer><div class="shell"><span>© 2026 TradingAgents Korea</span><a href="/terms">약관</a><a href="/privacy">개인정보</a></div></footer>
+<script id="billing-config" type="application/json">{config_json}</script>
 <script>{HOME_JS}</script>
 <script>{BILLING_JS}</script>
 </body>

@@ -47,6 +47,14 @@ def test_vercel_json_routes_api_and_health_to_fastapi_entrypoint():
             "path": "/api/cron/notify-harness-issue?slot=midday",
             "schedule": "25 1 * * 1-5",
         },
+        {
+            "path": "/api/cron/notify-exits",
+            "schedule": "35 1 * * 1-5",
+        },
+        {
+            "path": "/api/cron/notify-outcomes",
+            "schedule": "40 10 * * 1-5",
+        },
     ]
     assert {
         "source": "/harness",

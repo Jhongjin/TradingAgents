@@ -186,3 +186,21 @@ def test_csp_allows_payment_sdk_and_web_fonts(monkeypatch):
     assert "frame-src 'self' https://*.portone.io https://*.iamport.co" in csp
     assert "https://*.iamport.co" in csp.split("connect-src", 1)[1]
     assert "frame-ancestors 'none'" in csp
+
+
+def test_refund_endpoint_and_alert_crons(monkeypatch):
+    from tradingagents.site.notifications import TelegramClient, TelegramConfig
+
+    repo = _repo()
+    portone = PortOneClient(PortOneConfig(api_secret="s", store_id="store", channel_key="ch", webhook_secret=SECRET), transport=lambda m, u, h, b: (200, {"cancellation": {"status": "SUCCEEDED"}}))
+    client = _client(repo, monkeypatch, portone=portone)
+    client.app.state.telegram_client = TelegramClient(TelegramConfig(bot_token="t", bot_username="b", webhook_secret="s"), transport=lambda m, u, b: (200, {"ok": True, "result": {}}))
+    headers = {"X-TradingAgents-User-Id": USER}
+    assert client.post("/api/billing/refund", headers=headers).status_code == 409
+    repo.upsert_subscription(SubscriptionInput(user_id=USER, plan="daily", status="active", billing_key="bk", last_payment_id="pay-9", last_payment_at=datetime.now(timezone.utc) - timedelta(days=1), current_period_end=datetime.now(timezone.utc) + timedelta(days=29)))
+    refund = client.post("/api/billing/refund", headers=headers)
+    assert refund.status_code == 200 and refund.json()["refunded_amount"] == 10_000
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_TOKEN", "tok")
+    for path in ("/api/cron/notify-exits", "/api/cron/notify-outcomes"):
+        r = client.get(path, headers={"X-TradingAgents-Worker-Token": "tok"})
+        assert r.status_code == 200 and r.json()["status"] == "nothing_to_send"

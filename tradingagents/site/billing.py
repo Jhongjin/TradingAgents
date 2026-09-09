@@ -215,6 +215,44 @@ def cancel_at_period_end(repo: StorageRepository, user_id: str) -> dict[str, Any
     return {"status": str(row.get("status")), "cancel_at_period_end": True, "current_period_end": _iso(row.get("current_period_end"))}
 
 
+FULL_REFUND_DAYS = 7
+
+
+def compute_refund_amount(*, price_krw: int, paid_at: datetime, period_end: datetime | None, now: datetime) -> tuple[int, str]:
+    """Refund policy: full within 7 days of payment, otherwise pro-rated remaining days (100원 단위)."""
+
+    if now - paid_at <= timedelta(days=FULL_REFUND_DAYS):
+        return price_krw, "full_within_7_days"
+    if period_end is None or period_end <= now:
+        return 0, "period_elapsed"
+    remaining = (period_end - now).total_seconds() / (PERIOD_DAYS * 86_400)
+    amount = int(round(price_krw * max(0.0, min(remaining, 1.0)) / 100.0) * 100)
+    return amount, "prorated"
+
+
+def request_refund(repo: StorageRepository, user_id: str, client: PortOneClient, *, now: datetime | None = None, reason: str = "member_request") -> dict[str, Any]:
+    """Refund the last payment per policy, then end the paid plan immediately."""
+
+    now = now or datetime.now(timezone.utc)
+    row = repo.get_subscription(user_id)
+    if not row or row.get("status") != "active" or not row.get("last_payment_id") or not _aware(row.get("last_payment_at")):
+        raise ValueError("환불할 결제가 없습니다. 체험 중이거나 이미 종료된 플랜입니다.")
+    plan = PLANS.get(str(row.get("plan") or ""), None)
+    if plan is None or plan.id not in PAID_PLANS:
+        raise ValueError("환불할 유료 플랜이 없습니다.")
+    if repo.billing_event_exists(payment_id=str(row["last_payment_id"]), event_type="payment.refunded"):
+        raise ValueError("이미 환불된 결제입니다.")
+    amount, basis = compute_refund_amount(price_krw=plan.price_krw, paid_at=_aware(row["last_payment_at"]), period_end=_aware(row.get("current_period_end")), now=now)
+    response: Mapping[str, Any] = {}
+    if amount > 0:
+        response = client.cancel_payment(str(row["last_payment_id"]), amount=amount if amount < plan.price_krw else None, reason=f"TradingAgents Korea refund ({basis})")
+    repo.upsert_subscription(_merge_input(row, user_id=user_id, status="canceled", cancel_at_period_end=True, current_period_end=now))
+    repo.record_billing_event(
+        BillingEventInput(event_type="payment.refunded", user_id=user_id, subscription_id=str(row["id"]), payment_id=str(row["last_payment_id"]), amount=Decimal(amount), status="refunded" if amount > 0 else "no_refund", message=basis, payload=dict(response))
+    )
+    return {"refunded_amount": amount, "basis": basis, "status": "canceled", "payment_id": str(row["last_payment_id"])}
+
+
 # ------------------------------------------------------------------ gating
 def gate_harness_payload(payload: Mapping[str, Any] | None, access: PlanAccess, *, now: datetime | None = None) -> dict[str, Any] | None:
     """Apply the plan rules to a harness run payload.
@@ -372,6 +410,17 @@ class PortOneClient:
         if status >= 400:
             raise PortOneError(f"PortOne GET /billing-keys/{billing_key} -> {status}: {_message(body)}")
         return body
+
+    def cancel_payment(self, payment_id: str, *, amount: int | None, reason: str) -> Mapping[str, Any]:
+        """Refund (part of) a payment. ``amount=None`` cancels the full remaining amount."""
+
+        body: dict[str, Any] = {"reason": reason[:200]}
+        if amount is not None:
+            body["amount"] = int(amount)
+        status, response = self._request("POST", f"/payments/{payment_id}/cancel", body)
+        if status >= 400:
+            raise PortOneError(f"PortOne cancel failed ({status}): {_message(response)}")
+        return response
 
     def pay_with_billing_key(self, *, payment_id: str, billing_key: str, amount: int, order_name: str, customer_id: str, custom_data: str | None = None) -> Mapping[str, Any]:
         body = {

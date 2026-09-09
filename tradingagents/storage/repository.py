@@ -1167,6 +1167,22 @@ class StorageRepository:
             rows = conn.execute(stmt).mappings().all()
         return [_notification_row(row) for row in rows]
 
+    def update_harness_decision_detail(self, harness_decision_id: str, patch: Mapping[str, Any]) -> None:
+        _validate_uuid(harness_decision_id, "harness_decision_id")
+        with self.engine.begin() as conn:
+            current = conn.execute(select(harness_decisions.c.detail_json).where(harness_decisions.c.id == harness_decision_id)).scalar_one_or_none()
+            if current is None:
+                raise ValueError("harness decision not found")
+            conn.execute(update(harness_decisions).where(harness_decisions.c.id == harness_decision_id).values(detail_json={**dict(current or {}), **dict(patch)}))
+
+    def update_harness_outcome_metadata(self, harness_outcome_id: str, patch: Mapping[str, Any]) -> None:
+        _validate_uuid(harness_outcome_id, "harness_outcome_id")
+        with self.engine.begin() as conn:
+            current = conn.execute(select(harness_outcomes.c.metadata_json).where(harness_outcomes.c.id == harness_outcome_id)).scalar_one_or_none()
+            if current is None:
+                raise ValueError("harness outcome not found")
+            conn.execute(update(harness_outcomes).where(harness_outcomes.c.id == harness_outcome_id).values(metadata_json={**dict(current or {}), **dict(patch)}))
+
     def update_harness_run_metadata(self, harness_run_id: str, patch: Mapping[str, Any]) -> None:
         _validate_uuid(harness_run_id, "harness_run_id")
         with self.engine.begin() as conn:

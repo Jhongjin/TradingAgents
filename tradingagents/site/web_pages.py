@@ -1920,7 +1920,22 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <a id="watchlist-tab" href="#watchlist-section" role="tab" data-member-tab="watchlist" aria-controls="watchlist-section" aria-selected="false">관심그룹 <span id="watchlistTabCount">0</span></a>
         <a id="analysis-tab" href="#analysis-request-section" role="tab" data-member-tab="analysis" aria-controls="analysis-request-section" aria-selected="false">분석 요청 <span id="analysisTabCount">0</span></a>
         <a id="paper-simulation-tab" href="#paper-simulation-section" role="tab" data-member-tab="paper" aria-controls="paper-simulation-section" aria-selected="false">AI 가상매매 <span id="paperSimulationTabCount">0</span></a>
+        <a id="billing-link" href="/billing" data-member-link="billing" aria-label="구독 관리로 이동">구독 관리 <span id="memberPlanBadge">플랜 확인 중</span></a>
       </nav>
+      <script>
+      (function(){{
+        var key='tradingagents.member.access_token';
+        var token='';try{{token=localStorage.getItem(key)||sessionStorage.getItem(key)||'';}}catch(e){{}}
+        var badge=document.getElementById('memberPlanBadge');
+        if(!badge)return;
+        if(!token){{badge.textContent='무료';return;}}
+        fetch('/api/billing/me',{{headers:{{'Authorization':'Bearer '+token}}}}).then(function(r){{return r.ok?r.json():null}}).then(function(d){{
+          if(!d||!d.access){{badge.textContent='무료';return;}}
+          var s=d.access.status;var name=d.access.plan.name;
+          badge.textContent=s==='trialing'?name+' 체험':(s==='active'?name:'무료');
+        }}).catch(function(){{badge.textContent='무료';}});
+      }})();
+      </script>
 
       <section class="member-grid" aria-label="회원 기능">
         <section class="member-panel member-home-panel" id="member-home-section" role="tabpanel" data-member-panel="home" aria-labelledby="home-tab">

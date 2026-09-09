@@ -52,6 +52,7 @@ from .billing import (
     handle_portone_webhook,
     latest_visible_run_id,
     process_subscription_renewals,
+    request_refund,
     resolve_plan_access,
     start_trial,
     verify_webhook_signature,
@@ -66,7 +67,9 @@ from .notifications import (
     channel_status,
     create_link_code,
     handle_telegram_update,
+    notify_exit_alerts,
     notify_harness_issue,
+    notify_outcome_results,
     unlink_channel,
 )
 from .pricing_page import render_pricing_page
@@ -597,6 +600,24 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    @app.post("/api/billing/refund")
+    def billing_refund(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        config = PortOneConfig.from_env()
+        client = getattr(request.app.state, "portone_client", None) or PortOneClient(config)
+        try:
+            return request_refund(repo, user_id, client)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except PortOneError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
     @app.post("/api/billing/portone/webhook")
     async def portone_webhook(request: Request) -> dict:
         repo = request.app.state.repository
@@ -721,6 +742,38 @@ def create_app(
     ) -> dict:
         _require_worker_token(request, x_tradingagents_worker_token)
         return _notify_harness_issue(request)
+
+    @app.post("/api/admin/notifications/exits")
+    def admin_notify_exits(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _notify_generic(request, notify_exit_alerts)
+
+    @app.get("/api/cron/notify-exits")
+    def notify_exits_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _notify_generic(request, notify_exit_alerts)
+
+    @app.post("/api/admin/notifications/outcomes")
+    def admin_notify_outcomes(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _notify_generic(request, notify_outcome_results)
+
+    @app.get("/api/cron/notify-outcomes")
+    def notify_outcomes_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _notify_generic(request, notify_outcome_results)
 
     @app.post("/api/admin/subscriptions/renew")
     def admin_subscription_renewals(
@@ -2739,6 +2792,17 @@ def _notify_harness_issue(request: Request, *, harness_run_id: str | None = None
         return notify_harness_issue(repo, client, site_base_url=_request_site_base_url(request), harness_run_id=harness_run_id, force=force)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _notify_generic(request: Request, sender) -> dict:
+    repo = request.app.state.repository
+    if repo is None:
+        raise HTTPException(status_code=503, detail="Storage repository is not configured")
+    config = TelegramConfig.from_env()
+    client = getattr(request.app.state, "telegram_client", None) or TelegramClient(config)
+    if client.transport is None and not config.is_configured():
+        return {"status": "not_configured", "sent": 0}
+    return sender(repo, client, site_base_url=_request_site_base_url(request))
 
 
 def _process_subscription_renewals(request: Request) -> dict:

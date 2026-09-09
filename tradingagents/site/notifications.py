@@ -275,6 +275,66 @@ def notify_harness_issue(
     return {"status": "sent", "run_id": str(target["id"]), "recipients": len(recipients), "sent": sent, "failed": failed, "details": details}
 
 
+# --------------------------------------------------------- exit / outcome push
+def notify_exit_alerts(repo: StorageRepository, client: TelegramClient, *, site_base_url: str | None = None, now: datetime | None = None, limit: int = 50) -> dict[str, Any]:
+    """Tell paid members about stop-loss / take-profit / holding-limit exits not yet announced."""
+
+    now = now or datetime.now(timezone.utc)
+    decisions = repo.list_harness_decisions(stage="exit", limit=limit)
+    pending = [item for item in decisions if not (item.get("detail_json") or {}).get("notified_at")]
+    if not pending:
+        return {"status": "nothing_to_send", "sent": 0}
+    base = (site_base_url or "").rstrip("/")
+    lines = []
+    for item in pending:
+        reasons = item.get("reasons_json") or []
+        label = {"stop_loss": "손절", "take_profit": "익절", "max_holding_days": "보유기간 종료"}.get(str(reasons[0]) if reasons else "", "청산")
+        qty = item.get("quantity")
+        lines.append(f"• {item.get('ticker_name') or item.get('ticker_code')}({item.get('ticker_code')}) — {label}{f' · 가상 {qty}주' if qty else ''} · {item.get('as_of_date')}")
+    text = "<b>가상 포지션 청산 알림</b>\n" + "\n".join(lines) + f"\n{base}/harness\n\n모의투자 기록이며 매매 권유가 아닙니다."
+    recipients = [r for r in repo.list_notification_recipients("telegram") if resolve_plan_access(repo, str(r["user_id"]), now=now).is_paid]
+    sent = failed = 0
+    for recipient in recipients:
+        try:
+            client.send_message(str(recipient["external_id"]), text)
+            sent += 1
+        except TelegramError:
+            failed += 1
+    for item in pending:
+        repo.update_harness_decision_detail(str(item["id"]), {"notified_at": now.isoformat()})
+    return {"status": "sent", "decisions": len(pending), "recipients": len(recipients), "sent": sent, "failed": failed}
+
+
+def notify_outcome_results(repo: StorageRepository, client: TelegramClient, *, site_base_url: str | None = None, now: datetime | None = None, limit: int = 100) -> dict[str, Any]:
+    """Announce newly completed 5D/20D outcomes to every linked member (public data)."""
+
+    now = now or datetime.now(timezone.utc)
+    rows = repo.list_harness_outcomes(status="completed", limit=limit)
+    pending = [row for row in rows if not (row.get("metadata_json") or {}).get("notified_at")]
+    if not pending:
+        return {"status": "nothing_to_send", "sent": 0}
+    base = (site_base_url or "").rstrip("/")
+    lines = []
+    for row in sorted(pending, key=lambda r: (str(r.get("entry_date")), int(r.get("horizon_days") or 0)))[:15]:
+        raw = row.get("raw_return")
+        alpha = row.get("alpha_return")
+        raw_text = f"{float(raw) * 100:+.1f}%" if raw is not None else "-"
+        alpha_text = f"α {float(alpha) * 100:+.1f}%" if alpha is not None else ""
+        lines.append(f"• {row.get('ticker_name') or row.get('ticker_code')} {row.get('horizon_days')}D {raw_text} {alpha_text} (진입 {row.get('entry_date')})")
+    text = "<b>성적표 확정</b>\n" + "\n".join(lines) + f"\n{base}/outcomes\n\n지수 대비 초과수익(α)으로 채점한 공개 기록입니다."
+    recipients = repo.list_notification_recipients("telegram")
+    sent = failed = 0
+    for recipient in recipients:
+        try:
+            client.send_message(str(recipient["external_id"]), text)
+            sent += 1
+        except TelegramError:
+            failed += 1
+    for row in pending:
+        repo.update_harness_outcome_metadata(str(row["id"]), {"notified_at": now.isoformat()})
+    return {"status": "sent", "outcomes": len(pending), "recipients": len(recipients), "sent": sent, "failed": failed}
+
+
 def _aware(value: Any) -> datetime | None:
     if value is None:
         return None
