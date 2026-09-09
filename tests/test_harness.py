@@ -302,7 +302,7 @@ def test_graph_confirmer_injects_harness_context_when_factory_accepts_it():
 def test_pipeline_persists_run_and_decisions_when_repo_given(tmp_path):
     from tradingagents.storage import StorageRepository, create_storage_engine
 
-    repo = StorageRepository(create_storage_engine())
+    repo = StorageRepository(create_storage_engine("sqlite+pysqlite:///:memory:"))
     repo.create_schema()
     points = _points()
     result = run_daily_pipeline(

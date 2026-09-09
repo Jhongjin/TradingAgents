@@ -13,11 +13,12 @@ from tradingagents.site.harness_outcome_worker import (
     summarize_harness_outcome_results,
     summarize_stored_harness_outcomes,
 )
+from tradingagents.storage.repository import TEST_DATABASE_URL  # noqa: E402
 from tradingagents.storage import HarnessDecisionInput, HarnessOutcomeInput, HarnessRunInput, StorageRepository, create_storage_engine
 
 
 def _repo():
-    repo = StorageRepository(create_storage_engine())
+    repo = StorageRepository(create_storage_engine(TEST_DATABASE_URL))
     repo.create_schema()
     return repo
 

@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 
 from tradingagents.site.analysis_worker import process_queued_analysis_requests
+from tradingagents.storage.repository import TEST_DATABASE_URL  # noqa: E402
 from tradingagents.storage import AnalysisRequestInput, AnalysisRunInput, StorageRepository, create_storage_engine
 
 
@@ -10,7 +11,7 @@ USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
 def _repo() -> StorageRepository:
-    repo = StorageRepository(create_storage_engine())
+    repo = StorageRepository(create_storage_engine(TEST_DATABASE_URL))
     repo.create_schema()
     return repo
 

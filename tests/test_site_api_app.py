@@ -9,6 +9,7 @@ from tradingagents.dataflows.chart_data import LatestPrice
 from tradingagents.dataflows import pykrx_vendor
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.site.api_app import create_app
+from tradingagents.storage.repository import TEST_DATABASE_URL  # noqa: E402
 from tradingagents.storage import (
     AgentReportInput,
     AnalysisOutcomeInput,
@@ -43,7 +44,7 @@ class BrokenPublicAnalysisRepo:
 
 
 def _repo() -> StorageRepository:
-    repo = StorageRepository(create_storage_engine())
+    repo = StorageRepository(create_storage_engine(TEST_DATABASE_URL))
     repo.create_schema()
     return repo
 

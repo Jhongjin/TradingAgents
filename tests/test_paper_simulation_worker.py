@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from types import SimpleNamespace
 
+from tradingagents.storage.repository import TEST_DATABASE_URL  # noqa: E402
 from tradingagents.storage import (
     AnalysisRunInput,
     StorageRepository,
@@ -35,7 +36,7 @@ class _Point:
 
 
 def _repo() -> StorageRepository:
-    repo = StorageRepository(create_storage_engine())
+    repo = StorageRepository(create_storage_engine(TEST_DATABASE_URL))
     repo.create_schema()
     return repo
 

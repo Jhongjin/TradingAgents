@@ -8,6 +8,7 @@ from tradingagents.site import (
     queue_analysis_refresh_request,
 )
 from tradingagents.site.analysis_api import AnalysisRequestQuotaExceeded, build_member_analysis_requests_payload
+from tradingagents.storage.repository import TEST_DATABASE_URL  # noqa: E402
 from tradingagents.storage import (
     AgentReportInput,
     AnalysisOutcomeInput,
@@ -28,7 +29,7 @@ class NoBundleFeedRepository(StorageRepository):
 
 
 def _repo() -> StorageRepository:
-    repo = StorageRepository(create_storage_engine())
+    repo = StorageRepository(create_storage_engine(TEST_DATABASE_URL))
     repo.create_schema()
     return repo
 
@@ -335,7 +336,7 @@ def test_public_analysis_feed_uses_korean_message_for_unknown_ticker(monkeypatch
 
 
 def test_public_analysis_feed_uses_compact_feed_query_not_bundle_lookup():
-    repo = NoBundleFeedRepository(create_storage_engine())
+    repo = NoBundleFeedRepository(create_storage_engine(TEST_DATABASE_URL))
     repo.create_schema()
     run_id = repo.create_analysis_run(
         AnalysisRunInput(

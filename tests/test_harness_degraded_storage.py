@@ -3,11 +3,12 @@ from sqlalchemy import text
 
 from tradingagents.screener import MarketSnapshot, MarketSnapshotRow, ScreenerConfig, screen_korean_market
 from tradingagents.site.api_app import create_app
+from tradingagents.storage.repository import TEST_DATABASE_URL  # noqa: E402
 from tradingagents.storage import StorageRepository, create_storage_engine
 
 
 def _repo_without_harness_tables():
-    repo = StorageRepository(create_storage_engine())
+    repo = StorageRepository(create_storage_engine(TEST_DATABASE_URL))
     repo.create_schema()
     with repo.engine.begin() as conn:
         conn.execute(text("drop table harness_decisions"))

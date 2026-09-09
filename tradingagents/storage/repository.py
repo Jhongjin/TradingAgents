@@ -56,12 +56,26 @@ POSTGRES_DRIVER_ENV = "TRADINGAGENTS_POSTGRES_DRIVER"
 SUPPORTED_POSTGRES_DRIVERS = {"pg8000", "psycopg", "psycopg2"}
 
 
-def create_storage_engine(database_url: str | None = None, *, echo: bool = False) -> Engine:
-    """Create a SQLAlchemy engine from DATABASE_URL or an in-memory SQLite DB."""
+TEST_DATABASE_URL = "sqlite+pysqlite:///:memory:"
 
-    url = database_url or os.getenv("DATABASE_URL") or "sqlite+pysqlite:///:memory:"
+
+def create_storage_engine(database_url: str | None = None, *, echo: bool = False) -> Engine:
+    """Create a SQLAlchemy engine from DATABASE_URL or an in-memory SQLite DB.
+
+    While pytest is running, an *implicit* remote URL (taken from the
+    environment rather than passed explicitly) is refused: a `.env` loaded by
+    an import must never point tests at a production database.
+    """
+
+    env_url = os.getenv("DATABASE_URL") or ""
+    if database_url is None and env_url and os.getenv("PYTEST_CURRENT_TEST") and not env_url.startswith("sqlite"):
+        raise RuntimeError(
+            "create_storage_engine() would use DATABASE_URL from the environment inside pytest; "
+            "pass TEST_DATABASE_URL explicitly (tests must never touch a remote database)"
+        )
+    url = database_url or env_url or TEST_DATABASE_URL
     url = _normalize_storage_url(url)
-    if url == "sqlite+pysqlite:///:memory:":
+    if url == TEST_DATABASE_URL:
         return create_engine(
             url,
             echo=echo,

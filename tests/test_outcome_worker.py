@@ -4,6 +4,7 @@ from tradingagents.site.outcome_worker import (
     evaluate_public_analysis_outcomes,
     summarize_analysis_outcome_results,
 )
+from tradingagents.storage.repository import TEST_DATABASE_URL  # noqa: E402
 from tradingagents.storage import (
     AnalysisOutcomeInput,
     AnalysisRunInput,
@@ -14,7 +15,7 @@ from tradingagents.storage import (
 
 
 def _repo() -> StorageRepository:
-    repo = StorageRepository(create_storage_engine())
+    repo = StorageRepository(create_storage_engine(TEST_DATABASE_URL))
     repo.create_schema()
     return repo
 

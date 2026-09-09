@@ -7,11 +7,12 @@ from fastapi.testclient import TestClient
 from tradingagents.site.api_app import create_app
 from tradingagents.site.harness_api import build_harness_run_payload, build_harness_runs_payload, run_harness_for_web
 from tradingagents.site.harness_pages import render_harness_page
+from tradingagents.storage.repository import TEST_DATABASE_URL  # noqa: E402
 from tradingagents.storage import HarnessDecisionInput, HarnessRunInput, StorageRepository, create_storage_engine
 
 
 def _repo():
-    repo = StorageRepository(create_storage_engine())
+    repo = StorageRepository(create_storage_engine(TEST_DATABASE_URL))
     repo.create_schema()
     return repo
 

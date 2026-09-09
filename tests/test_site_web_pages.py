@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
+from tradingagents.storage.repository import TEST_DATABASE_URL  # noqa: E402
 from tradingagents.storage import (
     AgentReportInput,
     AnalysisOutcomeInput,
@@ -114,7 +115,7 @@ def _payload():
 
 
 def _repo() -> StorageRepository:
-    repo = StorageRepository(create_storage_engine())
+    repo = StorageRepository(create_storage_engine(TEST_DATABASE_URL))
     repo.create_schema()
     return repo
 
