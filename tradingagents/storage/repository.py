@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 import os
 from typing import Any
@@ -1050,6 +1050,34 @@ class StorageRepository:
         for decision in decisions:
             decision["outcomes"] = by_decision.get(str(decision["id"]), [])
         return decisions
+
+    def latest_harness_entry_dates(self, *, limit: int = 500) -> dict[str, date]:
+        """Most recent executed entry date per ticker (accepted/filled orders on non-dry runs).
+
+        The harness uses this for the max-holding-days exit rule; brokers such
+        as KIS report holdings without the original entry date.
+        """
+
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        stmt = (
+            select(harness_decisions.c.ticker_code, harness_decisions.c.as_of_date)
+            .where(
+                harness_decisions.c.stage == "ordered",
+                harness_decisions.c.order_status.in_(["accepted", "filled"]),
+                harness_decisions.c.harness_run_id.in_(select(harness_runs.c.id).where(harness_runs.c.dry_run == 0)),
+            )
+            .order_by(desc(harness_decisions.c.as_of_date))
+            .limit(limit)
+        )
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).all()
+        latest: dict[str, date] = {}
+        for ticker_code, as_of_date in rows:
+            value = as_of_date if isinstance(as_of_date, date) else datetime.strptime(str(as_of_date), "%Y-%m-%d").date()
+            if ticker_code not in latest or value > latest[ticker_code]:
+                latest[ticker_code] = value
+        return latest
 
     def get_paper_simulation_account(
         self,

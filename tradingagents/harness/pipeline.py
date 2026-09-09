@@ -79,6 +79,7 @@ class PipelineConfig:
     max_position_weight: float = 0.2
     stop_loss_pct: float = 0.05
     take_profit_pct: float = 0.10
+    max_holding_days: int = 20
     initial_cash: float = 10_000_000.0
     dry_run: bool = True
     require_llm_confirmation: bool = True
@@ -97,6 +98,8 @@ class PipelineConfig:
             raise ValueError("stop_loss_pct must be between 0 and 1")
         if not 0 < self.take_profit_pct < 1:
             raise ValueError("take_profit_pct must be between 0 and 1")
+        if self.max_holding_days <= 0:
+            raise ValueError("max_holding_days must be positive")
 
 
 @dataclass(frozen=True)
@@ -202,7 +205,22 @@ def run_daily_pipeline(
     decisions: list[PipelineDecision] = []
 
     # ------------------------------------------------------------- exits
-    decisions.extend(_evaluate_exits(broker, config, current_prices or {}, ledger))
+    entry_dates: dict[str, date] = {}
+    if repo is not None and hasattr(repo, "latest_harness_entry_dates"):
+        try:
+            entry_dates = dict(repo.latest_harness_entry_dates())
+        except Exception as exc:  # storage hiccups must not block risk exits
+            notes.append(f"entry dates unavailable ({exc.__class__.__name__}); holding-day exits skipped")
+    decisions.extend(
+        _evaluate_exits(
+            broker,
+            config,
+            current_prices or {},
+            ledger,
+            entry_dates=entry_dates,
+            as_of=datetime.strptime(resolved_date, "%Y-%m-%d").date(),
+        )
+    )
 
     # ----------------------------------------------------------- entries
     if config.require_llm_confirmation and confirmer is None:
@@ -489,14 +507,29 @@ def _evaluate_exits(
     config: PipelineConfig,
     current_prices: Mapping[str, float],
     ledger: AuditLedger | None,
+    *,
+    entry_dates: Mapping[str, date] | None = None,
+    as_of: date | None = None,
 ) -> list[PipelineDecision]:
+    """Close held positions that hit stop-loss, take-profit, or the holding limit.
+
+    Prices come from ``current_prices`` when supplied, otherwise from the
+    broker's live quote (KIS). ``entry_dates`` (from persisted harness
+    decisions) enables the max-holding-days rule; without them only the
+    price rules apply.
+    """
+
     decisions: list[PipelineDecision] = []
     snapshot = broker.account_snapshot(current_prices)
+    today = as_of or datetime.now().date()
     for code, item in snapshot.positions.items():
         quantity = int(item.get("quantity") or 0)
         average = float(item.get("average_price") or 0.0)
         price = float(current_prices.get(code) or 0.0)
+        if price <= 0:
+            price = _broker_quote(broker, code) or 0.0
         if quantity <= 0 or average <= 0 or price <= 0:
+            _audit(ledger, "exit_skipped", {"code": code, "reason": "no_price_or_position", "quantity": quantity, "price": price})
             continue
         move = (price / average) - 1
         reason = None
@@ -504,6 +537,11 @@ def _evaluate_exits(
             reason = "stop_loss"
         elif move >= config.take_profit_pct:
             reason = "take_profit"
+        elif entry_dates and code in entry_dates:
+            held_days = _business_days_between(entry_dates[code], today)
+            if held_days >= config.max_holding_days:
+                reason = "max_holding_days"
+        _audit(ledger, "exit_check", {"code": code, "price": price, "average": average, "move": round(move, 4), "reason": reason})
         if reason is None:
             continue
         order = OrderIntent(ticker=code, side=OrderSide.SELL, quantity=quantity, reason=f"harness exit {reason} move={move:.4f}")
@@ -686,6 +724,20 @@ def _chart_history_fetcher(code: str, start_date: str, end_date: str) -> list[di
 
     series = get_ohlcv_chart_series(code, start_date, end_date, vendor="pykrx")
     return [point.as_dict() for point in series.points]
+
+
+def _business_days_between(start: date, end: date) -> int:
+    """Weekday count from ``start`` (exclusive) to ``end`` (inclusive); holidays are ignored."""
+
+    if end <= start:
+        return 0
+    days = 0
+    cursor = start
+    while cursor < end:
+        cursor += timedelta(days=1)
+        if cursor.weekday() < 5:
+            days += 1
+    return days
 
 
 def _broker_quote(broker: BrokerAdapter, code: str) -> float | None:

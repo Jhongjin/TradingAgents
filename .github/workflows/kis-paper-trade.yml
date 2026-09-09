@@ -1,0 +1,82 @@
+name: KIS paper trade (모의투자, executes orders)
+
+# Intraday run against the KIS 모의투자 (virtual) account. It screens, asks the
+# LLM debate for confirmation, sizes by risk, checks the mandate, and sends
+# limit orders at the live KIS quote. It also closes held positions that hit
+# the stop-loss / take-profit / max-holding rules.
+#
+# Safety: KIS_IS_PAPER is pinned to "true" and TRADINGAGENTS_ENABLE_LIVE_TRADING
+# to "false" here, so this workflow can never reach the live account even if
+# someone edits the secrets. Live trading stays a manual, gated CLI action.
+
+on:
+  workflow_dispatch:
+    inputs:
+      execute:
+        description: "true = send orders to 모의투자, false = dry run"
+        default: "true"
+      confirm_top_n:
+        description: "Candidates sent to the LLM gate"
+        default: "3"
+  schedule:
+    # 10:05 KST on weekdays (01:05 UTC): after the opening auction settles.
+    - cron: "5 1 * * 1-5"
+
+concurrency:
+  group: kis-paper-trade
+  cancel-in-progress: false
+
+jobs:
+  paper-trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      KIS_IS_PAPER: "true"
+      KIS_PAPER_APP_KEY: ${{ secrets.KIS_PAPER_APP_KEY }}
+      KIS_PAPER_APP_SECRET: ${{ secrets.KIS_PAPER_APP_SECRET }}
+      KIS_PAPER_ACCOUNT_NO: ${{ secrets.KIS_PAPER_ACCOUNT_NO }}
+      KIS_PAPER_ACCOUNT_PRODUCT_CODE: ${{ secrets.KIS_PAPER_ACCOUNT_PRODUCT_CODE }}
+      TRADINGAGENTS_ENABLE_LIVE_TRADING: "false"
+      TRADINGAGENTS_POSTGRES_DRIVER: pg8000
+      TRADINGAGENTS_FORECAST_BACKEND: naive
+      TRADINGAGENTS_SCREENER_UNIVERSE: ${{ vars.TRADINGAGENTS_SCREENER_UNIVERSE }}
+      TRADINGAGENTS_SCREENER_SNAPSHOT_MODE: ${{ vars.TRADINGAGENTS_SCREENER_SNAPSHOT_MODE || 'naver' }}
+      TRADINGAGENTS_SCREENER_UNIVERSE_SIZE: ${{ vars.TRADINGAGENTS_SCREENER_UNIVERSE_SIZE || '150' }}
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e .
+      - name: Require paper credentials
+        run: |
+          for name in KIS_PAPER_APP_KEY KIS_PAPER_APP_SECRET KIS_PAPER_ACCOUNT_NO KIS_PAPER_ACCOUNT_PRODUCT_CODE; do
+            if [ -z "${!name}" ]; then echo "::error::$name secret is not set"; exit 1; fi
+          done
+      - name: Trade on KIS 모의투자
+        run: |
+          EXECUTE=""
+          if [ "${{ github.event.inputs.execute || 'true' }}" = "true" ]; then EXECUTE="--execute"; fi
+          PERSIST=""
+          if [ -n "$DATABASE_URL" ]; then PERSIST="--persist"; fi
+          tradingagents pipeline \
+            --broker kis \
+            --confirmer debate \
+            --top 20 \
+            --confirm "${{ github.event.inputs.confirm_top_n || '3' }}" \
+            $EXECUTE $PERSIST \
+            --audit-log ./kis-audit.jsonl \
+            --output ./kis-run.json
+      - name: Verify audit chain
+        run: tradingagents audit-verify --path ./kis-audit.jsonl
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kis-paper-run
+          path: |
+            kis-run.json
+            kis-audit.jsonl

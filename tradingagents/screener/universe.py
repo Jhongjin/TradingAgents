@@ -317,3 +317,150 @@ def _float(value: Any) -> float | None:
     if parsed != parsed:  # NaN
         return None
     return parsed
+
+
+# --------------------------------------------------------------------------
+# Naver Finance market-cap ranking (시가총액 상위) as a snapshot vendor.
+#
+# ``https://finance.naver.com/sise/sise_market_sum.naver?sosok={0|1}&page=N``
+# lists 50 names per page sorted by market cap with 현재가, 등락률, 시가총액
+# (억원), 거래량, PER. Three pages per market therefore approximate the
+# KOSPI200/KOSDAQ150 universe with six cheap HTTP requests, and it works from
+# serverless hosts and corporate networks where data.krx.co.kr is blocked.
+# --------------------------------------------------------------------------
+
+NAVER_MARKET_SUM_URL = "https://finance.naver.com/sise/sise_market_sum.naver"
+_NAVER_SOSOK = {"KOSPI": 0, "KOSDAQ": 1}
+_NAVER_PAGE_SIZE = 50
+_NAVER_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; TradingAgents screener)"}
+
+PageFetcher = Callable[[str, int], str]
+
+
+def load_naver_market_snapshot(
+    as_of_date: str | date | None = None,
+    *,
+    markets: tuple[str, ...] | list[str] = SUPPORTED_MARKETS,
+    max_rows_per_market: int = 150,
+    page_fetcher: PageFetcher | None = None,
+) -> MarketSnapshot:
+    """Snapshot of the top-``max_rows_per_market`` names per market by market cap.
+
+    ``page_fetcher(market, page) -> html`` is injectable for tests. The
+    snapshot date is the requested date (or today, KST); Naver shows live or
+    last-close prices, so the screener's daily history is what anchors dates.
+    """
+
+    if max_rows_per_market <= 0:
+        raise ValueError("max_rows_per_market must be positive")
+    selected = tuple(_normalize_market(market) for market in markets)
+    fetch = page_fetcher or _fetch_naver_market_sum_page
+    rows: list[MarketSnapshotRow] = []
+    errors: list[str] = []
+    pages = (max_rows_per_market + _NAVER_PAGE_SIZE - 1) // _NAVER_PAGE_SIZE
+    for market in selected:
+        collected = 0
+        for page in range(1, pages + 1):
+            try:
+                html = fetch(market, page)
+            except Exception as exc:
+                errors.append(f"{market} page {page}: {exc.__class__.__name__}: {exc}")
+                break
+            parsed = parse_naver_market_sum(html, market)
+            if not parsed:
+                break
+            for row in parsed:
+                if collected >= max_rows_per_market:
+                    break
+                rows.append(row)
+                collected += 1
+            if len(parsed) < _NAVER_PAGE_SIZE or collected >= max_rows_per_market:
+                break
+    if not rows:
+        raise VendorUnavailableError("Naver market-cap ranking returned no rows" + (f" ({'; '.join(errors)[:200]})" if errors else ""))
+    resolved = _coerce_date(as_of_date).isoformat()
+    return MarketSnapshot(as_of_date=resolved, markets=selected, rows=rows, vendor="naver")
+
+
+def parse_naver_market_sum(html: str, market: str) -> list[MarketSnapshotRow]:
+    """Parse one 시가총액 ranking page into snapshot rows (no external parser needed)."""
+
+    import re
+
+    start = html.find('class="type_2"')
+    if start < 0:
+        return []
+    end = html.find("</table>", start)
+    table = html[start : end if end > 0 else None]
+    headers = [_strip_tags(cell) for cell in re.findall(r"<th[^>]*>([\s\S]*?)</th>", table)]
+    index = {name: position for position, name in enumerate(headers)}
+    rows: list[MarketSnapshotRow] = []
+    for raw_row in re.findall(r"<tr[^>]*>([\s\S]*?)</tr>", table):
+        code_match = re.search(r"/item/main\.naver\?code=(\d{6})", raw_row)
+        if not code_match:
+            continue
+        cells = [_strip_tags(cell) for cell in re.findall(r"<td[^>]*>([\s\S]*?)</td>", raw_row)]
+        if len(cells) < len(headers) - 1:
+            continue
+
+        def cell(name: str) -> str | None:
+            position = index.get(name)
+            return cells[position] if position is not None and position < len(cells) else None
+
+        close = _naver_number(cell("현재가"))
+        if close is None or close <= 0:
+            continue
+        volume = _naver_number(cell("거래량")) or 0.0
+        market_cap_100m = _naver_number(cell("시가총액"))
+        rows.append(
+            MarketSnapshotRow(
+                code=code_match.group(1),
+                name=cell("종목명") or code_match.group(1),
+                market=_normalize_market(market),
+                close=close,
+                volume=volume,
+                trading_value=close * volume if volume else None,
+                market_cap=market_cap_100m * 100_000_000 if market_cap_100m is not None else None,
+                change_rate=_naver_percent(cell("등락률")),
+                per=_naver_number(cell("PER")),
+                pbr=_naver_number(cell("PBR")),
+                dividend_yield=_naver_number(cell("배당수익률")),
+            )
+        )
+    return rows
+
+
+def _fetch_naver_market_sum_page(market: str, page: int) -> str:
+    import requests
+
+    apply_system_truststore_if_available()
+    sosok = _NAVER_SOSOK[_normalize_market(market)]
+    response = requests.get(NAVER_MARKET_SUM_URL, params={"sosok": sosok, "page": page}, headers=_NAVER_HEADERS, timeout=15)
+    response.raise_for_status()
+    response.encoding = "euc-kr"
+    return response.text
+
+
+def _strip_tags(value: str) -> str:
+    import html as html_module
+    import re
+
+    text = re.sub(r"<[^>]+>", "", value)
+    return re.sub(r"\s+", " ", html_module.unescape(text)).strip()
+
+
+def _naver_number(value: str | None) -> float | None:
+    if value is None:
+        return None
+    cleaned = value.replace(",", "").replace("%", "").strip()
+    if cleaned in {"", "N/A", "-"}:
+        return None
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _naver_percent(value: str | None) -> float | None:
+    number = _naver_number(value)
+    return number / 100 if number is not None else None

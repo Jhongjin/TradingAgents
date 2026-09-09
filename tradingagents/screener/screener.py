@@ -16,6 +16,7 @@ from .universe import (
     build_snapshot_from_history,
     fallback_universe_codes,
     load_market_snapshot,
+    load_naver_market_snapshot,
 )
 
 
@@ -37,9 +38,14 @@ class ScreenerConfig:
     factor_weights: dict[str, float] = field(default_factory=dict)
     min_composite: float = 0.0
     allow_fallback_universe: bool = True
-    # "auto": try whole-market pykrx frames, fall back to the bounded universe.
-    # "fallback": skip whole-market frames entirely (serverless/blocked networks).
+    # "auto": pykrx whole-market frames → Naver market-cap ranking → bounded universe.
+    # "pykrx": whole-market pykrx frames only (plus bounded fallback).
+    # "naver": Naver market-cap ranking pages (top N per market, works on
+    #          serverless and corporate networks where data.krx.co.kr is blocked).
+    # "fallback": skip remote snapshots entirely and use the bounded universe.
     snapshot_mode: str = "auto"
+    # Rows per market for the Naver ranking (KOSPI200/KOSDAQ150-sized by default).
+    universe_size: int | None = None
     # Stop fetching history after this many seconds and rank what was scored.
     time_budget_seconds: float | None = None
 
@@ -136,16 +142,29 @@ def screen_korean_market(
             snapshot = build_snapshot_from_history(codes, as_of_date, cached_fetcher, markets=config.markets, lookback_days=int(config.history_days * 1.6) + 10)
             fallback_note = f"snapshot_mode=fallback: used bounded universe of {len(codes)} tickers (market cap/PER filters skipped)"
         else:
-            loader = snapshot_loader or load_market_snapshot
-            try:
-                snapshot = loader(as_of_date, markets=config.markets)
-            except VendorUnavailableError as exc:
+            errors: list[str] = []
+            universe_size = config.universe_size or _resolve_universe_size()
+            if snapshot_loader is not None:
+                loaders = [("custom", lambda: snapshot_loader(as_of_date, markets=config.markets))]
+            else:
+                loaders = []
+                if snapshot_mode in {"auto", "pykrx"}:
+                    loaders.append(("pykrx", lambda: load_market_snapshot(as_of_date, markets=config.markets)))
+                if snapshot_mode in {"auto", "naver"}:
+                    loaders.append(("naver", lambda: load_naver_market_snapshot(as_of_date, markets=config.markets, max_rows_per_market=universe_size)))
+            for vendor_name, loader in loaders:
+                try:
+                    snapshot = loader()
+                    break
+                except VendorUnavailableError as exc:
+                    errors.append(f"{vendor_name}: {str(exc)[:120]}")
+            if snapshot is None:
                 if not config.allow_fallback_universe:
-                    raise
+                    raise VendorUnavailableError("; ".join(errors) or "no snapshot loader succeeded")
                 codes = fallback_universe_codes()
                 snapshot = build_snapshot_from_history(codes, as_of_date, cached_fetcher, markets=config.markets, lookback_days=int(config.history_days * 1.6) + 10)
                 fallback_note = (
-                    f"whole-market snapshot unavailable ({str(exc)[:120]}); "
+                    f"whole-market snapshot unavailable ({'; '.join(errors)[:200]}); "
                     f"used fallback universe of {len(codes)} tickers (market cap/PER filters skipped)"
                 )
     end_date = datetime.strptime(snapshot.as_of_date, "%Y-%m-%d").date()
@@ -220,9 +239,22 @@ def _resolve_snapshot_mode(value: str | None) -> str:
     selected = (value or "auto").strip().lower()
     if selected == "auto":
         selected = (os.getenv("TRADINGAGENTS_SCREENER_SNAPSHOT_MODE") or "auto").strip().lower()
-    if selected not in {"auto", "fallback"}:
-        raise ValueError("snapshot_mode must be 'auto' or 'fallback'")
+    if selected not in {"auto", "pykrx", "naver", "fallback"}:
+        raise ValueError("snapshot_mode must be 'auto', 'pykrx', 'naver', or 'fallback'")
     return selected
+
+
+def _resolve_universe_size() -> int:
+    import os
+
+    raw = os.getenv("TRADINGAGENTS_SCREENER_UNIVERSE_SIZE", "150")
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError("TRADINGAGENTS_SCREENER_UNIVERSE_SIZE must be an integer") from exc
+    if value <= 0:
+        raise ValueError("TRADINGAGENTS_SCREENER_UNIVERSE_SIZE must be positive")
+    return value
 
 
 def _prefilter(rows: Sequence[MarketSnapshotRow], config: ScreenerConfig) -> list[MarketSnapshotRow]:
