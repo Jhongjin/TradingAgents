@@ -74,6 +74,11 @@ class TelegramClient:
     def get_me(self) -> Mapping[str, Any]:
         return self._call("getMe", None)
 
+    def get_webhook_info(self) -> Mapping[str, Any]:
+        """Delivery diagnostics: pending updates, last error, registered URL."""
+
+        return self._call("getWebhookInfo", None)
+
     def _call(self, method: str, body: Mapping[str, Any] | None) -> Mapping[str, Any]:
         if not self.config.bot_token:
             raise TelegramError("TELEGRAM_BOT_TOKEN is not configured")

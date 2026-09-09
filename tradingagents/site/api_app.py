@@ -685,9 +685,24 @@ def create_app(
         try:
             me = client.get_me()
             webhook = client.set_webhook(f"{_request_site_base_url(request)}/api/notifications/telegram/webhook", secret_token=config.webhook_secret)
+            info = client.get_webhook_info()
         except TelegramError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
-        return {"status": "configured", "bot": {"username": me.get("username"), "id": me.get("id")}, "webhook": webhook, "secret_configured": bool(config.webhook_secret)}
+        return {"status": "configured", "bot": {"username": me.get("username"), "id": me.get("id")}, "webhook": webhook, "secret_configured": bool(config.webhook_secret), "webhook_info": _webhook_info_summary(info)}
+
+    @app.get("/api/admin/notifications/telegram/status")
+    def telegram_admin_status(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        config = TelegramConfig.from_env()
+        client = getattr(request.app.state, "telegram_client", None) or TelegramClient(config)
+        try:
+            info = client.get_webhook_info()
+        except TelegramError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {"status": "ok", "webhook_info": _webhook_info_summary(info)}
 
     @app.post("/api/admin/notifications/harness-issue")
     def admin_notify_harness_issue(
@@ -2697,6 +2712,18 @@ def _plan_request_limits(access) -> tuple[int, int]:
     env_active = env_int(ANALYSIS_REQUEST_ACTIVE_LIMIT_ENV, DEFAULT_ANALYSIS_REQUEST_ACTIVE_LIMIT)
     env_daily = env_int(ANALYSIS_REQUEST_DAILY_LIMIT_ENV, DEFAULT_ANALYSIS_REQUEST_DAILY_LIMIT)
     return min(access.plan.active_requests_limit, env_active), min(access.plan.analysis_requests_per_day, env_daily)
+
+
+def _webhook_info_summary(info: Any) -> dict:
+    info = info or {}
+    return {
+        "url": info.get("url"),
+        "pending_update_count": info.get("pending_update_count"),
+        "last_error_date": info.get("last_error_date"),
+        "last_error_message": info.get("last_error_message"),
+        "has_custom_certificate": info.get("has_custom_certificate"),
+        "max_connections": info.get("max_connections"),
+    }
 
 
 def _notify_harness_issue(request: Request, *, harness_run_id: str | None = None, force: bool = False) -> dict:

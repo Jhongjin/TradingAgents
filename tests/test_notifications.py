@@ -40,6 +40,8 @@ def _client(sent: list, *, fail_for: set | None = None) -> TelegramClient:
             return 200, {"ok": True, "result": {"username": "TradingAgentsKRBot", "id": 123}}
         if method_name == "setWebhook":
             return 200, {"ok": True, "result": True}
+        if method_name == "getWebhookInfo":
+            return 200, {"ok": True, "result": {"url": "https://example.com/hook", "pending_update_count": 0}}
         raise AssertionError(method_name)
 
     return TelegramClient(CONFIG, transport=transport)
@@ -125,3 +127,4 @@ def test_telegram_client_errors_surface():
         failing.send_message("7", "x")
     assert failing.get_me()["username"] == "TradingAgentsKRBot"
     assert failing.set_webhook("https://example.com/hook", secret_token="s") is True
+    assert failing.get_webhook_info()["pending_update_count"] == 0
