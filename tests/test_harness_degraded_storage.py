@@ -80,6 +80,12 @@ def test_screener_fallback_mode_skips_whole_market_and_honours_time_budget(monke
         markets=("KOSPI",),
         rows=[MarketSnapshotRow(f"00{i:04d}", f"T{i}", "KOSPI", 50_000.0, 1e7, 5e11, 4e14, 0.5, 12.0, 1.2, 2.0) for i in range(10)],
     )
-    result = screen_korean_market(snapshot=snapshot, history_fetcher=slow_fetcher, config=ScreenerConfig(top_n=10, time_budget_seconds=0.12))
+    # Sequential fetching (max_workers=1) stops at the deadline; with the default
+    # thread pool the same ten rows finish inside the budget, so pin one worker here.
+    result = screen_korean_market(
+        snapshot=snapshot,
+        history_fetcher=slow_fetcher,
+        config=ScreenerConfig(top_n=10, time_budget_seconds=0.12, max_workers=1),
+    )
     assert 0 < len(slow_calls) < 10
     assert any("time budget" in note for note in result.notes)
