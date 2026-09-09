@@ -314,7 +314,7 @@ def test_api_app_serves_public_home_page(monkeypatch):
     )
     client = TestClient(create_app(repo=None, load_repo_from_env=False, public_cache_seconds=60))
 
-    response = client.get("/")
+    response = client.get("/", params={"legacy": "1"})
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")

@@ -40,6 +40,7 @@ from .harness_api import (
     build_harness_ticker_history_payload,
 )
 from .harness_pages import render_harness_page
+from .home_page import render_home_page
 from .market_api import build_latest_prices_payload
 from .paper_simulation_api import EXECUTION_BOUNDARY_LABEL, build_member_paper_simulation_payload
 from .portfolio_api import build_manual_portfolio_list_payload, build_manual_portfolio_payload, normalize_portfolio_ticker
@@ -367,10 +368,13 @@ def create_app(
     def home(
         request: Request,
         ticker: Annotated[str, Query(pattern=r"^\d{6}$")] = "005930",
+        legacy: bool = False,
     ) -> HTMLResponse:
         if ticker != "005930":
             return _stock_html_response(ticker, request)
-        return HTMLResponse(render_public_home_page(repo=request.app.state.repository, site_base_url=_request_site_base_url(request)))
+        if legacy:
+            return HTMLResponse(render_public_home_page(repo=request.app.state.repository, site_base_url=_request_site_base_url(request)))
+        return HTMLResponse(render_home_page(repo=request.app.state.repository, site_base_url=_request_site_base_url(request)))
 
     @app.get("/analyses", response_class=HTMLResponse, include_in_schema=False)
     def analysis_feed_page(
