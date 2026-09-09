@@ -15,6 +15,7 @@ from .universe import (
     MarketSnapshotRow,
     build_snapshot_from_history,
     fallback_universe_codes,
+    load_index_snapshot,
     load_market_snapshot,
     load_naver_market_snapshot,
 )
@@ -33,7 +34,7 @@ class ScreenerConfig:
     max_pbr: float | None = 10.0
     exclude_negative_per: bool = False
     history_days: int = 200
-    prefilter_limit: int = 150
+    prefilter_limit: int = 400
     top_n: int = 20
     factor_weights: dict[str, float] = field(default_factory=dict)
     min_composite: float = 0.0
@@ -42,6 +43,8 @@ class ScreenerConfig:
     # "pykrx": whole-market pykrx frames only (plus bounded fallback).
     # "naver": Naver market-cap ranking pages (top N per market, works on
     #          serverless and corporate networks where data.krx.co.kr is blocked).
+    # "index": KOSPI200 constituents (Naver) + KOSDAQ150 (KRX account) or its
+    #          top-150 market-cap proxy — the full index universe.
     # "fallback": skip remote snapshots entirely and use the bounded universe.
     snapshot_mode: str = "auto"
     # Rows per market for the Naver ranking (KOSPI200/KOSDAQ150-sized by default).
@@ -154,6 +157,8 @@ def screen_korean_market(
                 loaders = []
                 if snapshot_mode in {"auto", "pykrx"}:
                     loaders.append(("pykrx", lambda: load_market_snapshot(as_of_date, markets=config.markets)))
+                if snapshot_mode == "index":
+                    loaders.append(("index", lambda: load_index_snapshot(as_of_date, markets=config.markets)))
                 if snapshot_mode in {"auto", "naver"}:
                     loaders.append(("naver", lambda: load_naver_market_snapshot(as_of_date, markets=config.markets, max_rows_per_market=universe_size)))
             for vendor_name, loader in loaders:
@@ -310,8 +315,8 @@ def _resolve_snapshot_mode(value: str | None) -> str:
     selected = (value or "auto").strip().lower()
     if selected == "auto":
         selected = (os.getenv("TRADINGAGENTS_SCREENER_SNAPSHOT_MODE") or "auto").strip().lower()
-    if selected not in {"auto", "pykrx", "naver", "fallback"}:
-        raise ValueError("snapshot_mode must be 'auto', 'pykrx', 'naver', or 'fallback'")
+    if selected not in {"auto", "pykrx", "naver", "index", "fallback"}:
+        raise ValueError("snapshot_mode must be 'auto', 'pykrx', 'naver', 'index', or 'fallback'")
     return selected
 
 

@@ -367,14 +367,17 @@ def load_naver_market_snapshot(
                 errors.append(f"{market} page {page}: {exc.__class__.__name__}: {exc}")
                 break
             parsed = parse_naver_market_sum(html, market)
-            if not parsed:
+            listed = _page_code_count(html)
+            if not listed:
                 break
             for row in parsed:
                 if collected >= max_rows_per_market:
                     break
                 rows.append(row)
                 collected += 1
-            if len(parsed) < _NAVER_PAGE_SIZE or collected >= max_rows_per_market:
+            # Stop at the end of the listing (a clearly short page); Naver pages
+            # occasionally list 49 rows, so only a half-empty page ends the walk.
+            if listed < _NAVER_PAGE_SIZE // 2 or collected >= max_rows_per_market:
                 break
     if not rows:
         raise VendorUnavailableError("Naver market-cap ranking returned no rows" + (f" ({'; '.join(errors)[:200]})" if errors else ""))
@@ -471,6 +474,14 @@ def _fetch_naver_market_sum_page(market: str, page: int) -> str:
     return response.text
 
 
+def _page_code_count(html: str) -> int:
+    """Number of distinct stock links on a Naver listing page (before any filtering)."""
+
+    import re
+
+    return len(set(re.findall(r"/item/main\.naver\?code=(\d{6})", html)))
+
+
 def _strip_tags(value: str) -> str:
     import html as html_module
     import re
@@ -494,3 +505,160 @@ def _naver_number(value: str | None) -> float | None:
 def _naver_percent(value: str | None) -> float | None:
     number = _naver_number(value)
     return number / 100 if number is not None else None
+
+
+# --------------------------------------------------------------------------
+# Index universes: KOSPI200 (real constituents from Naver) and KOSDAQ150
+# (KRX constituents when KRX_ID/KRX_PW are configured for pykrx, otherwise the
+# top-150 KOSDAQ names by market cap as a documented proxy).
+# --------------------------------------------------------------------------
+
+NAVER_KOSPI200_URL = "https://finance.naver.com/sise/entryJongmok.naver"
+_KOSPI200_MAX_PAGES = 25
+_KOSDAQ150_PYKRX_INDEX = "2203"
+KOSDAQ150_PROXY_SIZE = 150
+
+ConstituentPageFetcher = Callable[[int], str]
+
+
+def load_index_snapshot(
+    as_of_date: str | date | None = None,
+    *,
+    markets: tuple[str, ...] | list[str] = SUPPORTED_MARKETS,
+    kospi200_page_fetcher: ConstituentPageFetcher | None = None,
+    market_sum_page_fetcher: PageFetcher | None = None,
+    kosdaq150_codes: Sequence[str] | None = None,
+    kosdaq_scan_pages: int = 6,
+) -> MarketSnapshot:
+    """Snapshot over the KOSPI200 + KOSDAQ150 universe.
+
+    * KOSPI200 rows come straight from Naver's constituent pages (price,
+      volume, trading value, market cap).
+    * KOSDAQ150 codes come from ``kosdaq150_codes`` or pykrx (needs a KRX
+      account); the rows themselves come from the Naver market-cap ranking.
+      Without a constituent list the top ``KOSDAQ150_PROXY_SIZE`` KOSDAQ names by
+      market cap stand in, and the snapshot notes say so.
+    """
+
+    selected = tuple(_normalize_market(market) for market in markets)
+    rows: list[MarketSnapshotRow] = []
+    notes: list[str] = []
+    if "KOSPI" in selected:
+        kospi_rows = load_kospi200_rows(page_fetcher=kospi200_page_fetcher)
+        rows.extend(kospi_rows)
+        notes.append(f"KOSPI200 constituents: {len(kospi_rows)}")
+    if "KOSDAQ" in selected:
+        codes = list(kosdaq150_codes) if kosdaq150_codes is not None else _kosdaq150_codes_from_pykrx()
+        ranking = load_naver_market_snapshot(as_of_date, markets=("KOSDAQ",), max_rows_per_market=kosdaq_scan_pages * _NAVER_PAGE_SIZE, page_fetcher=market_sum_page_fetcher).rows
+        if codes:
+            wanted = set(codes)
+            kosdaq_rows = [row for row in ranking if row.code in wanted]
+            notes.append(f"KOSDAQ150 constituents: {len(kosdaq_rows)} of {len(wanted)} matched in market-cap ranking")
+        else:
+            kosdaq_rows = ranking[:KOSDAQ150_PROXY_SIZE]
+            notes.append(f"KOSDAQ150 proxy: top {len(kosdaq_rows)} KOSDAQ names by market cap (set KRX_ID/KRX_PW or TRADINGAGENTS_KOSDAQ150_CODES for real constituents)")
+        rows.extend(kosdaq_rows)
+    if not rows:
+        raise VendorUnavailableError("index universe produced no rows")
+    return MarketSnapshot(as_of_date=_coerce_date(as_of_date).isoformat(), markets=selected, rows=rows, vendor="index:" + ", ".join(notes))
+
+
+def load_kospi200_rows(*, page_fetcher: ConstituentPageFetcher | None = None) -> list[MarketSnapshotRow]:
+    fetch = page_fetcher or _fetch_naver_kospi200_page
+    rows: list[MarketSnapshotRow] = []
+    seen: set[str] = set()
+    for page in range(1, _KOSPI200_MAX_PAGES + 1):
+        try:
+            html = fetch(page)
+        except Exception as exc:
+            if rows:
+                break
+            raise VendorUnavailableError(f"KOSPI200 constituents unavailable: {exc.__class__.__name__}: {exc}") from exc
+        parsed = parse_naver_kospi200_page(html)
+        listed = _page_code_count(html)
+        new_rows = [row for row in parsed if row.code not in seen]
+        if not listed or not new_rows:
+            break
+        for row in new_rows:
+            seen.add(row.code)
+            rows.append(row)
+        if listed < 5:  # pages carry 10 names; a near-empty page is the tail
+            break
+    if not rows:
+        raise VendorUnavailableError("KOSPI200 constituent pages returned no rows")
+    return rows
+
+
+def parse_naver_kospi200_page(html: str) -> list[MarketSnapshotRow]:
+    """Parse one 코스피200 구성종목 page (종목별·현재가·전일비·등락률·거래량·거래대금(백만)·시가총액(억))."""
+
+    import re
+
+    start = html.find('class="type_1"')
+    if start < 0:
+        return []
+    end = html.find("</table>", start)
+    table = html[start : end if end > 0 else None]
+    headers = [_strip_tags(cell) for cell in re.findall(r"<th[^>]*>([\s\S]*?)</th>", table)]
+    index = {name: position for position, name in enumerate(headers)}
+    rows: list[MarketSnapshotRow] = []
+    for raw_row in re.findall(r"<tr[^>]*>([\s\S]*?)</tr>", table):
+        code_match = re.search(r"/item/main\.naver\?code=(\d{6})", raw_row)
+        if not code_match:
+            continue
+        cells = [_strip_tags(cell) for cell in re.findall(r"<td[^>]*>([\s\S]*?)</td>", raw_row)]
+
+        def cell(name: str) -> str | None:
+            position = index.get(name)
+            return cells[position] if position is not None and position < len(cells) else None
+
+        close = _naver_number(cell("현재가"))
+        if close is None or close <= 0:
+            continue
+        volume = _naver_number(cell("거래량")) or 0.0
+        value_million = _naver_number(cell("거래대금(백만)"))
+        cap_100m = _naver_number(cell("시가총액(억)"))
+        rows.append(
+            MarketSnapshotRow(
+                code=code_match.group(1),
+                name=cell("종목별") or code_match.group(1),
+                market="KOSPI",
+                close=close,
+                volume=volume,
+                trading_value=value_million * 1_000_000 if value_million is not None else (close * volume if volume else None),
+                market_cap=cap_100m * 100_000_000 if cap_100m is not None else None,
+                change_rate=_naver_percent(cell("등락률")),
+            )
+        )
+    return rows
+
+
+def _fetch_naver_kospi200_page(page: int) -> str:
+    import requests
+
+    apply_system_truststore_if_available()
+    response = requests.get(NAVER_KOSPI200_URL, params={"page": page}, headers=_NAVER_HEADERS, timeout=15)
+    response.raise_for_status()
+    response.encoding = "euc-kr"
+    return response.text
+
+
+def _kosdaq150_codes_from_pykrx() -> list[str]:
+    """KOSDAQ150 constituents via pykrx (KRX data portal; needs KRX_ID/KRX_PW), else env CSV, else empty."""
+
+    from tradingagents.dataflows.kr_tickers import is_kr_ticker, normalize_kr_ticker
+
+    raw = os.getenv("TRADINGAGENTS_KOSDAQ150_CODES", "")
+    codes = [normalize_kr_ticker(part.strip()) for part in raw.split(",") if part.strip() and is_kr_ticker(part.strip())]
+    if codes:
+        return list(dict.fromkeys(codes))
+    if not (os.getenv("KRX_ID") and os.getenv("KRX_PW")):
+        return []
+    try:
+        apply_system_truststore_if_available()
+        from pykrx import stock
+
+        frame = stock.get_index_portfolio_deposit_file(_KOSDAQ150_PYKRX_INDEX)
+        return [str(code).zfill(6) for code in list(frame)]
+    except Exception:
+        return []

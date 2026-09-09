@@ -19,6 +19,7 @@ from .universe import (
     MarketSnapshotRow,
     build_snapshot_from_history,
     fallback_universe_codes,
+    load_index_snapshot,
     load_market_snapshot,
 )
 
@@ -32,6 +33,7 @@ __all__ = [
     "build_snapshot_from_history",
     "compute_factor_scores",
     "fallback_universe_codes",
+    "load_index_snapshot",
     "load_market_snapshot",
     "screen_korean_market",
 ]
