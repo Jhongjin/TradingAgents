@@ -2045,11 +2045,12 @@ def _content_security_policy() -> str:
         "object-src 'none'; "
         "frame-ancestors 'none'; "
         "form-action 'self'; "
-        "img-src 'self' data:; "
-        "font-src 'self' data:; "
-        "script-src 'self' 'unsafe-inline' https://unpkg.com; "
-        "style-src 'self' 'unsafe-inline'; "
-        "connect-src 'self' https://*.supabase.co https://*.supabase.com"
+        "img-src 'self' data: https://*.portone.io; "
+        "font-src 'self' data: https://fonts.gstatic.com; "
+        "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.portone.io; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "frame-src 'self' https://*.portone.io https://*.tosspayments.com https://*.kakao.com https://*.kakaopay.com https://*.naver.com https://*.inicis.com https://*.nicepay.co.kr; "
+        "connect-src 'self' https://*.supabase.co https://*.supabase.com https://*.portone.io https://*.tosspayments.com"
     )
 
 

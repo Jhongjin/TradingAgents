@@ -176,3 +176,12 @@ def test_analysis_request_quota_follows_plan(monkeypatch):
     assert statuses == [200, 200, 429]  # free plan: 2 active requests
     repo.upsert_subscription(SubscriptionInput(user_id=USER, plan="daily", status="active", current_period_end=datetime.now(timezone.utc) + timedelta(days=10)))
     assert client.post("/api/analysis-requests", json={"ticker": codes[2]}, headers=headers).status_code == 200
+
+
+def test_csp_allows_payment_sdk_and_web_fonts(monkeypatch):
+    client = _client(_repo(), monkeypatch)
+    csp = client.get("/pricing").headers["content-security-policy"]
+    assert "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.portone.io" in csp
+    assert "https://fonts.googleapis.com" in csp and "https://fonts.gstatic.com" in csp
+    assert "frame-src 'self' https://*.portone.io https://*.tosspayments.com" in csp
+    assert "frame-ancestors 'none'" in csp
