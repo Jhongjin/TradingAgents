@@ -133,3 +133,9 @@ def test_home_shows_free_view_with_today_teaser():
     assert [item["role"] for item in model["debate"]] == ["bull", "bear", "judge", "risk_panel"]  # excerpts only
     html = render_home_page(repo=repo, now=NOW)
     assert "오늘" in html and "데일리 패스" in html and "후보 20개 중 2개 통과" in html
+
+
+def test_home_forwards_auth_hash_to_member_page():
+    html = render_home_page(repo=None, now=NOW)
+    assert "location.replace('/member'+h)" in html
+    assert "access_token=" in html

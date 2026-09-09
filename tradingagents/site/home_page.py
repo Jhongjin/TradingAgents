@@ -604,7 +604,9 @@ def _render(model: dict[str, Any]) -> str:
 <link rel="canonical" href="{_h(model['canonical'])}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<script>(function(){{try{{var t=localStorage.getItem('ta-theme');if(t==='paper'||t==='dark'||t==='sepia'){{document.documentElement.setAttribute('data-theme',t);}}}}catch(e){{}}}})();</script>
+<script>(function(){{try{{var t=localStorage.getItem('ta-theme');if(t==='paper'||t==='dark'||t==='sepia'){{document.documentElement.setAttribute('data-theme',t);}}}}catch(e){{}}
+/* Supabase auth links (magic link, signup confirmation, recovery) may land on the site root; the member page owns session handling. */
+var h=location.hash||'';if(h.indexOf('access_token=')>=0||h.indexOf('type=recovery')>=0||h.indexOf('error_description=')>=0){{location.replace('/member'+h);}}}})();</script>
 <style>{HOME_CSS}</style>
 </head>
 <body class="public-home">
