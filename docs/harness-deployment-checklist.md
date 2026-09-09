@@ -111,3 +111,16 @@ open https://your-domain/harness
 
 Run `tradingagents audit-verify` after every executed cycle and keep the
 ledger file under backup.
+
+## Vercel CLI on a PC with a non-ASCII computer name
+
+If `vercel` fails with `Cannot convert argument to a ByteString ... value of
+51204`, the Windows computer name contains Hangul and the CLI cannot put it in
+an HTTP header. Either rename the PC to an ASCII name, or run the CLI through
+the wrapper that patches the hostname:
+
+```powershell
+$env:NODE_USE_SYSTEM_CA = "1"
+node scripts/vercel_ascii_host.cjs whoami
+node scripts/vercel_ascii_host.cjs deploy --prod --yes
+```
