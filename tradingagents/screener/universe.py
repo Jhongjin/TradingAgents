@@ -410,12 +410,15 @@ def parse_naver_market_sum(html: str, market: str) -> list[MarketSnapshotRow]:
         close = _naver_number(cell("현재가"))
         if close is None or close <= 0:
             continue
+        name = cell("종목명") or code_match.group(1)
+        if _is_non_equity_name(name, par_value=_naver_number(cell("액면가"))):
+            continue
         volume = _naver_number(cell("거래량")) or 0.0
         market_cap_100m = _naver_number(cell("시가총액"))
         rows.append(
             MarketSnapshotRow(
                 code=code_match.group(1),
-                name=cell("종목명") or code_match.group(1),
+                name=name,
                 market=_normalize_market(market),
                 close=close,
                 volume=volume,
@@ -428,6 +431,33 @@ def parse_naver_market_sum(html: str, market: str) -> list[MarketSnapshotRow]:
             )
         )
     return rows
+
+
+_ETF_BRAND_PREFIXES = (
+    "KODEX", "TIGER", "ACE ", "KBSTAR", "RISE ", "SOL ", "HANARO", "ARIRANG", "PLUS ", "KOSEF", "TIMEFOLIO",
+    "WON ", "1Q ", "BNK ", "DAISHIN", "KIWOOM", "히어로즈", "UNICORN", "마이티", "파워 ", "KINDEX", "TREX", "SMART ",
+    "KCTOP", "FOCUS ", "에셋플러스", "VITA ", "ITF ", "TRUE ", "QV ", "신한 ", "삼성 ", "대신 ", "메리츠 ", "미래에셋 ",
+    "한투 ", "KB ", "NH ", "하나 ", "키움 ", "유안타 ", "DB ", "현대 ", "SK ",
+)
+
+
+def _is_non_equity_name(name: str, *, par_value: float | None) -> bool:
+    """Drop ETFs, ETNs, SPACs, and REIT-style listings from the equity universe.
+
+    ETF/ETN rows on the Naver ranking carry a zero/blank 액면가 and a brand
+    prefix; SPACs (기업인수목적) are named ``...스팩``.
+    """
+
+    upper = name.upper()
+    if "스팩" in name or "인수목적" in name:
+        return True
+    if any(upper.startswith(prefix.strip().upper() + " ") or upper.startswith(prefix.upper()) for prefix in _ETF_BRAND_PREFIXES if prefix.endswith(" ")) and (par_value is None or par_value <= 0):
+        return True
+    if any(upper.startswith(prefix.upper()) for prefix in _ETF_BRAND_PREFIXES if not prefix.endswith(" ")):
+        return True
+    if (par_value is None or par_value <= 0) and any(token in upper for token in ("ETF", "ETN", " 선물", " 레버리지", " 인버스", " 액티브", " 채권", "TOP10", "TOP 10")):
+        return True
+    return False
 
 
 def _fetch_naver_market_sum_page(market: str, page: int) -> str:

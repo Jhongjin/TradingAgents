@@ -48,6 +48,8 @@ class ScreenerConfig:
     universe_size: int | None = None
     # Stop fetching history after this many seconds and rank what was scored.
     time_budget_seconds: float | None = None
+    # Concurrent history fetches (I/O bound); 1 disables the thread pool.
+    max_workers: int = 8
 
     def __post_init__(self) -> None:
         if self.top_n <= 0:
@@ -56,6 +58,8 @@ class ScreenerConfig:
             raise ValueError("prefilter_limit must be positive")
         if self.history_days < 30:
             raise ValueError("history_days must be at least 30")
+        if self.max_workers <= 0:
+            raise ValueError("max_workers must be positive")
 
 
 @dataclass(frozen=True)
@@ -180,13 +184,21 @@ def screen_korean_market(
     scored: list[tuple[MarketSnapshotRow, FactorScores]] = []
     failures = 0
     skipped_for_time = 0
-    for index, row in enumerate(prefiltered):
-        if config.time_budget_seconds is not None and (time.monotonic() - started) > config.time_budget_seconds and row.code not in history_cache:
-            skipped_for_time = len(prefiltered) - index
-            break
-        try:
-            points = cached_fetcher(row.code, start_date.isoformat(), end_date.isoformat())
-        except Exception:
+    histories = _fetch_histories(
+        prefiltered,
+        cached_fetcher,
+        start_date.isoformat(),
+        end_date.isoformat(),
+        max_workers=config.max_workers,
+        deadline=(started + config.time_budget_seconds) if config.time_budget_seconds is not None else None,
+    )
+    for row in prefiltered:
+        outcome = histories.get(row.code)
+        if outcome is None:
+            skipped_for_time += 1
+            continue
+        points, error = outcome
+        if error is not None:
             failures += 1
             continue
         factors = compute_factor_scores(points, weights=config.factor_weights)
@@ -231,6 +243,65 @@ def screen_korean_market(
         config=config,
         notes=notes,
     )
+
+
+def _fetch_histories(
+    rows: Sequence[MarketSnapshotRow],
+    fetcher: HistoryFetcher,
+    start: str,
+    end: str,
+    *,
+    max_workers: int,
+    deadline: float | None,
+) -> dict[str, tuple[Sequence[Mapping[str, Any]], Exception | None]]:
+    """Fetch daily history for every row, concurrently, honouring the time budget.
+
+    Returns ``code -> (points, error)``; rows missing from the result were not
+    attempted before the deadline. Results are collected in submission order
+    so ranking stays deterministic for equal scores.
+    """
+
+    import time
+    from concurrent.futures import ThreadPoolExecutor, wait
+
+    results: dict[str, tuple[Sequence[Mapping[str, Any]], Exception | None]] = {}
+    if not rows:
+        return results
+
+    def load(code: str):
+        try:
+            return code, (fetcher(code, start, end), None)
+        except Exception as exc:  # vendor errors are per-row, never fatal
+            return code, ([], exc)
+
+    workers = max(1, min(max_workers, len(rows)))
+    if workers == 1:
+        for row in rows:
+            if deadline is not None and time.monotonic() > deadline:
+                break
+            code, outcome = load(row.code)
+            results[code] = outcome
+        return results
+
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="screener") as pool:
+        pending = {pool.submit(load, row.code): row.code for row in rows}
+        while pending:
+            timeout = None if deadline is None else max(deadline - time.monotonic(), 0.0)
+            done, _ = wait(list(pending), timeout=timeout)
+            for future in done:
+                pending.pop(future, None)
+                code, outcome = future.result()
+                results[code] = outcome
+            if not done:  # deadline hit: abandon what has not started yet
+                for future in list(pending):
+                    if future.cancel():
+                        pending.pop(future, None)
+                if pending:  # in-flight fetches finish, then we stop
+                    for future in wait(list(pending)).done:
+                        code, outcome = future.result()
+                        results[code] = outcome
+                break
+    return results
 
 
 def _resolve_snapshot_mode(value: str | None) -> str:

@@ -107,3 +107,45 @@ def test_screener_auto_mode_falls_through_pykrx_to_naver(monkeypatch):
 def test_screener_rejects_unknown_snapshot_mode():
     with pytest.raises(ValueError):
         screen_korean_market("2026-09-09", config=ScreenerConfig(snapshot_mode="bogus"), history_fetcher=lambda c, s, e: [])
+
+
+def test_parse_naver_market_sum_drops_etfs_and_spacs():
+    html = _page(
+        [
+            ("459580", "KODEX CD금리액티브(합성)", "1,050,000", "20,000", "100", "N/A"),
+            ("123456", "하나32호스팩", "2,050", "100", "10", "N/A"),
+            ("005930", "삼성전자", "70,000", "4,000,000", "10,000,000", "12"),
+        ]
+    ).replace("<td>500</td><td>20,000</td>", "<td>0</td><td>20,000</td>")
+    rows = parse_naver_market_sum(html, "KOSPI")
+    assert [row.code for row in rows] == ["005930"]
+
+
+def test_screener_parallel_history_respects_time_budget_and_errors():
+    import time
+
+    from tradingagents.screener import MarketSnapshot, MarketSnapshotRow
+
+    rows = [MarketSnapshotRow(f"{i:06d}", f"S{i}", "KOSPI", 10_000.0, 1e6, 1e10, 5e11, 0.0, 10.0, 1.0, 1.0) for i in range(6)]
+    snapshot = MarketSnapshot(as_of_date="2026-09-09", markets=("KOSPI",), rows=rows)
+    points = [{"date": f"d{i}", "close": 9_000 * (1 + 0.003) ** i, "volume": 1_000_000} for i in range(120)]
+
+    def slow(code, s, e):
+        if code == "000003":
+            raise RuntimeError("vendor down")
+        time.sleep(0.05)
+        return points
+
+    result = screen_korean_market(snapshot=snapshot, history_fetcher=slow, config=ScreenerConfig(top_n=10, min_composite=-10, max_workers=4))
+    assert result.scored_size == 5
+    assert any("history unavailable for 1 rows" in note for note in result.notes)
+
+    def very_slow(code, s, e):
+        time.sleep(0.4)
+        return points
+
+    budgeted = screen_korean_market(snapshot=snapshot, history_fetcher=very_slow, config=ScreenerConfig(top_n=10, min_composite=-10, max_workers=2, time_budget_seconds=0.5))
+    assert 0 < budgeted.scored_size < 6
+    assert any("time budget" in note for note in budgeted.notes)
+    with pytest.raises(ValueError):
+        ScreenerConfig(max_workers=0)
