@@ -25,9 +25,12 @@ The transport is injectable so unit tests never touch the network.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from .broker import BrokerAccountSnapshot, BrokerOrderResult
@@ -60,6 +63,9 @@ class LiveTradingDisabledError(KISError):
 Transport = Callable[[str, str, Mapping[str, str], Mapping[str, Any] | None, Mapping[str, Any] | None], Mapping[str, Any]]
 
 
+TOKEN_RATE_LIMIT_WAIT_SECONDS = 61
+
+
 def live_trading_enabled() -> bool:
     return os.getenv("TRADINGAGENTS_ENABLE_LIVE_TRADING", "false").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -88,18 +94,67 @@ class KISClient:
 
     # ----------------------------------------------------------------- auth
     def access_token(self, *, force_refresh: bool = False) -> str:
+        """Return a valid access token, reusing the on-disk cache across processes.
+
+        KIS issues at most one token per minute per app key (``EGW00133``) and
+        tokens live for 24 hours, so every CLI/cron process must share one.
+        """
+
         if self._token and not force_refresh and time.time() < self._token_expires_at - 60:
             return self._token
+        if not force_refresh:
+            cached = self._load_cached_token()
+            if cached:
+                self._token, self._token_expires_at = cached
+                return self._token
         if not self.config.app_key or not self.config.app_secret:
             raise KISError("KIS_APP_KEY and KIS_APP_SECRET are required")
         body = {"grant_type": "client_credentials", "appkey": self.config.app_key, "appsecret": self.config.app_secret}
-        response = self._request("POST", "/oauth2/tokenP", headers={"content-type": "application/json"}, json=body)
+        try:
+            response = self._request("POST", "/oauth2/tokenP", headers={"content-type": "application/json"}, json=body)
+        except KISError as exc:
+            if "EGW00133" not in str(exc) or self.transport is not None:
+                raise
+            time.sleep(TOKEN_RATE_LIMIT_WAIT_SECONDS)
+            response = self._request("POST", "/oauth2/tokenP", headers={"content-type": "application/json"}, json=body)
         token = str(response.get("access_token") or "")
         if not token:
             raise KISError(f"KIS token response did not include access_token: {_redact(response)}")
         self._token = token
         self._token_expires_at = time.time() + float(response.get("expires_in") or 86_400)
+        self._store_cached_token()
         return token
+
+    def _token_cache_path(self) -> Path | None:
+        if self.transport is not None:  # injected transports (tests) never touch disk
+            return None
+        root = os.getenv("TRADINGAGENTS_KIS_TOKEN_CACHE_DIR") or os.path.join(os.path.expanduser("~"), ".tradingagents", "kis")
+        digest = hashlib.sha256(f"{self.mode}:{self.config.app_key or ''}".encode("utf-8")).hexdigest()[:16]
+        return Path(root) / f"token-{digest}.json"
+
+    def _load_cached_token(self) -> tuple[str, float] | None:
+        path = self._token_cache_path()
+        if path is None or not path.exists():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            token = str(payload.get("access_token") or "")
+            expires_at = float(payload.get("expires_at") or 0.0)
+        except (OSError, ValueError, TypeError):
+            return None
+        if not token or time.time() >= expires_at - 60:
+            return None
+        return token, expires_at
+
+    def _store_cached_token(self) -> None:
+        path = self._token_cache_path()
+        if path is None or not self._token:
+            return
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps({"access_token": self._token, "expires_at": self._token_expires_at, "mode": self.mode}), encoding="utf-8")
+        except OSError:
+            pass
 
     # --------------------------------------------------------------- quotes
     def current_price(self, code: str) -> dict[str, Any]:

@@ -304,3 +304,23 @@ def test_kis_config_repr_masks_credentials():
     assert "12345678" not in text
     assert "12****78" in text
     assert "is_paper=True" in text
+
+
+def test_kis_client_token_cache_is_shared_across_clients(tmp_path, monkeypatch):
+    """A real (non-injected) client persists its token so cron/CLI processes reuse it."""
+
+    monkeypatch.setenv("TRADINGAGENTS_KIS_TOKEN_CACHE_DIR", str(tmp_path))
+    calls = []
+
+    def fake_request(self, method, path, **kwargs):
+        calls.append(path)
+        return {"access_token": "cached-token", "expires_in": 86_400}
+
+    monkeypatch.setattr(KISClient, "_request", fake_request)
+    first = KISClient(_paper_config())
+    assert first.access_token() == "cached-token"
+    assert first._token_cache_path().exists()
+    second = KISClient(_paper_config())
+    assert second.access_token() == "cached-token"
+    assert calls == ["/oauth2/tokenP"]  # second client served from disk
+    assert "cached-token" not in repr(second)
