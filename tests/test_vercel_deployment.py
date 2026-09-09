@@ -192,3 +192,11 @@ def test_vercel_json_routes_admin_members_page_to_fastapi_entrypoint():
 
     config = json.loads(Path("vercel.json").read_text(encoding="utf-8"))
     assert {"source": "/admin/members", "destination": "/api/index.py"} in config["rewrites"]
+
+
+def test_vercel_json_routes_llms_txt_to_fastapi_entrypoint():
+    import json
+    from pathlib import Path
+
+    config = json.loads(Path("vercel.json").read_text(encoding="utf-8"))
+    assert {"source": "/llms.txt", "destination": "/api/index.py"} in config["rewrites"]

@@ -126,6 +126,10 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/llms.txt",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/ads.txt",
       "destination": "/api/index.py"
     },
