@@ -122,6 +122,7 @@ def build_home_view_model(repo: StorageRepository | None, *, site_base_url: str 
 
     account = _account_from_run(run)
     headline, deck = _headline(run, decisions, featured)
+    teaser = _today_teaser(runs.get("items") or [], run, now)
 
     return {
         "site_base_url": site_base_url,
@@ -144,6 +145,8 @@ def build_home_view_model(repo: StorageRepository | None, *, site_base_url: str 
         },
         "account": account,
         "previous_runs": [item for item in (runs.get("items") or []) if not run or item.get("id") != run.get("id")][:3],
+        "teaser": teaser,
+        "plan_gate": (latest or {}).get("plan_gate") if isinstance(latest, dict) else None,
         "rail": [{"code": code, "name": name, "path": f"/stocks/{code}"} for code, name in RAIL_TICKERS],
         "storage_status": (latest or {}).get("status") if isinstance(latest, dict) else ("not_configured" if repo is None else "empty"),
     }
@@ -169,8 +172,16 @@ def _load_sources(repo: StorageRepository | None) -> tuple[Any, dict[str, Any], 
     cached = _source_cache.get(key)
     if cached and time.monotonic() - cached[0] < SOURCE_CACHE_SECONDS:
         return cached[1]
-    latest = build_harness_run_payload(repo)
+    from .billing import gate_harness_payload, latest_visible_run_id, resolve_plan_access
+
+    # The home page is public and CDN-cached, so it renders the free view:
+    # newest run before today, no debate transcript. Today's run appears as a
+    # teaser (counts only) until the next trading day.
+    free_access = resolve_plan_access(None, None)
     runs = build_harness_runs_payload(repo, limit=50)
+    visible_id = latest_visible_run_id(repo, free_access)
+    latest = build_harness_run_payload(repo, harness_run_id=visible_id) if visible_id else build_harness_run_payload(repo)
+    latest = gate_harness_payload(latest, free_access) if latest else latest
     outcomes = build_harness_outcomes_payload(repo, limit=120)
     _source_cache[key] = (time.monotonic(), (latest, runs, outcomes))
     return latest, runs, outcomes
@@ -180,16 +191,50 @@ def clear_home_cache() -> None:
     _source_cache.clear()
 
 
+def _today_teaser(items: list[Mapping[str, Any]], visible_run: Mapping[str, Any] | None, now: datetime) -> dict[str, Any] | None:
+    """Counts for a run newer than the visible one (today's, still locked for free)."""
+
+    today = now.astimezone(ZoneInfo("Asia/Seoul")).date()
+    for item in items:
+        as_of = item.get("as_of_date")
+        as_of_date = as_of if isinstance(as_of, date) else _parse_date(as_of)
+        if as_of_date is None or as_of_date < today:
+            continue
+        if visible_run and item.get("id") == visible_run.get("id"):
+            return None
+        return {
+            "as_of_date": as_of_date.isoformat(),
+            "candidate_count": int(item.get("candidate_count") or 0),
+            "order_count": int(item.get("order_count") or 0),
+            "confirmer": item.get("confirmer"),
+        }
+    return None
+
+
+def _parse_date(value: Any) -> date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str) and len(value) >= 10:
+        try:
+            return datetime.strptime(value[:10], "%Y-%m-%d").date()
+        except ValueError:
+            return None
+    return None
+
+
 def _debate_excerpts(decision: Mapping[str, Any] | None) -> list[dict[str, str]]:
     if not decision:
         return []
-    raw = (((decision.get("detail") or {}).get("confirmation") or {}).get("raw") or {})
+    confirmation = ((decision.get("detail") or {}).get("confirmation") or {})
+    raw = confirmation.get("raw") or {}
     turns = (raw.get("debate") or {}).get("turns") or {}
+    public_excerpts = confirmation.get("excerpts") or {}
     excerpts: list[dict[str, str]] = []
     for key, (label, tone) in ROLE_LABELS.items():
-        turn = turns.get(key) or {}
-        data = turn.get("data") or {}
-        text = _turn_text(key, data)
+        if turns:
+            text = _turn_text(key, (turns.get(key) or {}).get("data") or {})
+        else:
+            text = str(public_excerpts.get(key) or "").strip()
         if text:
             excerpts.append({"role": key, "label": label, "tone": tone, "text": text})
     return excerpts
@@ -335,6 +380,8 @@ h1,h2,h3{font-family:"Noto Serif KR","Apple SD Gothic Neo",serif;margin:0;font-w
 .issue{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.1em;color:var(--muted)}
 .hero h1{font-size:clamp(28px,3.6vw,40px);letter-spacing:-.015em;margin:12px 0 14px}
 .hero .deck{max-width:34em;color:var(--ink2);font-size:16px;margin:0 0 22px}
+.teaser{margin:0 0 18px;padding:10px 14px;border:1px solid var(--brass);border-radius:8px;background:var(--brass-soft);color:var(--ink);font-size:14px;max-width:34em}
+.teaser a{font-weight:600}
 .search{display:flex;border:1px solid var(--line-strong);border-radius:8px;background:var(--panel);overflow:hidden;max-width:560px}
 .search input{flex:1;border:0;padding:14px 16px;font:inherit;font-size:16px;background:transparent;color:var(--ink);min-width:0}
 .search input::placeholder{color:var(--muted)}
@@ -539,6 +586,13 @@ def _render(model: dict[str, Any]) -> str:
 
     title_date = model["run_date_text"] or "오늘"
     proof_completed = outcomes["completed_total"]
+    teaser = model.get("teaser")
+    teaser_html = ""
+    if teaser:
+        teaser_html = (
+            f'<p class="teaser"><strong>오늘 {_h(_korean_date(teaser["as_of_date"]))} 실행 완료</strong> — 후보 {_h(teaser["candidate_count"])}개 중 {_h(teaser["order_count"])}개 통과. '
+            f'종목과 토론 전문은 <a href="/pricing">데일리 패스</a>에서 즉시, 무료 플랜은 다음 거래일에 열립니다.</p>'
+        )
 
     return f"""<!doctype html>
 <html lang="ko">
@@ -587,6 +641,7 @@ def _render(model: dict[str, Any]) -> str:
       <div class="issue">제 {_h(model['issue_number'])}호 · 매일 아침, 규칙과 AI 토론으로 고른 종목과 그 결과까지</div>
       <h1>{_h(model['headline'])}</h1>
       <p class="deck">{_h(model['deck'])}</p>
+      {teaser_html}
       <form class="search" action="/stocks" method="get" role="search">
         <label class="skip-link" for="home-ticker">종목코드 또는 종목명</label>
         <input id="home-ticker" name="ticker" placeholder="종목명 또는 6자리 코드 — 예: 삼성전자, 005930" autocomplete="off" required>

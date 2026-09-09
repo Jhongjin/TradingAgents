@@ -56,8 +56,19 @@ from .billing import (
     start_trial,
     verify_webhook_signature,
 )
+from .billing_page import render_billing_page
 from .harness_pages import render_harness_page
 from .home_page import render_home_page
+from .notifications import (
+    TelegramClient,
+    TelegramConfig,
+    TelegramError,
+    channel_status,
+    create_link_code,
+    handle_telegram_update,
+    notify_harness_issue,
+    unlink_channel,
+)
 from .pricing_page import render_pricing_page
 from .market_api import build_latest_prices_payload
 from .paper_simulation_api import EXECUTION_BOUNDARY_LABEL, build_member_paper_simulation_payload
@@ -217,7 +228,7 @@ def create_app(
         if request.headers.get("Authorization") or request.headers.get("X-TradingAgents-User-Id") or request.url.path.startswith("/api/billing/"):
             # Plan-gated and member responses must never be shared through a public cache.
             response.headers.setdefault("Cache-Control", "private, no-store")
-        elif request.url.path in {"/member", "/mypage", "/admin"}:
+        elif request.url.path in {"/member", "/mypage", "/admin", "/billing"}:
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif (
             request.url.path == "/"
@@ -606,6 +617,95 @@ def create_app(
             return handle_portone_webhook(repo, event, client)
         except PortOneError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    @app.get("/billing", response_class=HTMLResponse, include_in_schema=False)
+    def billing_page(request: Request) -> HTMLResponse:
+        return HTMLResponse(render_billing_page(site_base_url=_request_site_base_url(request)))
+
+    # ------------------------------------------------------ notifications
+    @app.post("/api/notifications/telegram/link")
+    def telegram_link(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        return create_link_code(repo, user_id, TelegramConfig.from_env())
+
+    @app.delete("/api/notifications/telegram/link")
+    def telegram_unlink(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        return unlink_channel(repo, user_id)
+
+    @app.get("/api/notifications/telegram/status")
+    def telegram_status(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        return channel_status(repo, user_id)
+
+    @app.post("/api/notifications/telegram/webhook")
+    async def telegram_webhook(
+        request: Request,
+        x_telegram_bot_api_secret_token: Annotated[str | None, Header(alias="X-Telegram-Bot-Api-Secret-Token")] = None,
+    ) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        config = TelegramConfig.from_env()
+        if not config.webhook_secret or not x_telegram_bot_api_secret_token or not hmac.compare_digest(config.webhook_secret, x_telegram_bot_api_secret_token):
+            raise HTTPException(status_code=401, detail="Invalid Telegram webhook secret")
+        try:
+            update = await request.json()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="invalid JSON body") from exc
+        client = getattr(request.app.state, "telegram_client", None) or TelegramClient(config)
+        return handle_telegram_update(repo, update if isinstance(update, dict) else {}, client)
+
+    @app.post("/api/admin/notifications/telegram/setup")
+    def telegram_setup(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        config = TelegramConfig.from_env()
+        client = getattr(request.app.state, "telegram_client", None) or TelegramClient(config)
+        try:
+            me = client.get_me()
+            webhook = client.set_webhook(f"{_request_site_base_url(request)}/api/notifications/telegram/webhook", secret_token=config.webhook_secret)
+        except TelegramError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {"status": "configured", "bot": {"username": me.get("username"), "id": me.get("id")}, "webhook": webhook, "secret_configured": bool(config.webhook_secret)}
+
+    @app.post("/api/admin/notifications/harness-issue")
+    def admin_notify_harness_issue(
+        request: Request,
+        harness_run_id: str | None = None,
+        force: bool = False,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _notify_harness_issue(request, harness_run_id=harness_run_id, force=force)
+
+    @app.get("/api/cron/notify-harness-issue")
+    def notify_harness_issue_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _notify_harness_issue(request)
 
     @app.post("/api/admin/subscriptions/renew")
     def admin_subscription_renewals(
@@ -1154,6 +1254,8 @@ def create_app(
         if repo is None:
             raise HTTPException(status_code=503, detail="Storage repository is not configured")
         user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        access = resolve_plan_access(repo, user_id)
+        active_limit, daily_limit = _plan_request_limits(access)
         try:
             return queue_analysis_refresh_request(
                 repo,
@@ -1161,6 +1263,8 @@ def create_app(
                 user_id=user_id,
                 requested_trade_date=body.requested_trade_date,
                 reason=body.reason,
+                active_limit=active_limit,
+                daily_limit=daily_limit,
             )
         except AnalysisRequestQuotaExceeded as exc:
             raise HTTPException(status_code=429, detail=exc.to_payload()) from exc
@@ -2572,6 +2676,41 @@ def _optional_member_user_id(request: Request, header_token: str | None) -> str 
         if exc.status_code in {401, 403}:
             return None
         raise
+
+
+def _plan_request_limits(access) -> tuple[int, int]:
+    """Plan quotas capped by the operator's env ceilings (the smaller value wins)."""
+
+    from .analysis_api import (
+        ANALYSIS_REQUEST_ACTIVE_LIMIT_ENV,
+        ANALYSIS_REQUEST_DAILY_LIMIT_ENV,
+        DEFAULT_ANALYSIS_REQUEST_ACTIVE_LIMIT,
+        DEFAULT_ANALYSIS_REQUEST_DAILY_LIMIT,
+    )
+
+    def env_int(name: str, default: int) -> int:
+        try:
+            return max(int(os.getenv(name, str(default))), 1)
+        except ValueError:
+            return default
+
+    env_active = env_int(ANALYSIS_REQUEST_ACTIVE_LIMIT_ENV, DEFAULT_ANALYSIS_REQUEST_ACTIVE_LIMIT)
+    env_daily = env_int(ANALYSIS_REQUEST_DAILY_LIMIT_ENV, DEFAULT_ANALYSIS_REQUEST_DAILY_LIMIT)
+    return min(access.plan.active_requests_limit, env_active), min(access.plan.analysis_requests_per_day, env_daily)
+
+
+def _notify_harness_issue(request: Request, *, harness_run_id: str | None = None, force: bool = False) -> dict:
+    repo = request.app.state.repository
+    if repo is None:
+        raise HTTPException(status_code=503, detail="Storage repository is not configured")
+    config = TelegramConfig.from_env()
+    client = getattr(request.app.state, "telegram_client", None) or TelegramClient(config)
+    if client.transport is None and not config.is_configured():
+        return {"status": "not_configured", "sent": 0}
+    try:
+        return notify_harness_issue(repo, client, site_base_url=_request_site_base_url(request), harness_run_id=harness_run_id, force=force)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _process_subscription_renewals(request: Request) -> dict:

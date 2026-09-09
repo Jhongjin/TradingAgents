@@ -16,9 +16,9 @@ def _repo() -> StorageRepository:
     return repo
 
 
-def _seed(repo: StorageRepository) -> str:
+def _seed(repo: StorageRepository, as_of: date = date(2026, 9, 8)) -> str:
     run_id = repo.create_harness_run(
-        HarnessRunInput(as_of_date=date(2026, 9, 9), broker="kis", dry_run=False, confirmer="debate", universe_size=198, candidate_count=4, order_count=1, cash_before=50_000_000, cash_after=44_443_220)
+        HarnessRunInput(as_of_date=as_of, broker="kis", dry_run=False, confirmer="debate", universe_size=198, candidate_count=4, order_count=1, cash_before=50_000_000, cash_after=44_443_220)
     )
     debate = {
         "turns": {
@@ -30,7 +30,7 @@ def _seed(repo: StorageRepository) -> str:
     }
     decision_id = repo.add_harness_decision(
         HarnessDecisionInput(
-            harness_run_id=run_id, as_of_date=date(2026, 9, 9), ticker_code="000660", stage="ordered", ticker_name="SK하이닉스", market="KOSPI",
+            harness_run_id=run_id, as_of_date=as_of, ticker_code="000660", stage="ordered", ticker_name="SK하이닉스", market="KOSPI",
             screener_rank=1, composite_score=0.71, forecast_expected_return=0.034, forecast_probability_up=0.61,
             confirmation_rating="Overweight", confirmation_confidence=0.78, confirmation_source="debate", quantity=3, order_status="accepted",
             reasons=["모의투자 매수주문이 완료되었습니다."],
@@ -38,9 +38,9 @@ def _seed(repo: StorageRepository) -> str:
         )
     )
     repo.add_harness_decision(
-        HarnessDecisionInput(harness_run_id=run_id, as_of_date=date(2026, 9, 9), ticker_code="005930", stage="forecast_rejected", ticker_name="삼성전자", market="KOSPI", screener_rank=2, forecast_expected_return=0.011, forecast_probability_up=0.55, reasons=["probability up 55% below 55%"])
+        HarnessDecisionInput(harness_run_id=run_id, as_of_date=as_of, ticker_code="005930", stage="forecast_rejected", ticker_name="삼성전자", market="KOSPI", screener_rank=2, forecast_expected_return=0.011, forecast_probability_up=0.55, reasons=["probability up 55% below 55%"])
     )
-    repo.upsert_harness_outcome(HarnessOutcomeInput(harness_decision_id=decision_id, harness_run_id=run_id, ticker_code="000660", entry_date=date(2026, 9, 9), evaluated_at=date(2026, 9, 9), horizon_days=5, status="pending"))
+    repo.upsert_harness_outcome(HarnessOutcomeInput(harness_decision_id=decision_id, harness_run_id=run_id, ticker_code="000660", entry_date=as_of, evaluated_at=as_of, horizon_days=5, status="pending"))
     return run_id
 
 
@@ -114,10 +114,22 @@ def test_home_sources_are_memoised_per_repo(monkeypatch):
     home_page.clear_home_cache()
     calls = []
     original = home_page.build_harness_run_payload
-    monkeypatch.setattr(home_page, "build_harness_run_payload", lambda r: (calls.append(1), original(r))[1])
+    monkeypatch.setattr(home_page, "build_harness_run_payload", lambda r, **kw: (calls.append(1), original(r, **kw))[1])
     build_home_view_model(repo, now=NOW)
     build_home_view_model(repo, now=NOW)
     assert len(calls) == 1
     home_page.clear_home_cache()
     build_home_view_model(repo, now=NOW)
     assert len(calls) == 2
+
+
+def test_home_shows_free_view_with_today_teaser():
+    repo = _repo()
+    _seed(repo, date(2026, 9, 8))
+    repo.create_harness_run(HarnessRunInput(as_of_date=date(2026, 9, 9), confirmer="debate", candidate_count=20, order_count=2))
+    model = build_home_view_model(repo, now=NOW)
+    assert model["run"]["as_of_date"] == "2026-09-08"  # free view: previous day
+    assert model["teaser"] == {"as_of_date": "2026-09-09", "candidate_count": 20, "order_count": 2, "confirmer": "debate"}
+    assert [item["role"] for item in model["debate"]] == ["bull", "bear", "judge", "risk_panel"]  # excerpts only
+    html = render_home_page(repo=repo, now=NOW)
+    assert "오늘" in html and "데일리 패스" in html and "후보 20개 중 2개 통과" in html

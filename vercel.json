@@ -30,6 +30,14 @@
     {
       "path": "/api/cron/process-subscription-renewals",
       "schedule": "10 0 * * *"
+    },
+    {
+      "path": "/api/cron/notify-harness-issue?slot=morning",
+      "schedule": "56 22 * * 0-4"
+    },
+    {
+      "path": "/api/cron/notify-harness-issue?slot=midday",
+      "schedule": "25 1 * * 1-5"
     }
   ],
   "rewrites": [
@@ -79,6 +87,10 @@
     },
     {
       "source": "/pricing",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/billing",
       "destination": "/api/index.py"
     },
     {

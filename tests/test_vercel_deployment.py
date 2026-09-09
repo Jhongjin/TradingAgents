@@ -39,6 +39,14 @@ def test_vercel_json_routes_api_and_health_to_fastapi_entrypoint():
             "path": "/api/cron/process-subscription-renewals",
             "schedule": "10 0 * * *",
         },
+        {
+            "path": "/api/cron/notify-harness-issue?slot=morning",
+            "schedule": "56 22 * * 0-4",
+        },
+        {
+            "path": "/api/cron/notify-harness-issue?slot=midday",
+            "schedule": "25 1 * * 1-5",
+        },
     ]
     assert {
         "source": "/harness",
@@ -160,3 +168,11 @@ def test_vercel_json_routes_pricing_page_to_fastapi_entrypoint():
 
     config = json.loads(Path("vercel.json").read_text(encoding="utf-8"))
     assert {"source": "/pricing", "destination": "/api/index.py"} in config["rewrites"]
+
+
+def test_vercel_json_routes_billing_page_to_fastapi_entrypoint():
+    import json
+    from pathlib import Path
+
+    config = json.loads(Path("vercel.json").read_text(encoding="utf-8"))
+    assert {"source": "/billing", "destination": "/api/index.py"} in config["rewrites"]

@@ -239,13 +239,24 @@ def gate_harness_payload(payload: Mapping[str, Any] | None, access: PlanAccess, 
         trimmed = dict(item)
         detail = dict(trimmed.get("detail") or {})
         confirmation = dict(detail.get("confirmation") or {})
-        confirmation.pop("raw", None)
+        raw = confirmation.pop("raw", None)
+        # Keep one-line excerpts per debate role for the public page; the full
+        # transcript (arguments, rebuttals, risk views) stays behind the plan.
+        if raw and not locked_today:
+            excerpts = debate_excerpts(raw)
+            if excerpts:
+                confirmation["excerpts"] = excerpts
         if confirmation:
             detail["confirmation"] = confirmation
         trimmed["detail"] = detail
         if locked_today:
-            for key in ("ticker_code", "ticker_name", "stock_path", "reasons", "quantity", "entry_price", "stop_price", "take_profit_price"):
-                trimmed[key] = None if key != "reasons" else []
+            for key in ("quantity", "entry_price", "stop_price", "take_profit_price", "confirmation_rating", "confirmation_confidence"):
+                trimmed[key] = None
+            trimmed["ticker_code"] = None
+            trimmed["ticker_name"] = "데일리 패스에서 공개"
+            trimmed["stock_path"] = "/pricing"
+            trimmed["reasons"] = ["당일 실행 결과는 데일리 패스 회원에게 즉시 열립니다."]
+            trimmed["detail"] = {}
             trimmed["locked"] = True
         decisions.append(trimmed)
     result = dict(payload)
@@ -259,6 +270,35 @@ def gate_harness_payload(payload: Mapping[str, Any] | None, access: PlanAccess, 
         "upgrade_path": "/pricing",
     }
     return result
+
+
+EXCERPT_ROLES = ("bull", "bear", "judge", "risk_panel")
+
+
+def debate_excerpts(raw: Mapping[str, Any], *, limit: int = 160) -> dict[str, str]:
+    """Short public excerpts (one line per role) from a stored debate transcript."""
+
+    turns = ((raw or {}).get("debate") or {}).get("turns") or {}
+    excerpts: dict[str, str] = {}
+    for role in EXCERPT_ROLES:
+        data = (turns.get(role) or {}).get("data") or {}
+        if role in {"bull", "bear"}:
+            text = data.get("thesis") or data.get("summary") or ""
+        elif role == "judge":
+            text = data.get("rationale") or data.get("summary") or ""
+        else:
+            parts = []
+            if data.get("stop_loss_pct") is not None:
+                parts.append(f"손절 {-abs(_float(data.get('stop_loss_pct'))) * 100:+.0f}%")
+            if data.get("take_profit_pct") is not None:
+                parts.append(f"익절 {abs(_float(data.get('take_profit_pct'))) * 100:+.0f}%")
+            if data.get("risk_score") is not None:
+                parts.append(f"위험 점수 {_float(data.get('risk_score')):.2f}")
+            text = (" · ".join(parts) + ". " if parts else "") + str(data.get("neutral_view") or data.get("summary") or "")
+        text = str(text).strip()
+        if text:
+            excerpts[role] = text[:limit] + ("…" if len(text) > limit else "")
+    return excerpts
 
 
 def latest_visible_run_id(repo: StorageRepository | None, access: PlanAccess, *, now: datetime | None = None) -> str | None:

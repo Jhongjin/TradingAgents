@@ -22,6 +22,7 @@ from .models import (
     HarnessDecisionInput,
     BillingEventInput,
     HarnessOutcomeInput,
+    NotificationChannelInput,
     SubscriptionInput,
     HarnessRunInput,
     ManualTradeInput,
@@ -41,6 +42,7 @@ from .tables import (
     harness_decisions,
     billing_events,
     harness_outcomes,
+    notification_channels,
     subscriptions,
     harness_runs,
     manual_portfolios,
@@ -1097,6 +1099,83 @@ class StorageRepository:
                 latest[ticker_code] = value
         return latest
 
+    # ------------------------------------------------------ notifications
+    def get_notification_channel(self, user_id: str, channel: str = "telegram") -> dict[str, Any] | None:
+        _validate_uuid(user_id, "user_id")
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(notification_channels).where(notification_channels.c.user_id == user_id, notification_channels.c.channel == channel)
+            ).mappings().first()
+        return _notification_row(row) if row else None
+
+    def upsert_notification_channel(self, data: NotificationChannelInput) -> str:
+        _validate_uuid(data.user_id, "user_id")
+        if not data.channel:
+            raise ValueError("channel is required")
+        values = {
+            "external_id": data.external_id,
+            "display_name": data.display_name,
+            "link_code": data.link_code,
+            "link_code_expires_at": data.link_code_expires_at,
+            "linked_at": data.linked_at,
+            "enabled": 1 if data.enabled else 0,
+            "metadata_json": dict(data.metadata),
+            "updated_at": datetime.now(timezone.utc),
+        }
+        with self.engine.begin() as conn:
+            existing = conn.execute(
+                select(notification_channels.c.id).where(notification_channels.c.user_id == data.user_id, notification_channels.c.channel == data.channel)
+            ).scalar_one_or_none()
+            if existing:
+                conn.execute(update(notification_channels).where(notification_channels.c.id == existing).values(**values))
+                return str(existing)
+            channel_id = _id()
+            conn.execute(insert(notification_channels).values(id=channel_id, user_id=data.user_id, channel=data.channel, **values))
+            return channel_id
+
+    def find_notification_channel_by_code(self, link_code: str, channel: str = "telegram") -> dict[str, Any] | None:
+        if not link_code:
+            return None
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(notification_channels).where(notification_channels.c.link_code == link_code, notification_channels.c.channel == channel)
+            ).mappings().first()
+        return _notification_row(row) if row else None
+
+    def find_notification_channel_by_external_id(self, external_id: str, channel: str = "telegram") -> dict[str, Any] | None:
+        if not external_id:
+            return None
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(notification_channels).where(notification_channels.c.external_id == external_id, notification_channels.c.channel == channel)
+            ).mappings().first()
+        return _notification_row(row) if row else None
+
+    def list_notification_recipients(self, channel: str = "telegram", *, limit: int = 5000) -> list[dict[str, Any]]:
+        """Linked, enabled channels joined with the member's subscription row (if any)."""
+
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        stmt = (
+            select(notification_channels, subscriptions.c.plan.label("plan"), subscriptions.c.status.label("subscription_status"), subscriptions.c.current_period_end, subscriptions.c.trial_ends_at)
+            .select_from(notification_channels.outerjoin(subscriptions, subscriptions.c.user_id == notification_channels.c.user_id))
+            .where(notification_channels.c.channel == channel, notification_channels.c.enabled == 1, notification_channels.c.external_id.is_not(None))
+            .order_by(notification_channels.c.linked_at)
+            .limit(limit)
+        )
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [_notification_row(row) for row in rows]
+
+    def update_harness_run_metadata(self, harness_run_id: str, patch: Mapping[str, Any]) -> None:
+        _validate_uuid(harness_run_id, "harness_run_id")
+        with self.engine.begin() as conn:
+            current = conn.execute(select(harness_runs.c.metadata_json).where(harness_runs.c.id == harness_run_id)).scalar_one_or_none()
+            if current is None:
+                raise ValueError("harness run not found")
+            merged = {**dict(current or {}), **dict(patch)}
+            conn.execute(update(harness_runs).where(harness_runs.c.id == harness_run_id).values(metadata_json=merged))
+
     # ------------------------------------------------------------ billing
     def get_subscription(self, user_id: str) -> dict[str, Any] | None:
         _validate_uuid(user_id, "user_id")
@@ -1599,6 +1678,12 @@ def _validate_paper_simulation_event(data: PaperSimulationEventInput) -> None:
 def _harness_run_row(row: Any) -> dict[str, Any]:
     payload = dict(row)
     payload["dry_run"] = bool(payload.get("dry_run"))
+    return payload
+
+
+def _notification_row(row: Any) -> dict[str, Any]:
+    payload = dict(row)
+    payload["enabled"] = bool(payload.get("enabled"))
     return payload
 
 

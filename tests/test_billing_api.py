@@ -125,3 +125,54 @@ def test_plan_gated_and_billing_responses_are_private(monkeypatch):
     assert with_member.headers["cache-control"] == "private, no-store"
     anonymous = client.get("/api/harness/runs")
     assert anonymous.headers["cache-control"].startswith("public")
+
+
+def test_billing_page_and_telegram_member_endpoints(monkeypatch):
+    from tradingagents.site.notifications import TelegramClient, TelegramConfig
+
+    repo = _repo()
+    sent = []
+
+    def transport(method, url, body):
+        sent.append(body)
+        return 200, {"ok": True, "result": {"message_id": 1}}
+
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:abc")
+    monkeypatch.setenv("TELEGRAM_BOT_USERNAME", "TradingAgentsKRBot")
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "hook-secret")
+    client = _client(repo, monkeypatch)
+    client.app.state.telegram_client = TelegramClient(TelegramConfig.from_env(), transport=transport)
+    headers = {"X-TradingAgents-User-Id": USER}
+
+    page = client.get("/billing")
+    assert page.status_code == 200 and "텔레그램 알림" in page.text and "requestIssueBillingKey" in page.text
+    assert page.headers["cache-control"] == "private, no-store" or "noindex" in page.text
+
+    link = client.post("/api/notifications/telegram/link", headers=headers).json()
+    assert link["link_url"].startswith("https://t.me/TradingAgentsKRBot?start=")
+    assert client.get("/api/notifications/telegram/status", headers=headers).json()["linked"] is False
+
+    update = {"message": {"chat": {"id": 900, "first_name": "Tester"}, "text": f"/start {link['code']}"}}
+    assert client.post("/api/notifications/telegram/webhook", json=update).status_code == 401
+    ok = client.post("/api/notifications/telegram/webhook", json=update, headers={"X-Telegram-Bot-Api-Secret-Token": "hook-secret"})
+    assert ok.status_code == 200 and ok.json()["linked"] is True
+    assert client.get("/api/notifications/telegram/status", headers=headers).json()["linked"] is True
+    assert sent and "연결되었습니다" in sent[-1]["text"]
+
+    monkeypatch.setenv("TRADINGAGENTS_WORKER_TOKEN", "tok")
+    setup = client.post("/api/admin/notifications/telegram/setup", headers={"X-TradingAgents-Worker-Token": "tok"})
+    assert setup.status_code == 502 or setup.status_code == 200  # fake transport answers getMe/setWebhook with generic payload
+    notify = client.post("/api/admin/notifications/harness-issue", headers={"X-TradingAgents-Worker-Token": "tok"}).json()
+    assert notify["status"] == "no_run"
+    assert client.delete("/api/notifications/telegram/link", headers=headers).json()["linked"] is False
+
+
+def test_analysis_request_quota_follows_plan(monkeypatch):
+    repo = _repo()
+    client = _client(repo, monkeypatch)
+    headers = {"X-TradingAgents-User-Id": USER}
+    codes = ["005930", "000660", "035420", "373220"]
+    statuses = [client.post("/api/analysis-requests", json={"ticker": code}, headers=headers).status_code for code in codes[:3]]
+    assert statuses == [200, 200, 429]  # free plan: 2 active requests
+    repo.upsert_subscription(SubscriptionInput(user_id=USER, plan="daily", status="active", current_period_end=datetime.now(timezone.utc) + timedelta(days=10)))
+    assert client.post("/api/analysis-requests", json={"ticker": codes[2]}, headers=headers).status_code == 200

@@ -253,3 +253,16 @@ class BillingEventInput:
     status: str | None = None
     message: str | None = None
     payload: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class NotificationChannelInput:
+    user_id: str
+    channel: str = "telegram"
+    external_id: str | None = None
+    display_name: str | None = None
+    link_code: str | None = None
+    link_code_expires_at: datetime | None = None
+    linked_at: datetime | None = None
+    enabled: bool = True
+    metadata: Mapping[str, Any] = field(default_factory=dict)

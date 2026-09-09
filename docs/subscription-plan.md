@@ -51,20 +51,32 @@
 필요한 환경변수: `PORTONE_API_SECRET`, `PORTONE_STORE_ID`, `PORTONE_CHANNEL_KEY`,
 `PORTONE_WEBHOOK_SECRET`. 웹훅 URL: `https://<도메인>/api/billing/portone/webhook`.
 
+텔레그램: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET`를
+Vercel에 넣은 뒤 운영자 토큰으로 `POST /api/admin/notifications/telegram/setup`을 한 번
+호출하면 웹훅(`/api/notifications/telegram/webhook`)이 등록된다. 로컬 망은 텔레그램이
+차단되어 있으므로 검증은 배포 후 `/billing`에서 연결 코드를 받아 봇에 `/start`로 진행한다.
+
 ## 5. 데이터
 
 `subscriptions`(회원당 1행: 플랜, 상태, 빌링키 참조, 기간, 실패 횟수)와
 `billing_events`(결제·체험·해지 이력). 마이그레이션 `202609090001_subscriptions.sql`,
 RLS는 본인 행 읽기만 허용, 쓰기는 서버(DATABASE_URL)만.
 
-## 6. 남은 구현 (2단계)
+## 6. 구현 현황
 
-- 마이페이지 결제 UI(포트원 SDK 호출, 플랜 상태 표시, 해지 버튼).
-- 분석 요청 쿼터를 플랜별로 적용(`queue_analysis_refresh_request`의 `daily_limit`,
-  `active_limit`에 `PlanAccess.plan` 값 전달).
-- 텔레그램 알림: 07:55 "제 N호 도착", 손절·익절 발동, 5D/20D 확정.
-- 홈·하네스 페이지의 잠금 UI(무료 사용자에게 "데일리 패스에서 열립니다" 안내).
+완료(2026-09-09):
+- `/billing` 구독 관리 페이지: 플랜 상태, 체험 시작, 데일리/프로 결제(포트원 SDK
+  `requestIssueBillingKey`), 기간 종료 해지, 텔레그램 연결 코드, 결제 이력.
+- 분석 요청 쿼터를 플랜별로 적용(운영자 env 상한과 비교해 작은 값).
+- 홈·`/harness` HTML은 항상 무료 뷰(전일 실행, 토론 발췌 1줄씩)를 렌더링하고, 당일
+  실행은 "후보 N개 중 M개 통과" 티저로만 노출. 유료 회원은 API로 당일 전문을 받음.
+- 텔레그램: 봇 웹훅(`/start 코드` 연결, `/stop` 해제), 발행 푸시
+  (`/api/cron/notify-harness-issue` 07:56·10:25 KST, 유료는 종목·등급, 무료는 발행 안내).
+
+남은 것:
 - 환불 자동화(포트원 취소 API)와 영수증 메일.
+- 손절·익절 발동, 5D/20D 확정 알림(현재는 발행 알림만).
+- 마이페이지(`/mypage`) 안에 `/billing` 진입 링크와 플랜 배지.
 
 ## 7. 출시 체크리스트
 

@@ -19,11 +19,26 @@ def render_harness_page(
 ) -> str:
     from .web_pages import PAGE_CSS, PAGE_JS, _h, _script_json, _top_nav
 
+    from .billing import gate_harness_payload, latest_visible_run_id, resolve_plan_access
+
+    # Server-rendered pages are public and cacheable, so they always show the
+    # free view: the newest run dated before today, no debate transcript. Paid
+    # members open the same-day run through the API with their session.
+    free_access = resolve_plan_access(None, None)
     runs_payload = build_harness_runs_payload(repo, limit=limit)
-    run_payload = build_harness_run_payload(repo, harness_run_id=harness_run_id)
+    target_run_id = harness_run_id or latest_visible_run_id(repo, free_access)
+    run_payload = build_harness_run_payload(repo, harness_run_id=target_run_id) if target_run_id else build_harness_run_payload(repo)
     if harness_run_id and run_payload is None:
         raise ValueError("Harness run not found")
+    run_payload = gate_harness_payload(run_payload, free_access) if run_payload else None
     run_payload = run_payload or {"status": "empty", "run": None, "decisions": [], "summary": {}}
+    plan_gate = run_payload.get("plan_gate") or {}
+    gate_notice = ""
+    gate_style = "margin:8px 0 0;padding:10px 14px;border:1px solid #c79a3a;border-radius:8px;background:rgba(199,154,58,0.12);font-size:14px;"
+    if plan_gate.get("locked"):
+        gate_notice = f'<p class="harness-gate" style="{gate_style}">{_h(plan_gate.get("reason"))} <a href="/pricing">요금제 보기</a></p>'
+    elif run_payload.get("run"):
+        gate_notice = f'<p class="harness-gate" style="{gate_style}">강세·약세·판정관·리스크 패널 토론 전문은 데일리 패스 회원에게 열립니다. <a href="/pricing">요금제 보기</a></p>'
     run = run_payload.get("run") or {}
     decisions = run_payload.get("decisions") or []
     summary = run_payload.get("summary") or {}
@@ -140,6 +155,7 @@ def render_harness_page(
       <div>
         <p class="eyebrow">일일 하네스</p>
         <h1 id="harness-title">{_h(title)}</h1>
+        {gate_notice}
         <p class="asof">{_h(description)}</p>
         <div class="analysis-detail-actions">
           <a href="/harness">최근 실행</a>

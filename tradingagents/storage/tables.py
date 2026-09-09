@@ -320,6 +320,24 @@ billing_events = Table(
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
 )
 
+notification_channels = Table(
+    "notification_channels",
+    metadata,
+    Column("id", Uuid(as_uuid=False), primary_key=True),
+    Column("user_id", Uuid(as_uuid=False), nullable=False, index=True),
+    Column("channel", String(24), nullable=False, default="telegram"),
+    Column("external_id", String(120), nullable=True, index=True),
+    Column("display_name", String(120), nullable=True),
+    Column("link_code", String(32), nullable=True, index=True),
+    Column("link_code_expires_at", DateTime(timezone=True), nullable=True),
+    Column("linked_at", DateTime(timezone=True), nullable=True),
+    Column("enabled", Integer, nullable=False, default=1),
+    Column("metadata_json", JSON, nullable=False, default=dict),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    UniqueConstraint("user_id", "channel", name="uq_notification_channels_user_channel"),
+)
+
 harness_outcomes = Table(
     "harness_outcomes",
     metadata,
