@@ -337,3 +337,39 @@ def test_pipeline_config_validation():
         PipelineConfig(confirm_top_n=0)
     with pytest.raises(ValueError):
         PipelineConfig(stop_loss_pct=1.5)
+
+
+def test_pipeline_uses_broker_quote_for_entry_price_when_available():
+    """Intraday KIS runs must size and price orders off the live quote, not yesterday's close."""
+
+    from tradingagents.execution import BrokerAccountSnapshot, BrokerOrderResult
+
+    class QuotingBroker:
+        name = "quoting"
+        is_paper = True
+
+        def __init__(self):
+            self.orders = []
+
+        def quote(self, code):
+            return 60_000.0  # well above the last close in _points()
+
+        def account_snapshot(self, prices=None):
+            return BrokerAccountSnapshot(broker=self.name, cash=10_000_000, equity=10_000_000, positions={})
+
+        def place_order(self, order, *, price, dry_run=False):
+            self.orders.append((order, price))
+            return BrokerOrderResult(status="dry_run", order=order, broker=self.name)
+
+    broker = QuotingBroker()
+    points = _points()
+    result = run_daily_pipeline(
+        "2026-09-05",
+        config=PipelineConfig(require_llm_confirmation=False, min_probability_up=0, min_expected_return=-1),
+        screener_runner=lambda when, cfg: _screener_result(points),
+        history_fetcher=lambda code, s, e: points,
+        broker=broker,
+    )
+    ordered = [d for d in result.decisions if d.stage == "ordered"]
+    assert ordered and ordered[0].sizing["entry_price"] == 60_000.0
+    assert broker.orders[0][1] == 60_000.0

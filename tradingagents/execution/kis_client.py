@@ -46,6 +46,7 @@ _TR_IDS = {
     "buy_cash": {"paper": "VTTC0802U", "live": "TTTC0802U"},
     "sell_cash": {"paper": "VTTC0801U", "live": "TTTC0801U"},
     "price": {"paper": "FHKST01010100", "live": "FHKST01010100"},
+    "daily_orders": {"paper": "VTTC8001R", "live": "TTTC8001R"},
 }
 
 ORDER_DIVISION_LIMIT = "00"
@@ -216,6 +217,86 @@ class KISClient:
         }
 
     # --------------------------------------------------------------- orders
+    def daily_orders(self, *, start_date: str | None = None, end_date: str | None = None, code: str | None = None) -> list[dict[str, Any]]:
+        """Orders and fills for today (or a YYYYMMDD range): 주식일별주문체결조회."""
+
+        self._require_account()
+        today = time.strftime("%Y%m%d")
+        params = {
+            "CANO": self.config.account_no,
+            "ACNT_PRDT_CD": self.config.account_product_code,
+            "INQR_STRT_DT": (start_date or today).replace("-", ""),
+            "INQR_END_DT": (end_date or today).replace("-", ""),
+            "SLL_BUY_DVSN_CD": "00",
+            "INQR_DVSN": "00",
+            "PDNO": _code(code) if code else "",
+            "CCLD_DVSN": "00",
+            "ORD_GNO_BRNO": "",
+            "ODNO": "",
+            "INQR_DVSN_3": "00",
+            "INQR_DVSN_1": "",
+            "CTX_AREA_FK100": "",
+            "CTX_AREA_NK100": "",
+        }
+        response = self._daily_ccld(params)
+        orders = []
+        for row in response.get("output1") or []:
+            ordered = _float(row.get("ord_qty")) or 0.0
+            filled = _float(row.get("tot_ccld_qty")) or 0.0
+            orders.append(
+                {
+                    "order_id": str(row.get("odno") or ""),
+                    "code": _code(str(row.get("pdno") or "")),
+                    "name": row.get("prdt_name"),
+                    "side": "sell" if str(row.get("sll_buy_dvsn_cd") or "") == "01" else "buy",
+                    "order_time": row.get("ord_tmd"),
+                    "order_price": _float(row.get("ord_unpr")),
+                    "ordered_quantity": ordered,
+                    "filled_quantity": filled,
+                    "remaining_quantity": _float(row.get("rmn_qty")),
+                    "average_fill_price": _float(row.get("avg_prvs")),
+                    "cancelled": str(row.get("cncl_yn") or "N") == "Y",
+                    "status": "filled" if filled and filled >= ordered else ("partial" if filled else "open"),
+                }
+            )
+        return orders
+
+    def daily_order_summary(self, *, start_date: str | None = None, end_date: str | None = None) -> dict[str, Any]:
+        """Totals for the day: 모의투자 often returns only this ``output2`` block."""
+
+        self._require_account()
+        today = time.strftime("%Y%m%d")
+        params = {
+            "CANO": self.config.account_no,
+            "ACNT_PRDT_CD": self.config.account_product_code,
+            "INQR_STRT_DT": (start_date or today).replace("-", ""),
+            "INQR_END_DT": (end_date or today).replace("-", ""),
+            "SLL_BUY_DVSN_CD": "00",
+            "INQR_DVSN": "00",
+            "PDNO": "",
+            "CCLD_DVSN": "00",
+            "ORD_GNO_BRNO": "",
+            "ODNO": "",
+            "INQR_DVSN_3": "00",
+            "INQR_DVSN_1": "",
+            "CTX_AREA_FK100": "",
+            "CTX_AREA_NK100": "",
+        }
+        response = self._daily_ccld(params)
+        summary = response.get("output2") or {}
+        if isinstance(summary, list):
+            summary = summary[0] if summary else {}
+        return {
+            "ordered_quantity": _float(summary.get("tot_ord_qty")) or 0.0,
+            "filled_quantity": _float(summary.get("tot_ccld_qty")) or 0.0,
+            "filled_amount": _float(summary.get("tot_ccld_amt")) or 0.0,
+            "message": response.get("msg1"),
+            "order_count": len(response.get("output1") or []),
+        }
+
+    def _daily_ccld(self, params: Mapping[str, Any]) -> Mapping[str, Any]:
+        return self._api("GET", "/uapi/domestic-stock/v1/trading/inquire-daily-ccld", tr_id=_TR_IDS["daily_orders"][self.mode], params=params)
+
     def place_cash_order(
         self,
         code: str,
@@ -352,6 +433,11 @@ class KISBrokerAdapter:
     def is_paper(self) -> bool:
         return self.client.is_paper
 
+    def quote(self, code: str) -> float | None:
+        """Live last price from KIS, used by the harness for intraday limit prices."""
+
+        return self.client.current_price(code).get("price")
+
     def account_snapshot(self, prices: Mapping[str, float] | None = None) -> BrokerAccountSnapshot:
         balance = self.client.balance()
         positions: dict[str, dict[str, float]] = {}
@@ -363,8 +449,12 @@ class KISBrokerAdapter:
                 "average_price": float(holding.get("average_price") or 0.0),
                 "market_value": float(holding.get("market_value") or holding["quantity"] * price),
             }
-        cash = float(balance.get("cash") or 0.0)
-        equity = float(balance.get("total_equity") or (cash + sum(item["market_value"] for item in positions.values())))
+        # KRX settles T+2: the deposit (예수금) still shows today's purchases as
+        # cash, so size and gate orders off the orderable amount instead.
+        deposit = float(balance.get("cash") or 0.0)
+        orderable = balance.get("orderable_cash")
+        cash = float(orderable) if orderable is not None else deposit
+        equity = float(balance.get("total_equity") or (deposit + sum(item["market_value"] for item in positions.values())))
         return BrokerAccountSnapshot(
             broker=self.name,
             cash=cash,
@@ -372,7 +462,7 @@ class KISBrokerAdapter:
             positions=positions,
             currency="KRW",
             is_paper=self.is_paper,
-            raw={"mode": self.client.mode, "orderable_cash": balance.get("orderable_cash")},
+            raw={"mode": self.client.mode, "orderable_cash": balance.get("orderable_cash"), "deposit": deposit},
         )
 
     def place_order(self, order: OrderIntent, *, price: float, dry_run: bool = False) -> BrokerOrderResult:

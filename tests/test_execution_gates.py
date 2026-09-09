@@ -324,3 +324,43 @@ def test_kis_client_token_cache_is_shared_across_clients(tmp_path, monkeypatch):
     assert second.access_token() == "cached-token"
     assert calls == ["/oauth2/tokenP"]  # second client served from disk
     assert "cached-token" not in repr(second)
+
+
+def test_kis_client_daily_orders_and_adapter_quote():
+    def transport(method, url, headers, params, json_body):
+        if url.endswith("/oauth2/tokenP"):
+            return {"access_token": "t", "expires_in": 100}
+        if "inquire-price" in url:
+            return {"rt_cd": "0", "output": {"stck_prpr": "1900000", "prdy_ctrt": "2.5", "acml_vol": "10"}}
+        if "inquire-daily-ccld" in url:
+            assert headers["tr_id"] == "VTTC8001R"
+            assert params["INQR_STRT_DT"] == "20260909"
+            return {
+                "rt_cd": "0",
+                "output1": [
+                    {"odno": "0000017028", "pdno": "000660", "prdt_name": "SK하이닉스", "sll_buy_dvsn_cd": "02", "ord_tmd": "101530", "ord_unpr": "1852000", "ord_qty": "3", "tot_ccld_qty": "0", "rmn_qty": "3", "avg_prvs": "0", "cncl_yn": "N"},
+                    {"odno": "0000017029", "pdno": "005930", "prdt_name": "삼성전자", "sll_buy_dvsn_cd": "01", "ord_tmd": "101600", "ord_unpr": "270000", "ord_qty": "2", "tot_ccld_qty": "2", "rmn_qty": "0", "avg_prvs": "270000", "cncl_yn": "N"},
+                ],
+            }
+        raise AssertionError(url)
+
+    client = KISClient(_paper_config(), transport=transport)
+    orders = client.daily_orders(start_date="2026-09-09", end_date="2026-09-09")
+    assert [(o["order_id"], o["side"], o["status"]) for o in orders] == [("0000017028", "buy", "open"), ("0000017029", "sell", "filled")]
+    assert orders[0]["remaining_quantity"] == 3
+    adapter = KISBrokerAdapter(client, execution_rules=KoreaTradingRules())
+    assert adapter.quote("000660") == 1_900_000
+
+
+def test_kis_client_daily_order_summary_reads_output2_totals():
+    def transport(method, url, headers, params, json_body):
+        if url.endswith("/oauth2/tokenP"):
+            return {"access_token": "t", "expires_in": 100}
+        assert "inquire-daily-ccld" in url
+        return {"rt_cd": "0", "msg1": "모의투자 조회할 내역(자료)이 없습니다.", "output1": [], "output2": {"tot_ord_qty": "3", "tot_ccld_qty": "3", "tot_ccld_amt": "5556000"}}
+
+    summary = KISClient(_paper_config(), transport=transport).daily_order_summary(start_date="2026-09-09")
+    assert summary["ordered_quantity"] == 3
+    assert summary["filled_quantity"] == 3
+    assert summary["filled_amount"] == 5_556_000
+    assert summary["order_count"] == 0

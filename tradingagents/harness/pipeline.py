@@ -384,7 +384,11 @@ def _process_candidate(
     closes = [float(p["close"]) for p in points if p.get("close") is not None]
     if len(closes) < 2:
         return PipelineDecision(stage="screened", reasons=["insufficient history"], **base)
-    entry_price = float(current_prices.get(candidate.code) or closes[-1])
+    entry_price = float(current_prices.get(candidate.code) or 0.0)
+    if entry_price <= 0:
+        live_quote = _broker_quote(broker, candidate.code)
+        entry_price = live_quote if live_quote else float(closes[-1])
+        _audit(ledger, "entry_price", {"code": candidate.code, "price": entry_price, "source": "broker_quote" if live_quote else "last_close"})
 
     # forecast gate
     try:
@@ -682,6 +686,27 @@ def _chart_history_fetcher(code: str, start_date: str, end_date: str) -> list[di
 
     series = get_ohlcv_chart_series(code, start_date, end_date, vendor="pykrx")
     return [point.as_dict() for point in series.points]
+
+
+def _broker_quote(broker: BrokerAdapter, code: str) -> float | None:
+    """Ask the broker for a live price when it can quote (KIS); None otherwise.
+
+    Intraday runs must not send limit orders at yesterday's close: a rising
+    stock would leave the order unfilled, a falling one would overpay.
+    """
+
+    quote = getattr(broker, "quote", None)
+    if quote is None:
+        return None
+    try:
+        value = quote(code)
+    except Exception:
+        return None
+    try:
+        price = float(value or 0.0)
+    except (TypeError, ValueError):
+        return None
+    return price if price > 0 else None
 
 
 def _audit(ledger: AuditLedger | None, event_type: str, payload: Mapping[str, Any]) -> None:
