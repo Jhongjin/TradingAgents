@@ -276,17 +276,29 @@ def submit_indexnow(paths: Iterable[str], *, site_base_url: str | None = None, k
         return {"status": "skipped", "reason": "key, site base URL, and paths are required", "urls": urls}
     host = base.split("://", 1)[1].split("/", 1)[0]
     payload = {"host": host, "key": resolved_key, "keyLocation": indexnow_key_location(resolved_key, site_base_url=base), "urlList": urls[:10000]}
+    body = ""
     try:
         if transport is None:
+            import json as _json
+
             import requests
 
-            response = requests.post(INDEXNOW_ENDPOINT, json=payload, timeout=timeout)
+            response = requests.post(
+                INDEXNOW_ENDPOINT,
+                data=_json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json; charset=utf-8", "User-Agent": "TradingAgentsKorea/1.0 (+https://agenttrust.kr)"},
+                timeout=timeout,
+            )
             status_code = response.status_code
+            body = (response.text or "")[:300]
         else:
             status_code = int(transport(INDEXNOW_ENDPOINT, payload))
     except Exception as exc:  # network trouble is not fatal
         return {"status": "failed", "error": f"{exc.__class__.__name__}: {exc}", "urls": urls}
-    return {"status": "sent" if status_code in (200, 202) else "failed", "http_status": status_code, "urls": urls}
+    result = {"status": "sent" if status_code in (200, 202) else "failed", "http_status": status_code, "urls": urls}
+    if body and status_code not in (200, 202):
+        result["response"] = body
+    return result
 
 
 def _sitemap_prefixed_paths(paths: Iterable[str] | None, prefix: str, suffix: str = "") -> tuple[str, ...]:
