@@ -1,0 +1,61 @@
+name: Intraday exits (paper account)
+
+# The morning run is the only place new picks are bought. This one only closes
+# positions that hit their stop, their target, or the holding limit, using the
+# price at the time it runs. Without it a stop breached at noon was not acted
+# on until the next morning, which flattered or punished the record depending
+# on where the stock went overnight.
+#
+# No new entries, no live broker: the local paper account only.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 11:20, 13:20 and 15:20 KST on weekdays (02:20, 04:20 and 06:20 UTC).
+    - cron: "20 2 * * 1-5"
+    - cron: "20 4 * * 1-5"
+    - cron: "20 6 * * 1-5"
+
+concurrency:
+  group: harness-paper-account
+  cancel-in-progress: false
+
+jobs:
+  exits:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TRADINGAGENTS_POSTGRES_DRIVER: pg8000
+      TRADINGAGENTS_FORECAST_BACKEND: naive
+      TRADINGAGENTS_SCREENER_UNIVERSE: ${{ vars.TRADINGAGENTS_SCREENER_UNIVERSE }}
+      TRADINGAGENTS_ENABLE_LIVE_TRADING: "false"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -e .
+      - name: Close positions that hit a rule
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "::error::DATABASE_URL secret is not set"; exit 1; fi
+          tradingagents pipeline \
+            --exits-only \
+            --execute \
+            --persist \
+            --audit-log ./harness-audit.jsonl \
+            --output ./intraday-exits.json
+      - name: Verify audit chain
+        run: tradingagents audit-verify --path ./harness-audit.jsonl
+      - name: Record the account after the pass
+        continue-on-error: true
+        run: tradingagents record-paper-snapshot
+      - uses: actions/upload-artifact@v4
+        with:
+          name: intraday-exits
+          path: |
+            intraday-exits.json
+            harness-audit.jsonl

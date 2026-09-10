@@ -34,6 +34,8 @@ from tradingagents.execution import (
     size_position,
 )
 from tradingagents.forecast import ForecastResult, Forecaster, forecast_from_points, get_forecaster
+from zoneinfo import ZoneInfo
+
 from tradingagents.screener import ScreenerCandidate, ScreenerConfig, ScreenerResult, screen_korean_market
 
 from .prompts import get_prompt
@@ -42,6 +44,8 @@ from .tasks import HarnessTask, LLMCallable, run_task
 
 HistoryFetcher = Callable[[str, str, str], Sequence[Mapping[str, Any]]]
 ScreenerRunner = Callable[[str | None, ScreenerConfig], ScreenerResult]
+
+_KST = ZoneInfo("Asia/Seoul")
 
 
 @dataclass(frozen=True)
@@ -81,6 +85,8 @@ class PipelineConfig:
     take_profit_pct: float = 0.10
     max_holding_days: int = 20
     min_cash_reserve_pct: float = 0.10
+    commission_rate: float = 0.00015
+    exits_only: bool = False
     initial_cash: float = 10_000_000.0
     dry_run: bool = True
     require_llm_confirmation: bool = True
@@ -97,6 +103,8 @@ class PipelineConfig:
             raise ValueError("min_confidence must be between 0 and 1")
         if not 0 <= self.min_cash_reserve_pct < 1:
             raise ValueError("min_cash_reserve_pct must be between 0 and 1")
+        if not 0 <= self.commission_rate < 0.05:
+            raise ValueError("commission_rate must be between 0 and 0.05")
         if not 0 < self.stop_loss_pct < 1:
             raise ValueError("stop_loss_pct must be between 0 and 1")
         if not 0 < self.take_profit_pct < 1:
@@ -192,6 +200,7 @@ def run_daily_pipeline(
         PaperBroker.with_limits(
             initial_cash=config.initial_cash,
             limits=RiskLimits(max_position_weight=config.max_position_weight),
+            commission_rate=config.commission_rate,
             currency="KRW",
             execution_rules=KoreaTradingRules(),
         )
@@ -201,8 +210,24 @@ def run_daily_pipeline(
     notes: list[str] = []
 
     screener_config = ScreenerConfig(**{**asdict(config.screener), "markets": tuple(config.markets)})
-    runner = screener_runner or (lambda when, cfg: screen_korean_market(when, config=screener_config, history_fetcher=fetcher))
-    screener_result = runner(as_of, screener_config)
+    if config.exits_only and screener_runner is None:
+        # An exits-only pass never looks at candidates, so scanning the market
+        # would cost a full snapshot for nothing.
+        from tradingagents.screener.screener import ScreenerResult
+
+        screener_result = ScreenerResult(
+            as_of_date=as_of or datetime.now(_KST).date().isoformat(),
+            markets=tuple(config.markets),
+            universe_size=0,
+            prefiltered_size=0,
+            scored_size=0,
+            candidates=[],
+            config=screener_config,
+            notes=["exits-only pass: the screener was not run"],
+        )
+    else:
+        runner = screener_runner or (lambda when, cfg: screen_korean_market(when, config=screener_config, history_fetcher=fetcher))
+        screener_result = runner(as_of, screener_config)
     resolved_date = screener_result.as_of_date
     _audit(ledger, "screen", {"as_of_date": resolved_date, "candidates": [c.code for c in screener_result.candidates], "universe_size": screener_result.universe_size})
 
@@ -228,11 +253,16 @@ def run_daily_pipeline(
     )
 
     # ----------------------------------------------------------- entries
-    if config.require_llm_confirmation and confirmer is None:
+    if config.exits_only:
+        # Intraday passes only close positions. Entries stay on the morning
+        # run, where the screener and the debate have the full session behind
+        # them; a stop that is breached at noon should not wait until then.
+        notes.append("exits-only pass: no new entries were considered")
+    elif config.require_llm_confirmation and confirmer is None:
         notes.append("no confirmer configured; require_llm_confirmation=True so no entries are placed (fail closed)")
     end_date = datetime.strptime(resolved_date, "%Y-%m-%d").date()
     start_date = end_date - timedelta(days=int(config.history_days * 1.6) + 10)
-    for candidate in screener_result.candidates[: config.confirm_top_n]:
+    for candidate in ([] if config.exits_only else screener_result.candidates[: config.confirm_top_n]):
         decisions.append(
             _process_candidate(
                 candidate,
@@ -342,6 +372,7 @@ def persist_pipeline_result(repo: Any, result: PipelineRunResult, *, config: Pip
                     "take_profit_pct": config.take_profit_pct,
                     "max_holding_days": config.max_holding_days,
                     "min_cash_reserve_pct": config.min_cash_reserve_pct,
+                    "commission_rate": config.commission_rate,
                     "initial_cash": config.initial_cash,
                 },
                 "mandate": config.mandate.as_dict(),

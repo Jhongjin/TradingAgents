@@ -34,6 +34,24 @@ FILLED_STATUSES = {"filled", "accepted"}
 # concentration, because every cap is a share of equity.
 _FALLBACK_INITIAL_CASH = 50_000_000.0
 
+# Brokerage fee on the traded notional. The account charged nothing before, so
+# its record read better than a real one would; API tariffs on Korean brokers
+# sit near this level.
+_FALLBACK_COMMISSION_RATE = 0.00015
+
+
+def default_commission_rate() -> float:
+    """Fee rate per trade, overridable with TRADINGAGENTS_PAPER_COMMISSION_RATE."""
+
+    raw = os.getenv("TRADINGAGENTS_PAPER_COMMISSION_RATE")
+    if not raw:
+        return _FALLBACK_COMMISSION_RATE
+    try:
+        value = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return _FALLBACK_COMMISSION_RATE
+    return value if 0 <= value < 0.05 else _FALLBACK_COMMISSION_RATE
+
 
 ACCOUNTS: tuple[tuple[str, str], ...] = (("paper", "자체 모의"), ("kis", "KIS 모의투자"))
 ACCOUNT_LABELS = dict(ACCOUNTS)
@@ -80,6 +98,25 @@ def _as_date(value: Any) -> date | None:
         return None
 
 
+def entry_reason(row: Mapping[str, Any], *, limit: int = 140) -> str:
+    """Why the pick was bought, in the words the run recorded.
+
+    A record of what was bought is worth little without why, and the run stored
+    it: the confirmer's rationale, or failing that its own gate reasons.
+    """
+
+    detail = row.get("detail_json") if isinstance(row.get("detail_json"), Mapping) else {}
+    confirmation = (detail or {}).get("confirmation") or {}
+    text = str(confirmation.get("rationale") or "").strip()
+    if not text:
+        reasons = [str(item).strip() for item in (row.get("reasons_json") or []) if str(item).strip()]
+        text = reasons[0] if reasons else ""
+    if text.lower() in {"paper fill", "order accepted", "dry run, no fill"}:
+        return ""
+    text = " ".join(text.split())
+    return text if len(text) <= limit else f"{text[: limit - 1]}…"
+
+
 def fill_price(row: Mapping[str, Any]) -> float | None:
     """Price the order actually filled at.
 
@@ -110,12 +147,14 @@ def replay_fills(
     initial_cash: float,
     max_position_weight: float = 0.2,
     currency: str = "KRW",
+    commission_rate: float | None = None,
 ) -> tuple[PaperBroker, list[str]]:
     """Rebuild the paper broker by re-submitting every recorded fill in order."""
 
     broker = PaperBroker.with_limits(
         initial_cash=initial_cash,
         limits=RiskLimits(max_position_weight=max_position_weight),
+        commission_rate=default_commission_rate() if commission_rate is None else commission_rate,
         currency=currency,
         execution_rules=KoreaTradingRules(),
     )
@@ -207,6 +246,7 @@ def build_paper_account_payload(
     broker = PaperBroker.with_limits(
         initial_cash=initial_cash,
         limits=RiskLimits(max_position_weight=1.0),
+        commission_rate=default_commission_rate(),
         currency="KRW",
         execution_rules=KoreaTradingRules(),
     )
@@ -242,6 +282,9 @@ def build_paper_account_payload(
 
         if stage == "ordered":
             lot = lots.setdefault(code, {"ticker_name": row.get("ticker_name") or code, "market": row.get("market"), "entry_date": when})
+            lot["decision_rating"] = row.get("confirmation_rating") or lot.get("decision_rating")
+            lot["decision_confidence"] = row.get("confirmation_confidence") if row.get("confirmation_confidence") is not None else lot.get("decision_confidence")
+            lot["entry_reason"] = entry_reason(row) or lot.get("entry_reason")
             lot["ticker_name"] = row.get("ticker_name") or lot.get("ticker_name") or code
             lot["market"] = row.get("market") or lot.get("market")
             if lot.get("entry_date") is None:
@@ -263,6 +306,9 @@ def build_paper_account_payload(
                 "quantity": quantity,
                 "entry_date": lot["entry_date"].isoformat() if lot.get("entry_date") else None,
                 "entry_price": round(average_before, 2),
+                "decision_rating": lot.get("decision_rating"),
+                "decision_confidence": lot.get("decision_confidence"),
+                "entry_reason": lot.get("entry_reason"),
                 "exit_date": when.isoformat() if when else None,
                 "exit_price": round(price, 2),
                 "exit_reason": reasons[0] if reasons else None,
@@ -293,6 +339,9 @@ def build_paper_account_payload(
                 "entry_date": lot["entry_date"].isoformat() if lot.get("entry_date") else None,
                 "average_price": round(average, 2),
                 "current_price": round(price, 2) if price else None,
+                "decision_rating": lot.get("decision_rating"),
+                "decision_confidence": lot.get("decision_confidence"),
+                "entry_reason": lot.get("entry_reason"),
                 "target_price": lot.get("target_price"),
                 "stop_price": lot.get("stop_price"),
                 "market_value": round(market_value, 2),

@@ -525,3 +525,120 @@ def test_the_page_shows_both_books_and_labels_every_row():
 
     api = client.get("/api/paper-account").json()
     assert {book["key"] for book in api["accounts"]} == {"paper", "kis"}
+
+
+def test_every_row_says_why_it_was_bought():
+    repo = _repo()
+    today = datetime.now(timezone.utc).date()
+    run = repo.create_harness_run(
+        HarnessRunInput(as_of_date=today - timedelta(days=8), confirmer="debate", visibility="public", dry_run=False, broker="paper", candidate_count=1, order_count=1)
+    )
+    repo.add_harness_decision(
+        HarnessDecisionInput(
+            harness_run_id=run,
+            as_of_date=today - timedelta(days=8),
+            ticker_code="096770",
+            ticker_name="SK이노베이션",
+            stage="ordered",
+            quantity=13,
+            entry_price=Decimal("153500"),
+            stop_price=Decimal("145825"),
+            take_profit_price=Decimal("168850"),
+            confirmation_rating="Buy",
+            confirmation_confidence=0.72,
+            order_status="filled",
+            reasons=["paper fill"],
+            detail={
+                "order": {"status": "filled", "fill": {"price": 153500.0, "quantity": 13}},
+                "confirmation": {"rating": "Buy", "confidence": 0.72, "rationale": "정제 마진 반등과 거래대금 증가가 겹쳤습니다."},
+            },
+        )
+    )
+
+    position = build_paper_account_payload(repo)["positions"][0]
+    assert position["decision_rating"] == "Buy" and position["decision_confidence"] == 0.72
+    assert "정제 마진 반등" in position["entry_reason"]
+
+    html = TestClient(create_app(repo=repo, load_repo_from_env=False)).get("/paper").text
+    assert "담은 이유" in html and "정제 마진 반등" in html
+    assert "비중 확대" in html or "매수" in html  # the rating, in Korean
+
+
+def test_the_account_pays_a_brokerage_fee():
+    from tradingagents.harness.paper_state import default_commission_rate
+
+    repo = _repo()
+    _seed_account(repo)
+    assert default_commission_rate() > 0
+
+    broker, _notes = replay_fills(repo.list_harness_fills(), initial_cash=10_000_000, commission_rate=0.0)
+    free_cash = broker.portfolio.cash
+    charged, _notes = replay_fills(repo.list_harness_fills(), initial_cash=10_000_000, commission_rate=0.001)
+    assert charged.portfolio.cash < free_cash  # the fee actually leaves the account
+
+
+def test_an_exits_only_pass_buys_nothing_and_skips_the_screener():
+    from tradingagents.harness.pipeline import PipelineConfig, run_daily_pipeline
+
+    calls = {"screener": 0}
+
+    def _runner(when, config):  # pragma: no cover - must not be reached
+        calls["screener"] += 1
+        raise AssertionError("the screener must not run on an exits-only pass")
+
+    result = run_daily_pipeline(
+        "2026-09-10",
+        config=PipelineConfig(exits_only=True, require_llm_confirmation=True),
+        confirmer=None,
+    )
+    assert calls["screener"] == 0
+    assert result.as_of_date == "2026-09-10"
+    assert [decision for decision in result.decisions if decision.stage == "ordered"] == []
+    assert any("exits-only" in note for note in result.notes)
+
+
+def test_the_record_publishes_its_own_hash_chain():
+    from tradingagents.site.audit_trail import build_audit_payload
+
+    payload = build_audit_payload([
+        {"id": "run-1", "as_of_date": "2026-09-10", "broker": "paper", "audit_sequence_start": 10, "audit_sequence_end": 42, "metadata": {"audit_head_hash": "a" * 64}},
+        {"id": "run-0", "as_of_date": "2026-09-09", "broker": "paper", "audit_sequence_start": 1, "audit_sequence_end": 9, "metadata": {}},
+    ])
+    assert payload["summary"]["run_count"] == 2 and payload["summary"]["hashed_count"] == 1
+    newest = payload["entries"][0]
+    assert newest["as_of_date"] == "2026-09-10" and newest["step_count"] == 33
+    assert newest["head_short"].startswith("aaaaaaaaaaaa") and newest["detail_path"] == "/harness/run-1"
+    assert build_audit_payload([])["status"] == "empty"
+
+
+def test_the_account_page_shows_the_chain_when_runs_carry_it():
+    repo = _repo()
+    today = datetime.now(timezone.utc).date()
+    run_id = repo.create_harness_run(
+        HarnessRunInput(
+            as_of_date=today - timedelta(days=3),
+            confirmer="debate",
+            visibility="public",
+            dry_run=False,
+            broker="paper",
+            candidate_count=1,
+            order_count=1,
+            audit_sequence_start=1,
+            audit_sequence_end=20,
+            metadata={"audit_head_hash": "b" * 64, "config": {"stop_loss_pct": 0.05, "take_profit_pct": 0.1, "commission_rate": 0.00015}},
+        )
+    )
+    _fill(repo, run_id, when=today - timedelta(days=3), code="096770", stage="ordered", price=153500, quantity=13, name="SK이노베이션")
+
+    html = TestClient(create_app(repo=repo, load_repo_from_env=False)).get("/paper").text
+    assert "기록 검증" in html and "bbbbbbbbbbbb" in html
+    assert "매매 수수료" in html and "0.015%" in html  # the fee is published as a rule
+
+
+def test_intraday_exit_passes_are_scheduled_and_never_buy():
+    from pathlib import Path
+
+    workflow = Path(".github/workflows/harness-intraday-exits.yml").read_text(encoding="utf-8")
+    assert "--exits-only" in workflow and "--execute" in workflow
+    assert "--broker kis" not in workflow  # the local paper book only
+    assert workflow.count('cron: "20') == 3

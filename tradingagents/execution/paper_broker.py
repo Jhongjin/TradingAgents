@@ -15,6 +15,7 @@ class PaperBroker:
     portfolio: Portfolio = field(default_factory=Portfolio)
     risk_manager: RiskManager = field(default_factory=RiskManager)
     commission_per_trade: float = 0.0
+    commission_rate: float = 0.0
     slippage_bps: float = 0.0
     execution_rules: object | None = None
 
@@ -24,6 +25,7 @@ class PaperBroker:
         initial_cash: float = 100_000.0,
         limits: RiskLimits | None = None,
         commission_per_trade: float = 0.0,
+        commission_rate: float = 0.0,
         slippage_bps: float = 0.0,
         currency: str = "USD",
         execution_rules: object | None = None,
@@ -32,6 +34,7 @@ class PaperBroker:
             portfolio=Portfolio(cash=initial_cash, currency=currency),
             risk_manager=RiskManager(limits),
             commission_per_trade=commission_per_trade,
+            commission_rate=commission_rate,
             slippage_bps=slippage_bps,
             execution_rules=execution_rules,
         )
@@ -58,11 +61,14 @@ class PaperBroker:
     def submit_order(self, order: OrderIntent, price: float) -> Fill:
         execution_price = self._execution_price(order.side, price)
         transaction_tax = self._transaction_tax(order, execution_price)
+        # brokerage fee: a flat amount plus a rate on the traded notional, the
+        # way Korean brokers actually bill it
+        commission = self.commission_per_trade + (execution_price * order.quantity * self.commission_rate)
         fill = Fill(
             order=order,
             price=execution_price,
             quantity=order.quantity,
-            commission=self.commission_per_trade,
+            commission=commission,
             transaction_tax=transaction_tax,
         )
         self.portfolio.apply_fill(fill)

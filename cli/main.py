@@ -1498,6 +1498,7 @@ def pipeline_command(
     output: Optional[Path] = typer.Option(None, "--output", help="Write the run result JSON to this path."),
     persist: bool = typer.Option(False, "--persist", help="Store the run and decisions in DATABASE_URL (Supabase) for the /harness page."),
     debate_rounds: int = typer.Option(1, "--debate-rounds", min=1, max=3, help="Bull/bear rounds for --confirmer debate."),
+    exits_only: bool = typer.Option(False, "--exits-only", help="Only close positions that hit a stop, target, or holding limit. No new entries."),
 ):
     """Daily harness: screen → forecast → LLM confirm → size → mandate gate → order."""
 
@@ -1521,9 +1522,12 @@ def pipeline_command(
         risk_percent_per_trade=risk_per_trade,
         initial_cash=initial_cash,
         dry_run=not execute,
+        exits_only=exits_only,
         require_llm_confirmation=confirmer.lower() != "none",
     )
     selected_confirmer = None
+    if exits_only:
+        confirmer = "none"  # no candidate is confirmed on an exits-only pass
     if confirmer.lower() == "playbook":
         selected_confirmer = playbook_confirmer(llm_from_config())
     elif confirmer.lower() == "debate":

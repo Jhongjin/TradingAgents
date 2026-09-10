@@ -16,7 +16,7 @@ from typing import Any, Mapping
 
 from tradingagents.storage import StorageRepository
 
-from .design_system import TOKEN_STORAGE_KEY, badge, h, icon_tile, render_shell, stat_tile
+from .design_system import TOKEN_STORAGE_KEY, badge, h, icon_tile, rating_label, render_shell, stat_tile
 from .plain_korean import exit_reason_label, market_label
 from .seo import canonical_url
 
@@ -49,7 +49,10 @@ PAPER_CSS = """
 .paper-books { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
 .paper-book { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
 .paper-book .v { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin: 2px 0 4px; }
-@media (max-width: 720px) { .paper-table { min-width: 640px; } }
+.paper-why-cell { max-width: 280px; }
+.paper-why { display: block; margin-top: 4px; font-size: 12px; color: var(--ink2); line-height: 1.5; }
+.paper-hash { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--ink2); }
+@media (max-width: 900px) { .paper-table { min-width: 820px; } }
 """
 
 PAPER_LOCK_CSS = """
@@ -217,6 +220,23 @@ def _curve_card(curve: Mapping[str, Any]) -> str:
   </div>"""
 
 
+def _why_cell(item: Mapping[str, Any]) -> str:
+    """The AI's verdict and its reason, the part that makes a record readable."""
+
+    rating = item.get("decision_rating")
+    confidence = item.get("decision_confidence")
+    reason = str(item.get("entry_reason") or "").strip()
+    if not rating and not reason:
+        return '<span class="muted">-</span>'
+    parts = []
+    if rating:
+        confidence_text = f' <span class="muted num">{float(confidence):.2f}</span>' if confidence is not None else ""
+        parts.append(f'{badge(rating_label(rating), "b-violet", xs=True)}{confidence_text}')
+    if reason:
+        parts.append(f'<span class="paper-why">{h(reason)}</span>')
+    return "".join(parts)
+
+
 def _source_badge(item: Mapping[str, Any]) -> str:
     label = str(item.get("account_label") or "")
     if not label:
@@ -256,6 +276,7 @@ def _holding_row(item: Mapping[str, Any]) -> str:
       <td class="num" data-current>{h(_num(item.get('current_price'))) + '원' if item.get('current_price') else '불러오는 중'}</td>
       <td class="num">{h(_num(item.get('target_price')))}원<small>손절 {h(_num(item.get('stop_price')))}원</small></td>
       <td class="{_sign_class(item.get('unrealized_return'))} num" data-pnl>{h(_pct(item.get('unrealized_return')))}<small>{h(_num(item.get('unrealized_pnl')))}원</small></td>
+      <td class="paper-why-cell">{_why_cell(item)}</td>
     </tr>"""
 
 
@@ -266,19 +287,58 @@ def _closed_row(item: Mapping[str, Any]) -> str:
       <td class="num">{h(item.get('quantity'))}주<small>{h(_num(item.get('entry_price')))}원 → {h(_num(item.get('exit_price')))}원</small></td>
       <td>{badge(exit_reason_label(item.get('exit_reason')), 'b-grey')}</td>
       <td class="{_sign_class(item.get('realized_return'))} num">{h(_pct(item.get('realized_return')))}<small>{h(_num(item.get('realized_pnl')))}원</small></td>
+      <td class="paper-why-cell">{_why_cell(item)}</td>
     </tr>"""
 
 
 def _locked_positions_row(count: int) -> str:
     return f"""<tr class="paper-locked" data-paper-locked>
-      <td colspan="5"><div class="paper-lock-copy">{badge("오늘 편입 " + str(count) + "종목", "b-amber")}<span>당일 편입 종목과 목표가·손절가는 데일리 패스에서 열립니다.</span><a class="link" href="/pricing">요금제 보기</a></div></td>
+      <td colspan="6"><div class="paper-lock-copy">{badge("오늘 편입 " + str(count) + "종목", "b-amber")}<span>당일 편입 종목과 목표가·손절가는 데일리 패스에서 열립니다.</span><a class="link" href="/pricing">요금제 보기</a></div></td>
     </tr>"""
 
 
 def _locked_closed_row(count: int) -> str:
     return f"""<tr class="paper-locked" data-paper-locked>
-      <td colspan="4"><div class="paper-lock-copy">{badge("오늘 청산 " + str(count) + "건", "b-amber")}<span>당일 청산 내역은 데일리 패스에서 열립니다.</span><a class="link" href="/pricing">요금제 보기</a></div></td>
+      <td colspan="5"><div class="paper-lock-copy">{badge("오늘 청산 " + str(count) + "건", "b-amber")}<span>당일 청산 내역은 데일리 패스에서 열립니다.</span><a class="link" href="/pricing">요금제 보기</a></div></td>
     </tr>"""
+
+
+def _audit_payload(repo: Any) -> dict[str, Any]:
+    from .audit_trail import build_audit_payload
+
+    if repo is None:
+        return {"status": "not_configured", "entries": [], "summary": {}}
+    try:
+        return build_audit_payload(repo.list_harness_runs(limit=40))
+    except Exception:
+        return {"status": "unavailable", "entries": [], "summary": {}}
+
+
+def _audit_card(audit: Mapping[str, Any]) -> str:
+    """Publish the chain so the record can be checked, not just believed."""
+
+    entries = list(audit.get("entries") or [])
+    if not entries:
+        return ""
+    summary = audit.get("summary") or {}
+    rows = "".join(
+        f'<tr><td>{h(item["as_of_date"])}<small>{h(item.get("broker") or "")}</small></td>'
+        f'<td class="num">{h(item.get("step_count") or "-")}단계<small>{h(item.get("sequence_start"))}–{h(item.get("sequence_end"))}</small></td>'
+        f'<td class="paper-hash num">{h(item.get("head_short") or "-")}</td>'
+        f'<td>{"<a class=\'link\' href=\'" + h(item["detail_path"]) + "\'>실행 보기</a>" if item.get("detail_path") else ""}</td></tr>'
+        for item in entries
+    )
+    return f"""<div class="card" style="margin-bottom: 18px;">
+    <div class="card-h"><h2>{icon_tile("shield", "b-violet", small=True)}기록 검증</h2><span class="badge b-grey">{h(summary.get("hashed_count") or 0)}회 실행 봉인</span></div>
+    <div class="card-b paper-scroll">
+      <p class="small ink2" style="margin-bottom: 10px;">실행의 모든 단계는 순서대로 해시로 이어 붙입니다. 지난 기록을 나중에 고치면 그 뒤의 해시가 전부 어긋나므로, 아래 값이 그대로라는 것은 기록이 그날 이후 손대지지 않았다는 뜻입니다.</p>
+      <table class="paper-table">
+        <thead><tr><th>실행일</th><th>단계</th><th>연결 해시</th><th></th></tr></thead>
+        <tbody>{rows}</tbody>
+      </table>
+    </div>
+    <div class="card-f"><span>해시는 실행이 끝난 시각에 확정되며 이후 바뀌지 않습니다.</span><span>선별과 주문 기록은 같은 사슬에 함께 묶입니다.</span></div>
+  </div>"""
 
 
 def _rules_payload(repo: Any) -> dict[str, Any]:
@@ -340,6 +400,7 @@ def render_paper_account_page(
     curves = {key: build_paper_curve_payload(repo, account_key=key) for key, _label in ACCOUNTS}
     curve = curves.get("paper") or {}
     rules = _rules_payload(repo)
+    audit = _audit_payload(repo)
     books = list(payload.get("accounts") or [])
     gate = payload.get("plan_gate") or {}
     locked_positions = int(gate.get("locked_position_count") or 0)
@@ -358,12 +419,12 @@ def render_paper_account_page(
     holdings_rows = [_holding_row(item) for item in positions]
     if locked_positions:
         holdings_rows.append(_locked_positions_row(locked_positions))
-    holdings_html = "\n".join(holdings_rows) or '<tr><td colspan="5" class="paper-empty">보유 중인 모의 종목이 없습니다. 다음 선별에서 조건을 통과하면 여기에 담깁니다.</td></tr>'
+    holdings_html = "\n".join(holdings_rows) or '<tr><td colspan="6" class="paper-empty">보유 중인 모의 종목이 없습니다. 다음 선별에서 조건을 통과하면 여기에 담깁니다.</td></tr>'
 
     closed_rows = [_closed_row(item) for item in closed[:50]]
     if locked_closed:
         closed_rows.insert(0, _locked_closed_row(locked_closed))
-    closed_html = "\n".join(closed_rows) or '<tr><td colspan="4" class="paper-empty">아직 종료된 모의 매매가 없습니다. 목표가나 손절선에 닿으면 자동으로 정리되고 여기에 남습니다.</td></tr>'
+    closed_html = "\n".join(closed_rows) or '<tr><td colspan="5" class="paper-empty">아직 종료된 모의 매매가 없습니다. 목표가나 손절선에 닿으면 자동으로 정리되고 여기에 남습니다.</td></tr>'
     codes = [str(item.get("ticker_code")) for item in positions if item.get("ticker_code")]
 
     body = f"""
@@ -383,11 +444,13 @@ def render_paper_account_page(
 
   {_rules_card(rules)}
 
+  {_audit_card(audit)}
+
   <div class="card" style="margin-bottom: 18px;">
     <div class="card-h"><h2>{icon_tile("target", "b-teal", small=True)}보유 종목</h2><div class="row" style="gap: 8px; align-items: center;"><button class="btn sm" type="button" id="paperCopyButton" hidden>내 일지에 담기</button><span class="badge b-grey">{len(positions) + locked_positions}종목</span></div></div>
     <div class="card-b paper-scroll">
       <table class="paper-table">
-        <thead><tr><th>종목</th><th>수량 · 평단</th><th>현재가</th><th>목표가 · 손절가</th><th>평가손익</th></tr></thead>
+        <thead><tr><th>종목</th><th>수량 · 평단</th><th>현재가</th><th>목표가 · 손절가</th><th>평가손익</th><th>담은 이유</th></tr></thead>
         <tbody>{holdings_html}</tbody>
       </table>
     </div>
@@ -398,7 +461,7 @@ def render_paper_account_page(
     <div class="card-h"><h2>{icon_tile("check", "b-blue", small=True)}종료된 매매</h2><span class="badge b-grey">{len(closed) + locked_closed}건</span></div>
     <div class="card-b paper-scroll">
       <table class="paper-table">
-        <thead><tr><th>종목</th><th>수량 · 체결가</th><th>정리 사유</th><th>실현 손익</th></tr></thead>
+        <thead><tr><th>종목</th><th>수량 · 체결가</th><th>정리 사유</th><th>실현 손익</th><th>담은 이유</th></tr></thead>
         <tbody>{closed_html}</tbody>
       </table>
     </div>
