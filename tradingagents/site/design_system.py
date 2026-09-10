@@ -397,6 +397,9 @@ def _verification_meta() -> str:
         tags.append(f'<meta name="google-site-verification" content="{h(google)}">')
     if naver:
         tags.append(f'<meta name="naver-site-verification" content="{h(naver)}">')
+    bing = (os.getenv("TRADINGAGENTS_BING_SITE_VERIFICATION") or "").strip()
+    if bing:
+        tags.append(f'<meta name="msvalidate.01" content="{h(bing)}">')
     return "".join(tags)
 
 

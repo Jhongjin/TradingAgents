@@ -85,3 +85,23 @@ def test_canonical_host_redirect_for_public_pages(monkeypatch):
     assert client.get("/pricing").status_code == 200  # testserver never redirects
     monkeypatch.delenv("TRADINGAGENTS_CANONICAL_HOST")
     assert client.get("/pricing", headers={"host": "trading-agents-seven.vercel.app"}).status_code == 200
+
+
+def test_search_console_verification_files_from_env(monkeypatch):
+    import json as _json
+
+    files = {"google35a15882c842021b.html": "google-site-verification: google35a15882c842021b.html", "naveree73e2cfeaba92c08e01203f1729e2e6.html": "naveree73e2cfeaba92c08e01203f1729e2e6", "BingSiteAuth.xml": "<?xml version=\"1.0\"?><users><user>ABC</user></users>", "evil.html": "nope"}
+    monkeypatch.setenv("TRADINGAGENTS_VERIFICATION_FILES", _json.dumps(files))
+    monkeypatch.setenv("TRADINGAGENTS_BING_SITE_VERIFICATION", "bing-token")
+    monkeypatch.setenv("TRADINGAGENTS_CANONICAL_HOST", "agenttrust.kr")
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+    google = client.get("/google35a15882c842021b.html")
+    assert google.status_code == 200 and google.text.strip() == "google-site-verification: google35a15882c842021b.html"
+    assert client.get("/naveree73e2cfeaba92c08e01203f1729e2e6.html").text.strip() == "naveree73e2cfeaba92c08e01203f1729e2e6"
+    bing = client.get("/BingSiteAuth.xml")
+    assert bing.status_code == 200 and bing.headers["content-type"].startswith("text/xml") and "<user>ABC</user>" in bing.text
+    assert client.get("/evil.html").status_code == 404
+    assert client.get("/google00000000.html").status_code == 404
+    # served on any host: consoles fetch the exact host they registered, so no canonical redirect
+    assert client.get("/BingSiteAuth.xml", headers={"host": "www.agenttrust.kr"}, follow_redirects=False).status_code == 200
+    assert '<meta name="msvalidate.01" content="bing-token">' in client.get("/pricing").text

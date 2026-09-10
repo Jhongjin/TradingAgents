@@ -154,6 +154,10 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/:verification(google[a-z0-9]+\\.html|naver[a-z0-9]+\\.html|BingSiteAuth\\.xml|yandex_[a-z0-9]+\\.html)",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/ads.txt",
       "destination": "/api/index.py"
     },

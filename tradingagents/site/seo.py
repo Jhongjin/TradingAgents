@@ -299,3 +299,35 @@ def _sitemap_prefixed_paths(paths: Iterable[str] | None, prefix: str, suffix: st
         cleaned.append(path)
         seen.add(path)
     return tuple(cleaned)
+
+
+VERIFICATION_FILES_ENV = "TRADINGAGENTS_VERIFICATION_FILES"
+VERIFICATION_FILE_PATTERN = re.compile(r"^(google[a-z0-9]+\.html|naver[a-z0-9]+\.html|BingSiteAuth\.xml|yandex_[a-z0-9]+\.html)$")
+
+
+def verification_files(value: str | None = None) -> dict[str, str]:
+    """Search-console ownership files served from the site root.
+
+    ``TRADINGAGENTS_VERIFICATION_FILES`` is a JSON object ``{"filename": "content"}``.
+    Only well-known verification file names are accepted so the env var can never
+    turn into an arbitrary static-file host.
+    """
+
+    import json
+
+    raw = value if value is not None else os.getenv(VERIFICATION_FILES_ENV, "")
+    if not raw.strip():
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except ValueError as exc:
+        raise ValueError("TRADINGAGENTS_VERIFICATION_FILES must be a JSON object") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("TRADINGAGENTS_VERIFICATION_FILES must be a JSON object")
+    files = {}
+    for name, content in parsed.items():
+        name = str(name).strip()
+        if VERIFICATION_FILE_PATTERN.match(name) and isinstance(content, str) and content.strip():
+            files[name] = content.strip() + "
+"
+    return files

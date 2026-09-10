@@ -85,7 +85,7 @@ from .paper_simulation_api import EXECUTION_BOUNDARY_LABEL, build_member_paper_s
 from .portfolio_api import build_manual_portfolio_list_payload, build_manual_portfolio_payload, normalize_portfolio_ticker
 from .public_api import build_public_stock_payload
 from .screener_api import build_forecast_payload, build_screener_payload
-from .seo import build_ads_txt, build_llms_txt, build_robots_txt, build_sitemap_xml, indexnow_key, sitemap_tickers_from_env, submit_indexnow
+from .seo import build_ads_txt, build_llms_txt, build_robots_txt, build_sitemap_xml, indexnow_key, sitemap_tickers_from_env, submit_indexnow, verification_files
 from .simulation_api import build_public_simulation_preview_payload
 from .ticker_api import build_ticker_search_payload
 from .watchlist_api import build_watchlist_list_payload, build_watchlist_payload
@@ -446,6 +446,19 @@ def create_app(
     @app.get("/site.webmanifest", include_in_schema=False)
     def site_webmanifest(request: Request) -> Response:
         return Response(json.dumps(web_manifest(site_base_url=_request_site_base_url(request)), ensure_ascii=False), media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=86400"})
+
+    @app.get("/{verification_file}", include_in_schema=False)
+    def search_console_verification_file(verification_file: str) -> Response:
+        if verification_file.startswith("google") and verification_file.endswith(".html") or verification_file.startswith("naver") and verification_file.endswith(".html") or verification_file == "BingSiteAuth.xml" or verification_file.startswith("yandex_"):
+            try:
+                files = verification_files()
+            except ValueError as exc:
+                raise HTTPException(status_code=500, detail=str(exc)) from exc
+            content = files.get(verification_file)
+            if content:
+                media = "text/xml; charset=utf-8" if verification_file.endswith(".xml") else "text/plain; charset=utf-8"
+                return Response(content, media_type=media, headers={"Cache-Control": "public, max-age=3600"})
+        raise HTTPException(status_code=404, detail="Not found")
 
     @app.get("/indexnow/{key}.txt", response_class=PlainTextResponse, include_in_schema=False)
     def indexnow_key_file(key: str) -> PlainTextResponse:
@@ -1951,7 +1964,7 @@ def _canonical_host_redirect(request: Request) -> str | None:
     if request_host == "testserver" or request_host.startswith(("localhost", "127.0.0.1")):
         return None
     path = request.url.path
-    if path.startswith(("/api/", "/health", "/indexnow/")):
+    if path.startswith(("/api/", "/health", "/indexnow/")) or path == "/BingSiteAuth.xml" or (path.startswith(("/google", "/naver", "/yandex_")) and path.endswith(".html")):
         return None
     query = f"?{request.url.query}" if request.url.query else ""
     return f"https://{canonical}{path}{query}"
