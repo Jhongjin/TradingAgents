@@ -57,3 +57,5 @@
 - `https://agenttrust.kr` 운영 중(www·vercel.app → 301). 인증서 발급 완료, 텔레그램 웹훅 새 주소로 재등록.
 - Vercel env: `TRADINGAGENTS_SITE_BASE_URL`, `TRADINGAGENTS_CANONICAL_HOST`, `TRADINGAGENTS_INDEXNOW_KEY`(32자 hex, 키 파일은 **사이트 루트** `/{key}.txt` — IndexNow는 키 파일 디렉터리 아래 URL만 인정), `TRADINGAGENTS_VERIFICATION_FILES`(구글 HTML·네이버 HTML·BingSiteAuth.xml), `TRADINGAGENTS_NAVER_SITE_VERIFICATION`, `TRADINGAGENTS_BING_SITE_VERIFICATION`.
 - IndexNow 수동 핑 202 확인. 남은 것: 각 콘솔에서 "확인/소유확인" 클릭, 사이트맵 제출, Supabase Redirect URLs에 `https://agenttrust.kr/**` 추가.
+- 운영 점검: `POST /api/admin/seo/selfcheck {"paths":[...]}`(운영 토큰)로 배포 안에서 canonical 호스트의 공개 URL을 직접 받아 상태·타입·크기·응답 시간·앞부분을 확인할 수 있습니다(사내망에서 새 도메인이 막힐 때 사용). 2026-09-10 확인: sitemap 200(8초, 콜드 스타트), robots·llms·구글/네이버/Bing 확인 파일·IndexNow 키 파일 모두 200.
+- 네이버 확인 파일 내용은 `naver-site-verification: <파일명>` 한 줄이어야 합니다(토큰만 넣으면 "파일을 찾을 수 없음").
