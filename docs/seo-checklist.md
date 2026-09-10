@@ -45,3 +45,9 @@
 - `lastmod` 정확성: 사이트맵의 lastmod를 생성일이 아니라 각 실행·리포트의 갱신 시각으로.
 - About 페이지(운영 주체·연락처)와 `Organization.contactPoint`.
 - "코스피200 오늘 선정 종목" 같은 날짜별 질문 페이지(`/harness/{date}` 별칭).
+
+## 도메인 연결 (2026-09-10 시작)
+
+- 선택: `agenttrust.kr` (www 포함). Vercel 프로젝트 `trading-agents`에 두 도메인을 붙였습니다.
+- DNS(ITEasy 웹DNS): `@ A 76.76.21.21`, `www CNAME cname.vercel-dns.com`. 네임서버는 ksdom.kr 유지.
+- 전파 뒤 순서: Vercel env `TRADINGAGENTS_SITE_BASE_URL=https://agenttrust.kr`, `TRADINGAGENTS_CANONICAL_HOST=agenttrust.kr`(vercel.app·www → 301, `/api/*`·`/health`·`/indexnow/*`는 제외) → 재배포 → Supabase Auth Site URL·Redirect URLs에 `https://agenttrust.kr/**` 추가 → 텔레그램 웹훅 재등록(`/api/admin/notifications/telegram/setup`) → 포트원 리다이렉트 확인 → IndexNow 키 등록 → 서치 콘솔 3종 등록.

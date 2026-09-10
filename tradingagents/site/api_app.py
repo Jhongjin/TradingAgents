@@ -240,6 +240,9 @@ def create_app(
 
     @app.middleware("http")
     async def response_headers(request: Request, call_next):
+        redirect_target = _canonical_host_redirect(request)
+        if redirect_target:
+            return RedirectResponse(url=redirect_target, status_code=301)
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
@@ -1928,6 +1931,30 @@ def _request_site_base_url(request: Request) -> str:
             return request_base
         return configured
     return request_base
+
+
+def _canonical_host_redirect(request: Request) -> str | None:
+    """301 to the canonical host (TRADINGAGENTS_CANONICAL_HOST) for public page requests.
+
+    API, cron and health paths are left alone so Vercel crons and workers keep
+    hitting the deployment URL; local and test hosts never redirect.
+    """
+
+    canonical = (os.getenv("TRADINGAGENTS_CANONICAL_HOST") or "").strip().lower().rstrip("/")
+    if not canonical:
+        return None
+    if "://" in canonical:
+        canonical = urlparse(canonical).netloc.lower()
+    request_host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip().lower()
+    if not request_host or request_host == canonical:
+        return None
+    if request_host == "testserver" or request_host.startswith(("localhost", "127.0.0.1")):
+        return None
+    path = request.url.path
+    if path.startswith(("/api/", "/health", "/indexnow/")):
+        return None
+    query = f"?{request.url.query}" if request.url.query else ""
+    return f"https://{canonical}{path}{query}"
 
 
 def _should_prefer_request_site_base(configured_host: str, request_host: str) -> bool:

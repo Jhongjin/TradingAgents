@@ -71,3 +71,17 @@ def test_verification_meta_from_env(monkeypatch):
     html = client.get("/pricing").text
     assert '<meta name="naver-site-verification" content="naver-token">' in html
     assert '<meta name="google-site-verification" content="google-token">' in html
+
+
+def test_canonical_host_redirect_for_public_pages(monkeypatch):
+    monkeypatch.setenv("TRADINGAGENTS_CANONICAL_HOST", "https://agenttrust.kr/")
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+    moved = client.get("/pricing?plan=daily", headers={"host": "trading-agents-seven.vercel.app"}, follow_redirects=False)
+    assert moved.status_code == 301 and moved.headers["location"] == "https://agenttrust.kr/pricing?plan=daily"
+    www = client.get("/", headers={"host": "www.agenttrust.kr"}, follow_redirects=False)
+    assert www.status_code == 301 and www.headers["location"] == "https://agenttrust.kr/"
+    assert client.get("/pricing", headers={"host": "agenttrust.kr"}).status_code == 200
+    assert client.get("/api/billing/plans", headers={"host": "trading-agents-seven.vercel.app"}).status_code == 200
+    assert client.get("/pricing").status_code == 200  # testserver never redirects
+    monkeypatch.delenv("TRADINGAGENTS_CANONICAL_HOST")
+    assert client.get("/pricing", headers={"host": "trading-agents-seven.vercel.app"}).status_code == 200
