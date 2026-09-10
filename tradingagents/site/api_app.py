@@ -464,6 +464,46 @@ def create_app(
         _require_operator(request, x_tradingagents_worker_token)
         return submit_indexnow(body.paths, site_base_url=_request_site_base_url(request))
 
+    @app.post("/api/admin/seo/selfcheck", include_in_schema=False)
+    def seo_selfcheck(
+        body: IndexNowBody,
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        """Fetch public paths on the canonical host from inside the deployment (operators only).
+
+        Lets an operator on a restricted network confirm what search engines see:
+        status, content type, size, latency and the first bytes of each response.
+        """
+
+        _require_operator(request, x_tradingagents_worker_token)
+        import time
+
+        import requests as _requests
+
+        base = _request_site_base_url(request)
+        results = []
+        for path in body.paths[:20]:
+            path = str(path)
+            if not path.startswith("/"):
+                path = "/" + path
+            url = f"{base}{path}"
+            started = time.monotonic()
+            try:
+                response = _requests.get(url, timeout=25, allow_redirects=False, headers={"User-Agent": "TradingAgentsKorea-selfcheck/1.0"})
+                results.append({
+                    "path": path,
+                    "status": response.status_code,
+                    "content_type": response.headers.get("content-type"),
+                    "location": response.headers.get("location"),
+                    "bytes": len(response.content),
+                    "seconds": round(time.monotonic() - started, 2),
+                    "head": response.text[:160],
+                })
+            except Exception as exc:
+                results.append({"path": path, "error": f"{exc.__class__.__name__}: {exc}", "seconds": round(time.monotonic() - started, 2)})
+        return {"base": base, "results": results}
+
     # ------------------------------------------------------ Open Graph images
     _OG_HEADERS = {"Cache-Control": "public, max-age=3600, stale-while-revalidate=86400"}
 

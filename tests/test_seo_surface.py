@@ -105,3 +105,27 @@ def test_search_console_verification_files_from_env(monkeypatch):
     # served on any host: consoles fetch the exact host they registered, so no canonical redirect
     assert client.get("/BingSiteAuth.xml", headers={"host": "www.agenttrust.kr"}, follow_redirects=False).status_code == 200
     assert '<meta name="msvalidate.01" content="bing-token">' in client.get("/pricing").text
+
+
+def test_seo_selfcheck_fetches_paths_on_canonical_host(monkeypatch):
+    monkeypatch.setenv("OPERATOR_ACCESS_CODE", "op-token")
+    monkeypatch.setenv("TRADINGAGENTS_SITE_BASE_URL", "https://example.com")
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"content-type": "application/xml"}
+        content = b"<urlset/>"
+        text = "<urlset/>"
+
+    seen = []
+
+    def fake_get(url, **kwargs):
+        seen.append(url)
+        return FakeResponse()
+
+    monkeypatch.setattr("requests.get", fake_get)
+    client = TestClient(create_app(repo=None, load_repo_from_env=False))
+    assert client.post("/api/admin/seo/selfcheck", json={"paths": ["/sitemap.xml"]}).status_code == 401
+    result = client.post("/api/admin/seo/selfcheck", json={"paths": ["/sitemap.xml", "robots.txt"]}, headers={"X-TradingAgents-Worker-Token": "op-token"}).json()
+    assert seen == ["https://example.com/sitemap.xml", "https://example.com/robots.txt"]
+    assert result["results"][0]["status"] == 200 and result["results"][0]["head"] == "<urlset/>"
