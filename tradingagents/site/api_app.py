@@ -53,6 +53,7 @@ from .billing import (
     build_checkout_payload,
     cancel_at_period_end,
     gate_harness_payload,
+    gate_paper_account_payload,
     handle_portone_webhook,
     latest_visible_run_id,
     process_subscription_renewals,
@@ -1332,12 +1333,21 @@ def create_app(
         return HTMLResponse(render_paper_account_page(repo=request.app.state.repository, site_base_url=_request_site_base_url(request)))
 
     @app.get("/api/paper-account")
-    def paper_account(request: Request) -> dict:
-        """Holdings and closed trades of the harness paper account (read-only)."""
+    def paper_account(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        """Holdings and closed trades of the harness paper account (read-only).
+
+        Same-day entries and exits are the paid layer; free callers get the
+        settled record plus a count of what is withheld.
+        """
 
         from tradingagents.harness.paper_state import build_paper_account_payload
 
-        return build_paper_account_payload(request.app.state.repository)
+        repo = request.app.state.repository
+        access = resolve_plan_access(repo, _optional_member_user_id(request, x_tradingagents_user_id))
+        return gate_paper_account_payload(build_paper_account_payload(repo), access)
 
     @app.get("/api/prices/latest")
     def latest_prices(

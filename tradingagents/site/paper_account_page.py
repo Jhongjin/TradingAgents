@@ -16,7 +16,7 @@ from typing import Any, Mapping
 
 from tradingagents.storage import StorageRepository
 
-from .design_system import badge, h, icon_tile, render_shell, stat_tile
+from .design_system import TOKEN_STORAGE_KEY, badge, h, icon_tile, render_shell, stat_tile
 from .plain_korean import exit_reason_label, market_label
 from .seo import canonical_url
 
@@ -38,8 +38,27 @@ PAPER_CSS = """
 @media (max-width: 720px) { .paper-table { min-width: 640px; } }
 """
 
+PAPER_LOCK_CSS = """
+.paper-locked td { color: var(--muted); }
+.paper-locked .paper-lock-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.paper-locked a { font-weight: 600; }
+"""
+
 PAPER_JS = """
 (function(){
+  // Paid members replace the free view with today's rows, using their session.
+  var token = '';
+  try { token = localStorage.getItem('__TOKEN_KEY__') || sessionStorage.getItem('__TOKEN_KEY__') || ''; } catch (e) {}
+  if (token && document.querySelector('[data-paper-locked]')) {
+    fetch('/api/paper-account', { headers: { 'Authorization': 'Bearer ' + token } })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(payload){
+        if (!payload || !payload.plan_gate || payload.plan_gate.locked !== false) return;
+        window.location.reload();
+      })
+      .catch(function(){});
+  }
+
   var codes = __CODES__;
   if (!codes.length) return;
   fetch('/api/prices/latest?tickers=' + encodeURIComponent(codes.join(',')))
@@ -114,6 +133,18 @@ def _closed_row(item: Mapping[str, Any]) -> str:
     </tr>"""
 
 
+def _locked_positions_row(count: int) -> str:
+    return f"""<tr class="paper-locked" data-paper-locked>
+      <td colspan="5"><div class="paper-lock-copy">{badge("오늘 편입 " + str(count) + "종목", "b-amber")}<span>당일 편입 종목과 목표가·손절가는 데일리 패스에서 열립니다.</span><a class="link" href="/pricing">요금제 보기</a></div></td>
+    </tr>"""
+
+
+def _locked_closed_row(count: int) -> str:
+    return f"""<tr class="paper-locked" data-paper-locked>
+      <td colspan="4"><div class="paper-lock-copy">{badge("오늘 청산 " + str(count) + "건", "b-amber")}<span>당일 청산 내역은 데일리 패스에서 열립니다.</span><a class="link" href="/pricing">요금제 보기</a></div></td>
+    </tr>"""
+
+
 def render_paper_account_page(
     *,
     repo: StorageRepository | None = None,
@@ -122,10 +153,20 @@ def render_paper_account_page(
 ) -> str:
     from tradingagents.harness.paper_state import build_paper_account_payload
 
-    payload = build_paper_account_payload(repo, initial_cash=initial_cash)
+    from .billing import gate_paper_account_payload, resolve_plan_access
+
+    # Server-rendered pages are public and cacheable, so they always show the
+    # free view; a paid session swaps in today's rows from the API after load.
+    payload = gate_paper_account_payload(
+        build_paper_account_payload(repo, initial_cash=initial_cash),
+        resolve_plan_access(None, None),
+    ) or {}
     summary = payload.get("summary") or {}
     positions = payload.get("positions") or []
     closed = payload.get("closed") or []
+    gate = payload.get("plan_gate") or {}
+    locked_positions = int(gate.get("locked_position_count") or 0)
+    locked_closed = int(gate.get("locked_closed_count") or 0)
 
     tiles = "".join(
         [
@@ -137,8 +178,15 @@ def render_paper_account_page(
         ]
     )
 
-    holdings_html = "\n".join(_holding_row(item) for item in positions) or '<tr><td colspan="5" class="paper-empty">보유 중인 모의 종목이 없습니다. 다음 선별에서 조건을 통과하면 여기에 담깁니다.</td></tr>'
-    closed_html = "\n".join(_closed_row(item) for item in closed[:50]) or '<tr><td colspan="4" class="paper-empty">아직 종료된 모의 매매가 없습니다. 목표가나 손절선에 닿으면 자동으로 정리되고 여기에 남습니다.</td></tr>'
+    holdings_rows = [_holding_row(item) for item in positions]
+    if locked_positions:
+        holdings_rows.append(_locked_positions_row(locked_positions))
+    holdings_html = "\n".join(holdings_rows) or '<tr><td colspan="5" class="paper-empty">보유 중인 모의 종목이 없습니다. 다음 선별에서 조건을 통과하면 여기에 담깁니다.</td></tr>'
+
+    closed_rows = [_closed_row(item) for item in closed[:50]]
+    if locked_closed:
+        closed_rows.insert(0, _locked_closed_row(locked_closed))
+    closed_html = "\n".join(closed_rows) or '<tr><td colspan="4" class="paper-empty">아직 종료된 모의 매매가 없습니다. 목표가나 손절선에 닿으면 자동으로 정리되고 여기에 남습니다.</td></tr>'
     codes = [str(item.get("ticker_code")) for item in positions if item.get("ticker_code")]
 
     body = f"""
@@ -146,14 +194,14 @@ def render_paper_account_page(
   <div class="shell">
     <p class="eyebrow">AI 모의 계좌</p>
     <h1>선별한 종목을 실제로 담고, 규칙대로 정리한 기록</h1>
-    <p>매일 아침 선별을 통과한 종목을 시작 자금 {_num(initial_cash)}원의 모의 계좌로 매수합니다. 매수와 동시에 목표가와 손절선을 정하고, 다음 실행에서 그 선에 닿으면 자동으로 정리합니다. 실제 증권 계좌와 연결되지 않은 모의 기록입니다.</p>
+    <p>매일 아침 선별을 통과한 종목을 시작 자금 {_num(initial_cash)}원의 모의 계좌로 매수합니다. 매수와 동시에 목표가와 손절선을 정하고, 다음 실행에서 그 선에 닿으면 자동으로 정리합니다. 실제 증권 계좌와 연결되지 않은 모의 기록입니다. 지난 기록은 모두 공개하며, 당일 편입·청산은 데일리 패스에서 열립니다.</p>
   </div>
 </div>
 <div class="shell">
   <div class="grid-5" style="margin-bottom: 18px;">{tiles}</div>
 
   <div class="card" style="margin-bottom: 18px;">
-    <div class="card-h"><h2>{icon_tile("target", "b-teal", small=True)}보유 종목</h2><span class="badge b-grey">{len(positions)}종목</span></div>
+    <div class="card-h"><h2>{icon_tile("target", "b-teal", small=True)}보유 종목</h2><span class="badge b-grey">{len(positions) + locked_positions}종목</span></div>
     <div class="card-b paper-scroll">
       <table class="paper-table">
         <thead><tr><th>종목</th><th>수량 · 평단</th><th>현재가</th><th>목표가 · 손절가</th><th>평가손익</th></tr></thead>
@@ -164,7 +212,7 @@ def render_paper_account_page(
   </div>
 
   <div class="card">
-    <div class="card-h"><h2>{icon_tile("check", "b-blue", small=True)}종료된 매매</h2><span class="badge b-grey">{len(closed)}건</span></div>
+    <div class="card-h"><h2>{icon_tile("check", "b-blue", small=True)}종료된 매매</h2><span class="badge b-grey">{len(closed) + locked_closed}건</span></div>
     <div class="card-b paper-scroll">
       <table class="paper-table">
         <thead><tr><th>종목</th><th>수량 · 체결가</th><th>정리 사유</th><th>실현 손익</th></tr></thead>
@@ -183,7 +231,7 @@ def render_paper_account_page(
         active="/paper",
         canonical_path="/paper",
         site_base_url=site_base_url,
-        extra_css=PAPER_CSS,
-        extra_js=PAPER_JS.replace("__CODES__", json.dumps(codes)),
+        extra_css=PAPER_CSS + PAPER_LOCK_CSS,
+        extra_js=PAPER_JS.replace("__CODES__", json.dumps(codes)).replace("__TOKEN_KEY__", TOKEN_STORAGE_KEY),
         og_image="/og/default.png",
     )

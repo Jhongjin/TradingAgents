@@ -1,6 +1,6 @@
 """The harness paper account: replayed fills, holdings, exits, and its page."""
 
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
@@ -41,12 +41,20 @@ def _fill(repo: StorageRepository, run_id: str, *, when: date, code: str, stage:
     )
 
 
-def _seed_account(repo: StorageRepository) -> None:
-    run_one = _run(repo, when=date(2026, 9, 9), dry_run=False)
-    _fill(repo, run_one, when=date(2026, 9, 9), code="010950", stage="ordered", price=165900, quantity=12, name="S-Oil")
-    _fill(repo, run_one, when=date(2026, 9, 9), code="096770", stage="ordered", price=153500, quantity=13, name="SK이노베이션")
-    run_two = _run(repo, when=date(2026, 9, 21), dry_run=False)
-    _fill(repo, run_two, when=date(2026, 9, 21), code="010950", stage="exit", price=182600, quantity=12, reasons=("take_profit", "paper fill"))
+def _seed_account(repo: StorageRepository) -> tuple[date, date]:
+    """Two entries and one exit, all on days that have already settled."""
+
+    from tradingagents.site.billing import KST
+
+    today = datetime.now(KST).date()
+    entered = today - timedelta(days=30)
+    exited = today - timedelta(days=10)
+    run_one = _run(repo, when=entered, dry_run=False)
+    _fill(repo, run_one, when=entered, code="010950", stage="ordered", price=165900, quantity=12, name="S-Oil")
+    _fill(repo, run_one, when=entered, code="096770", stage="ordered", price=153500, quantity=13, name="SK이노베이션")
+    run_two = _run(repo, when=exited, dry_run=False)
+    _fill(repo, run_two, when=exited, code="010950", stage="exit", price=182600, quantity=12, reasons=("take_profit", "paper fill"))
+    return entered, exited
 
 
 def test_dry_runs_never_move_the_account():
@@ -139,3 +147,78 @@ def test_paper_account_is_linked_and_indexed():
 
     assert ("/paper", "모의 계좌") in NAV_ITEMS
     assert "https://agenttrust.kr/paper" in build_sitemap_xml(site_base_url="https://agenttrust.kr")
+
+
+def _seed_today(repo: StorageRepository, today: date) -> None:
+    """One settled position plus an entry and an exit dated today."""
+
+    old_run = _run(repo, when=date(2026, 9, 9), dry_run=False)
+    _fill(repo, old_run, when=date(2026, 9, 9), code="010950", stage="ordered", price=165900, quantity=12, name="S-Oil")
+    _fill(repo, old_run, when=date(2026, 9, 9), code="096770", stage="ordered", price=153500, quantity=13, name="SK이노베이션")
+    today_run = _run(repo, when=today, dry_run=False)
+    _fill(repo, today_run, when=today, code="131290", stage="ordered", price=308000, quantity=4, name="티에스이")
+    _fill(repo, today_run, when=today, code="010950", stage="exit", price=182600, quantity=12, reasons=("take_profit", "paper fill"))
+
+
+def test_free_visitors_see_the_settled_record_but_not_todays_moves():
+    from datetime import datetime
+
+    from tradingagents.site.billing import KST, gate_paper_account_payload, resolve_plan_access
+
+    today = datetime.now(KST).date()
+    repo = _repo()
+    _seed_today(repo, today)
+    raw = build_paper_account_payload(repo)
+    assert len(raw["positions"]) == 2 and len(raw["closed"]) == 1
+
+    free = gate_paper_account_payload(raw, resolve_plan_access(None, None))
+    codes = {item["ticker_code"] for item in free["positions"]}
+    assert codes == {"096770"}  # yesterday's entry stays visible
+    assert "131290" not in codes  # today's entry is withheld
+    assert free["closed"] == []  # today's exit is withheld too
+    gate = free["plan_gate"]
+    assert gate["locked"] is True
+    assert gate["locked_position_count"] == 1 and gate["locked_closed_count"] == 1
+    # totals stay public: they prove the record without naming today's picks
+    assert free["summary"] == raw["summary"]
+
+
+def test_paid_members_see_todays_moves():
+    from datetime import datetime, timedelta, timezone
+
+    from tradingagents.site.billing import KST, gate_paper_account_payload, resolve_plan_access
+    from tradingagents.storage import SubscriptionInput
+
+    user = "11111111-1111-4111-8111-111111111111"
+    today = datetime.now(KST).date()
+    repo = _repo()
+    _seed_today(repo, today)
+    repo.upsert_subscription(
+        SubscriptionInput(user_id=user, plan="daily", status="active", current_period_end=datetime.now(timezone.utc) + timedelta(days=20))
+    )
+    paid = gate_paper_account_payload(build_paper_account_payload(repo), resolve_plan_access(repo, user))
+    assert {item["ticker_code"] for item in paid["positions"]} == {"096770", "131290"}
+    assert len(paid["closed"]) == 1
+    assert paid["plan_gate"]["locked"] is False
+
+
+def test_paper_account_api_and_page_hide_todays_rows_from_anonymous_callers(monkeypatch):
+    from datetime import datetime
+
+    from tradingagents.site.billing import KST
+
+    today = datetime.now(KST).date()
+    repo = _repo()
+    _seed_today(repo, today)
+    monkeypatch.setenv("TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER", "true")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+
+    anonymous = client.get("/api/paper-account").json()
+    assert {item["ticker_code"] for item in anonymous["positions"]} == {"096770"}
+    assert anonymous["plan_gate"]["locked"] is True
+
+    html = client.get("/paper").text
+    assert "티에스이" not in html and "131290" not in html
+    assert "SK이노베이션" in html
+    assert "오늘 편입 1종목" in html and "오늘 청산 1건" in html
+    assert "/pricing" in html

@@ -339,6 +339,48 @@ def debate_excerpts(raw: Mapping[str, Any], *, limit: int = 160) -> dict[str, st
     return excerpts
 
 
+def gate_paper_account_payload(payload: Mapping[str, Any] | None, access: PlanAccess, *, now: datetime | None = None) -> dict[str, Any] | None:
+    """Apply the plan rules to the harness paper account.
+
+    The account's track record is public: totals, and every position or trade
+    from a day that has closed. Today's moves are the paid product, the same
+    rule the harness run page follows, so a free visitor sees that entries or
+    exits happened today without the tickers, prices or levels.
+    """
+
+    if payload is None:
+        return None
+    result = dict(payload)
+    if access.plan.same_day_harness:
+        result["plan_gate"] = {"plan": access.plan.id, "status": access.status, "locked": False}
+        return result
+
+    today = (now or datetime.now(KST)).astimezone(KST).date()
+
+    def _is_today(value: Any) -> bool:
+        when = _coerce_date(value)
+        return bool(when and when >= today)
+
+    positions = list(payload.get("positions") or [])
+    closed = list(payload.get("closed") or [])
+    visible_positions = [item for item in positions if not _is_today(item.get("entry_date"))]
+    visible_closed = [item for item in closed if not _is_today(item.get("exit_date"))]
+    locked_positions = len(positions) - len(visible_positions)
+    locked_closed = len(closed) - len(visible_closed)
+
+    result["positions"] = visible_positions
+    result["closed"] = visible_closed
+    result["plan_gate"] = {
+        "plan": access.plan.id,
+        "status": access.status,
+        "locked": bool(locked_positions or locked_closed),
+        "locked_position_count": locked_positions,
+        "locked_closed_count": locked_closed,
+        "reason": "당일 편입과 청산 내역은 데일리 패스에서 열립니다." if (locked_positions or locked_closed) else "",
+    }
+    return result
+
+
 def latest_visible_run_id(repo: StorageRepository | None, access: PlanAccess, *, now: datetime | None = None) -> str | None:
     """For free visitors pick the newest run dated before today; paid members get the newest."""
 
