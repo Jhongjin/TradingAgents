@@ -366,6 +366,20 @@ harness_outcomes = Table(
     UniqueConstraint("harness_decision_id", "horizon_days", name="uq_harness_outcomes_decision_horizon"),
 )
 
+member_preferences = Table(
+    "member_preferences",
+    metadata,
+    Column("user_id", Uuid(as_uuid=False), primary_key=True),
+    Column("markets", JSON, nullable=False, default=list),
+    Column("exclude_etf", Boolean, nullable=False, default=True),
+    Column("min_rating", String(24), nullable=False, default="any"),
+    Column("max_price", Numeric(18, 4), nullable=True),
+    Column("excluded_tickers", JSON, nullable=False, default=list),
+    Column("metadata_json", JSON, nullable=False, default=dict),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+)
+
 paper_account_snapshots = Table(
     "paper_account_snapshots",
     metadata,

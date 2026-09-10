@@ -38,6 +38,7 @@ from .tables import (
     agent_reports,
     analysis_outcomes,
     analysis_refresh_requests,
+    member_preferences,
     paper_account_snapshots,
     analysis_runs,
     harness_decisions,
@@ -1114,6 +1115,35 @@ class StorageRepository:
         for decision in decisions:
             decision["outcomes"] = by_decision.get(str(decision["id"]), [])
         return decisions
+
+    def get_member_preferences(self, user_id: str) -> dict[str, Any] | None:
+        """Display preferences for one member, or None when never saved."""
+
+        _validate_uuid(user_id, "user_id")
+        with self.engine.begin() as conn:
+            row = conn.execute(select(member_preferences).where(member_preferences.c.user_id == user_id)).mappings().first()
+        return dict(row) if row else None
+
+    def save_member_preferences(self, user_id: str, data: Mapping[str, Any]) -> dict[str, Any]:
+        """Insert or replace one member's preferences; returns what was stored."""
+
+        _validate_uuid(user_id, "user_id")
+        values = {
+            "markets": list(data.get("markets") or []),
+            "exclude_etf": bool(data.get("exclude_etf", True)),
+            "min_rating": str(data.get("min_rating") or "any"),
+            "max_price": data.get("max_price"),
+            "excluded_tickers": list(data.get("excluded_tickers") or []),
+            "updated_at": datetime.now(timezone.utc),
+        }
+        with self.engine.begin() as conn:
+            existing = conn.execute(select(member_preferences.c.user_id).where(member_preferences.c.user_id == user_id)).first()
+            if existing:
+                conn.execute(update(member_preferences).where(member_preferences.c.user_id == user_id).values(**values))
+            else:
+                conn.execute(insert(member_preferences).values(user_id=user_id, **values))
+            row = conn.execute(select(member_preferences).where(member_preferences.c.user_id == user_id)).mappings().first()
+        return dict(row) if row else {}
 
     def upsert_paper_account_snapshot(self, data: "PaperAccountSnapshotInput") -> str:
         """Record one day of the paper account; re-running a day overwrites it."""

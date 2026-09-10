@@ -642,3 +642,43 @@ def test_intraday_exit_passes_are_scheduled_and_never_buy():
     assert "--exits-only" in workflow and "--execute" in workflow
     assert "--broker kis" not in workflow  # the local paper book only
     assert workflow.count('cron: "20') == 3
+
+
+def test_news_can_close_a_position_the_price_rules_would_have_held():
+    from tradingagents.harness.news_guard import build_news_risk_checker
+
+    def _llm(prompt: str) -> str:
+        assert "보유를 중단할 만한 중대한 악재" in prompt
+        return '```json\n{"material_risk": true, "headline": "감사의견 거절 공시", "confidence": 0.82}\n```'
+
+    checker = build_news_risk_checker(_llm, news_fetcher=lambda code, start, end: "감사의견 거절 공시가 나왔습니다.")
+    flagged, note = checker("005930", "삼성전자", datetime.now(timezone.utc).date())
+    assert flagged is True and "감사의견" in note
+
+
+def test_a_weak_or_missing_signal_never_sells():
+    from tradingagents.harness.news_guard import build_news_risk_checker
+
+    today = datetime.now(timezone.utc).date()
+    news = lambda code, start, end: "특별한 소식이 없습니다."
+
+    unsure = build_news_risk_checker(lambda prompt: '{"material_risk": true, "headline": "주가 하락", "confidence": 0.3}', news_fetcher=news)
+    assert unsure("005930", "삼성전자", today) == (False, "")
+
+    calm = build_news_risk_checker(lambda prompt: '{"material_risk": false}', news_fetcher=news)
+    assert calm("005930", "삼성전자", today) == (False, "")
+
+    unparseable = build_news_risk_checker(lambda prompt: "죄송합니다, 답변할 수 없습니다.", news_fetcher=news)
+    assert unparseable("005930", "삼성전자", today) == (False, "")
+
+    def _broken_feed(code, start, end):
+        raise RuntimeError("naver blocked")
+
+    blocked = build_news_risk_checker(lambda prompt: '{"material_risk": true, "confidence": 1.0}', news_fetcher=_broken_feed)
+    assert blocked("005930", "삼성전자", today) == (False, "")
+
+
+def test_news_risk_reads_as_korean_on_the_page():
+    from tradingagents.site.plain_korean import exit_reason_label
+
+    assert exit_reason_label("news_risk") == "악재 감지"

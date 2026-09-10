@@ -24,6 +24,7 @@ EXIT_REASON_LABELS = {
     "stop_loss": "손절선 도달",
     "take_profit": "목표가 도달",
     "max_holding_days": "보유 기간 종료",
+    "news_risk": "악재 감지",
     "paper fill": "모의 체결",
 }
 

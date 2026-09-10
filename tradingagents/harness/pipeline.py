@@ -188,6 +188,8 @@ def run_daily_pipeline(
     current_prices: Mapping[str, float] | None = None,
     repo: Any | None = None,
     confirmer_name: str | None = None,
+    risk_checker: Any | None = None,
+    held_names: Mapping[str, str] | None = None,
     visibility: str = "public",
 ) -> PipelineRunResult:
     """Run one cycle. When ``repo`` is given the run and decisions are persisted."""
@@ -249,6 +251,8 @@ def run_daily_pipeline(
             ledger,
             entry_dates=entry_dates,
             as_of=datetime.strptime(resolved_date, "%Y-%m-%d").date(),
+            risk_checker=risk_checker,
+            names=held_names,
         )
     )
 
@@ -582,6 +586,8 @@ def _evaluate_exits(
     *,
     entry_dates: Mapping[str, date] | None = None,
     as_of: date | None = None,
+    risk_checker: Any | None = None,
+    names: Mapping[str, str] | None = None,
 ) -> list[PipelineDecision]:
     """Close held positions that hit stop-loss, take-profit, or the holding limit.
 
@@ -613,6 +619,18 @@ def _evaluate_exits(
             held_days = _business_days_between(entry_dates[code], today)
             if held_days >= config.max_holding_days:
                 reason = "max_holding_days"
+        news_note = ""
+        if reason is None and risk_checker is not None:
+            # The price rules said hold. Ask whether the reason for holding
+            # still stands before letting the position ride another session.
+            try:
+                flagged, news_note = risk_checker(code, (names or {}).get(code) or code, today)
+            except Exception as exc:
+                _audit(ledger, "news_check_error", {"code": code, "error": f"{exc.__class__.__name__}: {exc}"})
+                flagged, news_note = False, ""
+            if flagged:
+                reason = "news_risk"
+            _audit(ledger, "news_check", {"code": code, "flagged": bool(flagged), "note": news_note[:120]})
         _audit(ledger, "exit_check", {"code": code, "price": price, "average": average, "move": round(move, 4), "reason": reason})
         if reason is None:
             continue
@@ -631,7 +649,8 @@ def _evaluate_exits(
             continue
         result = broker.place_order(order, price=price, dry_run=config.dry_run)
         _audit(ledger, "exit_order", {"code": code, "reason": reason, "move": move, "status": result.status, "dry_run": config.dry_run})
-        decisions.append(PipelineDecision(code=code, name=code, market="KR", stage="exit", reasons=[reason, result.message], mandate=gate.as_dict(), order=result.as_dict()))
+        exit_reasons = [reason, *( [news_note] if news_note else [] ), result.message]
+        decisions.append(PipelineDecision(code=code, name=(names or {}).get(code) or code, market="KR", stage="exit", reasons=exit_reasons, mandate=gate.as_dict(), order=result.as_dict()))
     return decisions
 
 

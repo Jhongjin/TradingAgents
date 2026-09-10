@@ -151,6 +151,14 @@ class IndexNowBody(BaseModel):
     paths: list[str] = Field(min_length=1, max_length=500)
 
 
+class MemberPreferencesBody(BaseModel):
+    markets: list[str] = Field(default_factory=lambda: ["KOSPI", "KOSDAQ"], max_length=4)
+    exclude_etf: bool = True
+    min_rating: str = "any"
+    max_price: float | None = None
+    excluded_tickers: list[str] = Field(default_factory=list, max_length=50)
+
+
 class MemberPlanBody(BaseModel):
     plan: str = Field(pattern=r"^(free|daily|pro)$")
     days: int = Field(default=30, ge=0, le=366)
@@ -1582,6 +1590,70 @@ def create_app(
         if not removed:
             raise HTTPException(status_code=404, detail="Price target not found")
         return {"status": "deleted", "ticker_code": ticker_code.upper()}
+
+    @app.get("/api/member/preferences")
+    def member_preferences_read(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        from .member_preferences import normalize
+
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        try:
+            stored = repo.get_member_preferences(user_id)
+        except Exception:
+            stored = None
+        return {"status": "available", "preferences": normalize(stored), "saved": stored is not None}
+
+    @app.put("/api/member/preferences")
+    def member_preferences_write(
+        body: MemberPreferencesBody,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        from .member_preferences import normalize
+
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        cleaned = normalize(body.model_dump())
+        repo.save_member_preferences(user_id, cleaned)
+        return {"status": "saved", "preferences": cleaned}
+
+    @app.get("/api/member/picks")
+    def member_picks(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        """The picks this member may see, narrowed to their own conditions."""
+
+        from .member_preferences import filter_picks
+
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        access = resolve_plan_access(repo, user_id)
+        run_id = latest_visible_run_id(repo, access)
+        payload = gate_harness_payload(build_harness_run_payload(repo, harness_run_id=run_id) if run_id else None, access) or {}
+        picks = [item for item in (payload.get("decisions") or []) if str(item.get("stage") or "") in {"ordered", "exit"}]
+        try:
+            stored = repo.get_member_preferences(user_id)
+        except Exception:
+            stored = None
+        result = filter_picks(picks, stored)
+        run = payload.get("run") or {}
+        return {
+            "status": "available" if picks else "empty",
+            "as_of_date": run.get("as_of_date"),
+            "run_path": f"/harness/{run.get('id')}" if run.get("id") else None,
+            "plan_gate": payload.get("plan_gate"),
+            **result,
+        }
 
     @app.get("/api/member/dashboard")
     def member_dashboard_bootstrap(

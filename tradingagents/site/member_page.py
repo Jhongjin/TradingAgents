@@ -47,6 +47,20 @@ MEMBER_CSS = """
 .member-page .member-summary-band { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
 .member-page .member-summary-main { flex: 1 1 520px; min-width: 0; display: grid; gap: 14px; align-content: start; }
 .member-page .member-overview-strip article { padding: 10px 12px; }
+.member-page .member-picks { display: grid; gap: 12px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); margin-bottom: 16px; }
+.member-page .member-picks-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.member-page .member-picks-head h3 { font-size: 16px; font-weight: 700; }
+.member-page .member-picks-form { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.member-page .member-picks-form fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.member-page .member-picks-form legend { font-size: 12px; color: var(--muted); padding: 0; margin-bottom: 6px; }
+.member-page .member-picks-form label { font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+.member-page .member-picks-field { display: grid; gap: 4px; max-width: 320px; }
+.member-page .member-picks-field span { font-size: 12px; color: var(--muted); }
+.member-page .member-picks-list { display: grid; gap: 8px; }
+.member-page .member-pick { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.member-page .member-pick b { font-weight: 700; font-size: 14px; }
+.member-page .member-pick small { display: block; color: var(--ink2); font-size: 12px; margin-top: 2px; line-height: 1.5; }
+.member-page .member-picks-note { font-size: 12px; color: var(--muted); }
 .member-page .member-overview-strip strong { font-size: 20px; }
 .member-page .member-hit-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 14px; border: 1px solid var(--line); border-left: 4px solid var(--gain); border-radius: 12px; background: var(--panel); }
 .member-page .member-hit-banner.is-stop { border-left-color: var(--loss); }
@@ -390,6 +404,32 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <span class="status-pill">조회/기록 전용</span>
       </div>
 
+      <section class="member-picks" id="memberPicksCard" aria-label="내 조건에 맞는 오늘의 종목">
+        <div class="member-picks-head">
+          <div><p class="eyebrow">오늘의 종목</p><h3 id="memberPicksTitle">내 조건에 맞는 선정 종목</h3></div>
+          <button class="ghost-button" id="memberPicksToggle" type="button" aria-expanded="false">조건 바꾸기</button>
+        </div>
+        <form class="member-picks-form" id="memberPicksForm" hidden>
+          <fieldset>
+            <legend>시장</legend>
+            <label><input type="checkbox" name="market_kospi" checked> 코스피</label>
+            <label><input type="checkbox" name="market_kosdaq" checked> 코스닥</label>
+            <label><input type="checkbox" name="exclude_etf" checked> ETF 제외</label>
+          </fieldset>
+          <label class="member-picks-field"><span>최소 등급</span>
+            <select name="min_rating">
+              <option value="any">모든 등급</option>
+              <option value="overweight">비중 확대 이상</option>
+              <option value="buy">매수 이상</option>
+            </select>
+          </label>
+          <label class="member-picks-field"><span>1주 가격 상한</span><input class="field" name="max_price" type="number" min="0" step="1000" placeholder="제한 없음"></label>
+          <label class="member-picks-field"><span>제외할 종목 코드</span><input class="field" name="excluded_tickers" type="text" placeholder="005930, 000660"></label>
+          <div class="actions"><button class="btn primary sm" type="submit">조건 저장</button><span class="msg" id="memberPicksMessage"></span></div>
+        </form>
+        <div class="member-picks-list" id="memberPicksList"><p class="small ink2">조건에 맞는 종목을 불러오고 있습니다.</p></div>
+        <small class="member-picks-note" id="memberPicksNote"></small>
+      </section>
       <p class="member-home-state-note" id="memberHomeStateNote" aria-live="polite">저장된 항목을 불러오고 있습니다.</p>
       <section class="member-primary-action" id="memberPrimaryAction" data-member-primary-action="portfolio" aria-live="polite">
         <div>

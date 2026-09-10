@@ -12797,6 +12797,12 @@ MEMBER_PAGE_JS = """
   const overviewCompletedReports = document.getElementById("memberOverviewCompletedReports");
   const overviewPaperSimulations = document.getElementById("memberOverviewPaperSimulations");
   const memberHomeStateNote = document.getElementById("memberHomeStateNote");
+  const picksCard = document.getElementById("memberPicksCard");
+  const picksForm = document.getElementById("memberPicksForm");
+  const picksToggle = document.getElementById("memberPicksToggle");
+  const picksList = document.getElementById("memberPicksList");
+  const picksNote = document.getElementById("memberPicksNote");
+  const picksMessage = document.getElementById("memberPicksMessage");
   const memberHitBanner = document.getElementById("memberHitBanner");
   const memberHitPill = document.getElementById("memberHitPill");
   const memberHitText = document.getElementById("memberHitText");
@@ -14628,6 +14634,81 @@ MEMBER_PAGE_JS = """
     }
   }
 
+  function fillPreferenceForm(preferences) {
+    if (!picksForm) return;
+    const elements = picksForm.elements;
+    const markets = preferences.markets || ["KOSPI", "KOSDAQ"];
+    if (elements.market_kospi) elements.market_kospi.checked = markets.indexOf("KOSPI") >= 0;
+    if (elements.market_kosdaq) elements.market_kosdaq.checked = markets.indexOf("KOSDAQ") >= 0;
+    if (elements.exclude_etf) elements.exclude_etf.checked = preferences.exclude_etf !== false;
+    if (elements.min_rating) elements.min_rating.value = preferences.min_rating || "any";
+    if (elements.max_price) elements.max_price.value = preferences.max_price || "";
+    if (elements.excluded_tickers) elements.excluded_tickers.value = (preferences.excluded_tickers || []).join(", ");
+  }
+
+  function readPreferenceForm() {
+    const elements = picksForm.elements;
+    const markets = [];
+    if (elements.market_kospi?.checked) markets.push("KOSPI");
+    if (elements.market_kosdaq?.checked) markets.push("KOSDAQ");
+    return {
+      markets: markets.length ? markets : ["KOSPI", "KOSDAQ"],
+      exclude_etf: Boolean(elements.exclude_etf?.checked),
+      min_rating: elements.min_rating?.value || "any",
+      max_price: Number(elements.max_price?.value) || null,
+      excluded_tickers: String(elements.excluded_tickers?.value || "").split(/[^0-9]+/).filter((code) => code.length === 6)
+    };
+  }
+
+  function renderPicks(payload) {
+    if (!picksList) return;
+    fillPreferenceForm(payload.preferences || {});
+    const items = payload.items || [];
+    picksList.replaceChildren();
+    if (!items.length) {
+      const empty = document.createElement("p");
+      empty.className = "small ink2";
+      empty.textContent = payload.total_count
+        ? "오늘 선정된 종목이 내 조건에는 맞지 않았습니다. 조건을 바꾸면 다시 확인합니다."
+        : "아직 공개된 선정 종목이 없습니다.";
+      picksList.append(empty);
+    }
+    items.slice(0, 8).forEach((row) => {
+      const node = document.createElement("article");
+      node.className = "member-pick";
+      const left = document.createElement("div");
+      const title = document.createElement("b");
+      title.textContent = `${row.ticker_name || row.ticker_code}`;
+      const meta = document.createElement("small");
+      const rating = row.confirmation_rating ? `${row.confirmation_rating} · ` : "";
+      const price = row.entry_price ? `기준가 ${money(row.entry_price)}원` : "";
+      meta.textContent = `${row.ticker_code} · ${rating}${price}`;
+      left.append(title, meta);
+      const link = document.createElement("a");
+      link.className = "btn sm";
+      link.href = `/stocks/${encodeURIComponent(row.ticker_code)}`;
+      link.textContent = "종목 보기";
+      node.append(left, link);
+      picksList.append(node);
+    });
+    if (picksNote) {
+      const dropped = (payload.dropped || []).map((item) => `${item.label} ${item.count}`).join(" · ");
+      const head = payload.as_of_date ? `${payload.as_of_date} 선별 기준 ` : "";
+      picksNote.textContent = dropped
+        ? `${head}${payload.total_count}종목 중 ${payload.kept_count}종목이 조건에 맞습니다 (제외: ${dropped}).`
+        : `${head}${payload.kept_count}종목이 조건에 맞습니다.`;
+    }
+  }
+
+  async function loadMemberPicks() {
+    if (!picksCard) return;
+    try {
+      renderPicks(await memberApi("/api/member/picks"));
+    } catch (error) {
+      if (picksNote) picksNote.textContent = error.message || "선정 종목을 불러오지 못했습니다.";
+    }
+  }
+
   function updateHitBanner(details = {}) {
     if (!memberHitBanner) return;
     let targets = 0;
@@ -14830,6 +14911,7 @@ MEMBER_PAGE_JS = """
     setStatus("대시보드 불러오는 중");
     void refreshAccountBadges();
     void refreshTelegramStatus();
+    void loadMemberPicks();
     // Two phases: records first (fast), then the same payload with market prices.
     const dashboardResult = await safeMemberApi("/api/member/dashboard?include_latest_prices=false");
     if (dashboardResult.ok) {
@@ -14981,6 +15063,25 @@ MEMBER_PAGE_JS = """
     passwordToggle.textContent = label;
     passwordToggle.setAttribute("aria-label", label);
     passwordToggle.setAttribute("aria-pressed", showing ? "false" : "true");
+  });
+
+  picksToggle?.addEventListener("click", () => {
+    const open = picksToggle.getAttribute("aria-expanded") === "true";
+    picksToggle.setAttribute("aria-expanded", open ? "false" : "true");
+    if (picksForm) picksForm.hidden = open;
+    picksToggle.textContent = open ? "조건 바꾸기" : "조건 닫기";
+  });
+
+  picksForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (picksMessage) picksMessage.textContent = "저장 중입니다.";
+    try {
+      await memberApi("/api/member/preferences", { method: "PUT", body: JSON.stringify(readPreferenceForm()) });
+      if (picksMessage) picksMessage.textContent = "조건을 저장했습니다.";
+      await loadMemberPicks();
+    } catch (error) {
+      if (picksMessage) picksMessage.textContent = error.message || "저장하지 못했습니다.";
+    }
   });
 
   telegramToggle?.addEventListener("click", () => {

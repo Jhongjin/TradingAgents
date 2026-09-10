@@ -10,6 +10,10 @@ name: Intraday exits (paper account)
 
 on:
   workflow_dispatch:
+    inputs:
+      news_check:
+        description: "Set to any value to also run the news check"
+        default: ""
   schedule:
     # 11:20, 13:20 and 15:20 KST on weekdays (02:20, 04:20 and 06:20 UTC).
     - cron: "20 2 * * 1-5"
@@ -25,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       TRADINGAGENTS_POSTGRES_DRIVER: pg8000
       TRADINGAGENTS_FORECAST_BACKEND: naive
@@ -42,9 +47,14 @@ jobs:
       - name: Close positions that hit a rule
         run: |
           if [ -z "$DATABASE_URL" ]; then echo "::error::DATABASE_URL secret is not set"; exit 1; fi
+          # One news pass a day, at midday: enough to catch a disclosure while
+          # the session is still open, without paying for it three times.
+          NEWS=""
+          if [ "${{ github.event.schedule }}" = "20 4 * * 1-5" ] || [ -n "${{ github.event.inputs.news_check }}" ]; then NEWS="--news-check"; fi
           tradingagents pipeline \
             --exits-only \
             --execute \
+            $NEWS \
             --persist \
             --audit-log ./harness-audit.jsonl \
             --output ./intraday-exits.json

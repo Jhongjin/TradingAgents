@@ -1499,6 +1499,7 @@ def pipeline_command(
     persist: bool = typer.Option(False, "--persist", help="Store the run and decisions in DATABASE_URL (Supabase) for the /harness page."),
     debate_rounds: int = typer.Option(1, "--debate-rounds", min=1, max=3, help="Bull/bear rounds for --confirmer debate."),
     exits_only: bool = typer.Option(False, "--exits-only", help="Only close positions that hit a stop, target, or holding limit. No new entries."),
+    news_check: bool = typer.Option(False, "--news-check", help="Also close a held position when recent news breaks the reason it was bought."),
 ):
     """Daily harness: screen → forecast → LLM confirm → size → mandate gate → order."""
 
@@ -1589,6 +1590,27 @@ def pipeline_command(
                 console.print(f"[yellow]held-position prices unavailable ({exc.__class__.__name__}); exits skipped this run[/yellow]")
             console.print(f"[dim]priced {len(held_prices)}/{len(held)} holding(s) for exit checks[/dim]")
 
+    risk_checker = None
+    held_names: dict[str, str] = {}
+    if broker_adapter is not None and getattr(broker_adapter, "name", "") == "paper":
+        held = sorted(getattr(broker_adapter, "broker").portfolio.positions)
+        if held:
+            try:
+                from tradingagents.dataflows.kr_ticker_directory import lookup_directory
+
+                for code in held:
+                    entry = lookup_directory(code)
+                    if entry is not None:
+                        held_names[code] = entry.name
+            except Exception:
+                held_names = {}
+    if news_check:
+        from tradingagents.harness.news_guard import build_news_risk_checker
+        from tradingagents.harness.tasks import llm_from_config
+
+        risk_checker = build_news_risk_checker(llm_from_config())
+        console.print("[dim]news check enabled for held positions[/dim]")
+
     ledger = AuditLedger(audit_log) if audit_log else AuditLedger.from_env()
     result = run_daily_pipeline(
         as_of_date,
@@ -1599,6 +1621,8 @@ def pipeline_command(
         repo=repo,
         current_prices=held_prices or None,
         confirmer_name=confirmer.lower(),
+        risk_checker=risk_checker,
+        held_names=held_names or None,
     )
     if result.run_id:
         console.print(f"[dim]persisted harness_run_id={result.run_id} → /harness/{result.run_id}[/dim]")
