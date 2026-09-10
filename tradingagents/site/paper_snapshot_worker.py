@@ -95,7 +95,12 @@ def record_paper_account_snapshot(
     # first recorded day, so a benchmark reading only helps once a first one
     # exists to anchor it.
     benchmark_return = None
-    history = repo.list_paper_account_snapshots(account_key=account_key, limit=400)
+    try:
+        history = repo.list_paper_account_snapshots(account_key=account_key, limit=400)
+    except Exception as exc:
+        # the snapshot table is created by a migration; say so plainly instead
+        # of failing the cron with a 500
+        return {"status": "storage_unavailable", "error": f"{exc.__class__.__name__}: {exc}", "snapshot_date": snapshot_date.isoformat()}
     baseline = next((row for row in history if row.get("benchmark_close")), None)
     if benchmark_close and baseline and baseline.get("snapshot_date") != snapshot_date:
         try:
@@ -105,24 +110,27 @@ def record_paper_account_snapshot(
     elif benchmark_close and (not baseline or baseline.get("snapshot_date") == snapshot_date):
         benchmark_return = 0.0
 
-    snapshot_id = repo.upsert_paper_account_snapshot(
-        PaperAccountSnapshotInput(
-            snapshot_date=snapshot_date,
-            account_key=account_key,
-            cash=_money(summary.get("cash")),
-            holdings_value=_money(summary.get("holdings_value")),
-            equity=_money(summary.get("equity")),
-            initial_cash=_money(summary.get("initial_cash") or initial_cash),
-            total_return=summary.get("total_return"),
-            realized_pnl=_money(summary.get("realized_pnl")),
-            position_count=int(summary.get("open_count") or 0),
-            priced_count=int(summary.get("priced_count") or 0),
-            benchmark_symbol=BENCHMARK_SYMBOL,
-            benchmark_close=float(benchmark_close) if benchmark_close else None,
-            benchmark_return=benchmark_return,
-            metadata={"notes": notes} if notes else {},
+    try:
+        snapshot_id = repo.upsert_paper_account_snapshot(
+            PaperAccountSnapshotInput(
+                snapshot_date=snapshot_date,
+                account_key=account_key,
+                cash=_money(summary.get("cash")),
+                holdings_value=_money(summary.get("holdings_value")),
+                equity=_money(summary.get("equity")),
+                initial_cash=_money(summary.get("initial_cash") or initial_cash),
+                total_return=summary.get("total_return"),
+                realized_pnl=_money(summary.get("realized_pnl")),
+                position_count=int(summary.get("open_count") or 0),
+                priced_count=int(summary.get("priced_count") or 0),
+                benchmark_symbol=BENCHMARK_SYMBOL,
+                benchmark_close=float(benchmark_close) if benchmark_close else None,
+                benchmark_return=benchmark_return,
+                metadata={"notes": notes} if notes else {},
+            )
         )
-    )
+    except Exception as exc:
+        return {"status": "storage_unavailable", "error": f"{exc.__class__.__name__}: {exc}", "snapshot_date": snapshot_date.isoformat()}
     return {
         "status": "recorded",
         "snapshot_id": snapshot_id,
