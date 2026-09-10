@@ -34,7 +34,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- tradingagents/dataflows/data/kr_tickers.json; then
+          if [ -z "$(git status --porcelain -- tradingagents/dataflows/data/kr_tickers.json)" ]; then
             echo "directory unchanged"
           else
             git add tradingagents/dataflows/data/kr_tickers.json
