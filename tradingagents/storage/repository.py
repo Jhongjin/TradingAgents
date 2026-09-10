@@ -1312,6 +1312,20 @@ class StorageRepository:
                 raise ValueError("harness decision not found")
             conn.execute(update(harness_decisions).where(harness_decisions.c.id == harness_decision_id).values(detail_json={**dict(current or {}), **dict(patch)}))
 
+    def update_harness_decision_order_status(self, harness_decision_id: str, status: str) -> None:
+        """Set what became of an order after the broker reported back."""
+
+        _validate_uuid(harness_decision_id, "harness_decision_id")
+        cleaned = str(status or "").strip().lower()
+        if cleaned not in {"filled", "accepted", "rejected", "dry_run", "skipped"}:
+            raise ValueError("unsupported order status")
+        with self.engine.begin() as conn:
+            result = conn.execute(
+                update(harness_decisions).where(harness_decisions.c.id == harness_decision_id).values(order_status=cleaned)
+            )
+            if result.rowcount == 0:
+                raise ValueError("harness decision not found")
+
     def update_harness_outcome_metadata(self, harness_outcome_id: str, patch: Mapping[str, Any]) -> None:
         _validate_uuid(harness_outcome_id, "harness_outcome_id")
         with self.engine.begin() as conn:

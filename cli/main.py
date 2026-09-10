@@ -1625,6 +1625,38 @@ def pipeline_command(
         console.print(f"[dim]saved {output}[/dim]")
 
 
+@app.command("reconcile-kis-fills")
+def reconcile_kis_fills_command(
+    days: int = typer.Option(5, "--days", min=1, max=30, help="How many days back to ask KIS about."),
+):
+    """Replace accepted KIS 모의투자 orders with the fills KIS actually recorded."""
+
+    import os
+
+    from tradingagents.execution import KISConfig
+    from tradingagents.execution.kis_client import KISClient
+    from tradingagents.site.kis_reconcile import reconcile_kis_fills
+    from tradingagents.storage import StorageRepository, create_storage_engine
+
+    if not os.getenv("DATABASE_URL"):
+        raise typer.BadParameter("DATABASE_URL is required to reconcile fills")
+    config = KISConfig.from_env()
+    errors = config.validation_errors()
+    if errors:
+        raise typer.BadParameter("; ".join(errors))
+
+    repo = StorageRepository(create_storage_engine())
+    result = reconcile_kis_fills(repo, KISClient(config), lookback_days=days)
+    status = result.get("status")
+    if status == "reconciled":
+        console.print(
+            f"[green]reconciled {result['reconciled']}[/green] · 부분체결 {result.get('partial')} · "
+            f"미체결 {result.get('unfilled')} · 대조 실패 {result.get('unmatched')} (주문 {result.get('broker_rows')}건 조회)"
+        )
+        return
+    console.print(f"[yellow]{status}: {result.get('error') or ''} (대기 {result.get('pending', 0)}건)[/yellow]")
+
+
 @app.command("record-paper-snapshot")
 def record_paper_snapshot_command(
     as_of: Optional[str] = typer.Option(None, "--date", help="Snapshot date YYYY-MM-DD (default: today KST)."),

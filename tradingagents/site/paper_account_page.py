@@ -46,6 +46,9 @@ PAPER_CSS = """
 .paper-rules .kv { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
 .paper-rule-history { grid-column: 1 / -1; margin-top: 4px; }
 .paper-rule-history ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 12px; color: var(--ink2); }
+.paper-books { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.paper-book { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.paper-book .v { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin: 2px 0 4px; }
 @media (max-width: 720px) { .paper-table { min-width: 640px; } }
 """
 
@@ -214,11 +217,41 @@ def _curve_card(curve: Mapping[str, Any]) -> str:
   </div>"""
 
 
+def _source_badge(item: Mapping[str, Any]) -> str:
+    label = str(item.get("account_label") or "")
+    if not label:
+        return ""
+    return badge(label, "b-teal" if item.get("account") == "kis" else "b-grey", xs=True)
+
+
+def _books_card(books: list[Mapping[str, Any]]) -> str:
+    """Each book's own totals, because each has its own capital and cash."""
+
+    rows = []
+    for book in books:
+        summary = book.get("summary") or {}
+        if not summary:
+            continue
+        rows.append(
+            f'<div class="paper-book"><p class="label">{h(book.get("label"))}</p>'
+            f'<p class="v num {_sign_class(summary.get("return"))}">{h(_pct(summary.get("return")))}</p>'
+            f'<p class="tiny muted">평가 {h(_num(summary.get("equity")))}원 · 현금 {h(_num(summary.get("cash")))}원 · '
+            f'시작 {h(_num(summary.get("initial_cash")))}원 · 보유 {h(summary.get("open_count") or 0)}종목</p></div>'
+        )
+    if not rows:
+        return ""
+    return f"""<div class="card" style="margin-bottom: 18px;">
+    <div class="card-h"><h2>{icon_tile("wallet", "b-teal", small=True)}계좌별 성적</h2><span class="badge b-grey">{len(rows)}개 계좌</span></div>
+    <div class="card-b paper-books">{"".join(rows)}</div>
+    <div class="card-f"><span>자체 모의는 즉시 체결을 가정하고, KIS 모의투자는 실제 주문 접수와 체결을 거칩니다.</span><span>두 성적의 차이가 실제 주문에서 생기는 마찰입니다.</span></div>
+  </div>"""
+
+
 def _holding_row(item: Mapping[str, Any]) -> str:
     code = str(item.get("ticker_code") or "")
     market = market_label(item.get("market"), code)
     return f"""<tr data-holding="{h(code)}" data-average="{h(item.get('average_price') or 0)}" data-quantity="{h(item.get('quantity') or 0)}">
-      <td><a href="/stocks/{h(code)}"><b style="font-weight: 700;">{h(item.get('ticker_name') or code)}</b></a><small>{h(code)}{' · ' + h(market) if market else ''} · 진입 {h(item.get('entry_date') or '-')}</small></td>
+      <td><a href="/stocks/{h(code)}"><b style="font-weight: 700;">{h(item.get('ticker_name') or code)}</b></a> {_source_badge(item)}<small>{h(code)}{' · ' + h(market) if market else ''} · 진입 {h(item.get('entry_date') or '-')}</small></td>
       <td class="num">{h(item.get('quantity'))}주<small>평단 {h(_num(item.get('average_price')))}원</small></td>
       <td class="num" data-current>{h(_num(item.get('current_price'))) + '원' if item.get('current_price') else '불러오는 중'}</td>
       <td class="num">{h(_num(item.get('target_price')))}원<small>손절 {h(_num(item.get('stop_price')))}원</small></td>
@@ -229,7 +262,7 @@ def _holding_row(item: Mapping[str, Any]) -> str:
 def _closed_row(item: Mapping[str, Any]) -> str:
     code = str(item.get("ticker_code") or "")
     return f"""<tr>
-      <td><a href="/stocks/{h(code)}"><b style="font-weight: 700;">{h(item.get('ticker_name') or code)}</b></a><small>{h(code)} · {h(item.get('entry_date') or '-')} → {h(item.get('exit_date') or '-')}</small></td>
+      <td><a href="/stocks/{h(code)}"><b style="font-weight: 700;">{h(item.get('ticker_name') or code)}</b></a> {_source_badge(item)}<small>{h(code)} · {h(item.get('entry_date') or '-')} → {h(item.get('exit_date') or '-')}</small></td>
       <td class="num">{h(item.get('quantity'))}주<small>{h(_num(item.get('entry_price')))}원 → {h(_num(item.get('exit_price')))}원</small></td>
       <td>{badge(exit_reason_label(item.get('exit_reason')), 'b-grey')}</td>
       <td class="{_sign_class(item.get('realized_return'))} num">{h(_pct(item.get('realized_return')))}<small>{h(_num(item.get('realized_pnl')))}원</small></td>
@@ -290,7 +323,7 @@ def render_paper_account_page(
     site_base_url: str | None = None,
     initial_cash: float | None = None,
 ) -> str:
-    from tradingagents.harness.paper_state import build_paper_account_payload, default_initial_cash
+    from tradingagents.harness.paper_state import ACCOUNTS, build_combined_account_payload, default_initial_cash
 
     from .billing import gate_paper_account_payload, resolve_plan_access
 
@@ -298,17 +331,16 @@ def render_paper_account_page(
 
     # Server-rendered pages are public and cacheable, so they always show the
     # free view; a paid session swaps in today's rows from the API after load.
-    payload = gate_paper_account_payload(
-        build_paper_account_payload(repo, initial_cash=initial_cash),
-        resolve_plan_access(None, None),
-    ) or {}
+    payload = gate_paper_account_payload(build_combined_account_payload(repo), resolve_plan_access(None, None)) or {}
     summary = payload.get("summary") or {}
     positions = payload.get("positions") or []
     closed = payload.get("closed") or []
     from .paper_snapshot_worker import build_paper_curve_payload
 
-    curve = build_paper_curve_payload(repo)
+    curves = {key: build_paper_curve_payload(repo, account_key=key) for key, _label in ACCOUNTS}
+    curve = curves.get("paper") or {}
     rules = _rules_payload(repo)
+    books = list(payload.get("accounts") or [])
     gate = payload.get("plan_gate") or {}
     locked_positions = int(gate.get("locked_position_count") or 0)
     locked_closed = int(gate.get("locked_closed_count") or 0)
@@ -339,13 +371,15 @@ def render_paper_account_page(
   <div class="shell">
     <p class="eyebrow">AI 모의 계좌</p>
     <h1>선별한 종목을 실제로 담고, 규칙대로 정리한 기록</h1>
-    <p>매일 아침 선별을 통과한 종목을 시작 자금 {_num(initial_cash)}원의 모의 계좌로 매수합니다. 매수와 동시에 목표가와 손절선을 정하고, 다음 실행에서 그 선에 닿으면 자동으로 정리합니다. 실제 증권 계좌와 연결되지 않은 모의 기록입니다. 지난 기록은 모두 공개하며, 당일 편입·청산은 데일리 패스에서 열립니다.</p>
+    <p>매일 아침 선별을 통과한 종목을 두 모의 계좌로 매수합니다. 자체 모의 계좌는 즉시 체결을 가정하고, KIS 모의투자 계좌는 실제로 주문을 넣어 체결을 확인합니다. 매수와 동시에 목표가와 손절선을 정하고, 다음 실행에서 그 선에 닿으면 자동으로 정리합니다. 실제 증권 계좌와 연결되지 않은 모의 기록입니다. 지난 기록은 모두 공개하며, 당일 편입·청산은 데일리 패스에서 열립니다.</p>
   </div>
 </div>
 <div class="shell">
   <div class="grid-5" style="margin-bottom: 18px;">{tiles}</div>
 
   {_curve_card(curve)}
+
+  {_books_card(books)}
 
   {_rules_card(rules)}
 

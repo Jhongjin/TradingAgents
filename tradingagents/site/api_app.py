@@ -1339,7 +1339,7 @@ def create_app(
     ) -> dict:
         """Copy the account's visible holdings into the member's own journal."""
 
-        from tradingagents.harness.paper_state import build_paper_account_payload
+        from tradingagents.harness.paper_state import build_combined_account_payload
 
         from .paper_copy import copy_account_holdings
 
@@ -1348,7 +1348,7 @@ def create_app(
             raise HTTPException(status_code=503, detail="Storage repository is not configured")
         user_id = resolve_member_user_id(request, x_tradingagents_user_id)
         access = resolve_plan_access(repo, user_id)
-        visible = gate_paper_account_payload(build_paper_account_payload(repo), access) or {}
+        visible = gate_paper_account_payload(build_combined_account_payload(repo), access) or {}
         return copy_account_holdings(repo, user_id=user_id, positions=list(visible.get("positions") or []))
 
     @app.get("/api/paper-account/curve")
@@ -1365,9 +1365,9 @@ def create_app(
         x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
     ) -> dict:
         _require_worker_token(request, x_tradingagents_worker_token)
-        from .paper_snapshot_worker import record_paper_account_snapshot
+        from .paper_snapshot_worker import record_all_account_snapshots
 
-        return record_paper_account_snapshot(request.app.state.repository)
+        return record_all_account_snapshots(request.app.state.repository)
 
     @app.post("/api/admin/paper-account/snapshot", include_in_schema=False)
     def record_paper_snapshot_admin(
@@ -1391,11 +1391,11 @@ def create_app(
         settled record plus a count of what is withheld.
         """
 
-        from tradingagents.harness.paper_state import build_paper_account_payload
+        from tradingagents.harness.paper_state import build_combined_account_payload
 
         repo = request.app.state.repository
         access = resolve_plan_access(repo, _optional_member_user_id(request, x_tradingagents_user_id))
-        return gate_paper_account_payload(build_paper_account_payload(repo), access)
+        return gate_paper_account_payload(build_combined_account_payload(repo), access)
 
     @app.get("/api/prices/latest")
     def latest_prices(

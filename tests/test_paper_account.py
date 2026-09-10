@@ -315,7 +315,10 @@ def test_snapshot_cron_needs_the_worker_token(monkeypatch):
     client = TestClient(create_app(repo=repo, load_repo_from_env=False))
     assert client.get("/api/cron/record-paper-snapshot").status_code == 401
     body = client.get("/api/cron/record-paper-snapshot", headers={"X-TradingAgents-Worker-Token": "op-token"}).json()
-    assert body["status"] == "recorded" and body["benchmark_close"] == 2700.0
+    assert body["status"] == "recorded"
+    # one row per account, so both books get an equity curve
+    assert set(body["accounts"]) == {"paper", "kis"}
+    assert body["accounts"]["paper"]["benchmark_close"] == 2700.0
 
 
 def test_one_day_of_picks_can_no_longer_take_the_whole_account():
@@ -411,3 +414,114 @@ def test_the_kis_account_and_the_local_paper_account_stay_separate():
 
     both = build_paper_account_payload(repo, broker=None)
     assert {item["ticker_code"] for item in both["positions"]} == {"096770", "000660"}
+
+
+def _kis_order(repo: StorageRepository, *, when: date, code: str, name: str, price: float, quantity: int, order_id: str) -> str:
+    run = repo.create_harness_run(
+        HarnessRunInput(as_of_date=when, confirmer="debate", visibility="public", dry_run=False, broker="kis", candidate_count=1, order_count=1)
+    )
+    return repo.add_harness_decision(
+        HarnessDecisionInput(
+            harness_run_id=run,
+            as_of_date=when,
+            ticker_code=code,
+            ticker_name=name,
+            stage="ordered",
+            quantity=quantity,
+            entry_price=Decimal(str(price)),
+            order_status="accepted",
+            reasons=["order accepted"],
+            detail={"order": {"status": "accepted", "order_id": order_id, "order": {"side": "buy", "quantity": quantity}, "fill": {"price": price, "quantity": quantity}}},
+        )
+    )
+
+
+class _FakeKIS:
+    def __init__(self, rows):
+        self.rows = rows
+        self.calls = 0
+
+    def daily_orders(self, *, start_date=None, end_date=None, code=None):
+        self.calls += 1
+        return self.rows
+
+
+def test_kis_orders_are_replaced_by_the_fill_the_broker_recorded():
+    from tradingagents.site.kis_reconcile import reconcile_kis_fills
+
+    repo = _repo()
+    today = datetime.now(timezone.utc).date()
+    _kis_order(repo, when=today, code="000660", name="SK하이닉스", price=1852000, quantity=3, order_id="0001")
+    _kis_order(repo, when=today, code="096770", name="SK이노베이션", price=155200, quantity=8, order_id="0002")
+    client = _FakeKIS([
+        {"order_id": "0001", "code": "000660", "side": "buy", "ordered_quantity": 3, "filled_quantity": 3, "average_fill_price": 1849500.0, "cancelled": False, "status": "filled"},
+        {"order_id": "0002", "code": "096770", "side": "buy", "ordered_quantity": 8, "filled_quantity": 0, "average_fill_price": None, "cancelled": True, "status": "open"},
+    ])
+
+    result = reconcile_kis_fills(repo, client)
+    assert result["status"] == "reconciled"
+    assert result["reconciled"] == 1 and result["unfilled"] == 1 and result["unmatched"] == 0
+
+    fills = repo.list_harness_fills(broker="kis")
+    assert [row["ticker_code"] for row in fills] == ["000660"]  # the cancelled order dropped out
+    assert fills[0]["detail_json"]["order"]["fill"]["price"] == 1849500.0  # not the 1,852,000 limit
+
+    assert reconcile_kis_fills(repo, client)["status"] == "nothing_to_reconcile"
+
+
+def test_reconciliation_leaves_rows_alone_when_the_broker_reports_nothing():
+    from tradingagents.site.kis_reconcile import reconcile_kis_fills
+
+    repo = _repo()
+    today = datetime.now(timezone.utc).date()
+    decision_id = _kis_order(repo, when=today, code="000660", name="SK하이닉스", price=1852000, quantity=3, order_id="0001")
+
+    result = reconcile_kis_fills(repo, _FakeKIS([]))
+    assert result["status"] == "no_broker_rows" and result["pending"] == 1
+    rows = repo.list_harness_fills(broker="kis")
+    assert rows[0]["id"] == decision_id and rows[0]["order_status"] == "accepted"
+
+
+def test_the_combined_account_sums_two_books_without_mixing_their_cash():
+    from tradingagents.harness.paper_state import build_combined_account_payload, default_initial_cash
+
+    repo = _repo()
+    _seed_account(repo)  # the local paper book
+    today = datetime.now(timezone.utc).date()
+    kis_run = repo.create_harness_run(
+        HarnessRunInput(as_of_date=today - timedelta(days=6), confirmer="debate", visibility="public", dry_run=False, broker="kis", candidate_count=1, order_count=1)
+    )
+    _fill(repo, kis_run, when=today - timedelta(days=6), code="000660", stage="ordered", price=1852000, quantity=3, name="SK하이닉스")
+
+    combined = build_combined_account_payload(repo)
+    sources = {item["ticker_code"]: item["account"] for item in combined["positions"]}
+    assert sources == {"096770": "paper", "000660": "kis"}
+    assert {item["account_label"] for item in combined["positions"]} == {"자체 모의", "KIS 모의투자"}
+
+    summary = combined["summary"]
+    assert summary["initial_cash"] == default_initial_cash("paper") + default_initial_cash("kis")
+    books = {book["key"]: book["summary"] for book in combined["accounts"]}
+    assert round(books["paper"]["cash"] + books["kis"]["cash"], 2) == summary["cash"]
+    # neither book paid for the other's shares
+    assert books["kis"]["cash"] < default_initial_cash("kis")
+    assert books["paper"]["cash"] < default_initial_cash("paper")
+    assert books["kis"]["open_count"] == 1 and books["paper"]["open_count"] == 1
+
+
+def test_the_page_shows_both_books_and_labels_every_row():
+    repo = _repo()
+    _seed_account(repo)
+    today = datetime.now(timezone.utc).date()
+    kis_run = repo.create_harness_run(
+        HarnessRunInput(as_of_date=today - timedelta(days=6), confirmer="debate", visibility="public", dry_run=False, broker="kis", candidate_count=1, order_count=1)
+    )
+    _fill(repo, kis_run, when=today - timedelta(days=6), code="000660", stage="ordered", price=1852000, quantity=3, name="SK하이닉스")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    html = client.get("/paper").text
+    assert "계좌별 성적" in html
+    assert "KIS 모의투자" in html and "자체 모의" in html
+    assert "SK하이닉스" in html and "SK이노베이션" in html
+
+    api = client.get("/api/paper-account").json()
+    assert {book["key"] for book in api["accounts"]} == {"paper", "kis"}

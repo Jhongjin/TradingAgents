@@ -57,6 +57,9 @@ jobs:
           for name in KIS_PAPER_APP_KEY KIS_PAPER_APP_SECRET KIS_PAPER_ACCOUNT_NO KIS_PAPER_ACCOUNT_PRODUCT_CODE; do
             if [ -z "${!name}" ]; then echo "::error::$name secret is not set"; exit 1; fi
           done
+      - name: Reconcile the previous session's orders
+        continue-on-error: true
+        run: tradingagents reconcile-kis-fills --days 5
       - name: Trade on KIS 모의투자
         run: |
           EXECUTE=""

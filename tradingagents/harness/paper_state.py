@@ -35,17 +35,25 @@ FILLED_STATUSES = {"filled", "accepted"}
 _FALLBACK_INITIAL_CASH = 50_000_000.0
 
 
-def default_initial_cash() -> float:
-    """Starting capital, overridable with TRADINGAGENTS_PAPER_INITIAL_CASH."""
+ACCOUNTS: tuple[tuple[str, str], ...] = (("paper", "자체 모의"), ("kis", "KIS 모의투자"))
+ACCOUNT_LABELS = dict(ACCOUNTS)
+_CASH_ENV = {"paper": "TRADINGAGENTS_PAPER_INITIAL_CASH", "kis": "TRADINGAGENTS_KIS_INITIAL_CASH"}
 
-    raw = os.getenv("TRADINGAGENTS_PAPER_INITIAL_CASH")
-    if not raw:
-        return _FALLBACK_INITIAL_CASH
-    try:
-        value = float(str(raw).replace(",", "").strip())
-    except (TypeError, ValueError):
-        return _FALLBACK_INITIAL_CASH
-    return value if value > 0 else _FALLBACK_INITIAL_CASH
+
+def default_initial_cash(account: str = "paper") -> float:
+    """Starting capital for one account, each with its own env override."""
+
+    for name in (_CASH_ENV.get(account), "TRADINGAGENTS_PAPER_INITIAL_CASH"):
+        raw = os.getenv(name) if name else None
+        if not raw:
+            continue
+        try:
+            value = float(str(raw).replace(",", "").strip())
+        except (TypeError, ValueError):
+            continue
+        if value > 0:
+            return value
+    return _FALLBACK_INITIAL_CASH
 
 
 def _as_float(value: Any) -> float | None:
@@ -142,7 +150,7 @@ def replay_fills(
 def restore_paper_account(repo: Any, *, initial_cash: float | None = None, max_position_weight: float = 0.2, broker: str = "paper", limit: int = 2000) -> tuple[PaperBrokerAdapter | None, list[str]]:
     """Return a broker holding whatever the recorded harness fills add up to."""
 
-    initial_cash = default_initial_cash() if initial_cash is None else initial_cash
+    initial_cash = default_initial_cash(broker) if initial_cash is None else initial_cash
     if repo is None or not hasattr(repo, "list_harness_fills"):
         return None, []
     try:
@@ -170,7 +178,7 @@ def build_paper_account_payload(
     sell-side transaction tax included.
     """
 
-    initial_cash = default_initial_cash() if initial_cash is None else initial_cash
+    initial_cash = default_initial_cash(broker or "paper") if initial_cash is None else initial_cash
     if repo is None or not hasattr(repo, "list_harness_fills"):
         return {"status": "not_configured", "positions": [], "closed": [], "summary": {}}
     try:
@@ -315,5 +323,60 @@ def build_paper_account_payload(
             "win_count": len(wins),
             "hit_rate": round(len(wins) / len(closed), 4) if closed else None,
             "priced_count": sum(1 for item in positions if item["priced"]),
+        },
+    }
+
+
+def build_combined_account_payload(
+    repo: Any,
+    *,
+    current_prices: Mapping[str, float] | None = None,
+    accounts: tuple[tuple[str, str], ...] = ACCOUNTS,
+    limit: int = 2000,
+) -> dict[str, Any]:
+    """Both books as one list of trades, with each book's totals kept apart.
+
+    A reader wants one answer to "what did it buy and how did it do", so the
+    rows are merged and labelled by source. Money is not merged blindly: each
+    book has its own capital and its own cash, and the combined figures are the
+    sum of those, never one book's cash minus another book's purchases.
+    """
+
+    books: dict[str, Any] = {}
+    positions: list[dict[str, Any]] = []
+    closed: list[dict[str, Any]] = []
+    totals = {"initial_cash": 0.0, "cash": 0.0, "holdings_value": 0.0, "equity": 0.0, "realized_pnl": 0.0, "open_count": 0, "closed_count": 0, "win_count": 0, "priced_count": 0}
+
+    for key, label in accounts:
+        payload = build_paper_account_payload(repo, broker=key, current_prices=current_prices, limit=limit)
+        summary = dict(payload.get("summary") or {})
+        books[key] = {"key": key, "label": label, "status": payload.get("status"), "summary": summary}
+        for item in payload.get("positions") or []:
+            positions.append({**item, "account": key, "account_label": label})
+        for item in payload.get("closed") or []:
+            closed.append({**item, "account": key, "account_label": label})
+        for field in ("initial_cash", "cash", "holdings_value", "equity", "realized_pnl"):
+            totals[field] += float(summary.get(field) or 0.0)
+        for field in ("open_count", "closed_count", "win_count", "priced_count"):
+            totals[field] += int(summary.get(field) or 0)
+
+    for book in books.values():
+        summary = book["summary"]
+        started = float(summary.get("initial_cash") or 0.0)
+        summary["return"] = round((float(summary.get("equity") or 0.0) / started) - 1, 6) if started else None
+
+    positions.sort(key=lambda item: item.get("unrealized_return") if item.get("unrealized_return") is not None else -9, reverse=True)
+    closed.sort(key=lambda item: (item.get("exit_date") or "", item["ticker_code"]), reverse=True)
+
+    started = totals["initial_cash"]
+    return {
+        "status": "available" if (positions or closed) else "empty",
+        "accounts": [books[key] for key, _label in accounts if key in books],
+        "positions": positions,
+        "closed": closed,
+        "summary": {
+            **{key: round(value, 2) if isinstance(value, float) else value for key, value in totals.items()},
+            "total_return": round((totals["equity"] / started) - 1, 6) if started else None,
+            "hit_rate": round(totals["win_count"] / totals["closed_count"], 4) if totals["closed_count"] else None,
         },
     }

@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import Any, Callable, Mapping
 from zoneinfo import ZoneInfo
 
-from tradingagents.harness.paper_state import build_paper_account_payload, default_initial_cash
+from tradingagents.harness.paper_state import ACCOUNTS, build_paper_account_payload, default_initial_cash
 from tradingagents.storage import PaperAccountSnapshotInput, StorageRepository
 
 KST = ZoneInfo("Asia/Seoul")
@@ -65,7 +65,7 @@ def record_paper_account_snapshot(
 
     if repo is None:
         return {"status": "not_configured"}
-    initial_cash = default_initial_cash() if initial_cash is None else initial_cash
+    initial_cash = default_initial_cash(account_key) if initial_cash is None else initial_cash
     if isinstance(as_of, str):
         snapshot_date = datetime.strptime(as_of[:10], "%Y-%m-%d").date()
     else:
@@ -197,3 +197,16 @@ def build_paper_curve_payload(repo: StorageRepository | None, *, account_key: st
             "max_drawdown": round(max_drawdown, 6),
         },
     }
+
+
+def record_all_account_snapshots(repo: StorageRepository | None, *, as_of: date | str | None = None, **kwargs: Any) -> dict[str, Any]:
+    """Record one row per account; a failure in one must not skip the others."""
+
+    results = {}
+    for key, _label in ACCOUNTS:
+        try:
+            results[key] = record_paper_account_snapshot(repo, as_of=as_of, account_key=key, **kwargs)
+        except Exception as exc:
+            results[key] = {"status": "failed", "error": f"{exc.__class__.__name__}: {exc}"}
+    recorded = [key for key, value in results.items() if value.get("status") == "recorded"]
+    return {"status": "recorded" if recorded else "nothing_recorded", "accounts": results, "recorded": recorded}
