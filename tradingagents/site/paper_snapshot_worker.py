@@ -57,7 +57,7 @@ def record_paper_account_snapshot(
     *,
     as_of: date | str | None = None,
     initial_cash: float | None = None,
-    account_key: str = "harness",
+    account_key: str = "paper",
     price_loader: PriceLoader | None = None,
     benchmark_loader: BenchmarkLoader | None = None,
 ) -> dict[str, Any]:
@@ -71,7 +71,7 @@ def record_paper_account_snapshot(
     else:
         snapshot_date = as_of or datetime.now(KST).date()
 
-    raw = build_paper_account_payload(repo, initial_cash=initial_cash)
+    raw = build_paper_account_payload(repo, initial_cash=initial_cash, broker=account_key)
     if raw.get("status") in {"not_configured", "unavailable"}:
         return {"status": raw.get("status"), "error": raw.get("error")}
 
@@ -83,7 +83,7 @@ def record_paper_account_snapshot(
             prices = dict((price_loader or _default_price_loader)(codes))
         except Exception as exc:
             notes.append(f"prices unavailable ({exc.__class__.__name__})")
-    priced = build_paper_account_payload(repo, initial_cash=initial_cash, current_prices=prices)
+    priced = build_paper_account_payload(repo, initial_cash=initial_cash, current_prices=prices, broker=account_key)
     summary = priced.get("summary") or {}
 
     benchmark_close = None
@@ -146,7 +146,7 @@ def record_paper_account_snapshot(
     }
 
 
-def build_paper_curve_payload(repo: StorageRepository | None, *, account_key: str = "harness", limit: int = 400) -> dict[str, Any]:
+def build_paper_curve_payload(repo: StorageRepository | None, *, account_key: str = "paper", limit: int = 400) -> dict[str, Any]:
     """The account curve against the benchmark, oldest first."""
 
     if repo is None:

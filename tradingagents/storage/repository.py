@@ -1149,7 +1149,7 @@ class StorageRepository:
             conn.execute(insert(paper_account_snapshots).values(id=snapshot_id, **values))
             return snapshot_id
 
-    def list_paper_account_snapshots(self, *, account_key: str = "harness", limit: int = 400) -> list[dict[str, Any]]:
+    def list_paper_account_snapshots(self, *, account_key: str = "paper", limit: int = 400) -> list[dict[str, Any]]:
         """Snapshots oldest first, ready to draw as a curve."""
 
         if limit <= 0:
@@ -1164,21 +1164,27 @@ class StorageRepository:
             rows = conn.execute(stmt).mappings().all()
         return [dict(row) for row in reversed(rows)]
 
-    def list_harness_fills(self, *, limit: int = 2000) -> list[dict[str, Any]]:
-        """Executed harness orders, oldest first, for replaying the paper account.
+    def list_harness_fills(self, *, broker: str | None = "paper", limit: int = 2000) -> list[dict[str, Any]]:
+        """Executed harness orders, oldest first, for replaying a paper account.
 
         Dry runs record intent without a fill, so they are excluded: only rows
-        from runs that actually executed may move cash or holdings.
+        from runs that actually executed may move cash or holdings. Runs are
+        also filtered by broker, because the local paper broker and the KIS
+        모의투자 account are separate books that both write here; replaying
+        them together would invent holdings neither account has.
         """
 
         if limit <= 0:
             raise ValueError("limit must be positive")
+        run_filter = [harness_runs.c.dry_run == 0]
+        if broker:
+            run_filter.append(harness_runs.c.broker == broker)
         stmt = (
             select(harness_decisions)
             .where(
                 harness_decisions.c.stage.in_(["ordered", "exit"]),
                 harness_decisions.c.order_status.in_(["accepted", "filled"]),
-                harness_decisions.c.harness_run_id.in_(select(harness_runs.c.id).where(harness_runs.c.dry_run == 0)),
+                harness_decisions.c.harness_run_id.in_(select(harness_runs.c.id).where(*run_filter)),
             )
             .order_by(harness_decisions.c.as_of_date, harness_decisions.c.created_at)
             .limit(limit)

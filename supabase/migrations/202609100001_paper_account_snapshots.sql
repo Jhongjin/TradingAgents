@@ -7,7 +7,7 @@
 create table if not exists public.paper_account_snapshots (
     id uuid primary key default gen_random_uuid(),
     snapshot_date date not null,
-    account_key varchar(32) not null default 'harness',
+    account_key varchar(32) not null default 'paper',
     cash numeric(18, 4) not null,
     holdings_value numeric(18, 4) not null,
     equity numeric(18, 4) not null,

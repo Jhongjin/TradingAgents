@@ -23,7 +23,7 @@ def _repo() -> StorageRepository:
 
 def _run(repo: StorageRepository, *, when: date, dry_run: bool) -> str:
     return repo.create_harness_run(
-        HarnessRunInput(as_of_date=when, confirmer="debate", visibility="public", dry_run=dry_run, candidate_count=1, order_count=1)
+        HarnessRunInput(as_of_date=when, confirmer="debate", visibility="public", dry_run=dry_run, broker="paper", candidate_count=1, order_count=1)
     )
 
 
@@ -387,3 +387,27 @@ def test_the_daily_message_carries_the_account_record_for_free_members():
     assert "모의 계좌 누적 +3.21%" in messages["free"]
     assert "모의 계좌 누적 +3.21%" in messages["paid"]
     assert account_line(None) == ""
+
+
+def test_the_kis_account_and_the_local_paper_account_stay_separate():
+    """Both brokers write here; replaying them together would invent holdings."""
+
+    repo = _repo()
+    today = datetime.now(timezone.utc).date()
+    paper_run = repo.create_harness_run(
+        HarnessRunInput(as_of_date=today - timedelta(days=5), confirmer="debate", visibility="public", dry_run=False, broker="paper", candidate_count=1, order_count=1)
+    )
+    _fill(repo, paper_run, when=today - timedelta(days=5), code="096770", stage="ordered", price=153500, quantity=13, name="SK이노베이션")
+    kis_run = repo.create_harness_run(
+        HarnessRunInput(as_of_date=today - timedelta(days=5), confirmer="debate", visibility="public", dry_run=False, broker="kis", candidate_count=1, order_count=1)
+    )
+    _fill(repo, kis_run, when=today - timedelta(days=5), code="000660", stage="ordered", price=1852000, quantity=3, name="SK하이닉스")
+
+    paper = build_paper_account_payload(repo)
+    assert {item["ticker_code"] for item in paper["positions"]} == {"096770"}
+
+    kis = build_paper_account_payload(repo, broker="kis")
+    assert {item["ticker_code"] for item in kis["positions"]} == {"000660"}
+
+    both = build_paper_account_payload(repo, broker=None)
+    assert {item["ticker_code"] for item in both["positions"]} == {"096770", "000660"}

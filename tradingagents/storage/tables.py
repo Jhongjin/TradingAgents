@@ -371,7 +371,7 @@ paper_account_snapshots = Table(
     metadata,
     Column("id", Uuid(as_uuid=False), primary_key=True),
     Column("snapshot_date", Date, nullable=False, index=True),
-    Column("account_key", String(32), nullable=False, default="harness"),
+    Column("account_key", String(32), nullable=False, default="paper"),
     Column("cash", Numeric(18, 4), nullable=False),
     Column("holdings_value", Numeric(18, 4), nullable=False),
     Column("equity", Numeric(18, 4), nullable=False),

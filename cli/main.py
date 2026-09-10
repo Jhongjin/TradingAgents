@@ -1553,6 +1553,7 @@ def pipeline_command(
             repo,
             initial_cash=initial_cash,
             max_position_weight=config.max_position_weight,
+            broker="paper",
         )
         for note in restore_notes:
             console.print(f"[dim]{note}[/dim]")

@@ -254,7 +254,8 @@ def _rules_payload(repo: Any) -> dict[str, Any]:
     if repo is None:
         return {"status": "not_configured", "current": [], "changes": []}
     try:
-        return build_rules_payload(repo.list_harness_runs(limit=60))
+        runs = [run for run in repo.list_harness_runs(limit=60) if str(run.get("broker") or "") == "paper"]
+        return build_rules_payload(runs)
     except Exception:
         return {"status": "unavailable", "current": [], "changes": []}
 

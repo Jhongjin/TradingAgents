@@ -191,7 +191,7 @@ class PaperAccountSnapshotInput:
     holdings_value: Decimal
     equity: Decimal
     initial_cash: Decimal
-    account_key: str = "harness"
+    account_key: str = "paper"
     total_return: float | None = None
     realized_pnl: Decimal | None = None
     position_count: int = 0

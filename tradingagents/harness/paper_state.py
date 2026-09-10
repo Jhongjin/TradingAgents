@@ -139,14 +139,14 @@ def replay_fills(
     return broker, notes
 
 
-def restore_paper_account(repo: Any, *, initial_cash: float | None = None, max_position_weight: float = 0.2, limit: int = 2000) -> tuple[PaperBrokerAdapter | None, list[str]]:
+def restore_paper_account(repo: Any, *, initial_cash: float | None = None, max_position_weight: float = 0.2, broker: str = "paper", limit: int = 2000) -> tuple[PaperBrokerAdapter | None, list[str]]:
     """Return a broker holding whatever the recorded harness fills add up to."""
 
     initial_cash = default_initial_cash() if initial_cash is None else initial_cash
     if repo is None or not hasattr(repo, "list_harness_fills"):
         return None, []
     try:
-        rows = repo.list_harness_fills(limit=limit)
+        rows = repo.list_harness_fills(broker=broker, limit=limit)
     except Exception as exc:
         return None, [f"paper account history unavailable ({exc.__class__.__name__}); starting from cash"]
     broker, notes = replay_fills(rows, initial_cash=initial_cash, max_position_weight=max_position_weight)
@@ -160,6 +160,7 @@ def build_paper_account_payload(
     *,
     initial_cash: float | None = None,
     current_prices: Mapping[str, float] | None = None,
+    broker: str = "paper",
     limit: int = 2000,
 ) -> dict[str, Any]:
     """Holdings, closed trades and totals for the public paper-account view.
@@ -173,7 +174,7 @@ def build_paper_account_payload(
     if repo is None or not hasattr(repo, "list_harness_fills"):
         return {"status": "not_configured", "positions": [], "closed": [], "summary": {}}
     try:
-        rows = list(repo.list_harness_fills(limit=limit))
+        rows = list(repo.list_harness_fills(broker=broker, limit=limit))
     except Exception as exc:
         return {"status": "unavailable", "error": f"{exc.__class__.__name__}: {exc}", "positions": [], "closed": [], "summary": {}}
 
