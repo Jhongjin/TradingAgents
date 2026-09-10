@@ -6,6 +6,7 @@ from typing import Any
 
 from tradingagents.storage import StorageRepository
 
+from .plain_korean import market_label, order_status_label, reason_text
 from .design_system import badge, h, icon, icon_tile, rating_label, render_shell, stat_tile
 from .harness_api import HARNESS_NOTICES, build_harness_run_payload, build_harness_runs_payload
 from .seo import canonical_url
@@ -94,7 +95,7 @@ def render_harness_page(
     summary = run_payload.get("summary") or {}
     path = f"/harness/{harness_run_id}" if harness_run_id else "/harness"
     title = "종목 선별 기록" if not run else f"종목 선별 {run.get('as_of_date')} 기록"
-    description = "스크리너, 통계 예측, AI 토론, 리스크 게이트를 거친 일일 종목 선별 기록입니다. 모든 웹 실행은 dry-run이며 실제 주문과 연결되지 않습니다."
+    description = "스크리너, 통계 예측, AI 토론, 리스크 게이트를 거친 일일 종목 선별 기록입니다. 모든 웹 실행은 기록만 남기는 모의 실행이며 실제 주문과 연결되지 않습니다."
 
     status_text = {
         "available": "기록 있음",
@@ -109,19 +110,20 @@ def render_harness_page(
     for item in decisions:
         stage = str(item.get("stage") or "")
         tone, ic = STAGE_TONE.get(stage, ("b-grey", "filter"))
-        market = str(item.get("market") or "")
+        market = market_label(item.get("market"), item.get("ticker_code"))
+        market_part = f"{h(market)} · " if market else ""
         rows.append(
             f"""<tr>
           <td class="muted num">{h(item.get('screener_rank') or '-')}</td>
-          <td><a href="{h(item.get('stock_path'))}"><b style="font-weight: 700;">{h(item.get('ticker_name') or item.get('ticker_code'))}</b></a><small class="num">{h(item.get('ticker_code'))} · {h(market)} · <a class="link" href="/stocks/{h(item.get('ticker_code'))}/history">판정 이력</a></small></td>
+          <td><a href="{h(item.get('stock_path'))}"><b style="font-weight: 700;">{h(item.get('ticker_name') or item.get('ticker_code'))}</b></a><small class="num">{h(item.get('ticker_code'))} · {market_part}<a class="link" href="/stocks/{h(item.get('ticker_code'))}/history">판정 이력</a></small></td>
           <td>{badge(str(item.get('stage_label') or stage), tone, icon_name=ic)}</td>
           <td class="num">{h(_fmt_num(item.get('composite_score'), 3))}</td>
           <td class="num">{h(_fmt_pct(item.get('forecast_expected_return')))}<small>상승 {h(_fmt_pct(item.get('forecast_probability_up')) if item.get('forecast_probability_up') is not None else '-')}</small></td>
           <td>{badge(rating_label(item.get('confirmation_rating')), 'b-violet') if item.get('confirmation_rating') else '<span class="muted">-</span>'}<small class="num">{h(_fmt_num(item.get('confirmation_confidence'), 2))} · {h(item.get('confirmation_source') or '-')}</small></td>
-          <td class="num">{h(item.get('quantity') or '-')}<small>{h(_fmt_num(item.get('entry_price')))} / 손절 {h(_fmt_num(item.get('stop_price')))}</small></td>
-          <td>{h(item.get('order_status') or '-')}</td>
+          <td class="num">{h(item.get('quantity') or '-')}주<small>기준가 {h(_fmt_num(item.get('entry_price')))}원 · 손절 {h(_fmt_num(item.get('stop_price')))}원</small></td>
+          <td>{h(order_status_label(item.get('order_status')))}</td>
           <td>{_outcome_cell(item.get('outcomes') or [])}</td>
-          <td class="harness-reasons">{h('; '.join(str(r) for r in (item.get('reasons') or [])[:3]))}</td>
+          <td class="harness-reasons">{h(reason_text(item.get('reasons')))}</td>
         </tr>"""
         )
     decision_rows = "\n".join(rows)
@@ -139,13 +141,13 @@ def render_harness_page(
     ) or "검증 결과는 5거래일/20거래일이 지난 뒤 자동 계산됩니다."
 
     run_rows = "".join(
-        f'<div class="kv"><span><a class="link" href="{h(item.get("detail_path"))}">{h(item.get("as_of_date"))}</a> <span class="muted">· {h(item.get("confirmer"))}</span></span><span class="num muted">후보 {h(item.get("candidate_count"))} · 모의 주문 {h(item.get("order_count"))} · {"dry-run" if item.get("dry_run") else h(item.get("broker"))}</span></div>'
+        f'<div class="kv"><span><a class="link" href="{h(item.get("detail_path"))}">{h(item.get("as_of_date"))}</a> <span class="muted">· {h(item.get("confirmer"))}</span></span><span class="num muted">후보 {h(item.get("candidate_count"))} · 모의 주문 {h(item.get("order_count"))} · {"기록만" if item.get("dry_run") else h(item.get("broker"))}</span></div>'
         for item in runs_payload.get("items") or []
     ) or '<p class="muted small">저장된 실행 기록이 없습니다.</p>'
 
     notices = "".join(f"<li>{h(notice)}</li>" for notice in HARNESS_NOTICES)
     payload_json = _script_json({"runs": runs_payload, "run": run_payload})
-    broker_badge = badge("dry-run" if run.get("dry_run", True) else str(run.get("broker") or "-"), "b-grey" if run.get("dry_run", True) else "b-teal")
+    broker_badge = badge("기록만 (체결 없음)" if run.get("dry_run", True) else str(run.get("broker") or "-"), "b-grey" if run.get("dry_run", True) else "b-teal")
 
     tiles = "".join(
         [
@@ -181,7 +183,7 @@ def render_harness_page(
           <tbody>{decision_rows}</tbody>
         </table>
       </div>
-      <div class="card-f"><span>각 단계는 실행 기록에 해시로 묶여 기록됩니다.</span><span>{icon("shield", 12)} 웹 실행은 항상 dry-run</span></div>
+      <div class="card-f"><span>각 단계는 실행 기록에 해시로 묶여 남습니다.</span><span>{icon("shield", 12)} 웹 실행은 기록만 남기며 체결되지 않습니다</span></div>
     </div>
     <div class="grid-main">
       <div class="card">

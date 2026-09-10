@@ -344,6 +344,7 @@ def render_home_page(*, repo: StorageRepository | None = None, site_base_url: st
 from .design_system import THEMES as DS_THEMES  # noqa: E402
 from .design_system import THEME_LABELS as DS_THEME_LABELS  # noqa: E402
 from .design_system import badge, icon, icon_tile, rating_label, render_shell, sparkline_svg, stat_tile  # noqa: E402
+from .plain_korean import market_label, reason_text  # noqa: E402
 
 THEMES = DS_THEMES
 THEME_LABELS = DS_THEME_LABELS
@@ -455,7 +456,7 @@ def _stage_badge(item: Mapping[str, Any]) -> str:
 def _pick_row(index: int, item: Mapping[str, Any]) -> str:
     code = str(item.get("ticker_code") or "")
     name = str(item.get("ticker_name") or code)
-    market = str(item.get("market") or "")
+    market = market_label(item.get("market"), code)
     market_tone = "b-orange" if market.upper() == "KOSDAQ" else "b-navy"
     score = item.get("composite_score")
     score_width = 0
@@ -469,18 +470,18 @@ def _pick_row(index: int, item: Mapping[str, Any]) -> str:
         prob_pct = max(0, min(100, int(float(prob) * 100))) if prob is not None else 0
     except (TypeError, ValueError):
         prob_pct = 0
-    reasons = "; ".join(str(reason) for reason in (item.get("reasons") or [])[:2])
+    reasons = reason_text(item.get("reasons"), limit=2)
     rating = item.get("confirmation_rating")
     confidence = item.get("confirmation_confidence")
     price = item.get("entry_price")
     return f"""<tr>
       <td class="muted num tiny">{_h(item.get('screener_rank') or index + 1)}</td>
-      <td><div class="row" style="gap: 10px; align-items: flex-start;"><span class="avatar {market_tone}">{_h(name[:2])}</span><div><a href="{_h(item.get('stock_path') or '#')}"><b style="font-weight: 700;">{_h(name)}</b></a> <span class="muted tiny num">{_h(code)}</span> {badge(market or '-', market_tone, xs=True)}<div class="why">{_h(reasons)}</div></div></div></td>
+      <td><div class="row" style="gap: 10px; align-items: flex-start;"><span class="avatar {market_tone}">{_h(name[:2])}</span><div><a href="{_h(item.get('stock_path') or '#')}"><b style="font-weight: 700;">{_h(name)}</b></a> <span class="muted tiny num">{_h(code)}</span> {badge(market, market_tone, xs=True) if market else ''}<div class="why">{_h(reasons)}</div></div></div></td>
       <td class="spark"><span data-spark="{_h(code)}" data-w="104" data-h="32"><span class="tiny muted">불러오는 중</span></span></td>
       <td><div class="num" style="font-weight: 600;">{_h(_num(score, 2)) if score is not None else '-'}</div><div class="bar" style="width: 60px; margin-top: 5px;"><i style="width: {score_width}%; background: var(--blue);"></i></div></td>
       <td><div class="num"><span class="{_sign_class(item.get('forecast_expected_return'))}" style="font-weight: 700;">{_h(_pct(item.get('forecast_expected_return')))}</span> <span class="muted tiny">/ {_h(_pct(prob, 0, signed=False))}</span></div><div class="bar" style="width: 60px; margin-top: 5px;"><i style="width: {prob_pct}%; background: var(--violet);"></i></div></td>
       <td>{badge(rating_label(rating), 'b-violet') if rating else '<span class="muted">-</span>'}<div class="tiny muted num" style="margin-top: 4px;">{'신뢰도 ' + _h(_num(confidence, 2)) if confidence is not None else ''}</div></td>
-      <td>{_stage_badge(item)}<div class="tiny muted num" style="margin-top: 4px;">{'@ ' + _h(_num(price)) if price else ''}</div></td>
+      <td>{_stage_badge(item)}<div class="tiny muted num" style="margin-top: 4px;">{'기준가 ' + _h(_num(price)) + '원' if price else ''}</div></td>
     </tr>"""
 
 
@@ -568,7 +569,7 @@ def _render(model: dict[str, Any]) -> str:
         rows = '<tr><td colspan="7" class="empty">아직 저장된 선별 결과가 없습니다. 첫 실행 후 이곳에 후보별 단계와 근거가 실립니다.</td></tr>'
     run_meta = ""
     if run:
-        run_meta = f"{'토론 확인기' if run.get('confirmer') == 'debate' else _h(run.get('confirmer'))} · {'KIS 모의투자' if run.get('broker') == 'kis' else '로컬 모의투자 계좌'}{' · dry-run' if run.get('dry_run') else ''}"
+        run_meta = f"{'토론 확인기' if run.get('confirmer') == 'debate' else _h(run.get('confirmer'))} · {'KIS 모의투자' if run.get('broker') == 'kis' else '로컬 모의투자 계좌'}{' · 기록만 (체결 없음)' if run.get('dry_run') else ''}"
 
     # debate excerpts ----------------------------------------------------------
     debate_html = ""
@@ -634,7 +635,7 @@ def _render(model: dict[str, Any]) -> str:
 
     # previous runs ------------------------------------------------------------
     prev_html = "".join(
-        f'<div class="kv"><span><a href="{_h(item.get("detail_path"))}"><b style="font-weight: 600;">{_h(_korean_date(item.get("as_of_date")))}</b></a></span><span class="tiny muted num">후보 {_h(item.get("candidate_count"))} · 모의 주문 {_h(item.get("order_count"))} · {"dry-run" if item.get("dry_run") else _h(item.get("broker"))}</span></div>'
+        f'<div class="kv"><span><a href="{_h(item.get("detail_path"))}"><b style="font-weight: 600;">{_h(_korean_date(item.get("as_of_date")))}</b></a></span><span class="tiny muted num">후보 {_h(item.get("candidate_count"))} · 모의 주문 {_h(item.get("order_count"))} · {"기록만" if item.get("dry_run") else _h(item.get("broker"))}</span></div>'
         for item in model["previous_runs"]
     )
     prev_block = f'<div class="card"><div class="card-h"><h2>{icon_tile("clock", "b-grey", small=True)}지난 선별</h2><a class="link tiny" href="/harness">전체 →</a></div><div class="card-b" style="padding-top: 4px;">{prev_html}</div></div>' if prev_html else ""

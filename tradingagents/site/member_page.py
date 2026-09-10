@@ -46,11 +46,19 @@ MEMBER_CSS = """
 /* ---- workspace ---- */
 .member-page .member-summary-band { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
 .member-page .member-summary-main { flex: 1 1 520px; min-width: 0; display: grid; gap: 14px; align-content: start; }
+.member-page .member-overview-strip article { padding: 10px 12px; }
+.member-page .member-overview-strip strong { font-size: 20px; }
 .member-page .member-hit-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 14px; border: 1px solid var(--line); border-left: 4px solid var(--gain); border-radius: 12px; background: var(--panel); }
 .member-page .member-hit-banner.is-stop { border-left-color: var(--loss); }
 .member-page .member-hit-text { font-size: 13px; color: var(--ink); }
 .member-page .member-quick-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .member-page .member-quick-actions .ghost-button { height: 32px; display: inline-flex; align-items: center; }
+.member-page .member-alert-card.is-compact .member-alert-copy { display: none; }
+.member-page .member-alert-body[hidden] { display: none; }
+.member-page .member-alert-toggle { justify-self: start; padding: 0; border: 0; background: none; color: var(--accent-ink); font-size: 12px; font-weight: 600; cursor: pointer; }
+.member-page .member-alert-toggle:hover { text-decoration: underline; }
+.member-page .member-tab-strip a[data-member-link] { color: var(--muted); }
+.member-page .member-tab-strip a[data-member-link]:first-of-type { margin-left: 8px; border-left: 1px solid var(--line); padding-left: 14px; border-radius: 0 8px 8px 0; }
 .member-page .member-summary-band h1 { font-size: 24px; }
 .member-page .member-workspace-lede { font-size: 13px; color: var(--ink2); margin-top: 4px; }
 .member-page .member-side { display: grid; gap: 10px; width: min(100%, 380px); }
@@ -327,6 +335,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <div class="member-alert-card" id="memberTelegramCard" hidden>
             <div class="member-alert-head"><strong>{icon("send", 14)} 텔레그램 알림</strong><span class="status-pill" id="memberTelegramState">확인 중</span></div>
             <p class="member-alert-copy">등록한 목표가·손절가에 도달하면 바로 알려드립니다. 아침 종목 선별 발행 알림도 같은 채널로 받습니다.</p>
+            <div class="member-alert-body" id="memberTelegramBody">
             <ol class="member-alert-steps">
               <li>아래 <b>연결 코드 받기</b>를 누릅니다.</li>
               <li><b>텔레그램에서 열기</b>로 봇을 연 뒤 시작을 누르거나 코드를 보냅니다.</li>
@@ -338,7 +347,9 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
               <button class="ghost-button" id="memberTelegramUnlink" type="button" hidden>연결 해제</button>
             </div>
             <span class="member-alert-code" id="memberTelegramCode" hidden>------</span>
+            </div>
             <small class="member-alert-msg" id="memberTelegramMsg">가입 후 한 번만 연결하면 됩니다.</small>
+            <button class="member-alert-toggle" id="memberTelegramToggle" type="button" hidden aria-expanded="false">연결 설정 열기</button>
           </div>
           <div class="decision-box"><span class="badge b-grey">{icon("shield", 12)}실계좌 주문 없음</span><span class="tiny muted">조회·기록 전용 공간입니다.</span></div>
         </div>

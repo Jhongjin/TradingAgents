@@ -12770,6 +12770,8 @@ MEMBER_PAGE_JS = """
   const telegramUnlinkButton = document.getElementById("memberTelegramUnlink");
   const telegramCodeNode = document.getElementById("memberTelegramCode");
   const telegramMsgNode = document.getElementById("memberTelegramMsg");
+  const telegramBody = document.getElementById("memberTelegramBody");
+  const telegramToggle = document.getElementById("memberTelegramToggle");
   const refreshButton = document.getElementById("refreshMemberData");
   const portfolioForm = document.getElementById("portfolioForm");
   const tradeForm = document.getElementById("tradeForm");
@@ -13160,8 +13162,19 @@ MEMBER_PAGE_JS = """
     telegramMsgNode.classList.toggle("is-error", Boolean(isError));
   }
 
+  function setTelegramExpanded(expanded) {
+    if (telegramBody) telegramBody.hidden = !expanded;
+    if (telegramToggle) {
+      telegramToggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+      telegramToggle.textContent = expanded ? "연결 설정 닫기" : "연결 설정 열기";
+    }
+    telegramCard?.classList.toggle("is-compact", !expanded);
+  }
+
   function renderTelegramStatus(status) {
     const linked = Boolean(status?.linked);
+    if (telegramToggle) telegramToggle.hidden = !linked;
+    setTelegramExpanded(!linked);
     if (telegramState) {
       telegramState.textContent = linked ? "연결됨" : "연결 안 됨";
       telegramState.classList.toggle("is-admin", false);
@@ -14970,6 +14983,9 @@ MEMBER_PAGE_JS = """
     passwordToggle.setAttribute("aria-pressed", showing ? "false" : "true");
   });
 
+  telegramToggle?.addEventListener("click", () => {
+    setTelegramExpanded(telegramToggle.getAttribute("aria-expanded") !== "true");
+  });
   telegramLinkButton?.addEventListener("click", () => { void requestTelegramCode(); });
   telegramUnlinkButton?.addEventListener("click", () => { void unlinkTelegram(); });
 

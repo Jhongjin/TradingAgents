@@ -178,3 +178,24 @@ def test_analysis_queue_runs_in_actions_not_in_a_60s_function():
     workflow = Path(".github/workflows/analysis-requests.yml").read_text(encoding="utf-8")
     assert "tradingagents process-analysis-requests" in workflow
     assert "cron: \"*/15 * * * *\"" in workflow
+
+
+def test_machine_wording_is_translated_for_readers():
+    from tradingagents.site.plain_korean import market_label, order_status_label, reason_text
+
+    assert order_status_label("dry_run") == "모의 주문 · 체결 없음"
+    assert order_status_label("filled") == "체결 완료"
+    assert reason_text(["dry run, no fill"]) == "실제 주문 없이 기록만 남겼습니다"
+    assert "기대 수익률 +2.10%" in reason_text(["expected return +2.10% below +3.00%"])
+    assert "AI 확신도 0.40" in reason_text(["confidence 0.40 below 0.60"])
+    assert reason_text(["something we never mapped"]) == "something we never mapped"
+    assert market_label("KOSDAQ", "035720") == "KOSDAQ"
+    assert market_label("UNKNOWN", "010950") == "KOSPI"
+    assert market_label("UNKNOWN", "999999") == ""
+
+
+def test_harness_pages_avoid_raw_machine_wording():
+    from tradingagents.site.harness_pages import render_harness_page
+
+    html = render_harness_page()
+    assert "dry-run" not in html and "dry_run" not in html
