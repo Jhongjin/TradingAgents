@@ -1492,7 +1492,7 @@ def pipeline_command(
     broker: str = typer.Option("paper", "--broker", help="paper (local) or kis (KIS 모의투자/live via env gates)."),
     execute: bool = typer.Option(False, "--execute", help="Send orders. Default is a dry run that only logs intents."),
     confirm_live: bool = typer.Option(False, "--confirm-live", help="Required together with KIS_IS_PAPER=false and TRADINGAGENTS_ENABLE_LIVE_TRADING=true."),
-    initial_cash: float = typer.Option(10_000_000.0, "--cash", help="Paper broker starting cash (KRW)."),
+    initial_cash: Optional[float] = typer.Option(None, "--cash", help="Paper broker starting cash (KRW). Defaults to the account's configured capital."),
     risk_per_trade: float = typer.Option(0.01, "--risk", help="Fraction of equity risked per trade."),
     audit_log: Optional[Path] = typer.Option(None, "--audit-log", help="Hash-chained JSONL ledger path (default TRADINGAGENTS_AUDIT_LOG_PATH)."),
     output: Optional[Path] = typer.Option(None, "--output", help="Write the run result JSON to this path."),
@@ -1510,6 +1510,9 @@ def pipeline_command(
     from tradingagents.harness.tasks import llm_from_config
     from tradingagents.screener import ScreenerConfig
 
+    from tradingagents.harness.paper_state import default_initial_cash
+
+    initial_cash = default_initial_cash() if initial_cash is None else initial_cash
     market_tuple = tuple(part.strip().upper() for part in markets.split(",") if part.strip())
     config = PipelineConfig(
         markets=market_tuple,
@@ -1624,7 +1627,7 @@ def pipeline_command(
 @app.command("record-paper-snapshot")
 def record_paper_snapshot_command(
     as_of: Optional[str] = typer.Option(None, "--date", help="Snapshot date YYYY-MM-DD (default: today KST)."),
-    initial_cash: float = typer.Option(10_000_000.0, "--cash", help="Starting cash the account is measured against."),
+    initial_cash: Optional[float] = typer.Option(None, "--cash", help="Starting cash the account is measured against."),
 ):
     """Record one day of the harness paper account with the KOSPI close beside it."""
 

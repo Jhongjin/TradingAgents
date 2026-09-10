@@ -137,6 +137,7 @@ class PipelineRunResult:
     account_after: dict[str, Any]
     audit_sequence_start: int | None
     audit_sequence_end: int | None
+    audit_head_hash: str | None = None
     notes: list[str] = field(default_factory=list)
     confirmer: str = "none"
     run_id: str | None = None
@@ -161,6 +162,7 @@ class PipelineRunResult:
             "account_after": self.account_after,
             "audit_sequence_start": self.audit_sequence_start,
             "audit_sequence_end": self.audit_sequence_end,
+            "audit_head_hash": self.audit_head_hash,
             "notes": self.notes,
         }
 
@@ -267,6 +269,7 @@ def run_daily_pipeline(
         account_after=account_after,
         audit_sequence_start=sequence_start,
         audit_sequence_end=ledger.sequence if ledger else None,
+        audit_head_hash=ledger.last_hash if ledger else None,
         notes=notes,
         confirmer=resolved_confirmer,
     )
@@ -337,8 +340,12 @@ def persist_pipeline_result(repo: Any, result: PipelineRunResult, *, config: Pip
                     "max_position_weight": config.max_position_weight,
                     "stop_loss_pct": config.stop_loss_pct,
                     "take_profit_pct": config.take_profit_pct,
+                    "max_holding_days": config.max_holding_days,
+                    "min_cash_reserve_pct": config.min_cash_reserve_pct,
+                    "initial_cash": config.initial_cash,
                 },
                 "mandate": config.mandate.as_dict(),
+                "audit_head_hash": result.audit_head_hash,
                 "screener_candidates": [
                     {"rank": c.get("rank"), "code": c.get("code"), "name": c.get("name"), "composite": (c.get("factors") or {}).get("composite")}
                     for c in result.screener.get("candidates", [])

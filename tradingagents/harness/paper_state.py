@@ -13,6 +13,7 @@ move the account.
 
 from __future__ import annotations
 
+import os
 from datetime import date, datetime
 from typing import Any, Iterable, Mapping
 
@@ -26,6 +27,25 @@ from tradingagents.execution import (
 )
 
 FILLED_STATUSES = {"filled", "accepted"}
+
+# The account's starting capital. A 10% slot of 10,000,000원 cannot buy a single
+# share of a name priced near 2,000,000원, so the account could only ever hold
+# cheap stocks. Raising the capital widens what is buyable; it does not change
+# concentration, because every cap is a share of equity.
+_FALLBACK_INITIAL_CASH = 50_000_000.0
+
+
+def default_initial_cash() -> float:
+    """Starting capital, overridable with TRADINGAGENTS_PAPER_INITIAL_CASH."""
+
+    raw = os.getenv("TRADINGAGENTS_PAPER_INITIAL_CASH")
+    if not raw:
+        return _FALLBACK_INITIAL_CASH
+    try:
+        value = float(str(raw).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return _FALLBACK_INITIAL_CASH
+    return value if value > 0 else _FALLBACK_INITIAL_CASH
 
 
 def _as_float(value: Any) -> float | None:
@@ -119,9 +139,10 @@ def replay_fills(
     return broker, notes
 
 
-def restore_paper_account(repo: Any, *, initial_cash: float, max_position_weight: float = 0.2, limit: int = 2000) -> tuple[PaperBrokerAdapter | None, list[str]]:
+def restore_paper_account(repo: Any, *, initial_cash: float | None = None, max_position_weight: float = 0.2, limit: int = 2000) -> tuple[PaperBrokerAdapter | None, list[str]]:
     """Return a broker holding whatever the recorded harness fills add up to."""
 
+    initial_cash = default_initial_cash() if initial_cash is None else initial_cash
     if repo is None or not hasattr(repo, "list_harness_fills"):
         return None, []
     try:
@@ -137,7 +158,7 @@ def restore_paper_account(repo: Any, *, initial_cash: float, max_position_weight
 def build_paper_account_payload(
     repo: Any,
     *,
-    initial_cash: float = 10_000_000.0,
+    initial_cash: float | None = None,
     current_prices: Mapping[str, float] | None = None,
     limit: int = 2000,
 ) -> dict[str, Any]:
@@ -148,6 +169,7 @@ def build_paper_account_payload(
     sell-side transaction tax included.
     """
 
+    initial_cash = default_initial_cash() if initial_cash is None else initial_cash
     if repo is None or not hasattr(repo, "list_harness_fills"):
         return {"status": "not_configured", "positions": [], "closed": [], "summary": {}}
     try:

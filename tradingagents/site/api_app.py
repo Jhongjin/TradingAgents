@@ -1332,6 +1332,25 @@ def create_app(
 
         return HTMLResponse(render_paper_account_page(repo=request.app.state.repository, site_base_url=_request_site_base_url(request)))
 
+    @app.post("/api/member/paper-account/copy")
+    def copy_paper_account_to_journal(
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        """Copy the account's visible holdings into the member's own journal."""
+
+        from tradingagents.harness.paper_state import build_paper_account_payload
+
+        from .paper_copy import copy_account_holdings
+
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        access = resolve_plan_access(repo, user_id)
+        visible = gate_paper_account_payload(build_paper_account_payload(repo), access) or {}
+        return copy_account_holdings(repo, user_id=user_id, positions=list(visible.get("positions") or []))
+
     @app.get("/api/paper-account/curve")
     def paper_account_curve(request: Request) -> dict:
         """Daily equity curve of the paper account against KOSPI (public)."""

@@ -42,6 +42,10 @@ PAPER_CSS = """
 .paper-curve-legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
 .paper-curve-stats { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; }
 .paper-curve-stats b { font-variant-numeric: tabular-nums; }
+.paper-rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 18px; }
+.paper-rules .kv { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.paper-rule-history { grid-column: 1 / -1; margin-top: 4px; }
+.paper-rule-history ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 12px; color: var(--ink2); }
 @media (max-width: 720px) { .paper-table { min-width: 640px; } }
 """
 
@@ -64,6 +68,35 @@ PAPER_JS = """
         window.location.reload();
       })
       .catch(function(){});
+  }
+
+  // Copying writes the same rows a member could type into their journal by
+  // hand; the server decides which holdings that member is allowed to see.
+  var copyButton = document.getElementById('paperCopyButton');
+  var copyMessage = document.getElementById('paperCopyMessage');
+  if (copyButton && token) {
+    copyButton.hidden = false;
+    copyButton.addEventListener('click', function(){
+      copyButton.disabled = true;
+      var previous = copyMessage ? copyMessage.textContent : '';
+      if (copyMessage) copyMessage.textContent = '내 일지에 담는 중입니다.';
+      fetch('/api/member/paper-account/copy', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } })
+        .then(function(r){ return r.json().then(function(body){ return { ok: r.ok, body: body }; }); })
+        .then(function(result){
+          if (!copyMessage) return;
+          if (!result.ok) {
+            copyMessage.textContent = (result.body && (result.body.detail || result.body.error)) || '담지 못했습니다. 로그인 상태를 확인해 주세요.';
+            return;
+          }
+          var copied = result.body.copied || 0;
+          var skipped = result.body.skipped || 0;
+          copyMessage.textContent = copied
+            ? copied + '종목을 \'' + result.body.portfolio_name + '\' 일지에 담았습니다' + (skipped ? ' (이미 있던 ' + skipped + '종목 제외)' : '') + '.'
+            : '새로 담을 종목이 없습니다. 이미 일지에 있습니다.';
+        })
+        .catch(function(){ if (copyMessage) copyMessage.textContent = previous; })
+        .finally(function(){ copyButton.disabled = false; });
+    });
   }
 
   var codes = __CODES__;
@@ -215,15 +248,52 @@ def _locked_closed_row(count: int) -> str:
     </tr>"""
 
 
+def _rules_payload(repo: Any) -> dict[str, Any]:
+    from .paper_rules import build_rules_payload
+
+    if repo is None:
+        return {"status": "not_configured", "current": [], "changes": []}
+    try:
+        return build_rules_payload(repo.list_harness_runs(limit=60))
+    except Exception:
+        return {"status": "unavailable", "current": [], "changes": []}
+
+
+def _rules_card(rules: Mapping[str, Any]) -> str:
+    current = list(rules.get("current") or [])
+    if not current:
+        return ""
+    cells = "".join(
+        f'<div class="kv"><span>{h(item["label"])}<small class="muted"> {h(item["unit"])}</small></span><b class="num">{h(item["value"])}</b></div>'
+        for item in current
+    )
+    changes = list(rules.get("changes") or [])
+    if changes:
+        rows = "".join(
+            f'<li><b>{h(item["date"])}</b> {h(item["label"])} {h(item["before"])} → {h(item["after"])}</li>'
+            for item in changes[:6]
+        )
+        history = f'<div class="paper-rule-history"><p class="label">규칙이 바뀐 날</p><ul>{rows}</ul></div>'
+    else:
+        history = f'<p class="small ink2">{h(rules.get("since") or "")}부터 같은 규칙으로 운영하고 있습니다.</p>'
+    return f"""<div class="card" style="margin-bottom: 18px;">
+    <div class="card-h"><h2>{icon_tile("shield", "b-navy", small=True)}운영 규칙</h2><span class="badge b-grey">{h(rules.get("as_of") or "")} 기준</span></div>
+    <div class="card-b paper-rules">{cells}{history}</div>
+    <div class="card-f"><span>매수와 동시에 이 규칙으로 목표가와 손절가가 정해집니다.</span><span>규칙이 바뀌면 이전 성과와 단순 비교할 수 없습니다.</span></div>
+  </div>"""
+
+
 def render_paper_account_page(
     *,
     repo: StorageRepository | None = None,
     site_base_url: str | None = None,
-    initial_cash: float = 10_000_000.0,
+    initial_cash: float | None = None,
 ) -> str:
-    from tradingagents.harness.paper_state import build_paper_account_payload
+    from tradingagents.harness.paper_state import build_paper_account_payload, default_initial_cash
 
     from .billing import gate_paper_account_payload, resolve_plan_access
+
+    initial_cash = default_initial_cash() if initial_cash is None else initial_cash
 
     # Server-rendered pages are public and cacheable, so they always show the
     # free view; a paid session swaps in today's rows from the API after load.
@@ -237,6 +307,7 @@ def render_paper_account_page(
     from .paper_snapshot_worker import build_paper_curve_payload
 
     curve = build_paper_curve_payload(repo)
+    rules = _rules_payload(repo)
     gate = payload.get("plan_gate") or {}
     locked_positions = int(gate.get("locked_position_count") or 0)
     locked_closed = int(gate.get("locked_closed_count") or 0)
@@ -275,15 +346,17 @@ def render_paper_account_page(
 
   {_curve_card(curve)}
 
+  {_rules_card(rules)}
+
   <div class="card" style="margin-bottom: 18px;">
-    <div class="card-h"><h2>{icon_tile("target", "b-teal", small=True)}보유 종목</h2><span class="badge b-grey">{len(positions) + locked_positions}종목</span></div>
+    <div class="card-h"><h2>{icon_tile("target", "b-teal", small=True)}보유 종목</h2><div class="row" style="gap: 8px; align-items: center;"><button class="btn sm" type="button" id="paperCopyButton" hidden>내 일지에 담기</button><span class="badge b-grey">{len(positions) + locked_positions}종목</span></div></div>
     <div class="card-b paper-scroll">
       <table class="paper-table">
         <thead><tr><th>종목</th><th>수량 · 평단</th><th>현재가</th><th>목표가 · 손절가</th><th>평가손익</th></tr></thead>
         <tbody>{holdings_html}</tbody>
       </table>
     </div>
-    <div class="card-f"><span>목표가와 손절가는 매수 시점에 규칙으로 정해집니다.</span><span>현재가는 최근 종가 기준입니다.</span></div>
+    <div class="card-f"><span id="paperCopyMessage">목표가와 손절가는 매수 시점에 규칙으로 정해집니다.</span><span>현재가는 최근 종가 기준입니다.</span></div>
   </div>
 
   <div class="card">

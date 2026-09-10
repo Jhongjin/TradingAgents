@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import Any, Callable, Mapping
 from zoneinfo import ZoneInfo
 
-from tradingagents.harness.paper_state import build_paper_account_payload
+from tradingagents.harness.paper_state import build_paper_account_payload, default_initial_cash
 from tradingagents.storage import PaperAccountSnapshotInput, StorageRepository
 
 KST = ZoneInfo("Asia/Seoul")
@@ -56,7 +56,7 @@ def record_paper_account_snapshot(
     repo: StorageRepository | None,
     *,
     as_of: date | str | None = None,
-    initial_cash: float = 10_000_000.0,
+    initial_cash: float | None = None,
     account_key: str = "harness",
     price_loader: PriceLoader | None = None,
     benchmark_loader: BenchmarkLoader | None = None,
@@ -65,6 +65,7 @@ def record_paper_account_snapshot(
 
     if repo is None:
         return {"status": "not_configured"}
+    initial_cash = default_initial_cash() if initial_cash is None else initial_cash
     if isinstance(as_of, str):
         snapshot_date = datetime.strptime(as_of[:10], "%Y-%m-%d").date()
     else:

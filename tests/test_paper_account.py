@@ -5,7 +5,12 @@ from decimal import Decimal
 
 from fastapi.testclient import TestClient
 
-from tradingagents.harness.paper_state import build_paper_account_payload, replay_fills, restore_paper_account
+from tradingagents.harness.paper_state import (
+    build_paper_account_payload,
+    default_initial_cash,
+    replay_fills,
+    restore_paper_account,
+)
 from tradingagents.site import create_app
 from tradingagents.storage import HarnessDecisionInput, HarnessRunInput, StorageRepository, create_storage_engine
 
@@ -74,7 +79,7 @@ def test_dry_runs_never_move_the_account():
     )
     assert repo.list_harness_fills() == []
     payload = build_paper_account_payload(repo)
-    assert payload["status"] == "empty" and payload["summary"]["cash"] == 10_000_000.0
+    assert payload["status"] == "empty" and payload["summary"]["cash"] == default_initial_cash()
 
 
 def test_account_replays_fills_into_holdings_and_closed_trades():
@@ -98,7 +103,7 @@ def test_account_replays_fills_into_holdings_and_closed_trades():
     assert closed["realized_pnl"] > 0 and 0.09 < closed["realized_return"] < 0.10
 
     # the page's numbers must be the broker's numbers, tax included
-    broker, _notes = replay_fills(repo.list_harness_fills(), initial_cash=10_000_000)
+    broker, _notes = replay_fills(repo.list_harness_fills(), initial_cash=default_initial_cash())
     assert round(broker.portfolio.cash, 2) == summary["cash"]
     assert summary["equity"] == round(summary["cash"] + summary["holdings_value"], 2)
 
@@ -329,3 +334,56 @@ def test_one_day_of_picks_can_no_longer_take_the_whole_account():
     spendable = equity - equity * config.min_cash_reserve_pct
     # ten slots at the capped weight fit inside the spendable balance
     assert config.mandate.max_positions * (equity * weight_cap) >= spendable
+
+
+def test_rules_card_reports_current_rules_and_when_they_changed():
+    from tradingagents.site.paper_rules import build_rules_payload
+
+    runs = [
+        {"as_of_date": "2026-09-11", "metadata": {"config": {"stop_loss_pct": 0.05, "take_profit_pct": 0.10, "max_position_weight": 0.1, "min_cash_reserve_pct": 0.1}}},
+        {"as_of_date": "2026-09-09", "metadata": {"config": {"stop_loss_pct": 0.05, "take_profit_pct": 0.10, "max_position_weight": 0.2}}},
+    ]
+    payload = build_rules_payload(runs)
+    assert payload["status"] == "available" and payload["as_of"] == "2026-09-11"
+    values = {item["label"]: item["value"] for item in payload["current"]}
+    assert values["손절가"] == "5%" and values["종목당 비중 상한"] == "10%"
+    change = payload["changes"][0]
+    assert change["label"] == "종목당 비중 상한" and change["before"] == "20%" and change["after"] == "10%"
+    assert build_rules_payload([])["status"] == "empty"
+
+
+def test_copying_holdings_writes_a_journal_the_member_could_have_typed(monkeypatch):
+    user = "11111111-1111-4111-8111-111111111111"
+    repo = _repo()
+    _seed_account(repo)
+    monkeypatch.setenv("TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER", "true")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+    headers = {"X-TradingAgents-User-Id": user}
+
+    first = client.post("/api/member/paper-account/copy", headers=headers).json()
+    assert first["status"] == "copied" and first["copied"] == 1 and first["portfolio_name"] == "AI 모의 계좌 따라하기"
+
+    trades = repo.manual_trades_for_portfolio(first["portfolio_id"])
+    assert [trade["ticker_code"] for trade in trades] == ["096770"]
+    assert float(trades[0]["price"]) == 153500.0 and int(trades[0]["quantity"]) == 13
+
+    targets = repo.price_targets_for_portfolio(first["portfolio_id"])
+    assert float(targets[0]["target_price"]) == 168850.0 and float(targets[0]["stop_price"]) == 145825.0
+
+    again = client.post("/api/member/paper-account/copy", headers=headers).json()
+    assert again["copied"] == 0 and again["skipped"] == 1  # no duplicates
+
+
+def test_the_daily_message_carries_the_account_record_for_free_members():
+    from tradingagents.site.notifications import account_line, compose_issue_messages
+
+    account = {"summary": {"account_return": 0.0321, "benchmark_return": -0.0102, "benchmark_name": "KOSPI", "day_count": 12}}
+    line = account_line(account, base="https://agenttrust.kr")
+    assert "모의 계좌 누적 +3.21%" in line and "KOSPI -1.02%" in line and "12일 기록" in line
+    assert "https://agenttrust.kr/paper" in line
+
+    run_payload = {"run": {"id": "abc", "as_of_date": "2026-09-10"}, "decisions": []}
+    messages = compose_issue_messages(run_payload, issue_number=3, site_base_url="https://agenttrust.kr", account=account)
+    assert "모의 계좌 누적 +3.21%" in messages["free"]
+    assert "모의 계좌 누적 +3.21%" in messages["paid"]
+    assert account_line(None) == ""

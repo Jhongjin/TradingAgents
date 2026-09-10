@@ -204,7 +204,24 @@ def handle_telegram_update(repo: StorageRepository, update: Mapping[str, Any], c
 
 
 # ------------------------------------------------------------ issue push
-def compose_issue_messages(run_payload: Mapping[str, Any], *, issue_number: int, site_base_url: str | None) -> dict[str, str]:
+def account_line(account: Mapping[str, Any] | None, *, base: str = "") -> str:
+    """One line of the paper account's record, the part free members can see."""
+
+    summary = dict((account or {}).get("summary") or {})
+    total = summary.get("account_return")
+    if total is None:
+        return ""
+    benchmark = summary.get("benchmark_return")
+    text = f"모의 계좌 누적 {float(total) * 100:+.2f}%"
+    if benchmark is not None:
+        text += f" ({summary.get('benchmark_name') or 'KOSPI'} {float(benchmark) * 100:+.2f}%)"
+    days = summary.get("day_count")
+    if days:
+        text += f" · {days}일 기록"
+    return f"{text}\n{base}/paper" if base else text
+
+
+def compose_issue_messages(run_payload: Mapping[str, Any], *, issue_number: int, site_base_url: str | None, account: Mapping[str, Any] | None = None) -> dict[str, str]:
     run = run_payload.get("run") or {}
     decisions = run_payload.get("decisions") or []
     ordered = [item for item in decisions if item.get("stage") in {"ordered", "exit"}]
@@ -229,6 +246,10 @@ def compose_issue_messages(run_payload: Mapping[str, Any], *, issue_number: int,
         f"<b>제 {issue_number}호 · {date_text}</b>\n{total}개 후보 중 {len(ordered)}개가 통과했습니다. "
         f"종목과 토론 전문은 데일리 패스에서 실행 즉시 열리고, 무료 플랜은 다음 거래일에 공개됩니다.\n{base or ''}/pricing"
     )
+    record = account_line(account, base=base)
+    if record:
+        paid = f"{paid}\n\n{record}"
+        free = f"{free}\n\n{record}"
     return {"paid": paid, "free": free}
 
 
@@ -257,7 +278,18 @@ def notify_harness_issue(
     payload = build_harness_run_payload(repo, harness_run_id=str(target["id"]))
     if not payload:
         return {"status": "no_run", "sent": 0}
-    messages = compose_issue_messages(payload, issue_number=int(runs.get("item_count") or len(items)), site_base_url=site_base_url)
+    try:
+        from .paper_snapshot_worker import build_paper_curve_payload
+
+        account = build_paper_curve_payload(repo)
+    except Exception:  # the digest must go out even without the account curve
+        account = None
+    messages = compose_issue_messages(
+        payload,
+        issue_number=int(runs.get("item_count") or len(items)),
+        site_base_url=site_base_url,
+        account=account,
+    )
     recipients = repo.list_notification_recipients("telegram")
     sent = 0
     failed = 0
