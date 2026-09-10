@@ -1027,6 +1027,26 @@ def create_app(
 
         return _notify_generic(request, lambda repo_, client, site_base_url=None: notify_journal_alerts(repo_, client, site_base_url=site_base_url, price_loader=price_loader))
 
+    @app.post("/api/admin/notifications/disclosures")
+    def admin_notify_disclosures(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        from .disclosure_alerts import notify_disclosure_alerts
+
+        return _notify_generic(request, notify_disclosure_alerts)
+
+    @app.get("/api/cron/notify-disclosures", include_in_schema=False)
+    def notify_disclosures_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        from .disclosure_alerts import notify_disclosure_alerts
+
+        return _notify_generic(request, notify_disclosure_alerts)
+
     @app.post("/api/admin/notifications/journal-targets")
     def admin_notify_journal_targets(
         request: Request,

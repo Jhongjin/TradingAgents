@@ -9,7 +9,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 from zipfile import ZipFile
 from io import BytesIO
-from typing import Annotated
+from typing import Annotated, Any
 
 import requests
 
@@ -87,6 +87,51 @@ def get_insider_transactions(ticker: Annotated[str, "Korean 6-digit ticker symbo
     if not selected:
         return f"No recent DART ownership-related disclosures found for {resolved.name} ({resolved.code})"
     return "\n".join([f"# DART ownership disclosures for {resolved.name} ({resolved.code})", *selected[:10]])
+
+
+def list_recent_disclosures(
+    ticker: Annotated[str, "Korean 6-digit ticker symbol"],
+    *,
+    days: int = 2,
+    limit: int = 30,
+    curr_date: str | None = None,
+) -> list[dict[str, Any]]:
+    """Recent filings as rows, for alerting rather than prompting.
+
+    The prompt-facing helpers format disclosures into text; a notifier needs
+    the receipt number to tell a new filing from one already sent.
+    """
+
+    resolved = _require_supported(ticker)
+    corp_code = get_corp_code(resolved.code)
+    end_dt = datetime.strptime(curr_date, "%Y-%m-%d") if curr_date else datetime.now()
+    start_dt = end_dt - timedelta(days=max(days, 1))
+    payload = _request_json(
+        "list.json",
+        {
+            "corp_code": corp_code,
+            "bgn_de": start_dt.strftime("%Y%m%d"),
+            "end_de": end_dt.strftime("%Y%m%d"),
+            "page_count": str(limit),
+        },
+    )
+    rows = []
+    for row in payload.get("list", []) or []:
+        receipt = str(row.get("rcept_no") or "").strip()
+        if not receipt:
+            continue
+        rows.append(
+            {
+                "receipt_no": receipt,
+                "report_name": str(row.get("report_nm") or "").strip(),
+                "filed_at": str(row.get("rcept_dt") or "").strip(),
+                "filer": str(row.get("flr_nm") or "").strip(),
+                "ticker_code": resolved.code,
+                "ticker_name": resolved.name,
+                "url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={receipt}",
+            }
+        )
+    return rows[:limit]
 
 
 def get_corp_code(stock_code: str) -> str:
