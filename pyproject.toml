@@ -57,6 +57,8 @@ include = ["tradingagents*", "cli*"]
 
 [tool.setuptools.package-data]
 cli = ["static/*"]
+"tradingagents.dataflows" = ["data/*.json"]
+"tradingagents.site" = ["assets/fonts/*.otf"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

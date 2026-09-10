@@ -47,9 +47,14 @@ MEMBER_CSS = """
 .member-page .member-summary-band { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
 .member-page .member-summary-band h1 { font-size: 24px; }
 .member-page .member-workspace-lede { font-size: 13px; color: var(--ink2); margin-top: 4px; }
-.member-page .member-signed-in { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.member-page .member-signed-in strong { font-weight: 600; font-size: 13px; }
-.member-page .member-signed-in small { font-size: 12px; color: var(--muted); }
+.member-page .member-side { display: grid; gap: 10px; width: min(100%, 380px); }
+.member-page .member-signed-in { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); }
+.member-page .member-signed-in-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.member-page .member-signed-in-id { display: grid; gap: 4px; min-width: 0; }
+.member-page .member-signed-in strong { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
+.member-page .member-signed-in small { font-size: 12px; color: var(--ink2); line-height: 1.5; }
+.member-page .member-signed-in-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.member-page .member-signed-in-actions .ghost-button { height: 32px; }
 .member-page .member-tab-strip { display: flex; gap: 4px; padding: 4px; background: var(--bg2); border-radius: 10px; margin-top: 18px; width: fit-content; max-width: 100%; overflow-x: auto; }
 .member-page .member-tab-strip a { padding: 7px 14px; font-size: 13px; font-weight: 500; color: var(--ink2); border-radius: 8px; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
 .member-page .member-tab-strip a:hover { text-decoration: none; color: var(--ink); }
@@ -177,8 +182,8 @@ MEMBER_CSS = """
 .member-page .paper-event-section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .member-page .paper-event-section-heading strong { font-weight: 700; }
 .member-page .paper-event-section-heading small { font-size: 12px; color: var(--muted); }
-.member-page .decision-box { display: grid; gap: 2px; padding: 10px 14px; border-radius: 10px; background: var(--bg2); font-size: 12px; color: var(--muted); }
-.member-page .decision-box strong { font-size: 16px; font-weight: 700; color: var(--ink); }
+.member-page .decision-box { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; border-radius: 10px; background: var(--bg2); }
+@media (max-width: 960px) { .member-page .member-side { width: 100%; } }
 @media (max-width: 960px) {
   .member-page .member-auth-landing { grid-template-columns: 1fr; }
   .member-page .member-auth-copy { padding: 32px 24px; }
@@ -188,6 +193,22 @@ MEMBER_CSS = """
   .member-page .member-overview-strip, .member-page .member-home-grid, .member-page .member-metric-grid, .member-page .paper-simulation-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .member-page .analysis-queue-meters { grid-template-columns: 1fr; }
 }
+"""
+
+
+AUTH_ENTER_JS = """
+(function(){
+  var form = document.getElementById('authForm');
+  if(!form) return;
+  form.addEventListener('keydown', function(event){
+    if(event.key !== 'Enter' || event.isComposing) return;
+    var target = event.target;
+    if(!(target && target.tagName === 'INPUT')) return;
+    event.preventDefault();
+    var button = form.querySelector('button.auth-suggested') || form.querySelector('button[data-auth-action="signin"]');
+    if(button && !button.disabled) button.click();
+  });
+})();
 """
 
 
@@ -248,14 +269,16 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <p class="small ink2" id="memberStatus" style="margin-top: 4px;">로그인 상태 확인 중</p>
           <p class="member-workspace-lede">오늘의 선정 종목을 보고, 기록과 요청을 이어갑니다.</p>
         </div>
-        <div class="row wrap">
+        <div class="member-side">
           <div class="member-signed-in" id="memberSignedIn" hidden>
-            <span class="status-pill" id="memberSignedInState">대시보드 확인 중</span>
-            <strong id="memberSignedInUser">회원 세션</strong>
+            <div class="member-signed-in-head">
+              <span class="avatar" style="background: var(--accent); color: var(--on-accent);">M</span>
+              <div class="member-signed-in-id"><strong id="memberSignedInUser">회원 세션</strong><span class="status-pill" id="memberSignedInState">대시보드 확인 중</span></div>
+            </div>
             <small id="memberSignedInMeta">대시보드를 불러오고 있습니다.</small>
-            <button class="ghost-button" id="signOutButton" type="button">{icon("logout", 14)} 로그아웃</button>
+            <div class="member-signed-in-actions"><a class="btn sm" href="/billing">구독 관리</a><button class="ghost-button" id="signOutButton" type="button">{icon("logout", 14)} 로그아웃</button></div>
           </div>
-          <div class="decision-box"><span class="decision-label">실계좌 주문</span><strong>없음</strong><span>조회·기록 전용</span></div>
+          <div class="decision-box"><span class="badge b-grey">{icon("shield", 12)}실계좌 주문 없음</span><span class="tiny muted">조회·기록 전용 공간입니다.</span></div>
         </div>
       </section>
       <nav class="member-tab-strip" role="tablist" aria-label="마이페이지 섹션">
@@ -440,6 +463,6 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         site_base_url=site_base_url,
         noindex=True,
         extra_css=MEMBER_CSS,
-        extra_js=MEMBER_PAGE_JS,
+        extra_js=MEMBER_PAGE_JS + AUTH_ENTER_JS,
         body_class="member-page is-member-checking",
     )

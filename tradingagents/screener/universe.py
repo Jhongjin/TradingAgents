@@ -343,6 +343,7 @@ def load_naver_market_snapshot(
     markets: tuple[str, ...] | list[str] = SUPPORTED_MARKETS,
     max_rows_per_market: int = 150,
     page_fetcher: PageFetcher | None = None,
+    include_non_equity: bool = False,
 ) -> MarketSnapshot:
     """Snapshot of the top-``max_rows_per_market`` names per market by market cap.
 
@@ -366,7 +367,7 @@ def load_naver_market_snapshot(
             except Exception as exc:
                 errors.append(f"{market} page {page}: {exc.__class__.__name__}: {exc}")
                 break
-            parsed = parse_naver_market_sum(html, market)
+            parsed = parse_naver_market_sum(html, market, include_non_equity=include_non_equity)
             listed = _page_code_count(html)
             if not listed:
                 break
@@ -385,7 +386,7 @@ def load_naver_market_snapshot(
     return MarketSnapshot(as_of_date=resolved, markets=selected, rows=rows, vendor="naver")
 
 
-def parse_naver_market_sum(html: str, market: str) -> list[MarketSnapshotRow]:
+def parse_naver_market_sum(html: str, market: str, *, include_non_equity: bool = False) -> list[MarketSnapshotRow]:
     """Parse one 시가총액 ranking page into snapshot rows (no external parser needed)."""
 
     import re
@@ -414,7 +415,7 @@ def parse_naver_market_sum(html: str, market: str) -> list[MarketSnapshotRow]:
         if close is None or close <= 0:
             continue
         name = cell("종목명") or code_match.group(1)
-        if _is_non_equity_name(name, par_value=_naver_number(cell("액면가"))):
+        if not include_non_equity and _is_non_equity_name(name, par_value=_naver_number(cell("액면가"))):
             continue
         volume = _naver_number(cell("거래량")) or 0.0
         market_cap_100m = _naver_number(cell("시가총액"))

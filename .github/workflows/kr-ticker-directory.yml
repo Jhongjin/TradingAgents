@@ -1,0 +1,43 @@
+name: KR ticker directory
+
+# Rebuilds the KOSPI/KOSDAQ name directory used by ticker search from Naver's
+# market-cap listing and commits it when it changed. Read-only data job; no
+# trading, no database access.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Sundays 20:30 UTC (Monday 05:30 KST), before the week's first screening.
+    - cron: "30 20 * * 0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e .
+      - name: Build directory
+        run: python scripts/build_kr_ticker_directory.py
+      - name: Commit when changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- tradingagents/dataflows/data/kr_tickers.json; then
+            echo "directory unchanged"
+          else
+            git add tradingagents/dataflows/data/kr_tickers.json
+            git commit -m "Update KR ticker directory ($(date -u +%Y-%m-%d))"
+            git push
+          fi

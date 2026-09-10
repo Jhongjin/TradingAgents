@@ -7,6 +7,7 @@ import re
 from typing import Optional
 
 from .errors import VendorUnavailableError
+from .kr_ticker_directory import lookup_directory, search_directory
 
 _KR_CODE_RE = re.compile(r"^\d{6}$")
 _KR_YFINANCE_RE = re.compile(r"^(?P<code>\d{6})\.(?P<suffix>KS|KQ)$", re.IGNORECASE)
@@ -110,6 +111,10 @@ def resolve_kr_ticker(
         name, common_market = _COMMON_TICKERS[code]
         return KoreanTicker(code=code, name=name, market=market or common_market)
 
+    listed = lookup_directory(code)
+    if listed:
+        return KoreanTicker(code=code, name=listed.name, market=market or listed.market)
+
     if lookup_pykrx:
         resolved = _resolve_with_pykrx(code, market)
         if resolved:
@@ -167,6 +172,9 @@ def search_kr_tickers(
 
     for candidate in _alias_matches(normalized_query):
         add(candidate)
+
+    for entry in search_directory(normalized_query, limit=limit):
+        add(KoreanTicker(code=entry.code, name=entry.name, market=entry.market))
 
     if lookup_pykrx and len(matches) < limit:
         for candidate in _search_with_pykrx(normalized_query, limit - len(matches)):
