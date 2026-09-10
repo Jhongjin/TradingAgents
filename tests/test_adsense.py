@@ -59,3 +59,15 @@ def test_every_page_carries_the_loader(monkeypatch):
 
     html = render_shell(title="t", body="<p>x</p>")
     assert f"client=ca-{PUBLISHER}" in html and "pauseAdRequests" in html
+
+
+def test_the_privacy_policy_discloses_third_party_ad_cookies():
+    """AdSense requires the disclosure, and a reviewer looks for it."""
+
+    from tradingagents.site.web_pages import render_policy_page
+
+    html = render_policy_page("privacy")
+    assert "광고와 쿠키" in html
+    assert "Google AdSense" in html and "쿠키" in html
+    assert "google.com/settings/ads" in html and "aboutads.info" in html
+    assert "유료 플랜 이용자에게는 광고를 게재하지 않으며" in html
