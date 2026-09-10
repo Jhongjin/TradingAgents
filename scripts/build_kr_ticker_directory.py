@@ -21,6 +21,49 @@ from tradingagents.dataflows.kr_ticker_directory import DIRECTORY_PATH, Director
 from tradingagents.screener.universe import load_naver_market_snapshot  # noqa: E402
 
 
+NAVER_SECTOR_LIST = "https://finance.naver.com/sise/sise_group.naver"
+NAVER_SECTOR_DETAIL = "https://finance.naver.com/sise/sise_group_detail.naver"
+NAVER_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; TradingAgents screener)"}
+
+
+def _sector_map_from_naver() -> dict[str, str]:
+    """Industry per ticker from Naver's 업종 pages.
+
+    KRX's own classification endpoint refuses cloud addresses, which is where
+    this rebuild runs. Naver groups the same listings by industry across about
+    seventy pages, which is one request per industry rather than one per stock.
+    """
+
+    import re
+
+    import requests
+
+    mapping: dict[str, str] = {}
+    try:
+        listing = requests.get(NAVER_SECTOR_LIST, params={"type": "upjong"}, headers=NAVER_HEADERS, timeout=15)
+        listing.encoding = "euc-kr"
+        listing.raise_for_status()
+    except Exception as exc:
+        print(f"sector list unavailable ({exc.__class__.__name__})")
+        return {}
+
+    groups = re.findall(r'sise_group_detail\.naver\?type=upjong&amp;no=(\d+)"[^>]*>([^<]+)<', listing.text)
+    print(f"sector groups: {len(groups)}")
+    for number, raw_name in groups:
+        name = " ".join(raw_name.split())
+        if not name:
+            continue
+        try:
+            detail = requests.get(NAVER_SECTOR_DETAIL, params={"type": "upjong", "no": number}, headers=NAVER_HEADERS, timeout=15)
+            detail.encoding = "euc-kr"
+            detail.raise_for_status()
+        except Exception:
+            continue
+        for code in re.findall(r"/item/main\.naver\?code=(\d{6})", detail.text):
+            mapping.setdefault(code, name)
+    return mapping
+
+
 def _sector_map() -> dict[str, str]:
     """Industry group per ticker from KRX, or an empty map when it is unreachable.
 
@@ -56,26 +99,8 @@ def _sector_map() -> dict[str, str]:
     if mapping:
         return mapping
 
-    # Fallback: the industry indices name their own constituents, which gives
-    # the same grouping through a different endpoint.
-    print("sector table unavailable; falling back to industry index membership")
-    for market in ("KOSPI", "KOSDAQ"):
-        try:
-            index_codes = stock.get_index_ticker_list(dates[0], market) or []
-        except Exception as exc:
-            print(f"index list failed for {market} ({exc.__class__.__name__})")
-            continue
-        for index_code in index_codes:
-            try:
-                name = str(stock.get_index_ticker_name(index_code) or "").strip()
-                members = stock.get_index_portfolio_deposit_file(index_code, dates[0]) or []
-            except Exception:
-                continue
-            if not name or not members or len(members) > 900:
-                continue  # skip the broad market indices; they are not a sector
-            for code in members:
-                mapping.setdefault(str(code).zfill(6), name)
-    return mapping
+    print("KRX sector table unavailable; reading Naver 업종 pages instead")
+    return _sector_map_from_naver()
 
 
 def main() -> int:
