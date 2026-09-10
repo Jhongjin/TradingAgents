@@ -195,7 +195,20 @@ def test_machine_wording_is_translated_for_readers():
 
 
 def test_harness_pages_avoid_raw_machine_wording():
+    from tests.test_harness_site_api import _seed
     from tradingagents.site.harness_pages import render_harness_page
 
-    html = render_harness_page()
-    assert "dry-run" not in html and "dry_run" not in html
+    import re
+
+    repo = _repo()
+    _seed(repo)
+    # the page also embeds the raw API payload for the client; only the visible
+    # text has to be readable Korean
+    visible = re.sub(r"(?is)<script.*?</script>", "", render_harness_page(repo=repo))
+    html = visible
+    assert "dry-run" not in visible and "dry_run" not in visible
+    assert "dry run, no fill" not in visible
+    assert "실제 주문 없이 기록만 남겼습니다" in html
+    assert "모의 주문 · 체결 없음" in html
+    assert "상승 확률 40%로 기준 55%에 못 미쳤습니다" in html
+    assert "기준가" in html
