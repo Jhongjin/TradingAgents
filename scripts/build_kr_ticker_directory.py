@@ -47,8 +47,20 @@ def _sector_map_from_naver() -> dict[str, str]:
         print(f"sector list unavailable ({exc.__class__.__name__})")
         return {}
 
-    groups = re.findall(r'sise_group_detail\.naver\?type=upjong&amp;no=(\d+)"[^>]*>([^<]+)<', listing.text)
+    # The markup escapes ampersands inconsistently and carries attributes
+    # between the href and the label, so walk the links instead of matching one
+    # exact shape.
+    text = listing.text
+    groups: list[tuple[str, str]] = []
+    for match in re.finditer(r"sise_group_detail[^\"']*?no=(\d+)", text):
+        tail = text[match.end() : match.end() + 300]
+        label = re.search(r">\s*([^<>]+?)\s*</a>", tail)
+        if label:
+            groups.append((match.group(1), label.group(1)))
     print(f"sector groups: {len(groups)}")
+    if not groups:
+        marker = text.find("upjong")
+        print(f"sector page did not parse; length={len(text)} sample={text[max(marker, 0): max(marker, 0) + 200]!r}")
     for number, raw_name in groups:
         name = " ".join(raw_name.split())
         if not name:
