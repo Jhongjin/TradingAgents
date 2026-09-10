@@ -1134,6 +1134,7 @@ class StorageRepository:
             "min_rating": str(data.get("min_rating") or "any"),
             "max_price": data.get("max_price"),
             "excluded_tickers": list(data.get("excluded_tickers") or []),
+            "metadata_json": {"excluded_sectors": list(data.get("excluded_sectors") or [])},
             "updated_at": datetime.now(timezone.utc),
         }
         with self.engine.begin() as conn:

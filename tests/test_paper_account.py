@@ -725,3 +725,25 @@ def test_the_rules_workflow_removes_only_the_ai_gate():
     workflow = Path(".github/workflows/harness-rules-only.yml").read_text(encoding="utf-8")
     assert "--account rules" in workflow and "--confirmer none" in workflow
     assert "--execute" in workflow and "--broker kis" not in workflow
+
+
+def test_the_pipeline_refuses_a_third_name_from_one_sector(monkeypatch):
+    """Three refiners passed on one morning once; the cap is what stops that."""
+
+    from tradingagents.execution import OrderIntent, OrderSide, PaperBroker, PaperBrokerAdapter
+    from tradingagents.harness import pipeline as pipeline_module
+
+    monkeypatch.setattr(pipeline_module, "_sector_of", lambda code: "정유")
+    broker = PaperBroker.with_limits(initial_cash=50_000_000, currency="KRW")
+    for code, price in (("010950", 165900.0), ("096770", 153500.0)):
+        broker.submit_order(OrderIntent(ticker=code, side=OrderSide.BUY, quantity=5, reason="seed"), price)
+    adapter = PaperBrokerAdapter(broker)
+
+    config = pipeline_module.PipelineConfig(max_positions_per_sector=2)
+    snapshot = adapter.account_snapshot({"010950": 165900.0, "096770": 153500.0})
+    held_in_sector = sum(1 for code in snapshot.positions if pipeline_module._sector_of(code) == "정유")
+    assert held_in_sector >= config.max_positions_per_sector  # a third one would be refused
+
+    from tradingagents.site.plain_korean import reason_label
+
+    assert reason_label("sector 정유 already holds 2 of 2") == "정유 업종을 이미 2종목 보유해 한도 2종목에 걸렸습니다"

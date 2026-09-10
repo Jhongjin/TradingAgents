@@ -14644,6 +14644,7 @@ MEMBER_PAGE_JS = """
     if (elements.min_rating) elements.min_rating.value = preferences.min_rating || "any";
     if (elements.max_price) elements.max_price.value = preferences.max_price || "";
     if (elements.excluded_tickers) elements.excluded_tickers.value = (preferences.excluded_tickers || []).join(", ");
+    if (elements.excluded_sectors) elements.excluded_sectors.value = (preferences.excluded_sectors || []).join(", ");
   }
 
   function readPreferenceForm() {
@@ -14656,7 +14657,8 @@ MEMBER_PAGE_JS = """
       exclude_etf: Boolean(elements.exclude_etf?.checked),
       min_rating: elements.min_rating?.value || "any",
       max_price: Number(elements.max_price?.value) || null,
-      excluded_tickers: String(elements.excluded_tickers?.value || "").split(/[^0-9]+/).filter((code) => code.length === 6)
+      excluded_tickers: String(elements.excluded_tickers?.value || "").split(/[^0-9]+/).filter((code) => code.length === 6),
+      excluded_sectors: String(elements.excluded_sectors?.value || "").split(",").map((text) => text.trim()).filter(Boolean)
     };
   }
 

@@ -20,6 +20,7 @@ DEFAULTS: dict[str, Any] = {
     "min_rating": "any",
     "max_price": None,
     "excluded_tickers": [],
+    "excluded_sectors": [],
 }
 
 RATING_ORDER = {"strong sell": 0, "sell": 1, "underweight": 2, "reduce": 2, "hold": 3, "neutral": 3, "accumulate": 4, "overweight": 4, "buy": 5, "strong buy": 6}
@@ -52,13 +53,29 @@ def normalize(payload: Mapping[str, Any] | None) -> dict[str, Any]:
         if len(code) == 6 and code not in excluded:
             excluded.append(code)
 
+    sectors = []
+    for item in source.get("excluded_sectors") or []:
+        text = " ".join(str(item).split())
+        if text and text not in sectors:
+            sectors.append(text)
+
     return {
         "markets": markets,
         "exclude_etf": bool(source.get("exclude_etf", DEFAULTS["exclude_etf"])),
         "min_rating": min_rating,
         "max_price": max_price,
         "excluded_tickers": excluded[:50],
+        "excluded_sectors": sectors[:20],
     }
+
+
+def _sector_of(code: str) -> str:
+    try:
+        from tradingagents.dataflows.kr_ticker_directory import sector_of
+
+        return sector_of(code)
+    except Exception:
+        return ""
 
 
 def _looks_like_etf(name: str) -> bool:
@@ -93,8 +110,13 @@ def filter_picks(picks: list[Mapping[str, Any]] | None, preferences: Mapping[str
         market = str(row.get("market") or "").upper()
         reason = None
 
+        sector = str(row.get("sector") or "") or _sector_of(code)
+        if sector:
+            row.setdefault("sector", sector)
         if code and code in prefs["excluded_tickers"]:
             reason = "excluded"
+        elif sector and sector in prefs["excluded_sectors"]:
+            reason = "sector"
         elif market in {"KOSPI", "KOSDAQ"} and market not in prefs["markets"]:
             reason = "market"
         elif prefs["exclude_etf"] and _looks_like_etf(name):
@@ -115,6 +137,7 @@ def filter_picks(picks: list[Mapping[str, Any]] | None, preferences: Mapping[str
 
     labels = {
         "excluded": "제외 종목",
+        "sector": "제외 업종",
         "market": "시장 조건",
         "etf": "ETF 제외",
         "rating": "등급 기준",

@@ -64,6 +64,7 @@ _REASON_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(rf"^projected weight {_PERCENT} exceeds {_PERCENT}$", re.I), "예상 비중 \\1이 한도 \\2를 넘었습니다"),
     (re.compile(r"^gross exposure limit exceeded$", re.I), "총 노출 한도를 넘었습니다"),
     (re.compile(rf"^position count would exceed {_NUMBER}$", re.I), "보유 종목 수가 한도 \\1개를 넘습니다"),
+    (re.compile(rf"^sector (.+) already holds {_NUMBER} of {_NUMBER}$", re.I), "\\1 업종을 이미 \\2종목 보유해 한도 \\3종목에 걸렸습니다"),
     (re.compile(r"^insufficient cash$", re.I), "예수금이 모자랍니다"),
     (re.compile(rf"^cash reserve {_PERCENT_LOOSE} reached; no new entries today$", re.I), "현금을 \\1 남겨 두는 규칙에 걸려 오늘은 새로 담지 않았습니다"),
     (re.compile(r"^short selling is not allowed$", re.I), "공매도는 허용하지 않습니다"),

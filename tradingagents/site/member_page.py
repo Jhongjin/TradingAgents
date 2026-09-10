@@ -425,6 +425,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           </label>
           <label class="member-picks-field"><span>1주 가격 상한</span><input class="field" name="max_price" type="number" min="0" step="1000" placeholder="제한 없음"></label>
           <label class="member-picks-field"><span>제외할 종목 코드</span><input class="field" name="excluded_tickers" type="text" placeholder="005930, 000660"></label>
+          <label class="member-picks-field"><span>제외할 업종</span><input class="field" name="excluded_sectors" type="text" placeholder="정유, 은행"></label>
           <div class="actions"><button class="btn primary sm" type="submit">조건 저장</button><span class="msg" id="memberPicksMessage"></span></div>
         </form>
         <div class="member-picks-list" id="memberPicksList"><p class="small ink2">조건에 맞는 종목을 불러오고 있습니다.</p></div>

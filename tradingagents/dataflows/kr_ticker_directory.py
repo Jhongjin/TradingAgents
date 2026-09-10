@@ -24,6 +24,7 @@ class DirectoryEntry:
     code: str
     name: str
     market: str
+    sector: str = ""
 
 
 def _fold(text: str) -> str:
@@ -49,8 +50,15 @@ def load_directory(path: str | None = None) -> tuple[DirectoryEntry, ...]:
         if len(code) != 6 or not code.isdigit() or not name or code in seen:
             continue
         seen.add(code)
-        entries.append(DirectoryEntry(code=code, name=name, market=market))
+        entries.append(DirectoryEntry(code=code, name=name, market=market, sector=str(row.get("sector") or "").strip()))
     return tuple(entries)
+
+
+def sector_of(code: str) -> str:
+    """Industry group for a ticker, or "" when the directory has not been rebuilt."""
+
+    entry = lookup_directory(code)
+    return getattr(entry, "sector", "") if entry else ""
 
 
 def directory_size() -> int:
@@ -100,13 +108,17 @@ def write_directory(entries: Iterable[DirectoryEntry | dict], path: Path | None 
     seen: set[str] = set()
     for entry in entries:
         if isinstance(entry, DirectoryEntry):
-            code, name, market = entry.code, entry.name, entry.market
+            code, name, market, sector = entry.code, entry.name, entry.market, entry.sector
         else:
             code, name, market = str(entry.get("code")), str(entry.get("name")), str(entry.get("market"))
+            sector = str(entry.get("sector") or "")
         if code in seen:
             continue
         seen.add(code)
-        items.append({"code": code, "name": name, "market": market})
+        row = {"code": code, "name": name, "market": market}
+        if sector:
+            row["sector"] = sector
+        items.append(row)
     items.sort(key=lambda item: item["code"])
     from datetime import date
 

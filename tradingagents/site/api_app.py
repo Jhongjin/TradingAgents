@@ -157,6 +157,7 @@ class MemberPreferencesBody(BaseModel):
     min_rating: str = "any"
     max_price: float | None = None
     excluded_tickers: list[str] = Field(default_factory=list, max_length=50)
+    excluded_sectors: list[str] = Field(default_factory=list, max_length=20)
 
 
 class MemberPlanBody(BaseModel):
@@ -1626,7 +1627,9 @@ def create_app(
             stored = repo.get_member_preferences(user_id)
         except Exception:
             stored = None
-        return {"status": "available", "preferences": normalize(stored), "saved": stored is not None}
+        merged = dict(stored or {})
+        merged.setdefault("excluded_sectors", (merged.get("metadata_json") or {}).get("excluded_sectors") or [])
+        return {"status": "available", "preferences": normalize(merged if stored else None), "saved": stored is not None}
 
     @app.put("/api/member/preferences")
     def member_preferences_write(
@@ -1665,6 +1668,8 @@ def create_app(
             stored = repo.get_member_preferences(user_id)
         except Exception:
             stored = None
+        if stored:
+            stored = {**stored, "excluded_sectors": (stored.get("metadata_json") or {}).get("excluded_sectors") or []}
         result = filter_picks(picks, stored)
         run = payload.get("run") or {}
         return {

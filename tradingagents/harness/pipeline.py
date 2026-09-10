@@ -88,6 +88,7 @@ class PipelineConfig:
     commission_rate: float = 0.00015
     exits_only: bool = False
     account_key: str = "paper"
+    max_positions_per_sector: int = 2
     initial_cash: float = 10_000_000.0
     dry_run: bool = True
     require_llm_confirmation: bool = True
@@ -106,6 +107,8 @@ class PipelineConfig:
             raise ValueError("min_cash_reserve_pct must be between 0 and 1")
         if not 0 <= self.commission_rate < 0.05:
             raise ValueError("commission_rate must be between 0 and 0.05")
+        if self.max_positions_per_sector <= 0:
+            raise ValueError("max_positions_per_sector must be positive")
         if not 0 < self.stop_loss_pct < 1:
             raise ValueError("stop_loss_pct must be between 0 and 1")
         if not 0 < self.take_profit_pct < 1:
@@ -377,6 +380,7 @@ def persist_pipeline_result(repo: Any, result: PipelineRunResult, *, config: Pip
                     "take_profit_pct": config.take_profit_pct,
                     "max_holding_days": config.max_holding_days,
                     "min_cash_reserve_pct": config.min_cash_reserve_pct,
+                    "max_positions_per_sector": config.max_positions_per_sector,
                     "commission_rate": config.commission_rate,
                     "initial_cash": config.initial_cash,
                 },
@@ -528,6 +532,14 @@ def _process_candidate(
     spendable = max(snapshot.cash - reserve, 0.0)
     if candidate.code not in snapshot.positions and len(snapshot.positions) >= config.mandate.max_positions:
         return PipelineDecision(stage="gate_rejected", reasons=[f"position count would exceed {config.mandate.max_positions}"], **base)
+    # One day's screen tends to surface one story: three refiners passed on the
+    # same morning once. A cap per industry keeps a single sector shock from
+    # taking the whole account with it.
+    sector = _sector_of(candidate.code)
+    if sector and candidate.code not in snapshot.positions:
+        held_in_sector = sum(1 for code in snapshot.positions if _sector_of(code) == sector)
+        if held_in_sector >= config.max_positions_per_sector:
+            return PipelineDecision(stage="gate_rejected", reasons=[f"sector {sector} already holds {held_in_sector} of {config.max_positions_per_sector}"], **base)
     if spendable <= 0:
         return PipelineDecision(stage="sized", reasons=[f"cash reserve {config.min_cash_reserve_pct:.0%} reached; no new entries today"], **base)
     stop_pct = (confirmation.stop_loss_pct if confirmation and confirmation.stop_loss_pct else None) or config.stop_loss_pct
@@ -654,6 +666,15 @@ def _evaluate_exits(
         exit_reasons = [reason, *( [news_note] if news_note else [] ), result.message]
         decisions.append(PipelineDecision(code=code, name=(names or {}).get(code) or code, market="KR", stage="exit", reasons=exit_reasons, mandate=gate.as_dict(), order=result.as_dict()))
     return decisions
+
+
+def _sector_of(code: str) -> str:
+    try:
+        from tradingagents.dataflows.kr_ticker_directory import sector_of
+
+        return sector_of(code)
+    except Exception:
+        return ""
 
 
 def _forecast_gate(forecast: ForecastResult, config: PipelineConfig) -> list[str]:

@@ -105,3 +105,25 @@ def test_the_member_page_carries_the_condition_card():
     html = render_member_dashboard_page()
     for needle in ("memberPicksCard", "조건 바꾸기", "/api/member/picks", "/api/member/preferences", "loadMemberPicks", "최소 등급"):
         assert needle in html, needle
+
+
+def test_a_member_can_exclude_a_whole_sector(monkeypatch):
+    monkeypatch.setattr(
+        "tradingagents.site.member_preferences._sector_of",
+        lambda code: {"005930": "반도체", "131290": "반도체", "000660": "반도체"}.get(code, "정유"),
+    )
+    result = filter_picks(PICKS, {"excluded_sectors": ["반도체"], "exclude_etf": False})
+    assert {item["ticker_code"] for item in result["items"]} == {"069500"}
+    assert [entry["label"] for entry in result["dropped"]] == ["제외 업종"]
+    assert result["items"][0]["sector"] == "정유"
+
+
+def test_sector_preferences_survive_a_save_and_load(monkeypatch):
+    repo = _repo()
+    monkeypatch.setenv("TRADINGAGENTS_API_TRUST_MEMBER_USER_HEADER", "true")
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False, trust_member_user_header=True))
+    headers = {"X-TradingAgents-User-Id": USER}
+
+    client.put("/api/member/preferences", json={"excluded_sectors": ["정유", "정유", "  은행 "]}, headers=headers)
+    stored = client.get("/api/member/preferences", headers=headers).json()["preferences"]
+    assert stored["excluded_sectors"] == ["정유", "은행"]

@@ -15,6 +15,7 @@ RULE_LABELS: tuple[tuple[str, str, str], ...] = (
     ("stop_loss_pct", "손절가", "매수가 대비"),
     ("max_holding_days", "최대 보유", "거래일"),
     ("max_position_weight", "종목당 비중 상한", "자산 대비"),
+    ("max_positions_per_sector", "업종당 최대 보유", "종목"),
     ("min_cash_reserve_pct", "현금 최소 보유", "자산 대비"),
     ("risk_percent_per_trade", "거래당 위험 예산", "자산 대비"),
     ("commission_rate", "매매 수수료", "체결 금액 대비"),
