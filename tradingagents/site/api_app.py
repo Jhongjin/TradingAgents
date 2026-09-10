@@ -448,6 +448,7 @@ def create_app(
         return Response(json.dumps(web_manifest(site_base_url=_request_site_base_url(request)), ensure_ascii=False), media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=86400"})
 
     @app.get("/indexnow/{key}.txt", response_class=PlainTextResponse, include_in_schema=False)
+    @app.get("/{key}.txt", response_class=PlainTextResponse, include_in_schema=False)
     def indexnow_key_file(key: str) -> PlainTextResponse:
         configured = indexnow_key()
         if not configured or key != configured:

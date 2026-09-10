@@ -138,6 +138,10 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/:indexnowkey([a-zA-Z0-9-]{8,128})\\.txt",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/favicon.svg",
       "destination": "/api/index.py"
     },

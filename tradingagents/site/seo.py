@@ -252,7 +252,9 @@ def indexnow_key(value: str | None = None) -> str | None:
 
 
 def indexnow_key_location(key: str, *, site_base_url: str | None = None) -> str:
-    return canonical_url(f"/indexnow/{key}.txt", site_base_url=site_base_url)
+    # The key file must sit at the site root: IndexNow only accepts URLs under the
+    # key file's directory, so a /indexnow/ subfolder would reject every page.
+    return canonical_url(f"/{key}.txt", site_base_url=site_base_url)
 
 
 def submit_indexnow(paths: Iterable[str], *, site_base_url: str | None = None, key: str | None = None, transport=None, timeout: float = 10.0) -> dict:

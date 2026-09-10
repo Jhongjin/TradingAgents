@@ -114,7 +114,7 @@ def test_indexnow_submit_and_key_file(monkeypatch):
 
     result = seo.submit_indexnow(["/harness/x", "/harness/x", "/"], site_base_url="https://example.com", transport=transport)
     assert result["status"] == "sent" and result["urls"] == ["https://example.com/harness/x", "https://example.com/"]
-    assert calls[0][1]["host"] == "example.com" and calls[0][1]["keyLocation"] == "https://example.com/indexnow/abcdef1234567890.txt"
+    assert calls[0][1]["host"] == "example.com" and calls[0][1]["keyLocation"] == "https://example.com/abcdef1234567890.txt"
 
     assert seo.submit_indexnow(["/"], site_base_url=None, transport=transport)["status"] == "skipped"
     assert seo.submit_indexnow(["/"], site_base_url="https://example.com", transport=lambda u, p: 500)["status"] == "failed"
@@ -126,6 +126,8 @@ def test_indexnow_submit_and_key_file(monkeypatch):
 
     client = TestClient(create_app(repo=None, load_repo_from_env=False))
     assert client.get("/indexnow/abcdef1234567890.txt").text == "abcdef1234567890"
+    assert client.get("/abcdef1234567890.txt").text == "abcdef1234567890"  # root location IndexNow validates against
+    assert client.get("/robots.txt").status_code == 200 and client.get("/other12345.txt").status_code == 404
     assert client.get("/indexnow/other.txt").status_code == 404
 
     monkeypatch.setenv("OPERATOR_ACCESS_CODE", "op-token")
