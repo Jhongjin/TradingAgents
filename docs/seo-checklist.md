@@ -51,3 +51,9 @@
 - 선택: `agenttrust.kr` (www 포함). Vercel 프로젝트 `trading-agents`에 두 도메인을 붙였습니다.
 - DNS(ITEasy 웹DNS): `@ A 76.76.21.21`, `www CNAME cname.vercel-dns.com`. 네임서버는 ksdom.kr 유지.
 - 전파 뒤 순서: Vercel env `TRADINGAGENTS_SITE_BASE_URL=https://agenttrust.kr`, `TRADINGAGENTS_CANONICAL_HOST=agenttrust.kr`(vercel.app·www → 301, `/api/*`·`/health`·`/indexnow/*`는 제외) → 재배포 → Supabase Auth Site URL·Redirect URLs에 `https://agenttrust.kr/**` 추가 → 텔레그램 웹훅 재등록(`/api/admin/notifications/telegram/setup`) → 포트원 리다이렉트 확인 → IndexNow 키 등록 → 서치 콘솔 3종 등록.
+
+### 2026-09-10 도메인 전환 완료 상태
+
+- `https://agenttrust.kr` 운영 중(www·vercel.app → 301). 인증서 발급 완료, 텔레그램 웹훅 새 주소로 재등록.
+- Vercel env: `TRADINGAGENTS_SITE_BASE_URL`, `TRADINGAGENTS_CANONICAL_HOST`, `TRADINGAGENTS_INDEXNOW_KEY`(32자 hex, 키 파일은 **사이트 루트** `/{key}.txt` — IndexNow는 키 파일 디렉터리 아래 URL만 인정), `TRADINGAGENTS_VERIFICATION_FILES`(구글 HTML·네이버 HTML·BingSiteAuth.xml), `TRADINGAGENTS_NAVER_SITE_VERIFICATION`, `TRADINGAGENTS_BING_SITE_VERIFICATION`.
+- IndexNow 수동 핑 202 확인. 남은 것: 각 콘솔에서 "확인/소유확인" 클릭, 사이트맵 제출, Supabase Redirect URLs에 `https://agenttrust.kr/**` 추가.
