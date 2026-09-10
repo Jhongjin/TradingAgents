@@ -161,6 +161,7 @@ def build_sitemap_xml(
     urls = [
         (canonical_url("/", site_base_url=base), "daily", "1.0"),
         (canonical_url("/harness", site_base_url=base), "daily", "0.9"),
+        (canonical_url("/paper", site_base_url=base), "daily", "0.85"),
         (canonical_url("/outcomes", site_base_url=base), "hourly", "0.8"),
         (canonical_url("/analyses", site_base_url=base), "hourly", "0.8"),
         (canonical_url("/features", site_base_url=base), "weekly", "0.8"),

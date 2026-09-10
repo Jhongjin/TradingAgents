@@ -78,6 +78,10 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/paper",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/harness/:path*",
       "destination": "/api/index.py"
     },

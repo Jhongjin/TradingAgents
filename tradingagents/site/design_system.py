@@ -250,7 +250,7 @@ def placeholder_series(seed: int, n: int = 40) -> list[float]:
     return out
 
 
-NAV_ITEMS: tuple[tuple[str, str], ...] = (("/", "오늘"), ("/harness", "선별 기록"), ("/outcomes", "성과 검증"), ("/analyses", "AI 리포트"), ("/pricing", "요금제"))
+NAV_ITEMS: tuple[tuple[str, str], ...] = (("/", "오늘"), ("/harness", "선별 기록"), ("/paper", "모의 계좌"), ("/outcomes", "성과 검증"), ("/analyses", "AI 리포트"), ("/pricing", "요금제"))
 
 SITE_NAME = "TradingAgents Korea"
 SITE_DESCRIPTION = "코스피200·코스닥150을 매일 아침 규칙으로 거르고 AI 토론으로 확인한 뒤 모의투자로 검증하는 한국 주식 리서치 도구입니다."

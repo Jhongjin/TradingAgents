@@ -1114,6 +1114,29 @@ class StorageRepository:
             decision["outcomes"] = by_decision.get(str(decision["id"]), [])
         return decisions
 
+    def list_harness_fills(self, *, limit: int = 2000) -> list[dict[str, Any]]:
+        """Executed harness orders, oldest first, for replaying the paper account.
+
+        Dry runs record intent without a fill, so they are excluded: only rows
+        from runs that actually executed may move cash or holdings.
+        """
+
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        stmt = (
+            select(harness_decisions)
+            .where(
+                harness_decisions.c.stage.in_(["ordered", "exit"]),
+                harness_decisions.c.order_status.in_(["accepted", "filled"]),
+                harness_decisions.c.harness_run_id.in_(select(harness_runs.c.id).where(harness_runs.c.dry_run == 0)),
+            )
+            .order_by(harness_decisions.c.as_of_date, harness_decisions.c.created_at)
+            .limit(limit)
+        )
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+
     def latest_harness_entry_dates(self, *, limit: int = 500) -> dict[str, date]:
         """Most recent executed entry date per ticker (accepted/filled orders on non-dry runs).
 

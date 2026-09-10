@@ -20,6 +20,13 @@ ORDER_STATUS_LABELS = {
     "skipped": "주문 건너뜀",
 }
 
+EXIT_REASON_LABELS = {
+    "stop_loss": "손절선 도달",
+    "take_profit": "목표가 도달",
+    "max_holding_days": "보유 기간 종료",
+    "paper fill": "모의 체결",
+}
+
 STAGE_HINTS = {
     "screened": "규칙 점수만 통과",
     "forecast_rejected": "예측 기준 미달",
@@ -58,6 +65,15 @@ _REASON_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^insufficient cash$", re.I), "예수금이 모자랍니다"),
     (re.compile(r"^short selling is not allowed$", re.I), "공매도는 허용하지 않습니다"),
 )
+
+
+def exit_reason_label(reason: Any) -> str:
+    """Why a simulated position was closed."""
+
+    key = str(reason or "").strip()
+    if not key:
+        return "정리"
+    return EXIT_REASON_LABELS.get(key.lower(), reason_label(key))
 
 
 def order_status_label(status: Any) -> str:

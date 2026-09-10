@@ -1,7 +1,10 @@
-name: Daily harness (dry run, persisted)
+name: Daily harness (paper account, persisted)
 
-# Runs the screener → forecast → LLM debate → sizing → mandate pipeline as a
-# dry run and stores the decisions in Supabase so /harness can show them.
+# Runs the screener → forecast → LLM debate → sizing → mandate pipeline and
+# stores the decisions in Supabase so /harness can show them. Orders execute
+# against the local paper account (--execute with --broker paper): simulated
+# fills only, never a brokerage. The account carries across runs by replaying
+# the recorded fills, so stop-loss and take-profit exits actually fire.
 # Vercel's 60s function limit is too short for LLM-confirmed runs, so the
 # heavier confirmers live here. Nothing in this workflow places orders.
 
@@ -44,6 +47,7 @@ jobs:
           tradingagents pipeline \
             --confirmer "${{ github.event.inputs.confirmer || 'debate' }}" \
             --confirm "${{ github.event.inputs.confirm_top_n || '5' }}" \
+            --execute \
             $PERSIST \
             --audit-log ./harness-audit.jsonl \
             --output ./harness-run.json

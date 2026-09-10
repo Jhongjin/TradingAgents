@@ -1542,6 +1542,17 @@ def pipeline_command(
         repo = StorageRepository(create_storage_engine())
 
     broker_adapter = None
+    restore_notes: list[str] = []
+    if broker.lower() == "paper" and execute and repo is not None:
+        from tradingagents.harness.paper_state import restore_paper_account
+
+        broker_adapter, restore_notes = restore_paper_account(
+            repo,
+            initial_cash=initial_cash,
+            max_position_weight=config.max_position_weight,
+        )
+        for note in restore_notes:
+            console.print(f"[dim]{note}[/dim]")
     if broker.lower() == "kis":
         kis_config = KISConfig.from_env()
         errors = kis_config.validation_errors()
@@ -1552,6 +1563,24 @@ def pipeline_command(
     elif broker.lower() != "paper":
         raise typer.BadParameter("--broker must be paper or kis")
 
+    held_prices: dict[str, float] = {}
+    if broker_adapter is not None and getattr(broker_adapter, "name", "") == "paper":
+        held = sorted(getattr(broker_adapter, "broker").portfolio.positions)
+        if held:
+            # exits compare today's price with the average cost, and the paper
+            # broker has no quote feed of its own
+            from tradingagents.site.market_api import build_latest_prices_payload
+
+            try:
+                payload = build_latest_prices_payload(held, ignore_errors=True, max_tickers=max(len(held), 1))
+                for code, item in (payload.get("prices") or {}).items():
+                    price = item.get("close")
+                    if price:
+                        held_prices[str(code)] = float(price)
+            except Exception as exc:
+                console.print(f"[yellow]held-position prices unavailable ({exc.__class__.__name__}); exits skipped this run[/yellow]")
+            console.print(f"[dim]priced {len(held_prices)}/{len(held)} holding(s) for exit checks[/dim]")
+
     ledger = AuditLedger(audit_log) if audit_log else AuditLedger.from_env()
     result = run_daily_pipeline(
         as_of_date,
@@ -1560,6 +1589,7 @@ def pipeline_command(
         broker=broker_adapter,
         ledger=ledger,
         repo=repo,
+        current_prices=held_prices or None,
         confirmer_name=confirmer.lower(),
     )
     if result.run_id:

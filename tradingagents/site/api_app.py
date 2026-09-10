@@ -1325,6 +1325,20 @@ def create_app(
         except (VendorUnavailableError, ValueError, RuntimeError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @app.get("/paper", response_class=HTMLResponse, include_in_schema=False)
+    def paper_account_page(request: Request) -> HTMLResponse:
+        from .paper_account_page import render_paper_account_page
+
+        return HTMLResponse(render_paper_account_page(repo=request.app.state.repository, site_base_url=_request_site_base_url(request)))
+
+    @app.get("/api/paper-account")
+    def paper_account(request: Request) -> dict:
+        """Holdings and closed trades of the harness paper account (read-only)."""
+
+        from tradingagents.harness.paper_state import build_paper_account_payload
+
+        return build_paper_account_payload(request.app.state.repository)
+
     @app.get("/api/prices/latest")
     def latest_prices(
         request: Request,
