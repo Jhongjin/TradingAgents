@@ -47,6 +47,10 @@ def test_the_policy_opens_only_when_ads_are_on(monkeypatch):
         section = next(part for part in open_policy.split("; ") if part.startswith(directive))
         assert "googlesyndication" in section or "doubleclick" in section, directive
     assert "frame-ancestors 'none'" in open_policy  # the protections stay
+    # the consent platform has to load, or EEA readers see no ads at all
+    for directive in ("script-src", "frame-src", "connect-src"):
+        section = next(part for part in open_policy.split("; ") if part.startswith(directive))
+        assert "fundingchoicesmessages.google.com" in section, directive
 
 
 def test_every_page_carries_the_loader(monkeypatch):

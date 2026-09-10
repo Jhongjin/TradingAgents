@@ -2698,12 +2698,14 @@ def _api_docs_enabled() -> bool:
     return os.getenv("TRADINGAGENTS_API_DOCS_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
-# Ad networks fan out across many hosts. These stay out of the policy entirely
+# Ad networks fan out across many hosts, and Google's consent platform is one
+# more: without it the EEA consent message cannot render and those readers see
+# no ads at all. These stay out of the policy entirely
 # until a publisher ID is configured, so a site without ads keeps the tight one.
-_AD_SCRIPT_HOSTS = "https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.googleadservices.com https://adservice.google.com https://www.googletagservices.com"
-_AD_FRAME_HOSTS = "https://googleads.g.doubleclick.net https://*.googlesyndication.com https://*.doubleclick.net"
+_AD_SCRIPT_HOSTS = "https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.googleadservices.com https://adservice.google.com https://www.googletagservices.com https://fundingchoicesmessages.google.com"
+_AD_FRAME_HOSTS = "https://googleads.g.doubleclick.net https://*.googlesyndication.com https://*.doubleclick.net https://fundingchoicesmessages.google.com"
 _AD_IMG_HOSTS = "https://*.googlesyndication.com https://*.googleadservices.com https://*.doubleclick.net https://*.google.com https://*.gstatic.com"
-_AD_CONNECT_HOSTS = "https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google"
+_AD_CONNECT_HOSTS = "https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://fundingchoicesmessages.google.com"
 
 
 def _ads_enabled() -> bool:
