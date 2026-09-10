@@ -13479,6 +13479,32 @@ MEMBER_PAGE_JS = """
     return link;
   }
 
+  const SIGNED_NUMBER = /([+-][\d,]+(?:\.\d+)?(?:원|%))/g;
+
+  function signClass(text) {
+    const value = String(text || "").trim();
+    if (/^\+/.test(value)) return "up";
+    if (/^-\d/.test(value)) return "down";
+    return "";
+  }
+
+  function decorateSigned(node, text) {
+    const parts = String(text || "").split(SIGNED_NUMBER);
+    node.replaceChildren();
+    parts.forEach((part) => {
+      if (!part) return;
+      if (SIGNED_NUMBER.test(part) && signClass(part)) {
+        const span = document.createElement("span");
+        span.className = signClass(part);
+        span.textContent = part;
+        node.append(span);
+      } else {
+        node.append(document.createTextNode(part));
+      }
+      SIGNED_NUMBER.lastIndex = 0;
+    });
+  }
+
   function miniList(lines, emptyMessage, label = "") {
     const list = document.createElement("ul");
     list.className = "member-sublist";
@@ -13491,7 +13517,7 @@ MEMBER_PAGE_JS = """
     const rendered = lines.length ? lines : [emptyMessage];
     rendered.forEach((line) => {
       const item = document.createElement("li");
-      item.textContent = line;
+      decorateSigned(item, line);
       list.append(item);
     });
     return list;
@@ -13506,10 +13532,12 @@ MEMBER_PAGE_JS = """
       const strong = document.createElement("strong");
       small.textContent = label;
       strong.textContent = value;
+      if (signClass(value)) strong.classList.add(signClass(value));
       item.append(small, strong);
       if (hint) {
         const span = document.createElement("span");
         span.textContent = hint;
+        if (signClass(hint)) span.classList.add(signClass(hint));
         item.append(span);
       }
       grid.append(item);
@@ -13710,16 +13738,165 @@ MEMBER_PAGE_JS = """
       : `${row.base_currency || "KRW"} / 상세 계산 대기`;
     node.append(
       cardHeader(row.name, meta, `거래 ${tradeCount}건`),
+      portfolioManageRow(row),
       metricGrid([
         ["평가", money(totals.market_value), "시장가 기준"],
         ["손익", signedMoney(totals.total_pnl), signedPercent(totals.total_pnl_rate)],
         ["보유", `${positionCount}종목`, "목표·손절 포함"],
         ["최근 거래", `${tradeCount}건`, detail?.pricing_status || "기록 기준"]
       ]),
-      miniList(portfolioLines(detail), "아직 보유 종목이 없습니다", "보유"),
-      miniList(tradeLines(detail), "아직 거래 내역이 없습니다", "최근 거래")
+      positionActionList(row, detail),
+      tradeActionList(row, detail)
     );
     return node;
+  }
+
+  function portfolioManageRow(row) {
+    const form = document.createElement("form");
+    form.className = "watchlist-rename-form portfolio-manage-form";
+    const label = document.createElement("label");
+    const labelText = document.createElement("span");
+    const input = document.createElement("input");
+    const save = smallButton("이름 저장");
+    const remove = smallButton("일지 삭제", "ghost-button danger-button");
+    labelText.textContent = "일지 이름 수정";
+    input.type = "text";
+    input.maxLength = 80;
+    input.value = row.name || "";
+    input.placeholder = "매매 일지 이름";
+    input.setAttribute("aria-label", `${row.name || "매매 일지"} 이름 수정`);
+    save.type = "submit";
+    remove.type = "button";
+    label.append(labelText, input);
+    form.append(label, save, remove);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const name = input.value.trim();
+      if (!name) {
+        input.setCustomValidity("매매 일지 이름을 입력해 주세요.");
+        input.reportValidity();
+        return;
+      }
+      input.setCustomValidity("");
+      if (name === row.name) {
+        setStatus("변경할 이름이 없습니다.");
+        return;
+      }
+      try {
+        setButtonBusy(save, true, "저장 중");
+        input.disabled = true;
+        await memberApi(`/api/portfolios/${encodeURIComponent(row.id)}`, { method: "PATCH", body: JSON.stringify({ name }) });
+        setStatus("매매 일지 이름을 저장했습니다.");
+        await loadMemberData();
+      } catch (error) {
+        setStatus(error.message || "매매 일지 이름을 저장하지 못했습니다.", true);
+      } finally {
+        input.disabled = false;
+        setButtonBusy(save, false);
+      }
+    });
+    remove.addEventListener("click", async () => {
+      if (!window.confirm(`'${row.name}' 일지와 그 안의 거래·목표 기록을 모두 삭제합니다. 계속할까요?`)) return;
+      try {
+        setButtonBusy(remove, true, "삭제 중");
+        await memberApi(`/api/portfolios/${encodeURIComponent(row.id)}`, { method: "DELETE" });
+        setStatus("매매 일지를 삭제했습니다.");
+        await loadMemberData();
+      } catch (error) {
+        setStatus(error.message || "매매 일지를 삭제하지 못했습니다.", true);
+        setButtonBusy(remove, false);
+      }
+    });
+    return form;
+  }
+
+  function positionActionList(row, detail) {
+    const list = document.createElement("div");
+    list.className = "member-action-list";
+    const heading = document.createElement("div");
+    heading.className = "member-sublist-label";
+    heading.textContent = "보유";
+    list.append(heading);
+    const positions = detail?.positions || [];
+    if (!positions.length) {
+      list.append(emptyNode("아직 보유 종목이 없습니다. 위 입력란에서 매수 기록을 남기세요."));
+      return list;
+    }
+    positions.forEach((position) => {
+      const item = document.createElement("div");
+      item.className = "member-action-item";
+      const title = document.createElement(position.public_stock_path ? "a" : "strong");
+      if (position.public_stock_path) title.href = position.public_stock_path;
+      const quantity = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 4 }).format(Number(position.quantity || 0));
+      title.textContent = `${position.ticker_name || position.ticker_code} ${quantity}주`;
+      const meta = document.createElement("small");
+      const pnl = signedMoney(position.total_pnl ?? position.unrealized_pnl ?? position.realized_pnl);
+      decorateSigned(meta, `평단 ${money(position.average_cost)} / 손익 ${pnl} (${signedPercent(position.unrealized_pnl_rate)}) / ${riskText(position)}`);
+      item.append(title, meta);
+      const hasTarget = (position.target_price !== null && position.target_price !== undefined) || (position.stop_price !== null && position.stop_price !== undefined);
+      if (hasTarget) {
+        const clear = smallButton("목표·손절 삭제", "ghost-button danger-button");
+        clear.addEventListener("click", async () => {
+          if (!window.confirm(`${position.ticker_name || position.ticker_code}의 목표가·손절가 메모를 삭제할까요?`)) return;
+          try {
+            setButtonBusy(clear, true, "삭제 중");
+            await memberApi(`/api/portfolios/${encodeURIComponent(row.id)}/targets/${encodeURIComponent(position.ticker_code)}`, { method: "DELETE" });
+            setStatus("목표·손절 메모를 삭제했습니다.");
+            await loadMemberData();
+          } catch (error) {
+            setStatus(error.message || "목표·손절 메모를 삭제하지 못했습니다.", true);
+            setButtonBusy(clear, false);
+          }
+        });
+        item.append(clear);
+      }
+      list.append(item);
+    });
+    return list;
+  }
+
+  function tradeActionList(row, detail) {
+    const list = document.createElement("div");
+    list.className = "member-action-list";
+    const heading = document.createElement("div");
+    heading.className = "member-sublist-label";
+    heading.textContent = "최근 거래";
+    list.append(heading);
+    const trades = detail?.trades || [];
+    if (!trades.length) {
+      list.append(emptyNode("아직 거래 내역이 없습니다"));
+      return list;
+    }
+    trades.slice(0, 8).forEach((trade) => {
+      const item = document.createElement("div");
+      item.className = "member-action-item";
+      const side = trade.side === "sell" ? "매도" : "매수";
+      const quantity = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 4 }).format(Number(trade.quantity || 0));
+      const title = document.createElement("strong");
+      title.textContent = `${trade.trade_date} ${side} ${trade.ticker_name || trade.ticker_code}`;
+      const meta = document.createElement("small");
+      const costs = Number(trade.fee || 0) + Number(trade.tax || 0);
+      meta.textContent = `${quantity}주 @ ${money(trade.price)}${costs > 0 ? ` / 비용 ${money(costs)}` : ""}`;
+      item.append(title, meta);
+      if (trade.id) {
+        const remove = smallButton("삭제", "ghost-button danger-button");
+        remove.addEventListener("click", async () => {
+          if (!window.confirm(`${trade.trade_date} ${side} ${trade.ticker_name || trade.ticker_code} ${quantity}주 기록을 삭제할까요?`)) return;
+          try {
+            setButtonBusy(remove, true, "삭제 중");
+            await memberApi(`/api/portfolios/${encodeURIComponent(row.id)}/trades/${encodeURIComponent(trade.id)}`, { method: "DELETE" });
+            setStatus("거래 기록을 삭제했습니다.");
+            await loadMemberData();
+          } catch (error) {
+            setStatus(error.message || "거래 기록을 삭제하지 못했습니다.", true);
+            setButtonBusy(remove, false);
+          }
+        });
+        item.append(remove);
+      }
+      list.append(item);
+    });
+    return list;
   }
 
   function watchlistCard(row, detail) {
@@ -14439,9 +14616,12 @@ MEMBER_PAGE_JS = """
     }
     setSignedInState(true, { label: "세션 확인 중", meta: "대시보드를 불러오고 있습니다." });
     setStatus("대시보드 불러오는 중");
-    const dashboardResult = await safeMemberApi("/api/member/dashboard?include_latest_prices=true");
+    // Two phases: records first (fast), then the same payload with market prices.
+    const dashboardResult = await safeMemberApi("/api/member/dashboard?include_latest_prices=false");
     if (dashboardResult.ok) {
       renderDashboard(dashboardResult.payload);
+      const pricedResult = await safeMemberApi("/api/member/dashboard?include_latest_prices=true");
+      if (pricedResult.ok) renderDashboard(pricedResult.payload);
       return;
     }
     if (!accessToken() && !refreshToken()) {

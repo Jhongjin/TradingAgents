@@ -54,7 +54,11 @@ MEMBER_CSS = """
 .member-page .member-signed-in strong { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
 .member-page .member-signed-in small { font-size: 12px; color: var(--ink2); line-height: 1.5; }
 .member-page .member-signed-in-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.member-page .member-signed-in-actions .ghost-button { height: 32px; }
+.member-page .member-signed-in-actions .ghost-button, .member-page .member-signed-in-actions .btn { height: 32px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.member-page .member-signed-in-actions svg { display: inline-block; width: 14px; height: 14px; }
+.member-page .member-signed-in small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.member-page .portfolio-manage-form { margin-top: 2px; }
+.member-page .member-sublist-label { margin-top: 4px; }
 .member-page .member-tab-strip { display: flex; gap: 4px; padding: 4px; background: var(--bg2); border-radius: 10px; margin-top: 18px; width: fit-content; max-width: 100%; overflow-x: auto; }
 .member-page .member-tab-strip a { padding: 7px 14px; font-size: 13px; font-weight: 500; color: var(--ink2); border-radius: 8px; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
 .member-page .member-tab-strip a:hover { text-decoration: none; color: var(--ink); }

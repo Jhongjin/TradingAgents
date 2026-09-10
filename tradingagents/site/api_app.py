@@ -171,6 +171,10 @@ class ManualPortfolioCreateBody(BaseModel):
     base_currency: str = Field(default="KRW", pattern=r"^[A-Z]{3}$")
 
 
+class ManualPortfolioUpdateBody(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
 class ManualTradeCreateBody(BaseModel):
     ticker_code: str
     side: str = Field(pattern=r"^(buy|sell)$")
@@ -1399,6 +1403,75 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"status": "created", "portfolio_id": portfolio_id}
+
+    @app.patch("/api/portfolios/{portfolio_id}")
+    def update_manual_portfolio(
+        portfolio_id: str,
+        body: ManualPortfolioUpdateBody,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = _require_repository(request)
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        _require_portfolio_owner(repo, portfolio_id, user_id)
+        try:
+            portfolio = repo.update_manual_portfolio(portfolio_id=portfolio_id, name=body.name)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if portfolio is None:
+            raise HTTPException(status_code=404, detail="Portfolio not found")
+        return {"status": "updated", "portfolio": {"id": str(portfolio.get("id")), "name": portfolio.get("name"), "base_currency": portfolio.get("base_currency")}}
+
+    @app.delete("/api/portfolios/{portfolio_id}")
+    def delete_manual_portfolio(
+        portfolio_id: str,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = _require_repository(request)
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        _require_portfolio_owner(repo, portfolio_id, user_id)
+        try:
+            repo.delete_manual_portfolio(portfolio_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "deleted", "portfolio_id": portfolio_id}
+
+    @app.delete("/api/portfolios/{portfolio_id}/trades/{trade_id}")
+    def delete_manual_trade(
+        portfolio_id: str,
+        trade_id: str,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = _require_repository(request)
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        _require_portfolio_owner(repo, portfolio_id, user_id)
+        try:
+            removed = repo.delete_manual_trade(portfolio_id=portfolio_id, trade_id=trade_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not removed:
+            raise HTTPException(status_code=404, detail="Trade not found")
+        return {"status": "deleted", "trade_id": trade_id}
+
+    @app.delete("/api/portfolios/{portfolio_id}/targets/{ticker_code}")
+    def delete_manual_price_target(
+        portfolio_id: str,
+        ticker_code: str,
+        request: Request,
+        x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
+    ) -> dict:
+        repo = _require_repository(request)
+        user_id = resolve_member_user_id(request, x_tradingagents_user_id)
+        _require_portfolio_owner(repo, portfolio_id, user_id)
+        try:
+            removed = repo.delete_price_target(portfolio_id=portfolio_id, ticker_code=ticker_code)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not removed:
+            raise HTTPException(status_code=404, detail="Price target not found")
+        return {"status": "deleted", "ticker_code": ticker_code.upper()}
 
     @app.get("/api/member/dashboard")
     def member_dashboard_bootstrap(

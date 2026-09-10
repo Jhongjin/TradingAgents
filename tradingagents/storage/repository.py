@@ -623,6 +623,49 @@ class StorageRepository:
             ).mappings().all()
         return [dict(row) for row in rows]
 
+    def update_manual_portfolio(self, *, portfolio_id: str, name: str) -> dict[str, Any] | None:
+        _validate_uuid(portfolio_id, "portfolio_id")
+        cleaned = str(name or "").strip()
+        if not cleaned:
+            raise ValueError("portfolio name cannot be empty")
+        with self.engine.begin() as conn:
+            conn.execute(
+                update(manual_portfolios)
+                .where(manual_portfolios.c.id == portfolio_id)
+                .values(name=cleaned, updated_at=datetime.now(timezone.utc))
+            )
+        return self.get_manual_portfolio(portfolio_id)
+
+    def delete_manual_portfolio(self, portfolio_id: str) -> None:
+        """Remove a journal with its trades and price targets (member-owned data only)."""
+
+        _validate_uuid(portfolio_id, "portfolio_id")
+        with self.engine.begin() as conn:
+            conn.execute(delete(manual_price_targets).where(manual_price_targets.c.portfolio_id == portfolio_id))
+            conn.execute(delete(manual_trades).where(manual_trades.c.portfolio_id == portfolio_id))
+            conn.execute(delete(manual_portfolios).where(manual_portfolios.c.id == portfolio_id))
+
+    def delete_manual_trade(self, *, portfolio_id: str, trade_id: str) -> bool:
+        _validate_uuid(portfolio_id, "portfolio_id")
+        _validate_uuid(trade_id, "trade_id")
+        with self.engine.begin() as conn:
+            result = conn.execute(
+                delete(manual_trades).where(manual_trades.c.id == trade_id, manual_trades.c.portfolio_id == portfolio_id)
+            )
+        return bool(result.rowcount)
+
+    def delete_price_target(self, *, portfolio_id: str, ticker_code: str) -> bool:
+        _validate_uuid(portfolio_id, "portfolio_id")
+        normalized_ticker = _normalize_ticker_code(ticker_code)
+        with self.engine.begin() as conn:
+            result = conn.execute(
+                delete(manual_price_targets).where(
+                    manual_price_targets.c.portfolio_id == portfolio_id,
+                    manual_price_targets.c.ticker_code == normalized_ticker,
+                )
+            )
+        return bool(result.rowcount)
+
     def add_manual_trade(self, data: ManualTradeInput) -> str:
         _validate_manual_trade(data)
         ticker_name = data.ticker_name
