@@ -89,6 +89,10 @@ class PipelineConfig:
     exits_only: bool = False
     account_key: str = "paper"
     max_positions_per_sector: int = 2
+    # Off by default: turning it on changes what the account buys, and a rule
+    # change has to be a dated decision, not a silent one.
+    require_positive_flow: bool = False
+    flow_lookback_days: int = 5
     initial_cash: float = 10_000_000.0
     dry_run: bool = True
     require_llm_confirmation: bool = True
@@ -381,6 +385,7 @@ def persist_pipeline_result(repo: Any, result: PipelineRunResult, *, config: Pip
                     "max_holding_days": config.max_holding_days,
                     "min_cash_reserve_pct": config.min_cash_reserve_pct,
                     "max_positions_per_sector": config.max_positions_per_sector,
+                    "require_positive_flow": config.require_positive_flow,
                     "commission_rate": config.commission_rate,
                     "initial_cash": config.initial_cash,
                 },
@@ -535,6 +540,15 @@ def _process_candidate(
     # One day's screen tends to surface one story: three refiners passed on the
     # same morning once. A cap per industry keeps a single sector shock from
     # taking the whole account with it.
+    flow = _investor_flow(candidate.code, config)
+    if flow:
+        base["risk_metrics"] = {**(base.get("risk_metrics") or {}), "investor_flow": flow}
+    if config.require_positive_flow and flow and flow.get("status") == "available":
+        foreign = float(flow.get("foreign_net") or 0.0)
+        institution = float(flow.get("institution_net") or 0.0)
+        if foreign + institution <= 0:
+            return PipelineDecision(stage="gate_rejected", reasons=[f"foreign and institutional flow is net selling over {flow.get('days')} days"], **base)
+
     sector = _sector_of(candidate.code)
     if sector and candidate.code not in snapshot.positions:
         held_in_sector = sum(1 for code in snapshot.positions if _sector_of(code) == sector)
@@ -666,6 +680,18 @@ def _evaluate_exits(
         exit_reasons = [reason, *( [news_note] if news_note else [] ), result.message]
         decisions.append(PipelineDecision(code=code, name=(names or {}).get(code) or code, market="KR", stage="exit", reasons=exit_reasons, mandate=gate.as_dict(), order=result.as_dict()))
     return decisions
+
+
+def _investor_flow(code: str, config: PipelineConfig) -> dict | None:
+    """Recent foreign and institutional net buying, or None when unavailable."""
+
+    try:
+        from tradingagents.dataflows.kr_flows import get_investor_flow
+
+        flow = get_investor_flow(code, days=config.flow_lookback_days)
+    except Exception:
+        return None
+    return flow if flow.get("status") == "available" else None
 
 
 def _sector_of(code: str) -> str:

@@ -19,6 +19,7 @@ RULE_LABELS: tuple[tuple[str, str, str], ...] = (
     ("min_cash_reserve_pct", "현금 최소 보유", "자산 대비"),
     ("risk_percent_per_trade", "거래당 위험 예산", "자산 대비"),
     ("commission_rate", "매매 수수료", "체결 금액 대비"),
+    ("require_positive_flow", "수급 조건", "외국인·기관 순매수 요구"),
     ("min_probability_up", "상승 확률 하한", "예측 기준"),
     ("min_expected_return", "기대 수익률 하한", "예측 기준"),
     ("min_confidence", "AI 확신도 하한", "판정 기준"),
@@ -41,6 +42,8 @@ PERCENT_KEYS = {
 def format_rule(key: str, value: Any) -> str:
     if value is None:
         return "-"
+    if isinstance(value, bool):
+        return "사용" if value else "미사용"
     if key in PERCENT_KEYS:
         try:
             return f"{float(value) * 100:g}%"

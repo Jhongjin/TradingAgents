@@ -1028,6 +1028,26 @@ def create_app(
 
         return _notify_generic(request, lambda repo_, client, site_base_url=None: notify_journal_alerts(repo_, client, site_base_url=site_base_url, price_loader=price_loader))
 
+    @app.get("/api/cron/notify-weekly-report", include_in_schema=False)
+    def notify_weekly_report_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        from .weekly_report import notify_weekly_report
+
+        return _notify_generic(request, notify_weekly_report)
+
+    @app.post("/api/admin/notifications/weekly-report")
+    def admin_notify_weekly_report(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        from .weekly_report import notify_weekly_report
+
+        return _notify_generic(request, notify_weekly_report)
+
     @app.post("/api/admin/notifications/disclosures")
     def admin_notify_disclosures(
         request: Request,

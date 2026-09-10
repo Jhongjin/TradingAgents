@@ -117,12 +117,23 @@ def entry_reason(row: Mapping[str, Any], *, limit: int = 140) -> str:
     detail = row.get("detail_json") if isinstance(row.get("detail_json"), Mapping) else {}
     confirmation = (detail or {}).get("confirmation") or {}
     text = str(confirmation.get("rationale") or "").strip()
+    flow_note = ""
+    metrics = (detail or {}).get("risk_metrics") or {}
+    if isinstance(metrics, Mapping):
+        try:
+            from tradingagents.dataflows.kr_flows import flow_summary
+
+            flow_note = flow_summary(metrics.get("investor_flow"))
+        except Exception:
+            flow_note = ""
     if not text:
         reasons = [str(item).strip() for item in (row.get("reasons_json") or []) if str(item).strip()]
         text = reasons[0] if reasons else ""
     if text.lower() in {"paper fill", "order accepted", "dry run, no fill"}:
         return ""
     text = " ".join(text.split())
+    if flow_note:
+        text = f"{text} · {flow_note}" if text else flow_note
     return text if len(text) <= limit else f"{text[: limit - 1]}…"
 
 
