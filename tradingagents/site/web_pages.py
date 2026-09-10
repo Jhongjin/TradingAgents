@@ -12763,6 +12763,13 @@ MEMBER_PAGE_JS = """
   const authButtons = Array.from(document.querySelectorAll("[data-auth-action]"));
   const passwordToggle = document.getElementById("passwordToggle");
   const signOutButton = document.getElementById("signOutButton");
+  const telegramCard = document.getElementById("memberTelegramCard");
+  const telegramState = document.getElementById("memberTelegramState");
+  const telegramLinkButton = document.getElementById("memberTelegramLink");
+  const telegramOpenLink = document.getElementById("memberTelegramOpen");
+  const telegramUnlinkButton = document.getElementById("memberTelegramUnlink");
+  const telegramCodeNode = document.getElementById("memberTelegramCode");
+  const telegramMsgNode = document.getElementById("memberTelegramMsg");
   const refreshButton = document.getElementById("refreshMemberData");
   const portfolioForm = document.getElementById("portfolioForm");
   const tradeForm = document.getElementById("tradeForm");
@@ -13144,10 +13151,111 @@ MEMBER_PAGE_JS = """
     }
   }
 
+  function setTelegramMessage(text, isError = false) {
+    if (!telegramMsgNode) return;
+    telegramMsgNode.textContent = text;
+    telegramMsgNode.classList.toggle("is-error", Boolean(isError));
+  }
+
+  function renderTelegramStatus(status) {
+    const linked = Boolean(status?.linked);
+    if (telegramState) {
+      telegramState.textContent = linked ? "연결됨" : "연결 안 됨";
+      telegramState.classList.toggle("is-admin", false);
+    }
+    if (telegramUnlinkButton) telegramUnlinkButton.hidden = !linked;
+    if (telegramLinkButton) telegramLinkButton.textContent = linked ? "다시 연결하기" : "연결 코드 받기";
+    if (linked) {
+      if (telegramCodeNode) telegramCodeNode.hidden = true;
+      if (telegramOpenLink) telegramOpenLink.hidden = true;
+      const who = status?.display_name ? `${status.display_name} 계정으로 ` : "";
+      setTelegramMessage(`${who}알림을 받는 중입니다. 목표가·손절가 도달과 아침 선별 발행을 보내드립니다.`);
+    }
+  }
+
+  async function refreshTelegramStatus() {
+    if (!telegramCard) return;
+    try {
+      renderTelegramStatus(await memberApi("/api/notifications/telegram/status"));
+    } catch (error) {
+      if (telegramState) telegramState.textContent = "확인 필요";
+      setTelegramMessage(error.message || "연결 상태를 확인하지 못했습니다.", true);
+    }
+  }
+
+  async function requestTelegramCode() {
+    if (!telegramLinkButton) return;
+    telegramLinkButton.disabled = true;
+    setTelegramMessage("연결 코드를 만드는 중입니다.");
+    try {
+      const payload = await memberApi("/api/notifications/telegram/link", { method: "POST" });
+      if (telegramCodeNode) {
+        telegramCodeNode.textContent = payload.code || "------";
+        telegramCodeNode.hidden = false;
+      }
+      if (telegramOpenLink) {
+        if (payload.link_url) {
+          telegramOpenLink.href = payload.link_url;
+          telegramOpenLink.hidden = false;
+        } else {
+          telegramOpenLink.hidden = true;
+        }
+      }
+      setTelegramMessage(payload.instructions || "텔레그램에서 봇을 열고 코드를 보내세요. 코드는 30분간 유효합니다.");
+    } catch (error) {
+      setTelegramMessage(error.message || "연결 코드를 만들지 못했습니다.", true);
+    } finally {
+      telegramLinkButton.disabled = false;
+    }
+  }
+
+  async function unlinkTelegram() {
+    if (!telegramUnlinkButton) return;
+    telegramUnlinkButton.disabled = true;
+    try {
+      await memberApi("/api/notifications/telegram/link", { method: "DELETE" });
+      renderTelegramStatus({ linked: false });
+      setTelegramMessage("연결을 해제했습니다. 필요하면 다시 연결할 수 있습니다.");
+    } catch (error) {
+      setTelegramMessage(error.message || "연결을 해제하지 못했습니다.", true);
+    } finally {
+      telegramUnlinkButton.disabled = false;
+    }
+  }
+
+  function applyAccountBadges(payload) {
+    const isAdmin = Boolean(payload?.is_admin);
+    const access = payload?.access || {};
+    const planName = access?.plan?.name || "무료";
+    const paid = access?.status === "active" && access?.plan?.id !== "free";
+    const planLabel = access?.status === "trialing" ? `${planName} 체험` : (paid ? planName : "무료");
+    if (isAdmin) {
+      document.querySelectorAll("[data-admin-only]").forEach((node) => { node.hidden = false; });
+    }
+    const tabBadge = document.getElementById("memberPlanBadge");
+    if (tabBadge) tabBadge.textContent = isAdmin ? `관리자 · ${planLabel}` : planLabel;
+    const headerBadge = document.querySelector("[data-plan-badge]");
+    if (headerBadge) {
+      headerBadge.textContent = isAdmin ? "관리자" : planLabel;
+      headerBadge.className = "badge plan-badge " + (isAdmin ? "b-violet" : (access?.status === "trialing" ? "b-amber" : (paid ? "b-teal" : "b-grey")));
+      headerBadge.title = isAdmin ? `관리자 · 현재 플랜 ${planLabel}` : "구독 관리";
+      if (isAdmin) headerBadge.href = "/admin/members";
+    }
+  }
+
+  async function refreshAccountBadges() {
+    try {
+      applyAccountBadges(await memberApi("/api/billing/me"));
+    } catch (_) {
+      /* badges stay as rendered; the dashboard reports session problems */
+    }
+  }
+
   function setSignedInState(isSignedIn, options = {}) {
     setAuthUiState(Boolean(isSignedIn));
     authPanel?.classList.toggle("is-signed-in", Boolean(isSignedIn));
     if (signedInPanel) signedInPanel.hidden = !isSignedIn;
+    if (telegramCard) telegramCard.hidden = !isSignedIn;
     if (!isSignedIn) return;
     const label = options.label || "대시보드 확인 중";
     const user = options.user || storageGet(userEmailKey) || storageGet(userIdKey) || "회원 세션";
@@ -14012,7 +14120,7 @@ MEMBER_PAGE_JS = """
 
   function exitBasisLine(row) {
     const reason = String(row.request_reason || "");
-    if (!/^\[(목표|손절) 점검\]/.test(reason) || !row.decision_rating) return "";
+    if (!/^\\[(목표|손절) 점검\\]/.test(reason) || !row.decision_rating) return "";
     const share = EXIT_BASIS_BY_RATING[String(row.decision_rating).trim().toLowerCase()];
     if (share === undefined) return "";
     const lean = share > 50 ? "청산 근거가 우세" : (share < 50 ? "보유 근거가 우세" : "근거가 팽팽함");
@@ -14667,6 +14775,8 @@ MEMBER_PAGE_JS = """
     }
     setSignedInState(true, { label: "세션 확인 중", meta: "대시보드를 불러오고 있습니다." });
     setStatus("대시보드 불러오는 중");
+    void refreshAccountBadges();
+    void refreshTelegramStatus();
     // Two phases: records first (fast), then the same payload with market prices.
     const dashboardResult = await safeMemberApi("/api/member/dashboard?include_latest_prices=false");
     if (dashboardResult.ok) {
@@ -14760,7 +14870,7 @@ MEMBER_PAGE_JS = """
         ? await supabaseAuth("/auth/v1/signup", { email, password }, { redirect_to: memberRedirectUrl() })
         : await supabaseAuth("/auth/v1/token?grant_type=password", { email, password });
       if (!setSession(payload)) {
-        setStatus("가입 요청을 보냈습니다. 메일이 오지 않으면 이미 가입된 이메일일 수 있으니 로그인해 보세요.");
+        setStatus("가입 요청을 보냈습니다. 메일 인증 후 로그인하면 마이페이지에서 텔레그램 알림을 연결할 수 있습니다.");
         return;
       }
       await loadMemberData();
@@ -14818,6 +14928,9 @@ MEMBER_PAGE_JS = """
     passwordToggle.setAttribute("aria-label", label);
     passwordToggle.setAttribute("aria-pressed", showing ? "false" : "true");
   });
+
+  telegramLinkButton?.addEventListener("click", () => { void requestTelegramCode(); });
+  telegramUnlinkButton?.addEventListener("click", () => { void unlinkTelegram(); });
 
   signOutButton?.addEventListener("click", async () => {
     await supabaseLogout();

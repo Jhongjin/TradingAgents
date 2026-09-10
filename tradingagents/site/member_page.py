@@ -51,6 +51,19 @@ MEMBER_CSS = """
 .member-page .member-signed-in { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); }
 .member-page .member-signed-in-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .member-page .member-signed-in-id { display: grid; gap: 4px; min-width: 0; }
+.member-page .member-signed-in-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; justify-self: start; }
+.member-page .status-pill.is-admin { background: var(--violet-soft); color: var(--violet); }
+.member-page .member-alert-card { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); }
+.member-page .member-alert-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.member-page .member-alert-head strong { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; }
+.member-page .member-alert-head svg { width: 14px; height: 14px; }
+.member-page .member-alert-copy { margin: 0; font-size: 12px; color: var(--ink2); line-height: 1.6; }
+.member-page .member-alert-steps { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 12px; color: var(--ink2); line-height: 1.6; }
+.member-page .member-alert-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.member-page .member-alert-actions .btn, .member-page .member-alert-actions .ghost-button { height: 32px; display: inline-flex; align-items: center; white-space: nowrap; }
+.member-page .member-alert-code { justify-self: start; font-size: 18px; letter-spacing: .12em; padding: 6px 12px; border: 1px dashed var(--line-strong); border-radius: 8px; font-variant-numeric: tabular-nums; }
+.member-page .member-alert-msg { font-size: 12px; color: var(--ink2); line-height: 1.5; }
+.member-page .member-alert-msg.is-error { color: var(--gain); }
 .member-page .member-signed-in strong { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
 .member-page .member-signed-in small { font-size: 12px; color: var(--ink2); line-height: 1.5; }
 .member-page .member-signed-in-actions { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -281,10 +294,26 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <div class="member-signed-in" id="memberSignedIn" hidden>
             <div class="member-signed-in-head">
               <span class="avatar" style="background: var(--accent); color: var(--on-accent);">M</span>
-              <div class="member-signed-in-id"><strong id="memberSignedInUser">회원 세션</strong><span class="status-pill" id="memberSignedInState">대시보드 확인 중</span></div>
+              <div class="member-signed-in-id"><strong id="memberSignedInUser">회원 세션</strong><span class="member-signed-in-tags"><span class="status-pill" id="memberSignedInState">대시보드 확인 중</span><span class="status-pill is-admin" data-admin-only hidden>관리자</span></span></div>
             </div>
             <small id="memberSignedInMeta">대시보드를 불러오고 있습니다.</small>
-            <div class="member-signed-in-actions"><a class="btn sm" href="/billing">구독 관리</a><button class="ghost-button" id="signOutButton" type="button">{icon("logout", 14)} 로그아웃</button></div>
+            <div class="member-signed-in-actions"><a class="btn sm" href="/billing">구독 관리</a><a class="btn sm" href="/admin/members" data-admin-only hidden>회원 관리</a><button class="ghost-button" id="signOutButton" type="button">{icon("logout", 14)} 로그아웃</button></div>
+          </div>
+          <div class="member-alert-card" id="memberTelegramCard" hidden>
+            <div class="member-alert-head"><strong>{icon("send", 14)} 텔레그램 알림</strong><span class="status-pill" id="memberTelegramState">확인 중</span></div>
+            <p class="member-alert-copy">등록한 목표가·손절가에 도달하면 바로 알려드립니다. 아침 종목 선별 발행 알림도 같은 채널로 받습니다.</p>
+            <ol class="member-alert-steps">
+              <li>아래 <b>연결 코드 받기</b>를 누릅니다.</li>
+              <li><b>텔레그램에서 열기</b>로 봇을 연 뒤 시작을 누르거나 코드를 보냅니다.</li>
+              <li>연결 완료 표시가 뜨면 끝입니다. 코드는 30분간 유효합니다.</li>
+            </ol>
+            <div class="member-alert-actions">
+              <button class="btn primary sm" id="memberTelegramLink" type="button">연결 코드 받기</button>
+              <a class="btn sm" id="memberTelegramOpen" href="#" target="_blank" rel="noopener" hidden>텔레그램에서 열기</a>
+              <button class="ghost-button" id="memberTelegramUnlink" type="button" hidden>연결 해제</button>
+            </div>
+            <span class="member-alert-code" id="memberTelegramCode" hidden>------</span>
+            <small class="member-alert-msg" id="memberTelegramMsg">가입 후 한 번만 연결하면 됩니다.</small>
           </div>
           <div class="decision-box"><span class="badge b-grey">{icon("shield", 12)}실계좌 주문 없음</span><span class="tiny muted">조회·기록 전용 공간입니다.</span></div>
         </div>
@@ -296,6 +325,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <a id="analysis-tab" href="#analysis-request-section" role="tab" data-member-tab="analysis" aria-controls="analysis-request-section" aria-selected="false">분석 요청 <span id="analysisTabCount">0</span></a>
         <a id="paper-simulation-tab" href="#paper-simulation-section" role="tab" data-member-tab="paper" aria-controls="paper-simulation-section" aria-selected="false">AI 가상매매 <span id="paperSimulationTabCount">0</span></a>
         <a id="billing-link" href="/billing" data-member-link="billing" aria-label="구독 관리로 이동">구독 관리 <span id="memberPlanBadge">플랜 확인 중</span></a>
+        <a id="admin-members-link" href="/admin/members" data-member-link="admin" data-admin-only hidden aria-label="회원 관리로 이동">회원 관리 <span>운영</span></a>
       </nav>
     </div>
   </div>
@@ -309,7 +339,8 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
     fetch('/api/billing/me',{{headers:{{'Authorization':'Bearer '+token}}}}).then(function(r){{return r.ok?r.json():null}}).then(function(d){{
       if(!d||!d.access){{badge.textContent='무료';return;}}
       var s=d.access.status;var name=d.access.plan.name;
-      badge.textContent=s==='trialing'?name+' 체험':(s==='active'?name:'무료');
+      var label=s==='trialing'?name+' 체험':(s==='active'?name:'무료');
+      badge.textContent=d.is_admin?('관리자 · '+label):label;
       if(d.is_admin){{document.querySelectorAll('[data-admin-only]').forEach(function(n){{n.hidden=false;}});}}
     }}).catch(function(){{badge.textContent='무료';}});
   }})();

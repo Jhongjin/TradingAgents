@@ -289,7 +289,14 @@ DS_JS = r"""
     var badge = inn.querySelector('[data-plan-badge]');
     if(!d || !d.access){ if(badge){ badge.textContent = '무료'; } return; }
     var s = d.access.status, name = d.access.plan.name;
-    if(badge){ badge.textContent = s === 'trialing' ? name + ' 체험' : (s === 'active' && d.access.plan.id !== 'free' ? name : '무료'); badge.className = 'badge plan-badge ' + (s === 'trialing' ? 'b-amber' : (s === 'active' && d.access.plan.id !== 'free' ? 'b-teal' : 'b-grey')); }
+    var paid = s === 'active' && d.access.plan.id !== 'free';
+    var planLabel = s === 'trialing' ? name + ' 체험' : (paid ? name : '무료');
+    if(badge){
+      badge.textContent = d.is_admin ? '관리자' : planLabel;
+      badge.className = 'badge plan-badge ' + (d.is_admin ? 'b-violet' : (s === 'trialing' ? 'b-amber' : (paid ? 'b-teal' : 'b-grey')));
+      badge.title = d.is_admin ? ('관리자 · 현재 플랜 ' + planLabel) : '구독 관리';
+      if(d.is_admin){ badge.href = '/admin/members'; }
+    }
     if(d.is_admin){ document.querySelectorAll('[data-admin-only]').forEach(function(n){ n.hidden = false; }); }
     var email = (d.access && d.access.email) || '';
     var av = inn.querySelector('[data-avatar]'); if(av && email){ av.textContent = email.slice(0,1).toUpperCase(); av.title = email; }

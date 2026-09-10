@@ -85,3 +85,29 @@ def test_member_page_marks_hits_and_prefills_check_request():
     html = render_member_dashboard_page()
     for needle in ("is-target-hit", "AI 점검 요청", "checkReasonFor", "applyRequestedAnalysisPrefill", "청산 근거 비중", "EXIT_BASIS_BY_RATING"):
         assert needle in html, needle
+
+
+def test_member_page_offers_telegram_connect_and_admin_entry():
+    from tradingagents.site.web_pages import render_member_dashboard_page
+
+    html = render_member_dashboard_page()
+    for needle in (
+        "memberTelegramCard",
+        "연결 코드 받기",
+        "/api/notifications/telegram/link",
+        "/api/notifications/telegram/status",
+        "refreshTelegramStatus",
+        'href="/admin/members" data-admin-only hidden',
+        "admin-members-link",
+        "member-signed-in-tags",
+        "refreshAccountBadges",
+    ):
+        assert needle in html, needle
+
+
+def test_header_plan_badge_marks_admins():
+    from tradingagents.site.design_system import render_shell
+
+    html = render_shell(title="t", body="<p>body</p>")
+    assert "d.is_admin ? '관리자' : planLabel" in html
+    assert "badge.href = '/admin/members'" in html
