@@ -51,13 +51,16 @@ jobs:
           # the session is still open, without paying for it three times.
           NEWS=""
           if [ "${{ github.event.schedule }}" = "20 4 * * 1-5" ] || [ -n "${{ github.event.inputs.news_check }}" ]; then NEWS="--news-check"; fi
-          tradingagents pipeline \
-            --exits-only \
-            --execute \
-            $NEWS \
-            --persist \
-            --audit-log ./harness-audit.jsonl \
-            --output ./intraday-exits.json
+          for ACCOUNT in paper rules; do
+            tradingagents pipeline \
+              --account "$ACCOUNT" \
+              --exits-only \
+              --execute \
+              $NEWS \
+              --persist \
+              --audit-log ./harness-audit.jsonl \
+              --output "./intraday-exits-$ACCOUNT.json"
+          done
       - name: Verify audit chain
         run: tradingagents audit-verify --path ./harness-audit.jsonl
       - name: Record the account after the pass
@@ -67,5 +70,5 @@ jobs:
         with:
           name: intraday-exits
           path: |
-            intraday-exits.json
+            intraday-exits-*.json
             harness-audit.jsonl

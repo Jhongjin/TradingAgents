@@ -71,7 +71,7 @@ def record_paper_account_snapshot(
     else:
         snapshot_date = as_of or datetime.now(KST).date()
 
-    raw = build_paper_account_payload(repo, initial_cash=initial_cash, broker=account_key)
+    raw = build_paper_account_payload(repo, initial_cash=initial_cash, account_key=account_key)
     if raw.get("status") in {"not_configured", "unavailable"}:
         return {"status": raw.get("status"), "error": raw.get("error")}
 
@@ -83,7 +83,7 @@ def record_paper_account_snapshot(
             prices = dict((price_loader or _default_price_loader)(codes))
         except Exception as exc:
             notes.append(f"prices unavailable ({exc.__class__.__name__})")
-    priced = build_paper_account_payload(repo, initial_cash=initial_cash, current_prices=prices, broker=account_key)
+    priced = build_paper_account_payload(repo, initial_cash=initial_cash, current_prices=prices, account_key=account_key)
     summary = priced.get("summary") or {}
 
     benchmark_close = None

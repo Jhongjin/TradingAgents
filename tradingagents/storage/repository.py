@@ -1194,14 +1194,16 @@ class StorageRepository:
             rows = conn.execute(stmt).mappings().all()
         return [dict(row) for row in reversed(rows)]
 
-    def list_harness_fills(self, *, broker: str | None = "paper", limit: int = 2000) -> list[dict[str, Any]]:
+    def list_harness_fills(self, *, broker: str | None = "paper", account_key: str | None = None, limit: int = 2000) -> list[dict[str, Any]]:
         """Executed harness orders, oldest first, for replaying a paper account.
 
         Dry runs record intent without a fill, so they are excluded: only rows
         from runs that actually executed may move cash or holdings. Runs are
         also filtered by broker, because the local paper broker and the KIS
         모의투자 account are separate books that both write here; replaying
-        them together would invent holdings neither account has.
+        them together would invent holdings neither account has. ``account_key``
+        narrows further, so two books on the same broker (the AI-confirmed one
+        and the rules-only control) stay apart.
         """
 
         if limit <= 0:
@@ -1210,18 +1212,30 @@ class StorageRepository:
         if broker:
             run_filter.append(harness_runs.c.broker == broker)
         stmt = (
-            select(harness_decisions)
+            select(
+                harness_decisions,
+                harness_runs.c.broker.label("run_broker"),
+                harness_runs.c.confirmer.label("run_confirmer"),
+                harness_runs.c.metadata_json.label("run_metadata"),
+            )
+            .select_from(harness_decisions.join(harness_runs, harness_runs.c.id == harness_decisions.c.harness_run_id))
             .where(
                 harness_decisions.c.stage.in_(["ordered", "exit"]),
                 harness_decisions.c.order_status.in_(["accepted", "filled"]),
-                harness_decisions.c.harness_run_id.in_(select(harness_runs.c.id).where(*run_filter)),
+                *run_filter,
             )
             .order_by(harness_decisions.c.as_of_date, harness_decisions.c.created_at)
             .limit(limit)
         )
         with self.engine.begin() as conn:
-            rows = conn.execute(stmt).mappings().all()
-        return [dict(row) for row in rows]
+            rows = [dict(row) for row in conn.execute(stmt).mappings().all()]
+        for row in rows:
+            metadata = row.get("run_metadata") or {}
+            key = metadata.get("account_key") if isinstance(metadata, dict) else None
+            row["account_key"] = str(key or row.get("run_broker") or "paper")
+        if account_key:
+            rows = [row for row in rows if row["account_key"] == account_key]
+        return rows
 
     def latest_harness_entry_dates(self, *, limit: int = 500) -> dict[str, date]:
         """Most recent executed entry date per ticker (accepted/filled orders on non-dry runs).

@@ -1500,6 +1500,7 @@ def pipeline_command(
     debate_rounds: int = typer.Option(1, "--debate-rounds", min=1, max=3, help="Bull/bear rounds for --confirmer debate."),
     exits_only: bool = typer.Option(False, "--exits-only", help="Only close positions that hit a stop, target, or holding limit. No new entries."),
     news_check: bool = typer.Option(False, "--news-check", help="Also close a held position when recent news breaks the reason it was bought."),
+    account: str = typer.Option("paper", "--account", help="Which book to trade: paper (AI confirmed), rules (rule score only), kis."),
 ):
     """Daily harness: screen → forecast → LLM confirm → size → mandate gate → order."""
 
@@ -1524,6 +1525,7 @@ def pipeline_command(
         initial_cash=initial_cash,
         dry_run=not execute,
         exits_only=exits_only,
+        account_key=account.strip().lower() or "paper",
         require_llm_confirmation=confirmer.lower() != "none",
     )
     selected_confirmer = None
@@ -1551,14 +1553,14 @@ def pipeline_command(
 
     broker_adapter = None
     restore_notes: list[str] = []
-    if broker.lower() == "paper" and execute and repo is not None:
+    if broker.lower() == "paper" and execute and repo is not None and config.account_key != "kis":
         from tradingagents.harness.paper_state import restore_paper_account
 
         broker_adapter, restore_notes = restore_paper_account(
             repo,
             initial_cash=initial_cash,
             max_position_weight=config.max_position_weight,
-            broker="paper",
+            account_key=config.account_key,
         )
         for note in restore_notes:
             console.print(f"[dim]{note}[/dim]")
@@ -1689,8 +1691,9 @@ def reconcile_kis_fills_command(
 def record_paper_snapshot_command(
     as_of: Optional[str] = typer.Option(None, "--date", help="Snapshot date YYYY-MM-DD (default: today KST)."),
     initial_cash: Optional[float] = typer.Option(None, "--cash", help="Starting cash the account is measured against."),
+    account: Optional[str] = typer.Option(None, "--account", help="Record one account (paper, rules, kis). Default: all of them."),
 ):
-    """Record one day of the harness paper account with the KOSPI close beside it."""
+    """Record one day of each paper account with the KOSPI close beside it."""
 
     import os
 
@@ -1701,7 +1704,14 @@ def record_paper_snapshot_command(
         raise typer.BadParameter("DATABASE_URL is required to record account snapshots")
 
     repo = StorageRepository(create_storage_engine())
-    result = record_paper_account_snapshot(repo, as_of=as_of, initial_cash=initial_cash)
+    if not account:
+        from tradingagents.site.paper_snapshot_worker import record_all_account_snapshots
+
+        summary = record_all_account_snapshots(repo, as_of=as_of)
+        for key, value in (summary.get("accounts") or {}).items():
+            console.print(f"[dim]{key}[/dim] {value.get('status')} equity={value.get('equity')} positions={value.get('position_count')}")
+        return
+    result = record_paper_account_snapshot(repo, as_of=as_of, initial_cash=initial_cash, account_key=account.strip().lower())
     if result.get("status") != "recorded":
         console.print(f"[yellow]{result.get('status')}: {result.get('error') or ''}[/yellow]")
         return

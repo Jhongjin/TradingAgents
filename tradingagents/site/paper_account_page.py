@@ -263,7 +263,7 @@ def _books_card(books: list[Mapping[str, Any]]) -> str:
     return f"""<div class="card" style="margin-bottom: 18px;">
     <div class="card-h"><h2>{icon_tile("wallet", "b-teal", small=True)}계좌별 성적</h2><span class="badge b-grey">{len(rows)}개 계좌</span></div>
     <div class="card-b paper-books">{"".join(rows)}</div>
-    <div class="card-f"><span>자체 모의는 즉시 체결을 가정하고, KIS 모의투자는 실제 주문 접수와 체결을 거칩니다.</span><span>두 성적의 차이가 실제 주문에서 생기는 마찰입니다.</span></div>
+    <div class="card-f"><span>같은 선별 결과를 세 계좌가 각자 삽니다. AI 확인은 토론을 거치고, 규칙 전용은 점수만 보고, KIS는 실제 주문을 넣습니다.</span><span>AI 확인과 규칙 전용의 차이가 AI가 보탠 몫이고, KIS와의 차이가 주문 마찰입니다.</span></div>
   </div>"""
 
 
@@ -432,7 +432,7 @@ def render_paper_account_page(
   <div class="shell">
     <p class="eyebrow">AI 모의 계좌</p>
     <h1>선별한 종목을 실제로 담고, 규칙대로 정리한 기록</h1>
-    <p>매일 아침 선별을 통과한 종목을 두 모의 계좌로 매수합니다. 자체 모의 계좌는 즉시 체결을 가정하고, KIS 모의투자 계좌는 실제로 주문을 넣어 체결을 확인합니다. 매수와 동시에 목표가와 손절선을 정하고, 다음 실행에서 그 선에 닿으면 자동으로 정리합니다. 실제 증권 계좌와 연결되지 않은 모의 기록입니다. 지난 기록은 모두 공개하며, 당일 편입·청산은 데일리 패스에서 열립니다.</p>
+    <p>매일 아침 선별한 종목을 세 계좌가 각자 매수합니다. AI 토론을 거친 계좌, 규칙 점수만 보는 계좌, 그리고 실제로 KIS 모의투자에 주문을 넣는 계좌입니다. 세 성적을 나란히 두면 AI가 실제로 보탠 몫이 드러납니다. 매수와 동시에 목표가와 손절선을 정하고, 다음 실행에서 그 선에 닿으면 자동으로 정리합니다. 실제 증권 계좌와 연결되지 않은 모의 기록입니다. 지난 기록은 모두 공개하며, 당일 편입·청산은 데일리 패스에서 열립니다.</p>
   </div>
 </div>
 <div class="shell">

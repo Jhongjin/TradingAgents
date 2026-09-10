@@ -1,0 +1,63 @@
+name: Rules-only control account
+
+# The same screening run, bought without the AI debate. Its record next to the
+# AI-confirmed book is the only honest answer to "does the AI add anything":
+# same universe, same day, same sizing, one gate removed.
+#
+# Simulated fills only, on the local paper broker. No brokerage, no live order.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_top_n:
+        description: "Candidates taken from the screener"
+        default: "5"
+  schedule:
+    # 07:55 KST on weekdays, just after the AI-confirmed run.
+    - cron: "55 22 * * 0-4"
+
+concurrency:
+  group: harness-paper-account
+  cancel-in-progress: false
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TRADINGAGENTS_POSTGRES_DRIVER: pg8000
+      TRADINGAGENTS_FORECAST_BACKEND: naive
+      TRADINGAGENTS_SCREENER_UNIVERSE: ${{ vars.TRADINGAGENTS_SCREENER_UNIVERSE }}
+      TRADINGAGENTS_ENABLE_LIVE_TRADING: "false"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -e .
+      - name: Buy on the rule score alone
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "::error::DATABASE_URL secret is not set"; exit 1; fi
+          tradingagents pipeline \
+            --account rules \
+            --confirmer none \
+            --confirm "${{ github.event.inputs.confirm_top_n || '5' }}" \
+            --execute \
+            --persist \
+            --audit-log ./rules-audit.jsonl \
+            --output ./rules-run.json
+      - name: Verify audit chain
+        run: tradingagents audit-verify --path ./rules-audit.jsonl
+      - name: Record the account
+        continue-on-error: true
+        run: tradingagents record-paper-snapshot --account rules
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rules-run
+          path: |
+            rules-run.json
+            rules-audit.jsonl

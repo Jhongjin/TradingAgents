@@ -317,7 +317,7 @@ def test_snapshot_cron_needs_the_worker_token(monkeypatch):
     body = client.get("/api/cron/record-paper-snapshot", headers={"X-TradingAgents-Worker-Token": "op-token"}).json()
     assert body["status"] == "recorded"
     # one row per account, so both books get an equity curve
-    assert set(body["accounts"]) == {"paper", "kis"}
+    assert set(body["accounts"]) == {"paper", "rules", "kis"}
     assert body["accounts"]["paper"]["benchmark_close"] == 2700.0
 
 
@@ -482,7 +482,7 @@ def test_reconciliation_leaves_rows_alone_when_the_broker_reports_nothing():
     assert rows[0]["id"] == decision_id and rows[0]["order_status"] == "accepted"
 
 
-def test_the_combined_account_sums_two_books_without_mixing_their_cash():
+def test_the_combined_account_sums_the_books_without_mixing_their_cash():
     from tradingagents.harness.paper_state import build_combined_account_payload, default_initial_cash
 
     repo = _repo()
@@ -496,12 +496,12 @@ def test_the_combined_account_sums_two_books_without_mixing_their_cash():
     combined = build_combined_account_payload(repo)
     sources = {item["ticker_code"]: item["account"] for item in combined["positions"]}
     assert sources == {"096770": "paper", "000660": "kis"}
-    assert {item["account_label"] for item in combined["positions"]} == {"자체 모의", "KIS 모의투자"}
+    assert {item["account_label"] for item in combined["positions"]} == {"AI 확인", "KIS 모의투자"}
 
     summary = combined["summary"]
-    assert summary["initial_cash"] == default_initial_cash("paper") + default_initial_cash("kis")
+    assert summary["initial_cash"] == sum(default_initial_cash(key) for key in ("paper", "rules", "kis"))
     books = {book["key"]: book["summary"] for book in combined["accounts"]}
-    assert round(books["paper"]["cash"] + books["kis"]["cash"], 2) == summary["cash"]
+    assert round(sum(book["cash"] for book in books.values()), 2) == summary["cash"]
     # neither book paid for the other's shares
     assert books["kis"]["cash"] < default_initial_cash("kis")
     assert books["paper"]["cash"] < default_initial_cash("paper")
@@ -520,11 +520,11 @@ def test_the_page_shows_both_books_and_labels_every_row():
 
     html = client.get("/paper").text
     assert "계좌별 성적" in html
-    assert "KIS 모의투자" in html and "자체 모의" in html
+    assert "KIS 모의투자" in html and "AI 확인" in html and "규칙 전용" in html
     assert "SK하이닉스" in html and "SK이노베이션" in html
 
     api = client.get("/api/paper-account").json()
-    assert {book["key"] for book in api["accounts"]} == {"paper", "kis"}
+    assert {book["key"] for book in api["accounts"]} == {"paper", "rules", "kis"}
 
 
 def test_every_row_says_why_it_was_bought():
@@ -682,3 +682,46 @@ def test_news_risk_reads_as_korean_on_the_page():
     from tradingagents.site.plain_korean import exit_reason_label
 
     assert exit_reason_label("news_risk") == "악재 감지"
+
+
+def test_the_rules_book_and_the_ai_book_stay_apart_on_the_same_broker():
+    """Both trade the local paper broker; only the run's account key tells them apart."""
+
+    from tradingagents.harness.paper_state import build_combined_account_payload
+
+    repo = _repo()
+    today = datetime.now(timezone.utc).date()
+    when = today - timedelta(days=4)
+    ai_run = repo.create_harness_run(
+        HarnessRunInput(as_of_date=when, confirmer="debate", visibility="public", dry_run=False, broker="paper", candidate_count=1, order_count=1, metadata={"account_key": "paper"})
+    )
+    _fill(repo, ai_run, when=when, code="096770", stage="ordered", price=153500, quantity=13, name="SK이노베이션")
+    rules_run = repo.create_harness_run(
+        HarnessRunInput(as_of_date=when, confirmer="none", visibility="public", dry_run=False, broker="paper", candidate_count=1, order_count=1, metadata={"account_key": "rules"})
+    )
+    _fill(repo, rules_run, when=when, code="005930", stage="ordered", price=70000, quantity=40, name="삼성전자")
+
+    ai_book = build_paper_account_payload(repo, account_key="paper")
+    rules_book = build_paper_account_payload(repo, account_key="rules")
+    assert {item["ticker_code"] for item in ai_book["positions"]} == {"096770"}
+    assert {item["ticker_code"] for item in rules_book["positions"]} == {"005930"}
+
+    combined = build_combined_account_payload(repo)
+    labels = {item["ticker_code"]: item["account_label"] for item in combined["positions"]}
+    assert labels == {"096770": "AI 확인", "005930": "규칙 전용"}
+    assert combined["summary"]["open_count"] == 2
+
+
+def test_runs_without_an_account_key_stay_in_the_ai_book():
+    repo = _repo()
+    _seed_account(repo)  # seeded before account keys existed
+    assert {item["ticker_code"] for item in build_paper_account_payload(repo, account_key="paper")["positions"]} == {"096770"}
+    assert build_paper_account_payload(repo, account_key="rules")["positions"] == []
+
+
+def test_the_rules_workflow_removes_only_the_ai_gate():
+    from pathlib import Path
+
+    workflow = Path(".github/workflows/harness-rules-only.yml").read_text(encoding="utf-8")
+    assert "--account rules" in workflow and "--confirmer none" in workflow
+    assert "--execute" in workflow and "--broker kis" not in workflow

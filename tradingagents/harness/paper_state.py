@@ -53,9 +53,18 @@ def default_commission_rate() -> float:
     return value if 0 <= value < 0.05 else _FALLBACK_COMMISSION_RATE
 
 
-ACCOUNTS: tuple[tuple[str, str], ...] = (("paper", "자체 모의"), ("kis", "KIS 모의투자"))
+# Three books trade the same screening run. "paper" applies the AI debate,
+# "rules" skips it and buys on the rule score alone, and "kis" sends the AI
+# book's orders to the broker. The gap between the first two is what the AI
+# contributed; the gap between the first and the last is execution friction.
+ACCOUNT_BROKER = {"paper": "paper", "rules": "paper", "kis": "kis"}
+ACCOUNTS: tuple[tuple[str, str], ...] = (("paper", "AI 확인"), ("rules", "규칙 전용"), ("kis", "KIS 모의투자"))
 ACCOUNT_LABELS = dict(ACCOUNTS)
-_CASH_ENV = {"paper": "TRADINGAGENTS_PAPER_INITIAL_CASH", "kis": "TRADINGAGENTS_KIS_INITIAL_CASH"}
+_CASH_ENV = {
+    "paper": "TRADINGAGENTS_PAPER_INITIAL_CASH",
+    "rules": "TRADINGAGENTS_RULES_INITIAL_CASH",
+    "kis": "TRADINGAGENTS_KIS_INITIAL_CASH",
+}
 
 
 def default_initial_cash(account: str = "paper") -> float:
@@ -186,14 +195,14 @@ def replay_fills(
     return broker, notes
 
 
-def restore_paper_account(repo: Any, *, initial_cash: float | None = None, max_position_weight: float = 0.2, broker: str = "paper", limit: int = 2000) -> tuple[PaperBrokerAdapter | None, list[str]]:
+def restore_paper_account(repo: Any, *, initial_cash: float | None = None, max_position_weight: float = 0.2, account_key: str = "paper", limit: int = 2000) -> tuple[PaperBrokerAdapter | None, list[str]]:
     """Return a broker holding whatever the recorded harness fills add up to."""
 
-    initial_cash = default_initial_cash(broker) if initial_cash is None else initial_cash
+    initial_cash = default_initial_cash(account_key) if initial_cash is None else initial_cash
     if repo is None or not hasattr(repo, "list_harness_fills"):
         return None, []
     try:
-        rows = repo.list_harness_fills(broker=broker, limit=limit)
+        rows = repo.list_harness_fills(broker=ACCOUNT_BROKER.get(account_key, account_key), account_key=account_key, limit=limit)
     except Exception as exc:
         return None, [f"paper account history unavailable ({exc.__class__.__name__}); starting from cash"]
     broker, notes = replay_fills(rows, initial_cash=initial_cash, max_position_weight=max_position_weight)
@@ -207,7 +216,8 @@ def build_paper_account_payload(
     *,
     initial_cash: float | None = None,
     current_prices: Mapping[str, float] | None = None,
-    broker: str = "paper",
+    broker: str | None = "paper",
+    account_key: str | None = None,
     limit: int = 2000,
 ) -> dict[str, Any]:
     """Holdings, closed trades and totals for the public paper-account view.
@@ -217,11 +227,13 @@ def build_paper_account_payload(
     sell-side transaction tax included.
     """
 
-    initial_cash = default_initial_cash(broker or "paper") if initial_cash is None else initial_cash
+    if account_key:
+        broker = ACCOUNT_BROKER.get(account_key, account_key)
+    initial_cash = default_initial_cash(account_key or broker or "paper") if initial_cash is None else initial_cash
     if repo is None or not hasattr(repo, "list_harness_fills"):
         return {"status": "not_configured", "positions": [], "closed": [], "summary": {}}
     try:
-        rows = list(repo.list_harness_fills(broker=broker, limit=limit))
+        rows = list(repo.list_harness_fills(broker=broker, account_key=account_key, limit=limit))
     except Exception as exc:
         return {"status": "unavailable", "error": f"{exc.__class__.__name__}: {exc}", "positions": [], "closed": [], "summary": {}}
 
@@ -397,7 +409,7 @@ def build_combined_account_payload(
     totals = {"initial_cash": 0.0, "cash": 0.0, "holdings_value": 0.0, "equity": 0.0, "realized_pnl": 0.0, "open_count": 0, "closed_count": 0, "win_count": 0, "priced_count": 0}
 
     for key, label in accounts:
-        payload = build_paper_account_payload(repo, broker=key, current_prices=current_prices, limit=limit)
+        payload = build_paper_account_payload(repo, account_key=key, current_prices=current_prices, limit=limit)
         summary = dict(payload.get("summary") or {})
         books[key] = {"key": key, "label": label, "status": payload.get("status"), "summary": summary}
         for item in payload.get("positions") or []:

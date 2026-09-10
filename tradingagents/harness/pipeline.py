@@ -87,6 +87,7 @@ class PipelineConfig:
     min_cash_reserve_pct: float = 0.10
     commission_rate: float = 0.00015
     exits_only: bool = False
+    account_key: str = "paper"
     initial_cash: float = 10_000_000.0
     dry_run: bool = True
     require_llm_confirmation: bool = True
@@ -381,6 +382,7 @@ def persist_pipeline_result(repo: Any, result: PipelineRunResult, *, config: Pip
                 },
                 "mandate": config.mandate.as_dict(),
                 "audit_head_hash": result.audit_head_hash,
+                "account_key": config.account_key,
                 "screener_candidates": [
                     {"rank": c.get("rank"), "code": c.get("code"), "name": c.get("name"), "composite": (c.get("factors") or {}).get("composite")}
                     for c in result.screener.get("candidates", [])
