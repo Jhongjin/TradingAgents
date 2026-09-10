@@ -1877,7 +1877,7 @@ def create_app(
                 raise HTTPException(status_code=500, detail=str(exc)) from exc
             content = files.get(verification_file)
             if content:
-                media = "text/xml; charset=utf-8" if verification_file.endswith(".xml") else "text/plain; charset=utf-8"
+                media = "text/xml; charset=utf-8" if verification_file.endswith(".xml") else "text/html; charset=utf-8"
                 return Response(content, media_type=media, headers={"Cache-Control": "public, max-age=3600"})
         raise HTTPException(status_code=404, detail="Not found")
 
