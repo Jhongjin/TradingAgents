@@ -509,6 +509,16 @@ def create_app(
                 results.append({"path": path, "error": f"{exc.__class__.__name__}: {exc}", "seconds": round(time.monotonic() - started, 2)})
         return {"base": base, "results": results}
 
+    @app.get("/api/admin/diagnostics/llm", include_in_schema=False)
+    def admin_llm_diagnostics(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        """Report whether the configured LLM key is accepted, without revealing it."""
+
+        _require_operator(request, x_tradingagents_worker_token)
+        return _probe_llm_credentials()
+
     # ------------------------------------------------------ Open Graph images
     _OG_HEADERS = {"Cache-Control": "public, max-age=3600, stale-while-revalidate=86400"}
 
@@ -2873,6 +2883,52 @@ def _readiness_configuration_errors(
 
 def _has_any_env(names: tuple[str, ...]) -> bool:
     return any(bool(os.getenv(name)) for name in names)
+
+
+def _probe_llm_credentials() -> dict:
+    """Check the OpenAI key's shape and whether the provider accepts it.
+
+    Only the key's shape is reported (length, prefix, stray quotes or spaces):
+    a pasted key with wrapping quotes or a trailing newline fails exactly like a
+    revoked one, and the two need different fixes.
+    """
+
+    import requests as _http
+
+    from tradingagents.default_config import DEFAULT_CONFIG
+
+    from .analysis_worker import scrub_failure_reason
+
+    raw = os.getenv("OPENAI_API_KEY") or ""
+    trimmed = raw.strip()
+    unquoted = trimmed.strip('"').strip("'")
+    shape = {
+        "configured": bool(raw),
+        "length": len(raw),
+        "trimmed_length": len(trimmed),
+        "has_surrounding_whitespace": raw != trimmed,
+        "wrapped_in_quotes": trimmed != unquoted,
+        "prefix": unquoted[:7] if unquoted else None,
+    }
+    if not unquoted:
+        return {"status": "not_configured", "key": shape}
+    base_url = (os.getenv("OPENAI_BASE_URL") or DEFAULT_CONFIG.get("backend_url") or "https://api.openai.com/v1").rstrip("/")
+    started = time.monotonic()
+    try:
+        response = _http.get(f"{base_url}/models", headers={"Authorization": f"Bearer {unquoted}"}, timeout=20)
+    except Exception as exc:
+        return {"status": "probe_failed", "key": shape, "base_url": base_url, "error": f"{exc.__class__.__name__}: {exc}"}
+    detail = None
+    if response.status_code >= 400:
+        detail = scrub_failure_reason(response.text, limit=200)
+    return {
+        "status": "accepted" if response.status_code < 400 else "rejected",
+        "key": shape,
+        "base_url": base_url,
+        "http_status": response.status_code,
+        "detail": detail,
+        "seconds": round(time.monotonic() - started, 2),
+    }
 
 
 def _deployment_context() -> dict[str, str | None]:

@@ -1,3 +1,4 @@
+import json
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
@@ -111,3 +112,39 @@ def test_header_plan_badge_marks_admins():
     html = render_shell(title="t", body="<p>body</p>")
     assert "d.is_admin ? '관리자' : planLabel" in html
     assert "badge.href = '/admin/members'" in html
+
+
+def test_failure_reasons_never_keep_credential_text():
+    from tradingagents.site.analysis_worker import scrub_failure_reason
+
+    raw = "AuthenticationError: Error code: 401 - {'message': 'Incorrect API key provided: sk-proj-abcd1234EFGH5678ijkl'}"
+    cleaned = scrub_failure_reason(raw)
+    assert "sk-proj-abcd1234EFGH5678ijkl" not in cleaned
+    assert "sk-***" in cleaned and "AuthenticationError" in cleaned
+    assert len(scrub_failure_reason("x" * 900)) <= 300
+
+
+def test_llm_diagnostics_route_reports_shape_without_the_key(monkeypatch):
+    repo = _repo()
+    monkeypatch.setenv("OPERATOR_ACCESS_CODE", "op-token")
+    monkeypatch.setenv("OPENAI_API_KEY", '"sk-proj-secretvalue123456"\n')
+    monkeypatch.setattr(
+        "requests.get",
+        lambda url, headers=None, timeout=None: type("R", (), {"status_code": 401, "text": "{'message': 'Incorrect API key provided: sk-proj-secretvalue123456'}"})(),
+    )
+    app = create_app(repo=repo, load_repo_from_env=False)
+    client = TestClient(app)
+    assert client.get("/api/admin/diagnostics/llm").status_code == 401
+    body = client.get("/api/admin/diagnostics/llm", headers={"X-TradingAgents-Worker-Token": "op-token"}).json()
+    assert body["status"] == "rejected" and body["http_status"] == 401
+    assert body["key"]["wrapped_in_quotes"] is True and body["key"]["has_surrounding_whitespace"] is True
+    assert "secretvalue123456" not in json.dumps(body)
+
+
+def test_member_hero_shows_summary_and_target_hits():
+    from tradingagents.site.web_pages import render_member_dashboard_page
+
+    html = render_member_dashboard_page()
+    for needle in ("member-summary-main", "memberHitBanner", "updateHitBanner", "member-quick-actions", "AI 분석 서버 인증에 실패했습니다"):
+        assert needle in html, needle
+    assert html.count('id="memberOverview"') == 1

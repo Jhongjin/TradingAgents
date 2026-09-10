@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Callable, Mapping, Any
 
@@ -9,6 +10,21 @@ from tradingagents.storage import StorageRepository
 
 
 AnalysisRunner = Callable[[Mapping[str, Any]], str]
+
+_SECRET_PATTERN = re.compile(r"\b(sk|rk|pk|xoxb|ghp|gho|glpat|AIza)[-_A-Za-z0-9]{6,}")
+MAX_FAILURE_REASON_CHARS = 300
+
+
+def scrub_failure_reason(text: str, *, limit: int = MAX_FAILURE_REASON_CHARS) -> str:
+    """Drop credential-shaped tokens and cap the length before persisting an error.
+
+    Provider errors echo the key they rejected, so the raw text must never reach
+    the member-facing request row.
+    """
+
+    cleaned = _SECRET_PATTERN.sub(lambda match: f"{match.group(1)}-***", str(text or "").strip())
+    cleaned = re.sub(r"\*{4,}", "***", cleaned)
+    return cleaned if len(cleaned) <= limit else f"{cleaned[: limit - 3]}..."
 
 
 @dataclass(frozen=True)
@@ -44,7 +60,7 @@ def process_queued_analysis_requests(
         try:
             analysis_run_id = runner(request)
         except Exception as exc:
-            error = f"{exc.__class__.__name__}: {exc}"
+            error = scrub_failure_reason(f"{exc.__class__.__name__}: {exc}")
             repo.update_analysis_request_status(request_id, status="failed", reason=error)
             results.append(
                 AnalysisWorkerResult(

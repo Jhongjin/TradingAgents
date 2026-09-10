@@ -45,6 +45,12 @@ MEMBER_CSS = """
 .member-page .auth-status.member-error { color: var(--gain); background: var(--gain-soft); }
 /* ---- workspace ---- */
 .member-page .member-summary-band { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.member-page .member-summary-main { flex: 1 1 520px; min-width: 0; display: grid; gap: 14px; align-content: start; }
+.member-page .member-hit-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 14px; border: 1px solid var(--line); border-left: 4px solid var(--gain); border-radius: 12px; background: var(--panel); }
+.member-page .member-hit-banner.is-stop { border-left-color: var(--loss); }
+.member-page .member-hit-text { font-size: 13px; color: var(--ink); }
+.member-page .member-quick-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.member-page .member-quick-actions .ghost-button { height: 32px; display: inline-flex; align-items: center; }
 .member-page .member-summary-band h1 { font-size: 24px; }
 .member-page .member-workspace-lede { font-size: 13px; color: var(--ink2); margin-top: 4px; }
 .member-page .member-side { display: grid; gap: 10px; width: min(100%, 380px); }
@@ -284,11 +290,30 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
   <div class="hero" style="padding: 26px 0 18px;">
     <div class="shell">
       <section class="member-summary-band" aria-labelledby="member-title">
-        <div>
-          <p class="eyebrow">회원 공간</p>
-          <h1 id="member-title">마이페이지</h1>
-          <p class="small ink2" id="memberStatus" style="margin-top: 4px;">로그인 상태 확인 중</p>
-          <p class="member-workspace-lede">오늘의 선정 종목을 보고, 기록과 요청을 이어갑니다.</p>
+        <div class="member-summary-main">
+          <div>
+            <p class="eyebrow">회원 공간</p>
+            <h1 id="member-title">마이페이지</h1>
+            <p class="small ink2" id="memberStatus" style="margin-top: 4px;">로그인 상태 확인 중</p>
+            <p class="member-workspace-lede">오늘의 선정 종목을 보고, 기록과 요청을 이어갑니다.</p>
+          </div>
+          <div class="member-hit-banner" id="memberHitBanner" hidden>
+            <span class="status-pill" id="memberHitPill">목표·손절 도달</span>
+            <span class="member-hit-text" id="memberHitText">도달한 종목이 있습니다.</span>
+            <button class="btn sm" type="button" data-member-jump="portfolio">일지에서 보기</button>
+          </div>
+          <section class="member-overview-strip" id="memberOverview" aria-label="마이페이지 요약">
+            <article><span>매매 일지</span><strong id="memberOverviewPortfolios">0</strong><small>일지</small></article>
+            <article><span>관심그룹</span><strong id="memberOverviewWatchlists">0</strong><small>종목 목록</small></article>
+            <article><span>대기 중 요청</span><strong id="memberOverviewActiveRequests">0</strong><small>대기/처리 중</small></article>
+            <article><span>리포트</span><strong id="memberOverviewCompletedReports">0</strong><small>완료 리포트</small></article>
+            <article><span>AI 가상매매</span><strong id="memberOverviewPaperSimulations">0</strong><small>가상매매 기록</small></article>
+          </section>
+          <div class="member-quick-actions">
+            <button class="ghost-button" type="button" data-member-jump="portfolio">일지 쓰기</button>
+            <button class="ghost-button" type="button" data-member-jump="analysis">분석 요청</button>
+            <a class="ghost-button" href="/harness">오늘의 선별 기록</a>
+          </div>
         </div>
         <div class="member-side">
           <div class="member-signed-in" id="memberSignedIn" hidden>
@@ -353,13 +378,7 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
         <div><p class="eyebrow">마이페이지</p><h2>홈</h2><p class="panel-copy">오늘 이어갈 항목입니다.</p></div>
         <span class="status-pill">조회/기록 전용</span>
       </div>
-      <section class="member-overview-strip" id="memberOverview" aria-label="마이페이지 요약">
-        <article><span>매매 일지</span><strong id="memberOverviewPortfolios">0</strong><small>일지</small></article>
-        <article><span>관심그룹</span><strong id="memberOverviewWatchlists">0</strong><small>종목 목록</small></article>
-        <article><span>대기 중 요청</span><strong id="memberOverviewActiveRequests">0</strong><small>대기/처리 중</small></article>
-        <article><span>리포트</span><strong id="memberOverviewCompletedReports">0</strong><small>완료 리포트</small></article>
-        <article><span>AI 가상매매</span><strong id="memberOverviewPaperSimulations">0</strong><small>가상매매 기록</small></article>
-      </section>
+
       <p class="member-home-state-note" id="memberHomeStateNote" aria-live="polite">저장된 항목을 불러오고 있습니다.</p>
       <section class="member-primary-action" id="memberPrimaryAction" data-member-primary-action="portfolio" aria-live="polite">
         <div>

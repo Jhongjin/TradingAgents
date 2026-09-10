@@ -12795,6 +12795,9 @@ MEMBER_PAGE_JS = """
   const overviewCompletedReports = document.getElementById("memberOverviewCompletedReports");
   const overviewPaperSimulations = document.getElementById("memberOverviewPaperSimulations");
   const memberHomeStateNote = document.getElementById("memberHomeStateNote");
+  const memberHitBanner = document.getElementById("memberHitBanner");
+  const memberHitPill = document.getElementById("memberHitPill");
+  const memberHitText = document.getElementById("memberHitText");
   const memberPrimaryAction = document.getElementById("memberPrimaryAction");
   const memberPrimaryActionTitle = document.getElementById("memberPrimaryActionTitle");
   const memberPrimaryActionCopy = document.getElementById("memberPrimaryActionCopy");
@@ -14154,6 +14157,12 @@ MEMBER_PAGE_JS = """
     if (text.includes("Read-only file system")) {
       return "서버 임시 저장 경로 문제로 실패했습니다. 다시 요청하면 수정된 처리 경로로 진행됩니다.";
     }
+    if (/AuthenticationError|Incorrect API key|invalid_api_key|401/.test(text)) {
+      return "AI 분석 서버 인증에 실패했습니다. 운영자가 키를 갱신한 뒤 다시 요청해 주세요.";
+    }
+    if (/RateLimitError|rate limit|429|insufficient_quota/i.test(text)) {
+      return "AI 분석 서버 사용량 한도에 걸렸습니다. 잠시 뒤 다시 요청해 주세요.";
+    }
     return text.length > 180 ? `${text.slice(0, 177)}...` : text;
   }
 
@@ -14606,6 +14615,36 @@ MEMBER_PAGE_JS = """
     }
   }
 
+  function updateHitBanner(details = {}) {
+    if (!memberHitBanner) return;
+    let targets = 0;
+    let stops = 0;
+    let firstName = "";
+    Object.values(details || {}).forEach((detail) => {
+      (detail?.positions || []).forEach((position) => {
+        if (position.target_hit) targets += 1;
+        else if (position.stop_hit) stops += 1;
+        else return;
+        if (!firstName) firstName = position.ticker_name || position.ticker_code || "";
+      });
+    });
+    const total = targets + stops;
+    memberHitBanner.hidden = total === 0;
+    if (!total) return;
+    memberHitBanner.classList.toggle("is-stop", targets === 0);
+    if (memberHitPill) {
+      memberHitPill.textContent = targets && stops ? "목표·손절 도달" : (targets ? "목표가 도달" : "손절선 도달");
+      memberHitPill.className = `status-pill ${targets ? "hit-target" : "hit-stop"}`;
+    }
+    if (memberHitText) {
+      const parts = [];
+      if (targets) parts.push(`목표가 ${targets}종목`);
+      if (stops) parts.push(`손절선 ${stops}종목`);
+      const lead = total === 1 && firstName ? `${firstName} 등 ` : "";
+      memberHitText.textContent = `${lead}${parts.join(" · ")}이 내가 정한 기준에 도달했습니다. AI 점검도 요청할 수 있습니다.`;
+    }
+  }
+
   function updateMemberOverview(portfoliosPayload = {}, watchlistsPayload = {}, requestsPayload = {}, paperPayload = {}) {
     const portfolioCount = (portfoliosPayload.items || []).length;
     const watchlistCount = (watchlistsPayload.items || []).length;
@@ -14712,6 +14751,7 @@ MEMBER_PAGE_JS = """
       requests,
       paperSimulations
     );
+    updateHitBanner(payload?.portfolio_details || {});
     renderPortfolios(
       portfolios,
       payload?.portfolio_details || {},
@@ -14813,6 +14853,7 @@ MEMBER_PAGE_JS = """
         ? detailMap((watchlists.items || []).slice(0, 6), (row) => `/api/watchlists/${encodeURIComponent(row.id)}?include_latest_prices=true`)
         : Promise.resolve({})
     ]);
+    updateHitBanner(portfolioDetails);
     renderPortfolios(portfolios, portfolioDetails, portfoliosResult.error);
     renderWatchlists(watchlists, watchlistDetails, watchlistsResult.error);
     renderAnalysisRequests(requests, requestsResult.error);
@@ -14946,6 +14987,7 @@ MEMBER_PAGE_JS = """
     analysisRequestList?.replaceChildren(emptyNode("로그인 후 분석 요청이 표시됩니다"));
     paperSimulationList?.replaceChildren(emptyNode("로그인 후 AI 가상매매 기록이 표시됩니다"));
     updateMemberOverview({ items: [] }, { items: [] }, { items: [] }, { positions: [] });
+    updateHitBanner({});
     setStatus("로그아웃됨");
   });
 
