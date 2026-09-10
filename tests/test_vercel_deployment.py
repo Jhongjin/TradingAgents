@@ -52,6 +52,18 @@ def test_vercel_json_routes_api_and_health_to_fastapi_entrypoint():
             "schedule": "35 1 * * 1-5",
         },
         {
+            "path": "/api/cron/notify-journal-targets",
+            "schedule": "45 0 * * 1-5",
+        },
+        {
+            "path": "/api/cron/notify-journal-targets",
+            "schedule": "15 3 * * 1-5",
+        },
+        {
+            "path": "/api/cron/notify-journal-targets",
+            "schedule": "25 6 * * 1-5",
+        },
+        {
             "path": "/api/cron/notify-outcomes",
             "schedule": "40 10 * * 1-5",
         },

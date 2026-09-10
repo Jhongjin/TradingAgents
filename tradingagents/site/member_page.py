@@ -154,6 +154,10 @@ MEMBER_CSS = """
 .member-page .watchlist-rename-form input { height: 34px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--panel); padding: 0 10px; color: var(--ink); font: inherit; font-size: 13px; flex: 1; }
 .member-page .watchlist-rename-form button { height: 32px; padding: 0 12px; font-size: 12px; }
 .member-page .member-status-strip { display: flex; flex-wrap: wrap; gap: 6px; }
+.member-page .member-action-item.is-target-hit { border-left: 4px solid var(--gain); background: var(--gain-soft); }
+.member-page .member-action-item.is-stop-hit { border-left: 4px solid var(--loss); background: var(--loss-soft); }
+.member-page .status-pill.hit-target { background: var(--gain); color: #fff; }
+.member-page .status-pill.hit-stop { background: var(--loss); color: #fff; }
 .member-page .member-empty { padding: 12px 14px; border-radius: 10px; background: var(--bg2); }
 .member-page .member-empty-action { display: grid; gap: 6px; padding: 18px; border-radius: 12px; background: var(--bg2); justify-items: start; }
 .member-page .member-empty-action strong { font-weight: 700; }

@@ -36,6 +36,7 @@ from .analysis_api import (
 from .admin_members import SupabaseAdminClient, SupabaseAdminError, grant_member_plan, list_members, set_member_role
 from .admin_members_page import render_admin_members_page
 from .auth import SUPABASE_API_KEY_ENV_NAMES, SUPABASE_URL_ENV_NAMES, resolve_member_profile, resolve_member_user_id
+from .journal_alerts import notify_journal_alerts
 from .harness_api import (
     SUPPORTED_WEB_CONFIRMERS,
     build_harness_outcomes_payload,
@@ -995,6 +996,33 @@ def create_app(
     ) -> dict:
         _require_worker_token(request, x_tradingagents_worker_token)
         return _notify_generic(request, notify_exit_alerts)
+
+    def _notify_journal(request: Request) -> dict:
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        max_tickers = request.app.state.max_price_tickers
+
+        def price_loader(portfolio_id: str):
+            return _portfolio_current_prices(repo, portfolio_id, current_prices=None, include_latest_prices=True, max_tickers=max_tickers)
+
+        return _notify_generic(request, lambda repo_, client, site_base_url=None: notify_journal_alerts(repo_, client, site_base_url=site_base_url, price_loader=price_loader))
+
+    @app.post("/api/admin/notifications/journal-targets")
+    def admin_notify_journal_targets(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _notify_journal(request)
+
+    @app.get("/api/cron/notify-journal-targets")
+    def notify_journal_targets_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        return _notify_journal(request)
 
     @app.post("/api/admin/notifications/outcomes")
     def admin_notify_outcomes(

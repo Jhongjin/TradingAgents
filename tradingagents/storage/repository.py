@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from decimal import Decimal
 import os
-from typing import Any
+from typing import Any, Mapping
 from uuid import UUID
 from uuid import uuid4
 
@@ -1175,6 +1175,21 @@ class StorageRepository:
             channel_id = _id()
             conn.execute(insert(notification_channels).values(id=channel_id, user_id=data.user_id, channel=data.channel, **values))
             return channel_id
+
+    def update_notification_channel_metadata(self, channel_id: str, patch: Mapping[str, Any]) -> None:
+        """Merge ``patch`` into the channel's metadata_json (used for per-member alert memory)."""
+
+        _validate_uuid(channel_id, "channel_id")
+        with self.engine.begin() as conn:
+            row = conn.execute(select(notification_channels.c.metadata_json).where(notification_channels.c.id == channel_id)).first()
+            if row is None:
+                raise ValueError("notification channel not found")
+            merged = {**dict(row[0] or {}), **dict(patch)}
+            conn.execute(
+                update(notification_channels)
+                .where(notification_channels.c.id == channel_id)
+                .values(metadata_json=merged, updated_at=datetime.now(timezone.utc))
+            )
 
     def find_notification_channel_by_code(self, link_code: str, channel: str = "telegram") -> dict[str, Any] | None:
         if not link_code:

@@ -13479,12 +13479,12 @@ MEMBER_PAGE_JS = """
     return link;
   }
 
-  const SIGNED_NUMBER = /([+-][\d,]+(?:\.\d+)?(?:원|%))/g;
+  const SIGNED_NUMBER = /([+-][\\d,]+(?:\\.\\d+)?(?:원|%))/g;
 
   function signClass(text) {
     const value = String(text || "").trim();
-    if (/^\+/.test(value)) return "up";
-    if (/^-\d/.test(value)) return "down";
+    if (/^\\+/.test(value)) return "up";
+    if (/^-\\d/.test(value)) return "down";
     return "";
   }
 
@@ -13736,8 +13736,9 @@ MEMBER_PAGE_JS = """
     const meta = detail
       ? `${row.base_currency || "KRW"} / ${positionCount}종목`
       : `${row.base_currency || "KRW"} / 상세 계산 대기`;
+    const hitCount = (detail?.positions || []).filter((position) => position.target_hit || position.stop_hit).length;
     node.append(
-      cardHeader(row.name, meta, `거래 ${tradeCount}건`),
+      cardHeader(row.name, hitCount ? `${meta} / 목표·손절 도달 ${hitCount}종목` : meta, `거래 ${tradeCount}건`),
       portfolioManageRow(row),
       metricGrid([
         ["평가", money(totals.market_value), "시장가 기준"],
@@ -13832,7 +13833,24 @@ MEMBER_PAGE_JS = """
       const meta = document.createElement("small");
       const pnl = signedMoney(position.total_pnl ?? position.unrealized_pnl ?? position.realized_pnl);
       decorateSigned(meta, `평단 ${money(position.average_cost)} / 손익 ${pnl} (${signedPercent(position.unrealized_pnl_rate)}) / ${riskText(position)}`);
+      const hitKind = position.target_hit ? "target" : (position.stop_hit ? "stop" : "");
+      if (hitKind) {
+        item.classList.add(hitKind === "target" ? "is-target-hit" : "is-stop-hit");
+        const flag = document.createElement("span");
+        flag.className = `status-pill ${hitKind === "target" ? "hit-target" : "hit-stop"}`;
+        flag.textContent = hitKind === "target" ? "목표가 도달" : "손절선 도달";
+        item.append(flag);
+      }
       item.append(title, meta);
+      if (hitKind) {
+        const check = smallButton("AI 점검 요청");
+        check.addEventListener("click", () => prefillAnalysisRequest({
+          ticker_code: position.ticker_code,
+          ticker_name: position.ticker_name,
+          request_reason: checkReasonFor(hitKind, position)
+        }));
+        item.append(check);
+      }
       const hasTarget = (position.target_price !== null && position.target_price !== undefined) || (position.stop_price !== null && position.stop_price !== undefined);
       if (hasTarget) {
         const clear = smallButton("목표·손절 삭제", "ghost-button danger-button");
@@ -13979,6 +13997,37 @@ MEMBER_PAGE_JS = """
     return node;
   }
 
+  function checkReasonFor(kind, position) {
+    const level = kind === "target" ? position.target_price : position.stop_price;
+    const head = kind === "target" ? "[목표 점검]" : "[손절 점검]";
+    const goal = kind === "target" ? "수익 실현" : "손절";
+    return `${head} ${position.ticker_name || position.ticker_code} 현재가 ${money(position.current_price)}, ${kind === "target" ? "목표" : "손절"} ${money(level)}, 평단 ${money(position.average_cost)}, 수익률 ${signedPercent(position.unrealized_pnl_rate)}. ${goal} 여부를 지시가 아닌 분석 관점으로 점검: 청산 근거 비중을 50% 기준으로 제시`;
+  }
+
+  const EXIT_BASIS_BY_RATING = {
+    "strong buy": 15, "buy": 25, "overweight": 30, "accumulate": 30,
+    "neutral": 50, "hold": 50,
+    "underweight": 70, "reduce": 70, "sell": 80, "strong sell": 90
+  };
+
+  function exitBasisLine(row) {
+    const reason = String(row.request_reason || "");
+    if (!/^\[(목표|손절) 점검\]/.test(reason) || !row.decision_rating) return "";
+    const share = EXIT_BASIS_BY_RATING[String(row.decision_rating).trim().toLowerCase()];
+    if (share === undefined) return "";
+    const lean = share > 50 ? "청산 근거가 우세" : (share < 50 ? "보유 근거가 우세" : "근거가 팽팽함");
+    return `청산 근거 비중 ${share}% (50% 기준 · ${lean}) — 분석 등급 ${row.decision_rating}을 환산한 참고값이며 매매 지시가 아닙니다`;
+  }
+
+  function applyRequestedAnalysisPrefill() {
+    const ticker = memberSearchParams.get("ticker");
+    if (!ticker || !analysisRequestForm) return;
+    const elements = analysisRequestForm.elements || {};
+    if (elements.ticker) elements.ticker.value = ticker;
+    const reason = memberSearchParams.get("reason");
+    if (reason && elements.reason) elements.reason.value = reason.slice(0, 500);
+  }
+
   function prefillAnalysisRequest(row) {
     if (!analysisRequestForm || !row) return;
     activateMemberTab("analysis");
@@ -14029,6 +14078,8 @@ MEMBER_PAGE_JS = """
     hint.textContent = row.status_hint || "분석 요청 상태를 확인하고 있습니다.";
 
     const details = [];
+    const exitBasis = exitBasisLine(row);
+    if (exitBasis) details.push(exitBasis);
     if (row.request_reason) details.push(`요청 메모 ${row.request_reason}`);
     if (status === "queued") details.push("처리 전 대기");
     if (status === "running") details.push("리포트 생성 중");
@@ -14883,6 +14934,7 @@ MEMBER_PAGE_JS = """
       setAuthUiState(false);
     }
     applyRequestedAuthMode();
+    applyRequestedAnalysisPrefill();
     if (!redirectSession.shouldLoad) return;
     const shouldSkipInitialLoad = requestedAuthMode === "signup" && !accessToken() && !refreshToken();
     if (shouldSkipInitialLoad) return;
