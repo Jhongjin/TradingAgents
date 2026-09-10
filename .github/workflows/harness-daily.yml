@@ -21,6 +21,10 @@ on:
     # 07:50 KST on weekdays (22:50 UTC previous day) so results are ready before the 09:00 open.
     - cron: "50 22 * * 0-4"
 
+concurrency:
+  group: harness-paper-account
+  cancel-in-progress: false
+
 jobs:
   harness:
     runs-on: ubuntu-latest
