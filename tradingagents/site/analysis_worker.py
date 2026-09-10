@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Mapping, Any
 
 from tradingagents.storage import StorageRepository
@@ -34,6 +35,41 @@ class AnalysisWorkerResult:
     status: str
     analysis_run_id: str | None = None
     error: str | None = None
+
+
+STALE_RUNNING_MINUTES = 45
+
+
+def requeue_stale_running_requests(
+    repo: StorageRepository,
+    *,
+    older_than_minutes: int = STALE_RUNNING_MINUTES,
+    now: datetime | None = None,
+    limit: int = 20,
+) -> list[str]:
+    """Return long-running requests to the queue.
+
+    A worker that is killed mid-run (a function timeout, a cancelled job) leaves
+    the row marked running forever, so the member sees no progress and no
+    failure. Anything older than the cutoff goes back to queued for the next
+    pass.
+    """
+
+    now = now or datetime.now(timezone.utc)
+    cutoff = now - timedelta(minutes=older_than_minutes)
+    requeued: list[str] = []
+    for request in repo.list_analysis_requests(status="running", limit=limit):
+        updated_at = request.get("updated_at") or request.get("created_at")
+        if isinstance(updated_at, datetime):
+            if updated_at.tzinfo is None:
+                updated_at = updated_at.replace(tzinfo=timezone.utc)
+            if updated_at > cutoff:
+                continue
+        else:
+            continue
+        repo.update_analysis_request_status(str(request["id"]), status="queued")
+        requeued.append(str(request["id"]))
+    return requeued
 
 
 def process_queued_analysis_requests(

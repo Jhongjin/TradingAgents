@@ -148,3 +148,33 @@ def test_member_hero_shows_summary_and_target_hits():
     for needle in ("member-summary-main", "memberHitBanner", "updateHitBanner", "member-quick-actions", "AI 분석 서버 인증에 실패했습니다"):
         assert needle in html, needle
     assert html.count('id="memberOverview"') == 1
+
+
+def test_stranded_running_requests_go_back_to_the_queue():
+    from datetime import timedelta
+
+    from tradingagents.site.analysis_worker import requeue_stale_running_requests
+    from tradingagents.storage import AnalysisRequestInput
+
+    repo = _repo()
+    fresh = repo.create_analysis_request(AnalysisRequestInput(ticker_code="005930", requested_trade_date=date(2026, 9, 10)))
+    stuck = repo.create_analysis_request(AnalysisRequestInput(ticker_code="034020", requested_trade_date=date(2026, 9, 10)))
+    repo.update_analysis_request_status(fresh, status="running")
+    repo.update_analysis_request_status(stuck, status="running")
+
+    later = datetime.now(timezone.utc) + timedelta(minutes=50)
+    requeued = requeue_stale_running_requests(repo, now=later, older_than_minutes=45)
+    assert set(requeued) == {fresh, stuck}
+    assert {row["id"] for row in repo.list_analysis_requests(status="queued", limit=10)} == {fresh, stuck}
+    assert requeue_stale_running_requests(repo, now=later) == []
+
+
+def test_analysis_queue_runs_in_actions_not_in_a_60s_function():
+    import json
+    from pathlib import Path
+
+    config = json.loads(Path("vercel.json").read_text(encoding="utf-8"))
+    assert all("process-analysis-requests" not in cron["path"] for cron in config["crons"])
+    workflow = Path(".github/workflows/analysis-requests.yml").read_text(encoding="utf-8")
+    assert "tradingagents process-analysis-requests" in workflow
+    assert "cron: \"*/15 * * * *\"" in workflow

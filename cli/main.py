@@ -1230,13 +1230,20 @@ def process_analysis_requests(
     import os
 
     from tradingagents.site.analysis_runner import run_tradingagents_graph_for_request
-    from tradingagents.site.analysis_worker import process_queued_analysis_requests
+    from tradingagents.site.analysis_worker import (
+        process_queued_analysis_requests,
+        requeue_stale_running_requests,
+    )
     from tradingagents.storage import StorageRepository, create_storage_engine
 
     if not os.getenv("DATABASE_URL"):
         raise typer.BadParameter("DATABASE_URL is required for the analysis request worker")
 
     repo = StorageRepository(create_storage_engine())
+    if not dry_run:
+        stranded = requeue_stale_running_requests(repo)
+        if stranded:
+            console.print(f"[yellow]Requeued {len(stranded)} request(s) left running by an interrupted worker.[/yellow]")
     if dry_run:
         queued = repo.list_analysis_requests(status="queued", limit=limit)
         if not queued:

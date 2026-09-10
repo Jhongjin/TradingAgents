@@ -1,0 +1,43 @@
+name: Member analysis requests
+
+# Runs queued member analysis requests (the full analyst + debate graph).
+# Vercel's 60s function limit cannot finish one run, so the queue is drained
+# here, the same way the daily harness runs its LLM-confirmed pipeline.
+# Nothing in this workflow places orders.
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Maximum requests to process in this run"
+        default: "3"
+  schedule:
+    # Every 15 minutes, so a member's request is picked up within the quarter hour.
+    - cron: "*/15 * * * *"
+
+concurrency:
+  group: analysis-requests
+  cancel-in-progress: false
+
+jobs:
+  drain-queue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TRADINGAGENTS_POSTGRES_DRIVER: pg8000
+      TRADINGAGENTS_ENABLE_LIVE_TRADING: "false"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -e .
+      - name: Show queue
+        run: tradingagents process-analysis-requests --limit 5 --dry-run
+      - name: Process queued requests
+        run: tradingagents process-analysis-requests --limit "${{ github.event.inputs.limit || '3' }}"

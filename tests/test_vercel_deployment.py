@@ -16,10 +16,6 @@ def test_vercel_json_routes_api_and_health_to_fastapi_entrypoint():
     assert config["functions"]["api/index.py"]["maxDuration"] == 60
     assert config["crons"] == [
         {
-            "path": "/api/cron/process-analysis-requests",
-            "schedule": "10 9 * * 1-5",
-        },
-        {
             "path": "/api/cron/process-paper-simulations",
             "schedule": "25 9 * * 1-5",
         },
