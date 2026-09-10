@@ -290,8 +290,10 @@ def notify_exit_alerts(repo: StorageRepository, client: TelegramClient, *, site_
         reasons = item.get("reasons_json") or []
         label = {"stop_loss": "손절", "take_profit": "익절", "max_holding_days": "보유기간 종료"}.get(str(reasons[0]) if reasons else "", "청산")
         qty = item.get("quantity")
-        lines.append(f"• {item.get('ticker_name') or item.get('ticker_code')}({item.get('ticker_code')}) — {label}{f' · 모의 {qty}주' if qty else ''} · {item.get('as_of_date')}")
-    text = "<b>모의 포지션 청산 알림</b>\n" + "\n".join(lines) + f"\n{base}/harness\n\n모의투자 기록이며 매매 권유가 아닙니다."
+        fill = (((item.get("detail_json") or {}).get("order") or {}).get("fill") or {}).get("price")
+        price_text = f" · 체결 {float(fill):,.0f}원" if fill else ""
+        lines.append(f"• {item.get('ticker_name') or item.get('ticker_code')}({item.get('ticker_code')}) — {label}{f' · 모의 {qty}주' if qty else ''}{price_text} · {item.get('as_of_date')}")
+    text = "<b>모의 계좌 청산 알림</b>\n" + "\n".join(lines) + f"\n\n계좌 보기: {base}/paper\n모의투자 기록이며 매매 권유가 아닙니다."
     recipients = [r for r in repo.list_notification_recipients("telegram") if resolve_plan_access(repo, str(r["user_id"]), now=now).is_paid]
     sent = failed = 0
     for recipient in recipients:
