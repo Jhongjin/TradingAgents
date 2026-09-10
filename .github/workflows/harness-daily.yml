@@ -40,7 +40,7 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: pip install -e .
-      - name: Run harness (dry run)
+      - name: Run harness (paper account)
         run: |
           PERSIST=""
           if [ -n "$DATABASE_URL" ]; then PERSIST="--persist"; else echo "::warning::DATABASE_URL secret not set; running without --persist"; fi

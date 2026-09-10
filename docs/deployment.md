@@ -182,6 +182,24 @@ the Git, Supabase, and Vercel steps and the new environment variables.
 No live trading or broker order placement is exposed through HTTP. Broker
 orders exist only in the operator CLI behind explicit gates.
 
+## Paper account for harness picks
+
+The daily workflow (`.github/workflows/harness-daily.yml`) runs the pipeline
+with `--execute --broker paper`, so picks fill against the local simulated
+broker: no brokerage, no live order path. The account carries across runs
+because `tradingagents.harness.paper_state.restore_paper_account(...)` replays
+the recorded fills (`repo.list_harness_fills()`, dry runs excluded) through the
+same paper broker before the run starts. The CLI then fetches the latest close
+for each holding so stop-loss, take-profit and max-holding-day exits can fire.
+
+`/paper` and `/api/paper-account` publish the resulting holdings, closed trades
+and account totals. Both are read-only; nothing there can place an order.
+
+Analysis refresh requests run in `.github/workflows/analysis-requests.yml`
+every 15 minutes, because one analyst+debate run is longer than the 60s Vercel
+function limit. `requeue_stale_running_requests(...)` returns rows stranded by
+an interrupted worker to the queue.
+
 For Google AdSense, set `TRADINGAGENTS_ADSENSE_PUBLISHER_ID` to your `pub-...`
 publisher ID. The generated `ads.txt` line follows the AdSense format:
 `google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0`.
