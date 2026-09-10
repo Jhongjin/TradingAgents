@@ -2698,19 +2698,46 @@ def _api_docs_enabled() -> bool:
     return os.getenv("TRADINGAGENTS_API_DOCS_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
+# Ad networks fan out across many hosts. These stay out of the policy entirely
+# until a publisher ID is configured, so a site without ads keeps the tight one.
+_AD_SCRIPT_HOSTS = "https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.googleadservices.com https://adservice.google.com https://www.googletagservices.com"
+_AD_FRAME_HOSTS = "https://googleads.g.doubleclick.net https://*.googlesyndication.com https://*.doubleclick.net"
+_AD_IMG_HOSTS = "https://*.googlesyndication.com https://*.googleadservices.com https://*.doubleclick.net https://*.google.com https://*.gstatic.com"
+_AD_CONNECT_HOSTS = "https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google"
+
+
+def _ads_enabled() -> bool:
+    from .seo import normalize_adsense_publisher_id
+
+    try:
+        return bool(normalize_adsense_publisher_id())
+    except ValueError:
+        return False
+
+
 def _content_security_policy() -> str:
+    ads = _ads_enabled()
+    script = "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.portone.io https://cdn.iamport.kr"
+    img = "img-src 'self' data: https://*.portone.io https://*.iamport.co https://*.iamport.kr"
+    frame = "frame-src 'self' https://*.portone.io https://*.iamport.co https://*.iamport.kr https://*.tosspayments.com https://*.kakao.com https://*.kakaopay.com https://*.naver.com https://*.inicis.com https://*.nicepay.co.kr"
+    connect = "connect-src 'self' https://*.supabase.co https://*.supabase.com https://*.portone.io https://*.iamport.co https://*.iamport.kr https://*.tosspayments.com"
+    if ads:
+        script = f"{script} {_AD_SCRIPT_HOSTS}"
+        img = f"{img} {_AD_IMG_HOSTS}"
+        frame = f"{frame} {_AD_FRAME_HOSTS}"
+        connect = f"{connect} {_AD_CONNECT_HOSTS}"
     return (
         "default-src 'self'; "
         "base-uri 'self'; "
         "object-src 'none'; "
         "frame-ancestors 'none'; "
         "form-action 'self'; "
-        "img-src 'self' data: https://*.portone.io https://*.iamport.co https://*.iamport.kr; "
+        f"{img}; "
         "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
-        "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.portone.io https://cdn.iamport.kr; "
+        f"{script}; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
-        "frame-src 'self' https://*.portone.io https://*.iamport.co https://*.iamport.kr https://*.tosspayments.com https://*.kakao.com https://*.kakaopay.com https://*.naver.com https://*.inicis.com https://*.nicepay.co.kr; "
-        "connect-src 'self' https://*.supabase.co https://*.supabase.com https://*.portone.io https://*.iamport.co https://*.iamport.kr https://*.tosspayments.com"
+        f"{frame}; "
+        f"{connect}"
     )
 
 

@@ -410,6 +410,15 @@ def _verification_meta() -> str:
     return "".join(tags)
 
 
+def _adsense_head() -> str:
+    from .seo import adsense_head
+
+    try:
+        return adsense_head(token_storage_key=TOKEN_STORAGE_KEY)
+    except Exception:
+        return ""
+
+
 def render_shell(
     *,
     title: str,
@@ -461,7 +470,7 @@ def render_shell(
 {theme_init_script()}
 <style>{theme_css()}{DS_COMPONENT_CSS}{extra_css}</style>
 {ld}
-{extra_head}
+{_adsense_head()}{extra_head}
 </head>
 <body class="ds {h(body_class)}">
 <a class="skip-link" href="#main-content">본문 바로가기</a>

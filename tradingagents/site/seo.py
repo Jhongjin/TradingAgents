@@ -132,6 +132,35 @@ def build_ads_txt(
     return "# ads.txt is not configured.\n"
 
 
+def adsense_head(publisher_id: str | None = None, *, token_storage_key: str = "tradingagents.member.access_token") -> str:
+    """Google's loader, plus the switch that keeps a paying member ad-free.
+
+    The 데일리 패스 plan promises 광고 없음, and the page HTML is public and
+    cached, so the decision cannot be made server-side. Ad requests start
+    paused; the browser resumes them only after it confirms the reader is not
+    on a paid plan. The loader itself is always present, which is what Google's
+    verification looks for.
+    """
+
+    try:
+        resolved = normalize_adsense_publisher_id(publisher_id)
+    except ValueError:
+        return ""
+    if not resolved:
+        return ""
+    client = f"ca-{resolved}"
+    return (
+        "<script>window.adsbygoogle=window.adsbygoogle||[];window.adsbygoogle.pauseAdRequests=1;</script>"
+        f'<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={client}" crossorigin="anonymous"></script>'
+        "<script>(function(){var K='" + token_storage_key + "';function resume(){try{window.adsbygoogle.pauseAdRequests=0;}catch(e){}}"
+        "var t='';try{t=localStorage.getItem(K)||sessionStorage.getItem(K)||'';}catch(e){}"
+        "if(!t){resume();return;}"
+        "fetch('/api/billing/me',{headers:{'Authorization':'Bearer '+t}}).then(function(r){return r.ok?r.json():null;}).then(function(d){"
+        "var a=d&&d.access;var paid=Boolean(a&&a.status==='active'&&a.plan&&a.plan.id!=='free');"
+        "if(!paid){resume();}}).catch(resume);})();</script>"
+    )
+
+
 def normalize_adsense_publisher_id(value: str | None = None) -> str | None:
     raw = value if value is not None else os.getenv("TRADINGAGENTS_ADSENSE_PUBLISHER_ID")
     if not raw:
