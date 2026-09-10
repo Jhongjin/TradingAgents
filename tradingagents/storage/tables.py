@@ -366,6 +366,29 @@ harness_outcomes = Table(
     UniqueConstraint("harness_decision_id", "horizon_days", name="uq_harness_outcomes_decision_horizon"),
 )
 
+paper_account_snapshots = Table(
+    "paper_account_snapshots",
+    metadata,
+    Column("id", Uuid(as_uuid=False), primary_key=True),
+    Column("snapshot_date", Date, nullable=False, index=True),
+    Column("account_key", String(32), nullable=False, default="harness"),
+    Column("cash", Numeric(18, 4), nullable=False),
+    Column("holdings_value", Numeric(18, 4), nullable=False),
+    Column("equity", Numeric(18, 4), nullable=False),
+    Column("initial_cash", Numeric(18, 4), nullable=False),
+    Column("total_return", Float, nullable=True),
+    Column("realized_pnl", Numeric(18, 4), nullable=True),
+    Column("position_count", Integer, nullable=False, default=0),
+    Column("priced_count", Integer, nullable=False, default=0),
+    Column("benchmark_symbol", String(32), nullable=True),
+    Column("benchmark_close", Float, nullable=True),
+    Column("benchmark_return", Float, nullable=True),
+    Column("metadata_json", JSON, nullable=False, default=dict),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    UniqueConstraint("account_key", "snapshot_date", name="uq_paper_account_snapshots_key_date"),
+)
+
 paper_simulation_events = Table(
     "paper_simulation_events",
     metadata,

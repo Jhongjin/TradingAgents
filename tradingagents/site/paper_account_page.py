@@ -35,6 +35,13 @@ PAPER_CSS = """
 .paper-flat { color: var(--ink2); font-weight: 600; }
 .paper-empty { padding: 28px 12px; text-align: center; color: var(--muted); font-size: 13px; }
 .paper-scroll { overflow-x: auto; }
+.paper-curve { display: grid; gap: 12px; }
+.paper-curve svg { width: 100%; height: auto; display: block; }
+.paper-curve-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--ink2); }
+.paper-curve-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.paper-curve-legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.paper-curve-stats { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; }
+.paper-curve-stats b { font-variant-numeric: tabular-nums; }
 @media (max-width: 720px) { .paper-table { min-width: 640px; } }
 """
 
@@ -111,6 +118,69 @@ def _sign_class(value: Any) -> str:
     return "paper-up" if number > 0 else ("paper-down" if number < 0 else "paper-flat")
 
 
+def _curve_svg(points: list[Mapping[str, Any]], *, width: int = 720, height: int = 180) -> str:
+    """Two lines from the daily rows: the account and the benchmark, in percent."""
+
+    account = [(index, item.get("total_return")) for index, item in enumerate(points)]
+    benchmark = [(index, item.get("benchmark_return")) for index, item in enumerate(points)]
+    values = [float(value) for _, value in account + benchmark if value is not None]
+    if len(values) < 2:
+        return ""
+    low, high = min(values + [0.0]), max(values + [0.0])
+    span = (high - low) or 0.02
+    pad = span * 0.12
+    low, high = low - pad, high + pad
+    steps = max(len(points) - 1, 1)
+
+    def path(series: list[tuple[int, Any]]) -> str:
+        coordinates = []
+        for index, value in series:
+            if value is None:
+                continue
+            x = 8 + (index / steps) * (width - 16)
+            y = height - 8 - ((float(value) - low) / (high - low)) * (height - 16)
+            coordinates.append(f"{x:.1f},{y:.1f}")
+        return " ".join(coordinates)
+
+    zero_y = height - 8 - ((0.0 - low) / (high - low)) * (height - 16)
+    account_path = path(account)
+    benchmark_path = path(benchmark)
+    return (
+        f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="모의 계좌 수익률 추이" preserveAspectRatio="none">'
+        f'<line x1="8" y1="{zero_y:.1f}" x2="{width - 8}" y2="{zero_y:.1f}" stroke="var(--line-strong)" stroke-width="1" stroke-dasharray="3 4"/>'
+        + (f'<polyline fill="none" stroke="var(--muted)" stroke-width="2" stroke-linejoin="round" points="{benchmark_path}"/>' if benchmark_path else "")
+        + (f'<polyline fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" points="{account_path}"/>' if account_path else "")
+        + "</svg>"
+    )
+
+
+def _curve_card(curve: Mapping[str, Any]) -> str:
+    points = list(curve.get("points") or [])
+    summary = curve.get("summary") or {}
+    benchmark_name = summary.get("benchmark_name") or "KOSPI"
+    if len(points) < 2:
+        return f"""<div class="card" style="margin-bottom: 18px;">
+    <div class="card-h"><h2>{icon_tile("trend", "b-blue", small=True)}수익률 추이</h2><span class="badge b-grey">기록 {len(points)}일</span></div>
+    <div class="card-b"><p class="small ink2">장 마감 뒤 하루 한 번 계좌를 기록합니다. 이틀치가 쌓이면 {h(benchmark_name)} 지수와 비교한 곡선이 여기에 그려집니다.</p></div>
+  </div>"""
+
+    stats = [
+        f'<span>계좌 <b class="{_sign_class(summary.get("account_return"))}">{h(_pct(summary.get("account_return")))}</b></span>',
+        f'<span>{h(benchmark_name)} <b>{h(_pct(summary.get("benchmark_return")))}</b></span>',
+        f'<span>지수 대비 <b class="{_sign_class(summary.get("excess_return"))}">{h(_pct(summary.get("excess_return")))}</b></span>',
+        f'<span>최대 낙폭 <b>{h(_pct(summary.get("max_drawdown")))}</b></span>',
+    ]
+    return f"""<div class="card" style="margin-bottom: 18px;">
+    <div class="card-h"><h2>{icon_tile("trend", "b-blue", small=True)}수익률 추이</h2><span class="badge b-grey">{h(summary.get("day_count"))}일 기록</span></div>
+    <div class="card-b paper-curve">
+      <div class="paper-curve-stats">{"".join(stats)}</div>
+      {_curve_svg(points)}
+      <div class="paper-curve-legend"><span><i style="background: var(--accent);"></i>모의 계좌</span><span><i style="background: var(--muted);"></i>{h(benchmark_name)} 지수</span></div>
+    </div>
+    <div class="card-f"><span>{h(summary.get("first_date"))}부터 기록</span><span>지수 대비는 기록을 시작한 날을 0%로 두고 비교합니다.</span></div>
+  </div>"""
+
+
 def _holding_row(item: Mapping[str, Any]) -> str:
     code = str(item.get("ticker_code") or "")
     market = market_label(item.get("market"), code)
@@ -164,6 +234,9 @@ def render_paper_account_page(
     summary = payload.get("summary") or {}
     positions = payload.get("positions") or []
     closed = payload.get("closed") or []
+    from .paper_snapshot_worker import build_paper_curve_payload
+
+    curve = build_paper_curve_payload(repo)
     gate = payload.get("plan_gate") or {}
     locked_positions = int(gate.get("locked_position_count") or 0)
     locked_closed = int(gate.get("locked_closed_count") or 0)
@@ -199,6 +272,8 @@ def render_paper_account_page(
 </div>
 <div class="shell">
   <div class="grid-5" style="margin-bottom: 18px;">{tiles}</div>
+
+  {_curve_card(curve)}
 
   <div class="card" style="margin-bottom: 18px;">
     <div class="card-h"><h2>{icon_tile("target", "b-teal", small=True)}보유 종목</h2><span class="badge b-grey">{len(positions) + locked_positions}종목</span></div>

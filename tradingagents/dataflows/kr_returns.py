@@ -72,6 +72,32 @@ def fetch_korean_returns(
     return raw_return, raw_return - benchmark_return, actual_days
 
 
+def fetch_benchmark_close(symbol: str = "^KS11", *, on_date: str, lookback_days: int = 12) -> float | None:
+    """Latest index close on or before ``on_date``.
+
+    pykrx reads data.krx.co.kr, which some networks block, so Yahoo is the
+    fallback. Returns ``None`` rather than raising: a missing benchmark must
+    not stop the account snapshot from being written.
+    """
+
+    end = datetime.strptime(on_date[:10], "%Y-%m-%d")
+    start = end - timedelta(days=max(lookback_days, 3))
+    index_code = "2001" if symbol.upper() in {"^KQ11", "KQ11"} else "1001"
+    try:
+        stock = _get_pykrx_stock_module()
+        frame = stock.get_index_ohlcv_by_date(start.strftime("%Y%m%d"), end.strftime("%Y%m%d"), index_code)
+        closes = _close_series(frame, "benchmark").dropna()
+        if not closes.empty:
+            return float(closes.iloc[-1])
+    except Exception:
+        pass
+    try:
+        closes = _yfinance_benchmark_close(symbol, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")).dropna()
+    except Exception:
+        return None
+    return float(closes.iloc[-1]) if not closes.empty else None
+
+
 def _close_series(frame: pd.DataFrame | None, name: str) -> pd.Series:
     if frame is None or frame.empty:
         return pd.Series(dtype="float64", name=name)

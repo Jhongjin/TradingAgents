@@ -38,6 +38,7 @@ from .tables import (
     agent_reports,
     analysis_outcomes,
     analysis_refresh_requests,
+    paper_account_snapshots,
     analysis_runs,
     harness_decisions,
     billing_events,
@@ -1113,6 +1114,55 @@ class StorageRepository:
         for decision in decisions:
             decision["outcomes"] = by_decision.get(str(decision["id"]), [])
         return decisions
+
+    def upsert_paper_account_snapshot(self, data: "PaperAccountSnapshotInput") -> str:
+        """Record one day of the paper account; re-running a day overwrites it."""
+
+        values = {
+            "snapshot_date": data.snapshot_date,
+            "account_key": data.account_key,
+            "cash": data.cash,
+            "holdings_value": data.holdings_value,
+            "equity": data.equity,
+            "initial_cash": data.initial_cash,
+            "total_return": data.total_return,
+            "realized_pnl": data.realized_pnl,
+            "position_count": int(data.position_count),
+            "priced_count": int(data.priced_count),
+            "benchmark_symbol": data.benchmark_symbol,
+            "benchmark_close": data.benchmark_close,
+            "benchmark_return": data.benchmark_return,
+            "metadata_json": dict(data.metadata),
+            "updated_at": datetime.now(timezone.utc),
+        }
+        with self.engine.begin() as conn:
+            existing = conn.execute(
+                select(paper_account_snapshots.c.id).where(
+                    paper_account_snapshots.c.account_key == data.account_key,
+                    paper_account_snapshots.c.snapshot_date == data.snapshot_date,
+                )
+            ).first()
+            if existing:
+                conn.execute(update(paper_account_snapshots).where(paper_account_snapshots.c.id == existing[0]).values(**values))
+                return str(existing[0])
+            snapshot_id = _id()
+            conn.execute(insert(paper_account_snapshots).values(id=snapshot_id, **values))
+            return snapshot_id
+
+    def list_paper_account_snapshots(self, *, account_key: str = "harness", limit: int = 400) -> list[dict[str, Any]]:
+        """Snapshots oldest first, ready to draw as a curve."""
+
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        stmt = (
+            select(paper_account_snapshots)
+            .where(paper_account_snapshots.c.account_key == account_key)
+            .order_by(desc(paper_account_snapshots.c.snapshot_date))
+            .limit(limit)
+        )
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [dict(row) for row in reversed(rows)]
 
     def list_harness_fills(self, *, limit: int = 2000) -> list[dict[str, Any]]:
         """Executed harness orders, oldest first, for replaying the paper account.

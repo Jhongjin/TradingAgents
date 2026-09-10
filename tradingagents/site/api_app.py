@@ -1332,6 +1332,35 @@ def create_app(
 
         return HTMLResponse(render_paper_account_page(repo=request.app.state.repository, site_base_url=_request_site_base_url(request)))
 
+    @app.get("/api/paper-account/curve")
+    def paper_account_curve(request: Request) -> dict:
+        """Daily equity curve of the paper account against KOSPI (public)."""
+
+        from .paper_snapshot_worker import build_paper_curve_payload
+
+        return build_paper_curve_payload(request.app.state.repository)
+
+    @app.get("/api/cron/record-paper-snapshot", include_in_schema=False)
+    def record_paper_snapshot_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_worker_token(request, x_tradingagents_worker_token)
+        from .paper_snapshot_worker import record_paper_account_snapshot
+
+        return record_paper_account_snapshot(request.app.state.repository)
+
+    @app.post("/api/admin/paper-account/snapshot", include_in_schema=False)
+    def record_paper_snapshot_admin(
+        request: Request,
+        date: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_operator(request, x_tradingagents_worker_token)
+        from .paper_snapshot_worker import record_paper_account_snapshot
+
+        return record_paper_account_snapshot(request.app.state.repository, as_of=date)
+
     @app.get("/api/paper-account")
     def paper_account(
         request: Request,

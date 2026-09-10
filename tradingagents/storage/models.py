@@ -183,6 +183,26 @@ class HarnessDecisionInput:
 
 
 @dataclass(frozen=True)
+class PaperAccountSnapshotInput:
+    """One day of the harness paper account, with the benchmark at that date."""
+
+    snapshot_date: date
+    cash: Decimal
+    holdings_value: Decimal
+    equity: Decimal
+    initial_cash: Decimal
+    account_key: str = "harness"
+    total_return: float | None = None
+    realized_pnl: Decimal | None = None
+    position_count: int = 0
+    priced_count: int = 0
+    benchmark_symbol: str | None = None
+    benchmark_close: float | None = None
+    benchmark_return: float | None = None
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class HarnessOutcomeInput:
     harness_decision_id: str
     harness_run_id: str

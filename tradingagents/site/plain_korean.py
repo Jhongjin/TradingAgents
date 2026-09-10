@@ -39,6 +39,7 @@ STAGE_HINTS = {
 
 _PERCENT = r"([+-]?[\d.,]+%)"
 _NUMBER = r"([\d.,]+)"
+_PERCENT_LOOSE = r"([\d.,]+%)"
 
 _REASON_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^dry run, no fill$", re.I), "실제 주문 없이 기록만 남겼습니다"),
@@ -63,6 +64,7 @@ _REASON_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^gross exposure limit exceeded$", re.I), "총 노출 한도를 넘었습니다"),
     (re.compile(rf"^position count would exceed {_NUMBER}$", re.I), "보유 종목 수가 한도 \\1개를 넘습니다"),
     (re.compile(r"^insufficient cash$", re.I), "예수금이 모자랍니다"),
+    (re.compile(rf"^cash reserve {_PERCENT_LOOSE} reached; no new entries today$", re.I), "현금을 \\1 남겨 두는 규칙에 걸려 오늘은 새로 담지 않았습니다"),
     (re.compile(r"^short selling is not allowed$", re.I), "공매도는 허용하지 않습니다"),
 )
 

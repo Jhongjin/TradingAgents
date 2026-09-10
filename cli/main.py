@@ -1621,6 +1621,35 @@ def pipeline_command(
         console.print(f"[dim]saved {output}[/dim]")
 
 
+@app.command("record-paper-snapshot")
+def record_paper_snapshot_command(
+    as_of: Optional[str] = typer.Option(None, "--date", help="Snapshot date YYYY-MM-DD (default: today KST)."),
+    initial_cash: float = typer.Option(10_000_000.0, "--cash", help="Starting cash the account is measured against."),
+):
+    """Record one day of the harness paper account with the KOSPI close beside it."""
+
+    import os
+
+    from tradingagents.site.paper_snapshot_worker import record_paper_account_snapshot
+    from tradingagents.storage import StorageRepository, create_storage_engine
+
+    if not os.getenv("DATABASE_URL"):
+        raise typer.BadParameter("DATABASE_URL is required to record account snapshots")
+
+    repo = StorageRepository(create_storage_engine())
+    result = record_paper_account_snapshot(repo, as_of=as_of, initial_cash=initial_cash)
+    if result.get("status") != "recorded":
+        console.print(f"[yellow]{result.get('status')}: {result.get('error') or ''}[/yellow]")
+        return
+    console.print(
+        f"[green]{result['snapshot_date']}[/green] equity {result.get('equity'):,.0f} "
+        f"return {(result.get('total_return') or 0) * 100:+.2f}% "
+        f"benchmark {result.get('benchmark_close')} positions {result.get('position_count')}"
+    )
+    for note in result.get("notes") or []:
+        console.print(f"[yellow]{note}[/yellow]")
+
+
 @app.command("process-harness-outcomes")
 def process_harness_outcomes_command(
     limit: int = typer.Option(50, "--limit", min=1, max=200, help="Maximum harness picks to evaluate."),

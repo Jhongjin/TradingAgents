@@ -80,6 +80,7 @@ class PipelineConfig:
     stop_loss_pct: float = 0.05
     take_profit_pct: float = 0.10
     max_holding_days: int = 20
+    min_cash_reserve_pct: float = 0.10
     initial_cash: float = 10_000_000.0
     dry_run: bool = True
     require_llm_confirmation: bool = True
@@ -94,6 +95,8 @@ class PipelineConfig:
             raise ValueError("min_probability_up must be between 0 and 1")
         if not 0 <= self.min_confidence <= 1:
             raise ValueError("min_confidence must be between 0 and 1")
+        if not 0 <= self.min_cash_reserve_pct < 1:
+            raise ValueError("min_cash_reserve_pct must be between 0 and 1")
         if not 0 < self.stop_loss_pct < 1:
             raise ValueError("stop_loss_pct must be between 0 and 1")
         if not 0 < self.take_profit_pct < 1:
@@ -471,6 +474,18 @@ def _process_candidate(
 
     # sizing
     snapshot = broker.account_snapshot(current_prices)
+    # A day's picks used to take the whole account: the first names filled to
+    # the 20% cap and later ones, on this day or the next, found no cash. Each
+    # position now takes at most one of the mandate's slots, and a reserve is
+    # kept so a later pick and the next day's picks can still be bought.
+    slot_weight = 1.0 / max(config.mandate.max_positions, 1)
+    weight_cap = min(config.max_position_weight, config.mandate.max_position_weight, slot_weight)
+    reserve = snapshot.equity * config.min_cash_reserve_pct
+    spendable = max(snapshot.cash - reserve, 0.0)
+    if candidate.code not in snapshot.positions and len(snapshot.positions) >= config.mandate.max_positions:
+        return PipelineDecision(stage="gate_rejected", reasons=[f"position count would exceed {config.mandate.max_positions}"], **base)
+    if spendable <= 0:
+        return PipelineDecision(stage="sized", reasons=[f"cash reserve {config.min_cash_reserve_pct:.0%} reached; no new entries today"], **base)
     stop_pct = (confirmation.stop_loss_pct if confirmation and confirmation.stop_loss_pct else None) or config.stop_loss_pct
     take_pct = (confirmation.take_profit_pct if confirmation and confirmation.take_profit_pct else None) or config.take_profit_pct
     stop_price = round(entry_price * (1 - stop_pct), 2)
@@ -483,8 +498,8 @@ def _process_candidate(
                 entry_price=entry_price,
                 stop_price=stop_price,
                 risk_percent_per_trade=config.risk_percent_per_trade,
-                max_position_weight=min(config.max_position_weight, config.mandate.max_position_weight),
-                available_cash=snapshot.cash,
+                max_position_weight=weight_cap,
+                available_cash=spendable,
                 take_profit_price=take_profit_price,
             )
         )

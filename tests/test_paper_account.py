@@ -1,6 +1,6 @@
 """The harness paper account: replayed fills, holdings, exits, and its page."""
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
@@ -222,3 +222,110 @@ def test_paper_account_api_and_page_hide_todays_rows_from_anonymous_callers(monk
     assert "SK이노베이션" in html
     assert "오늘 편입 1종목" in html and "오늘 청산 1건" in html
     assert "/pricing" in html
+
+
+def _record_days(repo: StorageRepository, rows: list[tuple[int, float, float]]) -> None:
+    """rows: (days_ago, held price, benchmark close), oldest first."""
+
+    from tradingagents.site.paper_snapshot_worker import record_paper_account_snapshot
+
+    today = datetime.now(timezone.utc).date()
+    for days_ago, price, benchmark in rows:
+        record_paper_account_snapshot(
+            repo,
+            as_of=(today - timedelta(days=days_ago)).isoformat(),
+            price_loader=lambda _codes, value=price: {"096770": value},
+            benchmark_loader=lambda _when, value=benchmark: value,
+        )
+
+
+def test_each_day_is_recorded_once_and_rerunning_overwrites_it():
+    from tradingagents.site.paper_snapshot_worker import build_paper_curve_payload
+
+    repo = _repo()
+    _seed_account(repo)
+    _record_days(repo, [(2, 153500, 2700.0), (1, 157500, 2727.0), (0, 161500, 2673.0)])
+    _record_days(repo, [(0, 161500, 2673.0)])  # the same day again
+
+    curve = build_paper_curve_payload(repo)
+    assert curve["status"] == "available"
+    assert len(curve["points"]) == 3
+    assert [point["date"] for point in curve["points"]] == sorted(point["date"] for point in curve["points"])
+
+
+def test_curve_measures_the_account_against_kospi_from_the_first_recorded_day():
+    from tradingagents.site.paper_snapshot_worker import build_paper_curve_payload
+
+    repo = _repo()
+    _seed_account(repo)
+    _record_days(repo, [(2, 153500, 2700.0), (1, 157500, 2727.0), (0, 161500, 2673.0)])
+
+    summary = build_paper_curve_payload(repo)["summary"]
+    assert summary["day_count"] == 3 and summary["benchmark_name"] == "KOSPI"
+    assert summary["benchmark_return"] == round((2673.0 / 2700.0) - 1, 6)  # anchored to day one
+    assert summary["account_return"] > 0  # the held position rose over the window
+    assert summary["excess_return"] == round(summary["account_return"] - summary["benchmark_return"], 6)
+    assert summary["max_drawdown"] <= 0
+
+
+def test_a_missing_benchmark_still_records_the_day():
+    from tradingagents.site.paper_snapshot_worker import record_paper_account_snapshot
+
+    repo = _repo()
+    _seed_account(repo)
+
+    def _explode(_when):
+        raise RuntimeError("krx blocked")
+
+    result = record_paper_account_snapshot(repo, price_loader=lambda _codes: {}, benchmark_loader=_explode)
+    assert result["status"] == "recorded" and result["benchmark_close"] is None
+    assert any("benchmark unavailable" in note for note in result["notes"])
+    assert len(repo.list_paper_account_snapshots()) == 1
+
+
+def test_curve_is_public_and_reaches_the_page():
+    repo = _repo()
+    _seed_account(repo)
+    _record_days(repo, [(2, 153500, 2700.0), (1, 157500, 2727.0), (0, 161500, 2673.0)])
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    curve = client.get("/api/paper-account/curve").json()
+    assert curve["status"] == "available" and len(curve["points"]) == 3
+
+    html = client.get("/paper").text
+    assert "수익률 추이" in html and "polyline" in html
+    assert "지수 대비" in html and "최대 낙폭" in html
+
+
+def test_snapshot_cron_needs_the_worker_token(monkeypatch):
+    repo = _repo()
+    _seed_account(repo)
+    monkeypatch.setenv("OPERATOR_ACCESS_CODE", "op-token")
+    monkeypatch.setattr(
+        "tradingagents.site.paper_snapshot_worker._default_price_loader", lambda tickers: {}
+    )
+    monkeypatch.setattr(
+        "tradingagents.site.paper_snapshot_worker._default_benchmark_loader", lambda on_date: 2700.0
+    )
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+    assert client.get("/api/cron/record-paper-snapshot").status_code == 401
+    body = client.get("/api/cron/record-paper-snapshot", headers={"X-TradingAgents-Worker-Token": "op-token"}).json()
+    assert body["status"] == "recorded" and body["benchmark_close"] == 2700.0
+
+
+def test_one_day_of_picks_can_no_longer_take_the_whole_account():
+    """Sizing keeps a slot per position and a cash reserve, so later picks still fit."""
+
+    from tradingagents.execution import TradingMandate
+    from tradingagents.harness.pipeline import PipelineConfig
+
+    config = PipelineConfig(mandate=TradingMandate(max_positions=10))
+    slot_weight = 1.0 / config.mandate.max_positions
+    weight_cap = min(config.max_position_weight, config.mandate.max_position_weight, slot_weight)
+    assert weight_cap == 0.1  # was 0.2, which let four names fill the account
+    assert config.min_cash_reserve_pct == 0.10
+
+    equity = 10_000_000.0
+    spendable = equity - equity * config.min_cash_reserve_pct
+    # ten slots at the capped weight fit inside the spendable balance
+    assert config.mandate.max_positions * (equity * weight_cap) >= spendable
