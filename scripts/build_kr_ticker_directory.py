@@ -10,7 +10,7 @@ network access that corporate desktops may lack):
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 import sys
 from pathlib import Path
 
@@ -34,22 +34,47 @@ def _sector_map() -> dict[str, str]:
         print(f"sector lookup unavailable ({exc.__class__.__name__}); continuing without sectors")
         return {}
     mapping: dict[str, str] = {}
-    today = datetime.now().strftime("%Y%m%d")
+    dates = [(datetime.now() - timedelta(days=offset)).strftime("%Y%m%d") for offset in range(0, 6)]
+
+    # First choice: KRX's own classification table.
+    for market in ("KOSPI", "KOSDAQ"):
+        for day in dates:
+            try:
+                frame = stock.get_market_sector_classifications(day, market)
+            except Exception:
+                continue
+            if frame is None or getattr(frame, "empty", True):
+                continue
+            column = next((name for name in ("업종명", "지수명", "SectorName") if name in frame.columns), None)
+            if column is None:
+                continue
+            for code, value in zip(frame.index, frame[column]):
+                text = str(value or "").strip()
+                if text:
+                    mapping.setdefault(str(code).zfill(6), text)
+            break
+    if mapping:
+        return mapping
+
+    # Fallback: the industry indices name their own constituents, which gives
+    # the same grouping through a different endpoint.
+    print("sector table unavailable; falling back to industry index membership")
     for market in ("KOSPI", "KOSDAQ"):
         try:
-            frame = stock.get_market_sector_classifications(today, market)
+            index_codes = stock.get_index_ticker_list(dates[0], market) or []
         except Exception as exc:
-            print(f"sector lookup failed for {market} ({exc.__class__.__name__})")
+            print(f"index list failed for {market} ({exc.__class__.__name__})")
             continue
-        if frame is None or frame.empty:
-            continue
-        column = next((name for name in ("업종명", "지수명", "SectorName") if name in frame.columns), None)
-        if column is None:
-            continue
-        for code, value in zip(frame.index, frame[column]):
-            text = str(value or "").strip()
-            if text:
-                mapping[str(code).zfill(6)] = text
+        for index_code in index_codes:
+            try:
+                name = str(stock.get_index_ticker_name(index_code) or "").strip()
+                members = stock.get_index_portfolio_deposit_file(index_code, dates[0]) or []
+            except Exception:
+                continue
+            if not name or not members or len(members) > 900:
+                continue  # skip the broad market indices; they are not a sector
+            for code in members:
+                mapping.setdefault(str(code).zfill(6), name)
     return mapping
 
 
