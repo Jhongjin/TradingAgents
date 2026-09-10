@@ -328,6 +328,5 @@ def verification_files(value: str | None = None) -> dict[str, str]:
     for name, content in parsed.items():
         name = str(name).strip()
         if VERIFICATION_FILE_PATTERN.match(name) and isinstance(content, str) and content.strip():
-            files[name] = content.strip() + "
-"
+            files[name] = content.strip() + "\n"
     return files

@@ -447,19 +447,6 @@ def create_app(
     def site_webmanifest(request: Request) -> Response:
         return Response(json.dumps(web_manifest(site_base_url=_request_site_base_url(request)), ensure_ascii=False), media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=86400"})
 
-    @app.get("/{verification_file}", include_in_schema=False)
-    def search_console_verification_file(verification_file: str) -> Response:
-        if verification_file.startswith("google") and verification_file.endswith(".html") or verification_file.startswith("naver") and verification_file.endswith(".html") or verification_file == "BingSiteAuth.xml" or verification_file.startswith("yandex_"):
-            try:
-                files = verification_files()
-            except ValueError as exc:
-                raise HTTPException(status_code=500, detail=str(exc)) from exc
-            content = files.get(verification_file)
-            if content:
-                media = "text/xml; charset=utf-8" if verification_file.endswith(".xml") else "text/plain; charset=utf-8"
-                return Response(content, media_type=media, headers={"Cache-Control": "public, max-age=3600"})
-        raise HTTPException(status_code=404, detail="Not found")
-
     @app.get("/indexnow/{key}.txt", response_class=PlainTextResponse, include_in_schema=False)
     def indexnow_key_file(key: str) -> PlainTextResponse:
         configured = indexnow_key()
@@ -1878,6 +1865,20 @@ def create_app(
             return payload
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # catch-all for search-console ownership files: registered last so it never shadows page routes
+    @app.get("/{verification_file}", include_in_schema=False)
+    def search_console_verification_file(verification_file: str) -> Response:
+        if verification_file.startswith("google") and verification_file.endswith(".html") or verification_file.startswith("naver") and verification_file.endswith(".html") or verification_file == "BingSiteAuth.xml" or verification_file.startswith("yandex_"):
+            try:
+                files = verification_files()
+            except ValueError as exc:
+                raise HTTPException(status_code=500, detail=str(exc)) from exc
+            content = files.get(verification_file)
+            if content:
+                media = "text/xml; charset=utf-8" if verification_file.endswith(".xml") else "text/plain; charset=utf-8"
+                return Response(content, media_type=media, headers={"Cache-Control": "public, max-age=3600"})
+        raise HTTPException(status_code=404, detail="Not found")
 
     return app
 
