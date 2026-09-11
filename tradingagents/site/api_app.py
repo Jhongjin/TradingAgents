@@ -2412,7 +2412,9 @@ def _canonical_host_redirect(request: Request) -> str | None:
     if request_host == "testserver" or request_host.startswith(("localhost", "127.0.0.1")):
         return None
     path = request.url.path
-    if path.startswith(("/api/", "/health", "/indexnow/")) or path == "/BingSiteAuth.xml" or (path.startswith(("/google", "/naver", "/yandex_")) and path.endswith(".html")):
+    # The lab is private and unindexed, so it has no canonical host to be sent
+    # to, and leaving it alone keeps it reachable on the deployment URL too.
+    if path.startswith(("/api/", "/health", "/indexnow/", "/lab/")) or path == "/BingSiteAuth.xml" or (path.startswith(("/google", "/naver", "/yandex_")) and path.endswith(".html")):
         return None
     query = f"?{request.url.query}" if request.url.query else ""
     return f"https://{canonical}{path}{query}"
