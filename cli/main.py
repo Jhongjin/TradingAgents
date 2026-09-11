@@ -1890,6 +1890,102 @@ def backtest_command(
         console.print(f"[dim]persisted backtest_run_id={run_id}[/dim]")
 
 
+@app.command("factor-study")
+def factor_study_command(
+    years: float = typer.Option(2.0, "--years", min=0.5, max=10.0, help="How far back to measure."),
+    universe: int = typer.Option(150, "--universe", min=20, max=400, help="How many of the most traded names."),
+    horizon: int = typer.Option(20, "--horizon", min=1, max=120, help="Forward trading days to measure against."),
+    sample_every: int = typer.Option(5, "--sample-every", min=1, max=20, help="Measure every Nth trading day."),
+    persist: bool = typer.Option(False, "--persist", help="Store the result for the site."),
+    output: Optional[Path] = typer.Option(None, "--output", help="Write the result JSON here."),
+):
+    """Measure whether each part of the rule score predicted the return that followed."""
+
+    import json
+    import os
+    from datetime import date, timedelta
+
+    from tradingagents.dataflows.chart_data import get_ohlcv_chart_series
+    from tradingagents.dataflows.kr_ticker_directory import load_directory, top_by_market_cap
+    from tradingagents.harness.factor_study import run_factor_study
+
+    end = date.today()
+    start = end - timedelta(days=int(years * 365))
+    fetch_start = (start - timedelta(days=260)).isoformat()
+
+    ranked = top_by_market_cap(max(universe * 2, universe))
+    pool = [(entry.code, entry.name) for entry in ranked] or [
+        (entry.code, entry.name)
+        for entry in load_directory()
+        if entry.sector and "ETF" not in entry.name.upper() and "ETN" not in entry.name.upper()
+    ][: max(universe * 2, universe)]
+    if not pool:
+        raise typer.BadParameter("no candidate pool; rebuild the ticker directory first")
+
+    console.print(f"[bold]Factor study[/bold] {start} → {end} · horizon {horizon}d · pool {len(pool)}")
+    fetched: dict[str, list[dict]] = {}
+    for index, (code, _name) in enumerate(pool, start=1):
+        try:
+            series = get_ohlcv_chart_series(code, fetch_start, end.isoformat(), vendor="pykrx")
+            points = [point.as_dict() for point in series.points]
+            if len(points) >= 150:
+                fetched[code] = points
+        except Exception:
+            pass
+        if index % 50 == 0:
+            console.print(f"[dim]  history {index}/{len(pool)}[/dim]")
+    if not fetched:
+        raise typer.BadParameter("no price history could be fetched")
+
+    def _traded(points: list[dict]) -> float:
+        values = sorted(float(p.get("close") or 0) * float(p.get("volume") or 0) for p in points[-60:] if p.get("close") and p.get("volume"))
+        return values[len(values) // 2] if values else 0.0
+
+    liquid = sorted(fetched, key=lambda code: _traded(fetched[code]), reverse=True)[:universe]
+    history = {code: fetched[code] for code in liquid}
+    console.print(f"[dim]universe: {len(history)} names by median traded value[/dim]")
+
+    result = run_factor_study(history=history, start=start, end=end, horizon_days=horizon, sample_every=sample_every)
+    table = Table(box=box.SIMPLE_HEAD, title=f"예측력 ({result.sample_dates}개 시점)")
+    for column in ("요소", "IC", "t", "양수비율", "상위-하위"):
+        table.add_column(column)
+    for row in result.factors:
+        table.add_row(
+            row["label"],
+            f"{row['information_coefficient']:+.4f}",
+            str(row["ic_t_stat"]),
+            f"{row['positive_rate']:.0%}",
+            f"{row['top_minus_bottom']:+.2%}" if row["top_minus_bottom"] is not None else "-",
+        )
+    console.print(table)
+    for note in result.notes:
+        console.print(f"[yellow]{note}[/yellow]")
+
+    if output is not None:
+        output.write_text(json.dumps(result.as_dict(), ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        console.print(f"[dim]saved {output}[/dim]")
+    if persist:
+        if not os.getenv("DATABASE_URL"):
+            raise typer.BadParameter("--persist requires DATABASE_URL")
+        from tradingagents.storage import StorageRepository, create_storage_engine
+
+        repo = StorageRepository(create_storage_engine())
+        run_id = repo.save_backtest_run(
+            {
+                "start_date": result.start_date,
+                "end_date": result.end_date,
+                "universe_size": result.universe_size,
+                "metrics": {"factors": result.factors, "sample_dates": result.sample_dates, "horizon_days": result.horizon_days, "trade_count": result.sample_dates},
+                "config": {"horizon_days": result.horizon_days, "sample_every": sample_every, "universe": universe},
+                "equity_curve": [],
+                "trades": [],
+                "notes": result.notes,
+            },
+            label="factors",
+        )
+        console.print(f"[dim]persisted factor_study_id={run_id}[/dim]")
+
+
 @app.command("audit-verify")
 def audit_verify_command(
     path: Optional[Path] = typer.Option(None, "--path", help="Ledger path (default TRADINGAGENTS_AUDIT_LOG_PATH)."),

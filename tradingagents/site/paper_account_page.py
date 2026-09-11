@@ -440,6 +440,54 @@ def _backtest_card(backtest: Mapping[str, Any]) -> str:
   </div>"""
 
 
+def _factor_payload(repo: Any) -> dict[str, Any]:
+    if repo is None:
+        return {"status": "not_configured"}
+    try:
+        row = repo.latest_backtest_run(label="factors")
+    except Exception:
+        return {"status": "unavailable"}
+    if not row:
+        return {"status": "empty"}
+    metrics = row.get("metrics_json") or {}
+    return {
+        "status": "available",
+        "start_date": str(row.get("start_date") or ""),
+        "end_date": str(row.get("end_date") or ""),
+        "universe_size": row.get("universe_size"),
+        "horizon_days": metrics.get("horizon_days"),
+        "sample_dates": metrics.get("sample_dates"),
+        "factors": metrics.get("factors") or [],
+    }
+
+
+def _factor_card(study: Mapping[str, Any]) -> str:
+    """What each part of the score was worth, measured rather than assumed."""
+
+    factors = list(study.get("factors") or [])
+    if study.get("status") != "available" or not factors:
+        return ""
+    rows = "".join(
+        f'<tr><td>{h(item.get("label"))}<small>{h(item.get("key"))}</small></td>'
+        f'<td class="{_sign_class(item.get("information_coefficient"))} num">{h(f"{float(item.get("information_coefficient") or 0):+.4f}")}</td>'
+        f'<td class="num">{h(item.get("ic_t_stat") if item.get("ic_t_stat") is not None else "-")}</td>'
+        f'<td class="num">{h(_pct(item.get("positive_rate"), 0)) if item.get("positive_rate") is not None else "-"}</td>'
+        f'<td class="{_sign_class(item.get("top_minus_bottom"))} num">{h(_pct(item.get("top_minus_bottom"))) if item.get("top_minus_bottom") is not None else "-"}</td></tr>'
+        for item in factors
+    )
+    return f"""<div class="card paper-backtest" style="margin-bottom: 18px;">
+    <div class="card-h"><h2>{icon_tile("brain", "b-grey", small=True)}점수 요소별 예측력</h2><span class="badge b-grey">{h(study.get("horizon_days"))}일 기준</span></div>
+    <div class="card-b paper-scroll">
+      <p class="small ink2" style="margin-bottom: 10px;">규칙 점수를 이루는 각 요소가 {h(study.get("horizon_days"))}거래일 뒤 수익률을 실제로 맞혔는지 {h(study.get("sample_dates"))}개 시점에서 측정했습니다. 상관값이 0에 가까우면 그 요소는 예측에 기여하지 않았다는 뜻이고, t값이 2보다 작으면 잡음과 구분되지 않습니다.</p>
+      <table class="paper-table">
+        <thead><tr><th>요소</th><th>상관</th><th>t값</th><th>맞힌 비율</th><th>상위-하위 수익률</th></tr></thead>
+        <tbody>{rows}</tbody>
+      </table>
+    </div>
+    <div class="card-f"><span>{h(study.get("start_date"))} ~ {h(study.get("end_date"))} · 대상 {h(study.get("universe_size"))}종목</span><span>측정 결과이며 매매 권유가 아닙니다.</span></div>
+  </div>"""
+
+
 def render_paper_account_page(
     *,
     repo: StorageRepository | None = None,
@@ -465,6 +513,7 @@ def render_paper_account_page(
     rules = _rules_payload(repo)
     audit = _audit_payload(repo)
     backtest = _backtest_payload(repo)
+    factors = _factor_payload(repo)
     books = list(payload.get("accounts") or [])
     gate = payload.get("plan_gate") or {}
     locked_positions = int(gate.get("locked_position_count") or 0)
@@ -511,6 +560,8 @@ def render_paper_account_page(
   {_audit_card(audit)}
 
   {_backtest_card(backtest)}
+
+  {_factor_card(factors)}
 
   <div class="card" style="margin-bottom: 18px;">
     <div class="card-h"><h2>{icon_tile("target", "b-teal", small=True)}보유 종목</h2><div class="row" style="gap: 8px; align-items: center;"><button class="btn sm" type="button" id="paperCopyButton" hidden>내 일지에 담기</button><span class="badge b-grey">{len(positions) + locked_positions}종목</span></div></div>

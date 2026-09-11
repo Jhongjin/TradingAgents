@@ -1426,6 +1426,31 @@ def create_app(
             "created_at": str(row.get("created_at") or ""),
         }
 
+    @app.get("/api/factor-study")
+    def factor_study_latest(request: Request) -> dict:
+        """Whether each part of the rule score predicted the return that followed."""
+
+        repo = request.app.state.repository
+        if repo is None:
+            return {"status": "not_configured"}
+        try:
+            row = repo.latest_backtest_run(label="factors")
+        except Exception as exc:
+            return {"status": "unavailable", "error": f"{exc.__class__.__name__}: {exc}"}
+        if not row:
+            return {"status": "empty"}
+        metrics = row.get("metrics_json") or {}
+        return {
+            "status": "available",
+            "start_date": str(row.get("start_date") or ""),
+            "end_date": str(row.get("end_date") or ""),
+            "universe_size": row.get("universe_size"),
+            "horizon_days": metrics.get("horizon_days"),
+            "sample_dates": metrics.get("sample_dates"),
+            "factors": metrics.get("factors") or [],
+            "notes": row.get("notes") or [],
+        }
+
     @app.get("/api/paper-account/curve")
     def paper_account_curve(request: Request) -> dict:
         """Daily equity curve of the paper account against KOSPI (public)."""
