@@ -1792,29 +1792,30 @@ def backtest_command(
     fetch_start = (start - timedelta(days=260)).isoformat()  # the score needs history before day one
 
     console.print(f"[bold]Backtest[/bold] {start} → {end} · universe {universe} · top {top_n}")
-    import time as _time
+    from tradingagents.dataflows.kr_ticker_directory import top_by_market_cap
 
-    names: dict[str, str] = {}
-    for attempt in range(1, 4):
-        try:
-            snapshot = load_naver_market_snapshot(markets=("KOSPI", "KOSDAQ"), max_rows_per_market=max(universe, 200))
-            rows = sorted(snapshot.rows, key=lambda row: float(row.trading_value or 0), reverse=True)[:universe]
-            names = {row.code: row.name for row in rows}
-            if names:
-                console.print(f"[dim]universe: {len(names)} names by traded value[/dim]")
-                break
-        except Exception as exc:
-            console.print(f"[yellow]universe attempt {attempt} failed ({exc.__class__.__name__})[/yellow]")
-        _time.sleep(5 * attempt)
-    if not names:
-        # The vendor rate-limits; the stored directory still names the market.
-        from tradingagents.dataflows.kr_ticker_directory import load_directory
+    # The directory is rebuilt weekly from the market-cap ranking, so the
+    # universe is reproducible and does not depend on a vendor answering now.
+    ranked = top_by_market_cap(universe)
+    names = {entry.code: entry.name for entry in ranked}
+    if names:
+        console.print(f"[dim]universe: {len(names)} largest listings from the stored directory[/dim]")
+    else:
+        import time as _time
 
-        entries = [entry for entry in load_directory() if entry.sector and "ETF" not in entry.name.upper()]
-        names = {entry.code: entry.name for entry in entries[:universe]}
-        console.print(f"[yellow]universe from the stored directory: {len(names)} names (not ranked by liquidity)[/yellow]")
+        for attempt in range(1, 4):
+            try:
+                snapshot = load_naver_market_snapshot(markets=("KOSPI", "KOSDAQ"), max_rows_per_market=max(universe, 200))
+                rows = sorted(snapshot.rows, key=lambda row: float(row.trading_value or 0), reverse=True)[:universe]
+                names = {row.code: row.name for row in rows}
+                if names:
+                    console.print(f"[dim]universe: {len(names)} names by traded value[/dim]")
+                    break
+            except Exception as exc:
+                console.print(f"[yellow]universe attempt {attempt} failed ({exc.__class__.__name__})[/yellow]")
+            _time.sleep(5 * attempt)
     if not names:
-        raise typer.BadParameter("no universe could be resolved")
+        raise typer.BadParameter("no universe could be resolved; rebuild the ticker directory first")
 
     history: dict[str, list[dict]] = {}
     failures = 0

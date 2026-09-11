@@ -25,6 +25,7 @@ class DirectoryEntry:
     name: str
     market: str
     sector: str = ""
+    rank: int = 0
 
 
 def _fold(text: str) -> str:
@@ -50,8 +51,30 @@ def load_directory(path: str | None = None) -> tuple[DirectoryEntry, ...]:
         if len(code) != 6 or not code.isdigit() or not name or code in seen:
             continue
         seen.add(code)
-        entries.append(DirectoryEntry(code=code, name=name, market=market, sector=str(row.get("sector") or "").strip()))
+        try:
+            rank = int(row.get("rank") or 0)
+        except (TypeError, ValueError):
+            rank = 0
+        entries.append(DirectoryEntry(code=code, name=name, market=market, sector=str(row.get("sector") or "").strip(), rank=rank))
     return tuple(entries)
+
+
+def top_by_market_cap(limit: int = 200, markets: tuple[str, ...] = ("KOSPI", "KOSDAQ")) -> list[DirectoryEntry]:
+    """The largest listings first, without a live vendor call.
+
+    The directory is rebuilt weekly from Naver's market-cap ranking, so each row
+    already knows where it stood. A backtest that picks its universe from here
+    is reproducible and does not depend on a vendor answering right now.
+    """
+
+    wanted = {market.upper() for market in markets}
+    ranked = [
+        entry
+        for entry in load_directory()
+        if entry.rank and entry.market.upper() in wanted and "ETF" not in entry.name.upper()
+    ]
+    ranked.sort(key=lambda entry: entry.rank)
+    return ranked[: max(limit, 1)]
 
 
 def sector_of(code: str) -> str:
@@ -108,16 +131,19 @@ def write_directory(entries: Iterable[DirectoryEntry | dict], path: Path | None 
     seen: set[str] = set()
     for entry in entries:
         if isinstance(entry, DirectoryEntry):
-            code, name, market, sector = entry.code, entry.name, entry.market, entry.sector
+            code, name, market, sector, rank = entry.code, entry.name, entry.market, entry.sector, entry.rank
         else:
             code, name, market = str(entry.get("code")), str(entry.get("name")), str(entry.get("market"))
             sector = str(entry.get("sector") or "")
+            rank = int(entry.get("rank") or 0)
         if code in seen:
             continue
         seen.add(code)
         row = {"code": code, "name": name, "market": market}
         if sector:
             row["sector"] = sector
+        if rank:
+            row["rank"] = rank
         items.append(row)
     items.sort(key=lambda item: item["code"])
     from datetime import date

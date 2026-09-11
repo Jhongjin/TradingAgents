@@ -123,7 +123,14 @@ def main() -> int:
 
     snapshot = load_naver_market_snapshot(markets=("KOSPI", "KOSDAQ"), max_rows_per_market=5000, include_non_equity=True)
     sectors = _sector_map()
-    entries = [DirectoryEntry(code=row.code, name=row.name, market=row.market, sector=sectors.get(row.code, "")) for row in snapshot.rows]
+    # Naver lists by market capitalisation, so position is the rank.
+    seen_per_market: dict[str, int] = {}
+    entries = []
+    for row in snapshot.rows:
+        seen_per_market[row.market] = seen_per_market.get(row.market, 0) + 1
+        entries.append(
+            DirectoryEntry(code=row.code, name=row.name, market=row.market, sector=sectors.get(row.code, ""), rank=seen_per_market[row.market])
+        )
     print(f"sector labels: {sum(1 for e in entries if e.sector)}/{len(entries)}")
     kospi = sum(1 for e in entries if e.market == "KOSPI")
     kosdaq = sum(1 for e in entries if e.market == "KOSDAQ")
