@@ -1792,43 +1792,50 @@ def backtest_command(
     fetch_start = (start - timedelta(days=260)).isoformat()  # the score needs history before day one
 
     console.print(f"[bold]Backtest[/bold] {start} → {end} · universe {universe} · top {top_n}")
-    from tradingagents.dataflows.kr_ticker_directory import top_by_market_cap
+    from tradingagents.dataflows.kr_ticker_directory import load_directory, top_by_market_cap
 
-    # The directory is rebuilt weekly from the market-cap ranking, so the
-    # universe is reproducible and does not depend on a vendor answering now.
-    ranked = top_by_market_cap(universe)
-    names = {entry.code: entry.name for entry in ranked}
-    if names:
-        console.print(f"[dim]universe: {len(names)} largest listings from the stored directory[/dim]")
-    else:
-        import time as _time
+    # Liquidity is measured from the price history this run fetches anyway, so
+    # the universe does not depend on a ranking vendor answering right now.
+    ranked = top_by_market_cap(max(universe * 3, universe))
+    pool = [(entry.code, entry.name) for entry in ranked]
+    if not pool:
+        pool = [
+            (entry.code, entry.name)
+            for entry in load_directory()
+            if entry.sector and "ETF" not in entry.name.upper() and "ETN" not in entry.name.upper()
+        ][: max(universe * 3, universe)]
+    if not pool:
+        raise typer.BadParameter("no candidate pool; rebuild the ticker directory first")
+    console.print(f"[dim]candidate pool: {len(pool)} names; keeping the {universe} most traded[/dim]")
+    candidate_names = dict(pool)
 
-        for attempt in range(1, 4):
-            try:
-                snapshot = load_naver_market_snapshot(markets=("KOSPI", "KOSDAQ"), max_rows_per_market=max(universe, 200))
-                rows = sorted(snapshot.rows, key=lambda row: float(row.trading_value or 0), reverse=True)[:universe]
-                names = {row.code: row.name for row in rows}
-                if names:
-                    console.print(f"[dim]universe: {len(names)} names by traded value[/dim]")
-                    break
-            except Exception as exc:
-                console.print(f"[yellow]universe attempt {attempt} failed ({exc.__class__.__name__})[/yellow]")
-            _time.sleep(5 * attempt)
-    if not names:
-        raise typer.BadParameter("no universe could be resolved; rebuild the ticker directory first")
-
-    history: dict[str, list[dict]] = {}
+    fetched: dict[str, list[dict]] = {}
     failures = 0
-    for index, code in enumerate(names, start=1):
+    for index, code in enumerate(candidate_names, start=1):
         try:
             series = get_ohlcv_chart_series(code, fetch_start, end.isoformat(), vendor="pykrx")
-            history[code] = [point.as_dict() for point in series.points]
+            points = [point.as_dict() for point in series.points]
+            if len(points) >= 150:
+                fetched[code] = points
         except Exception:
             failures += 1
-        if index % 25 == 0:
-            console.print(f"[dim]  history {index}/{len(names)} (실패 {failures})[/dim]")
-    if not history:
+        if index % 50 == 0:
+            console.print(f"[dim]  history {index}/{len(candidate_names)} (실패 {failures})[/dim]")
+    if not fetched:
         raise typer.BadParameter("no price history could be fetched")
+
+    def _median_traded_value(points: list[dict]) -> float:
+        values = sorted(
+            float(point.get("close") or 0) * float(point.get("volume") or 0)
+            for point in points[-60:]
+            if point.get("close") and point.get("volume")
+        )
+        return values[len(values) // 2] if values else 0.0
+
+    liquid = sorted(fetched, key=lambda code: _median_traded_value(fetched[code]), reverse=True)[:universe]
+    history = {code: fetched[code] for code in liquid}
+    names = {code: candidate_names.get(code, code) for code in liquid}
+    console.print(f"[dim]universe: {len(names)} names by median traded value (from {len(fetched)} fetched)[/dim]")
 
     benchmark = {}
     try:
