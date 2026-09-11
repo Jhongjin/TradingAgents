@@ -16,6 +16,12 @@ on:
       universe:
         description: "How many of today's most traded names"
         default: "180"
+      horizon:
+        description: "Forward trading days for the factor study"
+        default: "20"
+      only_factors:
+        description: "Set to any value to skip the equity replay"
+        default: ""
   schedule:
     # 03:40 KST on the first of each month (18:40 UTC on the last day).
     - cron: "40 18 28-31 * *"
@@ -46,7 +52,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then echo "go=yes" >> "$GITHUB_OUTPUT"; exit 0; fi
           if [ "$(date -u -d tomorrow +%d)" = "01" ]; then echo "go=yes" >> "$GITHUB_OUTPUT"; else echo "go=no" >> "$GITHUB_OUTPUT"; fi
       - name: Replay the rules
-        if: steps.guard.outputs.go == 'yes'
+        if: steps.guard.outputs.go == 'yes' && github.event.inputs.only_factors == ''
         run: |
           if [ -z "$DATABASE_URL" ]; then echo "::error::DATABASE_URL secret is not set"; exit 1; fi
           tradingagents backtest \
@@ -58,7 +64,7 @@ jobs:
         if: steps.guard.outputs.go == 'yes'
         continue-on-error: true
         run: |
-          tradingagents factor-study             --years 2             --universe "${{ github.event.inputs.universe || '150' }}"             --horizon 20             --persist             --output ./factor-study.json
+          tradingagents factor-study             --years 2             --universe "${{ github.event.inputs.universe || '150' }}"             --horizon "${{ github.event.inputs.horizon || '20' }}"             --persist             --output ./factor-study.json
       - uses: actions/upload-artifact@v4
         if: steps.guard.outputs.go == 'yes'
         with:
