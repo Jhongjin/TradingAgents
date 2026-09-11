@@ -500,8 +500,10 @@ function schedule() {
   if (timer) clearInterval(timer);
   if (quoteTimer) clearInterval(quoteTimer);
   if (!DATA.data_url) return;
-  timer = setInterval(() => { if (!document.hidden) refreshFrame().catch(failed); }, (DATA.poll_seconds[current] || 60) * 1000);
-  quoteTimer = setInterval(() => { if (!document.hidden) refreshQuote().catch(failed); }, (DATA.quote_seconds[current] || 10) * 1000);
+  // Not gated on document.hidden: a tab embedded in an app, or in a second
+  // window, reports itself hidden while it is plainly being watched.
+  timer = setInterval(() => { refreshFrame().catch(failed); }, (DATA.poll_seconds[current] || 60) * 1000);
+  quoteTimer = setInterval(() => { refreshQuote().catch(failed); }, (DATA.quote_seconds[current] || 10) * 1000);
 }
 
 async function select(interval) {
