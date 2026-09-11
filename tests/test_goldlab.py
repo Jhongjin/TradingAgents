@@ -244,3 +244,99 @@ def test_the_page_states_what_the_numbers_are(monkeypatch):
     assert "예측이 아니라 기록입니다" in page
     assert "종합 판단" in page and "지금 완성된 패턴" in page
     assert page.count("<table") >= 1
+
+
+def test_sessions_follow_each_market_and_its_daylight_saving():
+    from datetime import date as _date
+    from goldlab.sessions import SESSION_BY_KEY, session_of, sessions_for
+
+    tokyo_open = datetime(2026, 3, 10, 1, 0, tzinfo=timezone.utc)      # 10:00 Tokyo
+    assert session_of(tokyo_open, SESSION_BY_KEY["asia"])
+    assert not session_of(tokyo_open, SESSION_BY_KEY["us"])
+
+    # New York's 9am is 14:00 UTC in winter and 13:00 UTC in summer
+    assert session_of(datetime(2026, 1, 14, 14, 0, tzinfo=timezone.utc), SESSION_BY_KEY["us"])
+    assert session_of(datetime(2026, 7, 14, 13, 0, tzinfo=timezone.utc), SESSION_BY_KEY["us"])
+
+    weekend = datetime(2026, 3, 14, 13, 0, tzinfo=timezone.utc)  # Saturday
+    assert sessions_for(weekend) == []
+
+    overlap = datetime(2026, 1, 14, 14, 30, tzinfo=timezone.utc)  # London afternoon, NY morning
+    assert set(sessions_for(overlap)) >= {"europe", "us"}
+
+
+def test_session_windows_carry_their_own_high_and_low():
+    from goldlab.sessions import SESSION_BY_KEY, session_windows
+
+    stamp = datetime(2026, 1, 14, 13, 0, tzinfo=timezone.utc)  # 8am New York
+    rows = []
+    for step in range(10):
+        price = 2400 + step
+        rows.append(_bar(stamp + timedelta(hours=step), price, price + 5, price - 5, price + 1))
+    series = bars_from_rows(rows, symbol="GC=F", interval="1h")
+
+    windows = session_windows(series.bars, SESSION_BY_KEY["us"])
+    assert len(windows) == 1
+    window = windows[0]
+    assert window["label"] == "미국"
+    inside = series.bars[window["start_index"] : window["end_index"] + 1]
+    assert window["high"] == max(bar.high for bar in inside)
+    assert window["low"] == min(bar.low for bar in inside)
+    assert window["start_index"] > 0  # the 8am bar is before the 8:20 open
+    assert window["low"] < window["high"] and window["range"] > 0
+    assert window["bars"] == len(inside) >= 5
+
+
+def test_payrolls_land_on_the_first_friday_at_half_past_eight_in_new_york():
+    from zoneinfo import ZoneInfo
+
+    from goldlab.events import first_friday, macro_events
+
+    assert first_friday(2026, 9).weekday() == 4
+    rows = macro_events(
+        datetime(2026, 9, 1, tzinfo=timezone.utc),
+        datetime(2026, 9, 30, tzinfo=timezone.utc),
+        min_stars=3,
+        path=None,
+    )
+    payrolls = [row for row in rows if "고용지표" in row["name"]]
+    assert len(payrolls) == 1
+    local = datetime.fromisoformat(payrolls[0]["timestamp"]).astimezone(ZoneInfo("America/New_York"))
+    assert local.weekday() == 4 and (local.hour, local.minute) == (8, 30)
+    assert local.date() == first_friday(2026, 9)
+
+
+def test_the_chart_marks_patterns_sessions_and_releases(tmp_path):
+    from goldlab.chart import build_frame, render_chart
+
+    series = _synthetic(bars=400)
+    frame = build_frame(series, study=None, max_bars=300, min_stars=2)
+    assert len(frame["bars"]) == 300
+    assert frame["hits"] and all("index" in hit and "confidence" in hit for hit in frame["hits"])
+    assert frame["sessions"] and {row["session"] for row in frame["sessions"]} <= {"asia", "europe", "us"}
+    assert all(window["high"] >= window["low"] for window in frame["sessions"])
+
+    page = render_chart({"1h": frame}, symbol="GC=F")
+    assert "<canvas id=\"chart\"" in page
+    assert "noindex" in page  # a private chart, even when served
+    assert "세션 고저" in page and "경제지표" in page and "패턴 표시" in page
+    for label in ("아시아", "유럽", "미국"):
+        assert label in page
+
+
+def test_a_pattern_without_a_measurement_is_marked_as_such():
+    from goldlab.chart import _hit_rows
+    from goldlab.patterns import detect_patterns
+
+    series = _synthetic(bars=400)
+    hits = detect_patterns(series)[:5]
+    rows = _hit_rows(hits, None)
+    assert rows and all(row["confidence"] == "측정 없음" and row["samples"] == 0 for row in rows)
+
+    study = {
+        "patterns": [
+            {"pattern": hits[0].pattern, "horizons": {"4": {"count": 500, "win_rate": 0.6, "edge_win_rate": 0.07, "t_stat": 3.5}}}
+        ]
+    }
+    measured = _hit_rows(hits, study)
+    assert measured[0]["confidence"] == "강함" and measured[0]["samples"] == 500

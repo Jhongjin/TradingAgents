@@ -151,6 +151,12 @@ class IndexNowBody(BaseModel):
     paths: list[str] = Field(min_length=1, max_length=500)
 
 
+class GoldStudyBody(BaseModel):
+    symbol: str = "GC=F"
+    interval: str = "1h"
+    study: dict = Field(default_factory=dict)
+
+
 class MemberPreferencesBody(BaseModel):
     markets: list[str] = Field(default_factory=lambda: ["KOSPI", "KOSDAQ"], max_length=4)
     exclude_etf: bool = True
@@ -269,7 +275,7 @@ def create_app(
         if request.headers.get("Authorization") or request.headers.get("X-TradingAgents-User-Id") or request.url.path.startswith("/api/billing/"):
             # Plan-gated and member responses must never be shared through a public cache.
             response.headers.setdefault("Cache-Control", "private, no-store")
-        elif request.url.path in {"/member", "/mypage", "/admin", "/admin/members", "/billing"}:
+        elif request.url.path.startswith("/lab/") or request.url.path in {"/member", "/mypage", "/admin", "/admin/members", "/billing"}:
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif (
             request.url.path == "/"
@@ -1399,6 +1405,55 @@ def create_app(
         access = resolve_plan_access(repo, user_id)
         visible = gate_paper_account_payload(build_combined_account_payload(repo), access) or {}
         return copy_account_holdings(repo, user_id=user_id, positions=list(visible.get("positions") or []))
+
+    @app.get("/lab/gold", response_class=HTMLResponse, include_in_schema=False)
+    def gold_chart_page(
+        request: Request,
+        intervals: Annotated[str | None, Query(max_length=64)] = None,
+        bars: Annotated[int, Query(ge=120, le=1200)] = 600,
+    ) -> HTMLResponse:
+        """A private pattern chart, apart from the product: no menu, no index."""
+
+        from .gold_page import DEFAULT_INTERVALS, render_gold_chart_page
+
+        wanted = tuple(part.strip() for part in (intervals or "").split(",") if part.strip()) or DEFAULT_INTERVALS
+        html = render_gold_chart_page(repo=request.app.state.repository, intervals=wanted, bars=bars)
+        return HTMLResponse(html, headers={"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "private, max-age=60"})
+
+    @app.post("/api/admin/lab/gold/study", include_in_schema=False)
+    def store_gold_study(
+        body: GoldStudyBody,
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        """Receive a measurement taken on the operator's machine.
+
+        Measuring years of bars takes minutes, which no web request can spend,
+        so the lab runs it locally and posts the result here for the page to
+        quote.
+        """
+
+        _require_operator(request, x_tradingagents_worker_token)
+        repo = request.app.state.repository
+        if repo is None:
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        from .gold_page import study_label
+
+        study = body.study or {}
+        run_id = repo.save_backtest_run(
+            {
+                "start_date": str(study.get("start") or "")[:10] or "1970-01-01",
+                "end_date": str(study.get("end") or "")[:10] or "1970-01-01",
+                "universe_size": int(study.get("bars") or 0),
+                "metrics": {"study": study, "trade_count": len(study.get("patterns") or [])},
+                "config": {"symbol": body.symbol, "interval": body.interval, "horizons": study.get("horizons")},
+                "equity_curve": [],
+                "trades": [],
+                "notes": study.get("notes") or [],
+            },
+            label=study_label(body.symbol, body.interval),
+        )
+        return {"status": "stored", "id": run_id, "patterns": len(study.get("patterns") or [])}
 
     @app.get("/api/backtest")
     def backtest_latest(request: Request) -> dict:

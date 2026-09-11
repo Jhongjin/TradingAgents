@@ -66,7 +66,7 @@ AI_CRAWLERS = (
     "Google-Extended", "Applebot-Extended", "CCBot",
     "Yeti",  # Naver
 )
-PRIVATE_PATHS = ("/api/", "/member", "/mypage", "/admin", "/billing")
+PRIVATE_PATHS = ("/api/", "/member", "/mypage", "/admin", "/billing", "/lab/")
 
 
 def build_robots_txt(*, site_base_url: str | None = None) -> str:

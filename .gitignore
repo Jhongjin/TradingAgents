@@ -221,3 +221,5 @@ __marimo__/
 
 # gold lab cache (personal, machine-local)
 .goldlab/
+gold-chart.html
+gold-patterns.html

@@ -23,6 +23,8 @@ from .contracts import CONTRACTS, GOLD_FUTURES
 from .data import INTERVAL_MAX_DAYS, cache_path, load_bars
 from .patterns import PATTERN_REGISTRY, detect_patterns
 from .live import DEFAULT_INTERVALS, save_study, scan_live
+from .chart import build_frame, render_chart
+from .events import events_file, write_events_template
 from .report import render_report
 from .study import DEFAULT_HORIZONS, run_pattern_study
 
@@ -280,6 +282,112 @@ def report_command(
         import webbrowser
 
         webbrowser.open(output.resolve().as_uri())
+
+
+@app.command("chart")
+def chart_command(
+    symbol: str = typer.Option("GC=F", "--symbol"),
+    intervals: str = typer.Option("5m,15m,1h,4h,1d", "--intervals"),
+    bars: int = typer.Option(700, "--bars", min=120, max=2000, help="Bars per timeframe to draw."),
+    stars: int = typer.Option(3, "--stars", min=1, max=3, help="Minimum importance for an economic release."),
+    offline: bool = typer.Option(False, "--offline", help="Use the cached bars instead of fetching."),
+    output: Path = typer.Option(Path("gold-chart.html"), "--output"),
+    open_it: bool = typer.Option(True, "--open/--no-open"),
+):
+    """Draw the candles with patterns, sessions and releases marked on them."""
+
+    from .live import load_study
+
+    frames = {}
+    for interval in [name.strip() for name in intervals.split(",") if name.strip()]:
+        try:
+            series = load_bars(symbol, interval=interval, refresh=not offline)
+        except Exception as exc:
+            console.print(f"[yellow]{interval}: {exc.__class__.__name__}[/yellow]")
+            continue
+        if len(series) < 60:
+            console.print(f"[yellow]{interval}: 봉이 {len(series)}개뿐이라 건너뜁니다[/yellow]")
+            continue
+        frames[interval] = build_frame(series, study=load_study(symbol, interval), max_bars=bars, min_stars=stars)
+        marked = len(frames[interval]["hits"])
+        console.print(f"[dim]{interval}: {len(frames[interval]['bars'])}봉 · 패턴 {marked}건 · 지표 {len(frames[interval]['events'])}건[/dim]")
+    if not frames:
+        raise typer.BadParameter("no timeframe could be drawn")
+
+    output.write_text(render_chart(frames, symbol=symbol), encoding="utf-8")
+    console.print(f"[green]{output}[/green]")
+    if open_it:
+        import webbrowser
+
+        webbrowser.open(output.resolve().as_uri())
+
+
+@app.command("events")
+def events_command(
+    show: bool = typer.Option(True, "--show/--no-show", help="Print what is currently scheduled."),
+    init: bool = typer.Option(False, "--init", help="Create the file for dates that follow no rule."),
+):
+    """The releases the chart marks, and where to add the ones set by committee."""
+
+    from datetime import datetime, timedelta, timezone
+
+    from .events import macro_events
+
+    if init:
+        created = write_events_template()
+        console.print(f"[green]{created}[/green] 에 일정 파일을 만들었습니다. FOMC·CPI 날짜를 여기에 적으세요.")
+    console.print(f"[dim]일정 파일: {events_file()}[/dim]")
+    if not show:
+        return
+    now = datetime.now(timezone.utc)
+    rows = macro_events(now - timedelta(days=30), now + timedelta(days=45), min_stars=2)
+    if not rows:
+        console.print("[yellow]표시할 일정이 없습니다.[/yellow]")
+        return
+    table = Table(box=box.SIMPLE_HEAD, title="최근 30일 / 향후 45일")
+    for column in ("현지 시각", "등급", "지표", "출처"):
+        table.add_column(column)
+    for row in rows:
+        when = datetime.fromisoformat(row["timestamp"]).astimezone()
+        table.add_row(when.strftime("%Y-%m-%d %H:%M"), "★" * int(row["stars"]), row["name"], "규칙" if row["source"] == "rule" else "입력")
+    console.print(table)
+
+
+@app.command("publish")
+def publish_command(
+    symbol: str = typer.Option("GC=F", "--symbol"),
+    intervals: str = typer.Option("15m,1h,4h,1d", "--intervals"),
+    base_url: str = typer.Option("https://agenttrust.kr", "--base-url"),
+    token: Optional[str] = typer.Option(None, "--token", help="Operator token; falls back to OPERATOR_ACCESS_CODE."),
+):
+    """Send the local measurements to the web chart so it can quote them."""
+
+    import os
+
+    import requests
+
+    from .live import load_study
+
+    secret = token or os.getenv("OPERATOR_ACCESS_CODE") or os.getenv("TRADINGAGENTS_WORKER_TOKEN")
+    if not secret:
+        raise typer.BadParameter("operator token required (--token or OPERATOR_ACCESS_CODE)")
+
+    for interval in [name.strip() for name in intervals.split(",") if name.strip()]:
+        study = load_study(symbol, interval)
+        if not study:
+            console.print(f"[yellow]{interval}: 측정 결과가 없습니다. study 를 먼저 실행하세요.[/yellow]")
+            continue
+        response = requests.post(
+            f"{base_url.rstrip('/')}/api/admin/lab/gold/study",
+            json={"symbol": symbol, "interval": interval, "study": study},
+            headers={"X-TradingAgents-Worker-Token": secret},
+            timeout=60,
+        )
+        if response.status_code >= 400:
+            console.print(f"[red]{interval}: {response.status_code} {response.text[:120]}[/red]")
+            continue
+        body = response.json()
+        console.print(f"[green]{interval}[/green] 패턴 {body.get('patterns')}건 전송")
 
 
 def main() -> None:
