@@ -38,6 +38,7 @@ from .tables import (
     agent_reports,
     analysis_outcomes,
     analysis_refresh_requests,
+    backtest_runs,
     member_preferences,
     paper_account_snapshots,
     analysis_runs,
@@ -1116,6 +1117,48 @@ class StorageRepository:
             decision["outcomes"] = by_decision.get(str(decision["id"]), [])
         return decisions
 
+    def save_backtest_run(self, payload: Mapping[str, Any], *, label: str = "rules") -> str:
+        """Store one replay of the rules over history."""
+
+        metrics = dict(payload.get("metrics") or {})
+        run_id = _id()
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(backtest_runs).values(
+                    id=run_id,
+                    label=label,
+                    start_date=_coerce_date(payload.get("start_date")),
+                    end_date=_coerce_date(payload.get("end_date")),
+                    universe_size=int(payload.get("universe_size") or 0),
+                    total_return=metrics.get("total_return"),
+                    benchmark_return=metrics.get("benchmark_return"),
+                    excess_return=metrics.get("excess_return"),
+                    max_drawdown=metrics.get("max_drawdown"),
+                    sharpe_ratio=metrics.get("sharpe_ratio"),
+                    hit_rate=metrics.get("hit_rate"),
+                    trade_count=int(metrics.get("trade_count") or 0),
+                    config_json=dict(payload.get("config") or {}),
+                    metrics_json=metrics,
+                    equity_curve_json=list(payload.get("equity_curve") or []),
+                    trades_json=list(payload.get("trades") or [])[-200:],
+                    notes=list(payload.get("notes") or []),
+                )
+            )
+        return run_id
+
+    def latest_backtest_run(self, *, label: str = "rules") -> dict[str, Any] | None:
+        """The most recent replay, or None when none has been stored."""
+
+        stmt = (
+            select(backtest_runs)
+            .where(backtest_runs.c.label == label)
+            .order_by(desc(backtest_runs.c.created_at))
+            .limit(1)
+        )
+        with self.engine.begin() as conn:
+            row = conn.execute(stmt).mappings().first()
+        return dict(row) if row else None
+
     def get_member_preferences(self, user_id: str) -> dict[str, Any] | None:
         """Display preferences for one member, or None when never saved."""
 
@@ -1885,6 +1928,15 @@ def _validate_paper_simulation_event(data: PaperSimulationEventInput) -> None:
             raise ValueError(f"paper simulation event {field_name} must be positive")
     if data.commission < 0 or data.transaction_tax < 0:
         raise ValueError("paper simulation event costs cannot be negative")
+
+
+def _coerce_date(value: Any):
+    from datetime import datetime as _dt
+
+    if isinstance(value, date):
+        return value
+    text = str(value or "")[:10]
+    return _dt.strptime(text, "%Y-%m-%d").date() if text else None
 
 
 def _harness_run_row(row: Any) -> dict[str, Any]:

@@ -1400,6 +1400,32 @@ def create_app(
         visible = gate_paper_account_payload(build_combined_account_payload(repo), access) or {}
         return copy_account_holdings(repo, user_id=user_id, positions=list(visible.get("positions") or []))
 
+    @app.get("/api/backtest")
+    def backtest_latest(request: Request) -> dict:
+        """The newest rule replay over history. Not the account's record."""
+
+        repo = request.app.state.repository
+        if repo is None:
+            return {"status": "not_configured"}
+        try:
+            row = repo.latest_backtest_run()
+        except Exception as exc:
+            return {"status": "unavailable", "error": f"{exc.__class__.__name__}: {exc}"}
+        if not row:
+            return {"status": "empty"}
+        return {
+            "status": "available",
+            "label": row.get("label"),
+            "start_date": str(row.get("start_date") or ""),
+            "end_date": str(row.get("end_date") or ""),
+            "universe_size": row.get("universe_size"),
+            "metrics": row.get("metrics_json") or {},
+            "config": row.get("config_json") or {},
+            "equity_curve": row.get("equity_curve_json") or [],
+            "notes": row.get("notes") or [],
+            "created_at": str(row.get("created_at") or ""),
+        }
+
     @app.get("/api/paper-account/curve")
     def paper_account_curve(request: Request) -> dict:
         """Daily equity curve of the paper account against KOSPI (public)."""

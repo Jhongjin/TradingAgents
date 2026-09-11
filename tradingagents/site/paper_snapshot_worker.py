@@ -177,6 +177,15 @@ def build_paper_curve_payload(repo: StorageRepository | None, *, account_key: st
             }
         )
 
+    risk: dict[str, Any] = {}
+    if len(points) >= 3:
+        try:
+            from tradingagents.analytics.risk_metrics import risk_summary
+
+            risk = risk_summary([float(point["equity"]) for point in points]).as_dict()
+        except Exception:
+            risk = {}
+
     last = points[-1]
     account_return = last.get("total_return")
     benchmark_return = last.get("benchmark_return")
@@ -195,6 +204,7 @@ def build_paper_curve_payload(repo: StorageRepository | None, *, account_key: st
             "benchmark_name": BENCHMARK_NAME,
             "excess_return": excess,
             "max_drawdown": round(max_drawdown, 6),
+            "risk": risk,
         },
     }
 

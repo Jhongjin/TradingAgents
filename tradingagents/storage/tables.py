@@ -366,6 +366,29 @@ harness_outcomes = Table(
     UniqueConstraint("harness_decision_id", "horizon_days", name="uq_harness_outcomes_decision_horizon"),
 )
 
+backtest_runs = Table(
+    "backtest_runs",
+    metadata,
+    Column("id", Uuid(as_uuid=False), primary_key=True),
+    Column("label", String(64), nullable=False, default="rules"),
+    Column("start_date", Date, nullable=False),
+    Column("end_date", Date, nullable=False),
+    Column("universe_size", Integer, nullable=False, default=0),
+    Column("total_return", Float, nullable=True),
+    Column("benchmark_return", Float, nullable=True),
+    Column("excess_return", Float, nullable=True),
+    Column("max_drawdown", Float, nullable=True),
+    Column("sharpe_ratio", Float, nullable=True),
+    Column("hit_rate", Float, nullable=True),
+    Column("trade_count", Integer, nullable=False, default=0),
+    Column("config_json", JSON, nullable=False, default=dict),
+    Column("metrics_json", JSON, nullable=False, default=dict),
+    Column("equity_curve_json", JSON, nullable=False, default=list),
+    Column("trades_json", JSON, nullable=False, default=list),
+    Column("notes", JSON, nullable=False, default=list),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+)
+
 member_preferences = Table(
     "member_preferences",
     metadata,

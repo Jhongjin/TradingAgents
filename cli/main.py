@@ -1767,6 +1767,102 @@ def process_harness_outcomes_command(
         console.print(f"[{colour}]{result.status}[/{colour}] {result.ticker_code} {result.horizon_days}d: {detail}")
 
 
+@app.command("backtest")
+def backtest_command(
+    years: float = typer.Option(3.0, "--years", min=0.25, max=10.0, help="How far back to replay."),
+    universe: int = typer.Option(180, "--universe", min=10, max=400, help="How many of today's most liquid names to replay."),
+    top_n: int = typer.Option(5, "--top", min=1, max=20, help="Names bought per day, as in the live run."),
+    cash: float = typer.Option(50_000_000.0, "--cash", help="Starting capital."),
+    label: str = typer.Option("rules", "--label", help="Which replay this is."),
+    persist: bool = typer.Option(False, "--persist", help="Store the result for the site."),
+    output: Optional[Path] = typer.Option(None, "--output", help="Write the full result JSON here."),
+):
+    """Replay the screening rules over past prices and report what they would have done."""
+
+    import json
+    import os
+    from datetime import date, timedelta
+
+    from tradingagents.dataflows.chart_data import get_ohlcv_chart_series
+    from tradingagents.harness.backtest import BacktestConfig, run_rule_backtest
+    from tradingagents.screener.universe import load_naver_market_snapshot
+
+    end = date.today()
+    start = end - timedelta(days=int(years * 365))
+    fetch_start = (start - timedelta(days=260)).isoformat()  # the score needs history before day one
+
+    console.print(f"[bold]Backtest[/bold] {start} → {end} · universe {universe} · top {top_n}")
+    snapshot = load_naver_market_snapshot(markets=("KOSPI", "KOSDAQ"), max_rows_per_market=max(universe, 10))
+    rows = sorted(snapshot.rows, key=lambda row: float(row.trading_value or 0), reverse=True)[:universe]
+    names = {row.code: row.name for row in rows}
+    console.print(f"[dim]universe: {len(names)} names by traded value[/dim]")
+
+    history: dict[str, list[dict]] = {}
+    failures = 0
+    for index, code in enumerate(names, start=1):
+        try:
+            series = get_ohlcv_chart_series(code, fetch_start, end.isoformat(), vendor="pykrx")
+            history[code] = [point.as_dict() for point in series.points]
+        except Exception:
+            failures += 1
+        if index % 25 == 0:
+            console.print(f"[dim]  history {index}/{len(names)} (실패 {failures})[/dim]")
+    if not history:
+        raise typer.BadParameter("no price history could be fetched")
+
+    benchmark = {}
+    try:
+        from tradingagents.dataflows.kr_returns import fetch_benchmark_close
+
+        for point in history[next(iter(history))]:
+            day = str(point.get("date"))[:10]
+            if day:
+                benchmark.setdefault(day, None)
+        benchmark = {}
+        start_close = fetch_benchmark_close(on_date=start.isoformat())
+        end_close = fetch_benchmark_close(on_date=end.isoformat())
+        if start_close and end_close:
+            benchmark = {start.isoformat(): start_close, end.isoformat(): end_close}
+    except Exception:
+        benchmark = {}
+
+    def _sector(code: str) -> str:
+        from tradingagents.dataflows.kr_ticker_directory import sector_of
+
+        return sector_of(code)
+
+    result = run_rule_backtest(
+        history=history,
+        names=names,
+        start=start,
+        end=end,
+        config=BacktestConfig(top_n=top_n, initial_cash=cash),
+        sector_lookup=_sector,
+        benchmark=benchmark or None,
+    )
+    metrics = result.metrics
+    console.print(
+        f"[green]{result.start_date} → {result.end_date}[/green] "
+        f"수익률 {(metrics.get('total_return') or 0) * 100:+.2f}% · "
+        f"최대낙폭 {(metrics.get('max_drawdown') or 0) * 100:.2f}% · "
+        f"샤프 {metrics.get('sharpe_ratio')} · 거래 {metrics.get('trade_count')}건 · 승률 {metrics.get('hit_rate')}"
+    )
+    for note in result.notes:
+        console.print(f"[yellow]{note}[/yellow]")
+
+    if output is not None:
+        output.write_text(json.dumps(result.as_dict(), ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        console.print(f"[dim]saved {output}[/dim]")
+    if persist:
+        if not os.getenv("DATABASE_URL"):
+            raise typer.BadParameter("--persist requires DATABASE_URL")
+        from tradingagents.storage import StorageRepository, create_storage_engine
+
+        repo = StorageRepository(create_storage_engine())
+        run_id = repo.save_backtest_run(result.as_dict(), label=label)
+        console.print(f"[dim]persisted backtest_run_id={run_id}[/dim]")
+
+
 @app.command("audit-verify")
 def audit_verify_command(
     path: Optional[Path] = typer.Option(None, "--path", help="Ledger path (default TRADINGAGENTS_AUDIT_LOG_PATH)."),

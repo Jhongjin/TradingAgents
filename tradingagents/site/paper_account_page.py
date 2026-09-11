@@ -52,6 +52,8 @@ PAPER_CSS = """
 .paper-why-cell { max-width: 280px; }
 .paper-why { display: block; margin-top: 4px; font-size: 12px; color: var(--ink2); line-height: 1.5; }
 .paper-hash { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--ink2); }
+.paper-backtest { border-style: dashed; }
+.paper-backtest-notes { margin: 12px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 12px; color: var(--muted); line-height: 1.6; }
 @media (max-width: 900px) { .paper-table { min-width: 820px; } }
 """
 
@@ -203,12 +205,17 @@ def _curve_card(curve: Mapping[str, Any]) -> str:
     <div class="card-b"><p class="small ink2">장 마감 뒤 하루 한 번 계좌를 기록합니다. 이틀치가 쌓이면 {h(benchmark_name)} 지수와 비교한 곡선이 여기에 그려집니다.</p></div>
   </div>"""
 
+    risk = summary.get("risk") or {}
     stats = [
         f'<span>계좌 <b class="{_sign_class(summary.get("account_return"))}">{h(_pct(summary.get("account_return")))}</b></span>',
         f'<span>{h(benchmark_name)} <b>{h(_pct(summary.get("benchmark_return")))}</b></span>',
         f'<span>지수 대비 <b class="{_sign_class(summary.get("excess_return"))}">{h(_pct(summary.get("excess_return")))}</b></span>',
         f'<span>최대 낙폭 <b>{h(_pct(summary.get("max_drawdown")))}</b></span>',
     ]
+    if risk.get("sharpe_ratio") is not None:
+        stats.append(f'<span>샤프 <b>{h(risk.get("sharpe_ratio"))}</b></span>')
+    if risk.get("annualized_volatility") is not None:
+        stats.append(f'<span>변동성 <b>{h(_pct(risk.get("annualized_volatility")))}</b></span>')
     return f"""<div class="card" style="margin-bottom: 18px;">
     <div class="card-h"><h2>{icon_tile("trend", "b-blue", small=True)}수익률 추이</h2><span class="badge b-grey">{h(summary.get("day_count"))}일 기록</span></div>
     <div class="card-b paper-curve">
@@ -377,6 +384,62 @@ def _rules_card(rules: Mapping[str, Any]) -> str:
   </div>"""
 
 
+def _backtest_payload(repo: Any) -> dict[str, Any]:
+    if repo is None:
+        return {"status": "not_configured"}
+    try:
+        row = repo.latest_backtest_run()
+    except Exception:
+        return {"status": "unavailable"}
+    if not row:
+        return {"status": "empty"}
+    return {
+        "status": "available",
+        "start_date": str(row.get("start_date") or ""),
+        "end_date": str(row.get("end_date") or ""),
+        "universe_size": row.get("universe_size"),
+        "metrics": row.get("metrics_json") or {},
+        "config": row.get("config_json") or {},
+        "notes": list(row.get("notes") or []),
+    }
+
+
+def _backtest_card(backtest: Mapping[str, Any]) -> str:
+    """The rules replayed over history, kept visibly apart from the record.
+
+    A simulation and an executed record must not read as the same thing, so the
+    card names itself a simulation, states its biases, and never appears inside
+    the account's own numbers.
+    """
+
+    if backtest.get("status") != "available":
+        return ""
+    metrics = backtest.get("metrics") or {}
+    config = backtest.get("config") or {}
+    tiles = "".join(
+        [
+            stat_tile("trend", "b-grey", "기간 수익률", _pct(metrics.get("total_return")), f"{h(backtest.get('start_date'))} ~ {h(backtest.get('end_date'))}", value_class=_sign_class(metrics.get("total_return"))),
+            stat_tile("shield", "b-grey", "최대 낙폭", _pct(metrics.get("max_drawdown")), "고점 대비 최대 하락"),
+            stat_tile("check", "b-grey", "승률", _pct(metrics.get("hit_rate"), 1) if metrics.get("hit_rate") is not None else "-", f"거래 {metrics.get('trade_count') or 0}건"),
+            stat_tile("target", "b-grey", "샤프 지수", h(metrics.get("sharpe_ratio") if metrics.get("sharpe_ratio") is not None else "-"), f"평균 보유 {metrics.get('average_holding_days') or '-'}일"),
+        ]
+    )
+    excess = ""
+    if metrics.get("benchmark_return") is not None:
+        excess = f'<p class="small ink2">같은 기간 KOSPI {h(_pct(metrics.get("benchmark_return")))} · 지수 대비 <b class="{_sign_class(metrics.get("excess_return"))}">{h(_pct(metrics.get("excess_return")))}</b></p>'
+    notes = "".join(f"<li>{h(note)}</li>" for note in (backtest.get("notes") or []))
+    return f"""<div class="card paper-backtest" style="margin-bottom: 18px;">
+    <div class="card-h"><h2>{icon_tile("filter", "b-grey", small=True)}과거 시뮬레이션</h2><span class="badge b-amber">실행 기록 아님</span></div>
+    <div class="card-b">
+      <p class="small ink2" style="margin-bottom: 12px;">위 계좌 기록과는 별개입니다. 같은 선별 규칙을 과거 가격에 그대로 돌려 본 결과이며, 대상 종목 {h(backtest.get("universe_size"))}개를 하루 최대 {h(config.get("top_n") or "-")}종목까지 담는 조건으로 계산했습니다.</p>
+      <div class="grid-4">{tiles}</div>
+      {excess}
+      <ul class="paper-backtest-notes">{notes}</ul>
+    </div>
+    <div class="card-f"><span>수수료와 증권거래세는 계좌와 같은 기준으로 반영했습니다.</span><span>과거 성과가 미래를 보장하지 않습니다.</span></div>
+  </div>"""
+
+
 def render_paper_account_page(
     *,
     repo: StorageRepository | None = None,
@@ -401,6 +464,7 @@ def render_paper_account_page(
     curve = curves.get("paper") or {}
     rules = _rules_payload(repo)
     audit = _audit_payload(repo)
+    backtest = _backtest_payload(repo)
     books = list(payload.get("accounts") or [])
     gate = payload.get("plan_gate") or {}
     locked_positions = int(gate.get("locked_position_count") or 0)
@@ -445,6 +509,8 @@ def render_paper_account_page(
   {_rules_card(rules)}
 
   {_audit_card(audit)}
+
+  {_backtest_card(backtest)}
 
   <div class="card" style="margin-bottom: 18px;">
     <div class="card-h"><h2>{icon_tile("target", "b-teal", small=True)}보유 종목</h2><div class="row" style="gap: 8px; align-items: center;"><button class="btn sm" type="button" id="paperCopyButton" hidden>내 일지에 담기</button><span class="badge b-grey">{len(positions) + locked_positions}종목</span></div></div>

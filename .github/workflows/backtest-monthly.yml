@@ -1,0 +1,61 @@
+name: Rule backtest (history replay)
+
+# Replays the screening rules over the last three years and stores the result
+# for /paper. It answers the question a new reader asks first, which the live
+# record cannot answer until it has run for years.
+#
+# This is a simulation and is published as one, never merged into the account's
+# executed record.
+
+on:
+  workflow_dispatch:
+    inputs:
+      years:
+        description: "How far back to replay"
+        default: "3"
+      universe:
+        description: "How many of today's most traded names"
+        default: "180"
+  schedule:
+    # 03:40 KST on the first of each month (18:40 UTC on the last day).
+    - cron: "40 18 28-31 * *"
+
+concurrency:
+  group: rule-backtest
+  cancel-in-progress: false
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TRADINGAGENTS_POSTGRES_DRIVER: pg8000
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -e .
+      - name: Only run on the last day of the month
+        id: guard
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then echo "go=yes" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$(date -u -d tomorrow +%d)" = "01" ]; then echo "go=yes" >> "$GITHUB_OUTPUT"; else echo "go=no" >> "$GITHUB_OUTPUT"; fi
+      - name: Replay the rules
+        if: steps.guard.outputs.go == 'yes'
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "::error::DATABASE_URL secret is not set"; exit 1; fi
+          tradingagents backtest \
+            --years "${{ github.event.inputs.years || '3' }}" \
+            --universe "${{ github.event.inputs.universe || '180' }}" \
+            --persist \
+            --output ./backtest.json
+      - uses: actions/upload-artifact@v4
+        if: steps.guard.outputs.go == 'yes'
+        with:
+          name: backtest
+          path: backtest.json
