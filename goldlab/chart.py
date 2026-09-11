@@ -432,7 +432,9 @@ function liveText() {
   if (!lastUpdate) { text.textContent = '연결 중'; return; }
   const ago = Math.max(0, Math.round((Date.now() - lastUpdate) / 1000));
   live.classList.toggle('stale', ago > (DATA.quote_seconds[current] || 10) * 4);
-  text.textContent = '실시간 · ' + ago + '초 전 갱신';
+  const delay = frame() && frame().delay_seconds;
+  const behind = delay != null && delay > 90 ? ' · 제공처 시세 약 ' + Math.round(delay / 60) + '분 지연' : '';
+  text.textContent = '갱신 ' + ago + '초 전' + behind;
 }
 setInterval(liveText, 1000);
 
@@ -474,6 +476,7 @@ async function refreshQuote() {
   const f = frame();
   if (interval !== current || !quote || !quote.bars || !quote.bars.length || !f) return;
   received();
+  if (quote.delay_seconds != null) f.delay_seconds = quote.delay_seconds;
   const bucket = f.bucket_seconds || 60;
   const last = f.bars[f.bars.length - 1];
   const incoming = quote.bars[quote.bars.length - 1];
@@ -576,6 +579,18 @@ def _bar_row(bar: Any, interval: str) -> list[Any]:
     return [_label_time(bar.timestamp, interval), bar.open, bar.high, bar.low, bar.close, int(bar.timestamp.timestamp())]
 
 
+def _delay_seconds(bars: Sequence[Any], now: datetime) -> int | None:
+    """How far behind the clock the newest bar is: the vendor's delay, made visible.
+
+    Exchange data for gold futures reaches the free feed about ten minutes late.
+    A chart that hides that looks stuck; one that states it can be trusted.
+    """
+
+    if not bars:
+        return None
+    return max(0, int((now - bars[-1].timestamp.astimezone(KST)).total_seconds()))
+
+
 def quote_payload(series: BarSeries, *, last: int = 3) -> dict[str, Any]:
     """The newest few candles only: what the page asks for every few seconds."""
 
@@ -585,6 +600,7 @@ def quote_payload(series: BarSeries, *, last: int = 3) -> dict[str, Any]:
         "interval": series.interval,
         "bars": [_bar_row(bar, series.interval) for bar in bars],
         "bucket_seconds": BUCKET_SECONDS.get(series.interval, 60),
+        "delay_seconds": _delay_seconds(bars, now),
         "last_price": bars[-1].close if bars else None,
         "last_time": bars[-1].timestamp.astimezone(KST).isoformat() if bars else None,
         "generated_at": now.isoformat(),
@@ -700,6 +716,7 @@ def build_frame(
         "events": events,
         "last_price": bars[-1].close if bars else 0.0,
         "last_time": bars[-1].timestamp.astimezone(KST).isoformat() if bars else None,
+        "delay_seconds": _delay_seconds(bars, now) if interval not in DAILY_OR_LONGER else None,
         "generated_at": now.isoformat(),
         "generated_label": now.strftime("%H:%M:%S"),
     }

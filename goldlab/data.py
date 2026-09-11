@@ -238,7 +238,7 @@ def _fetch_from_yahoo(symbol: str, interval: str, span_days: int) -> list[dict]:
         ladder = ((7, "7d"), (30, "1mo"), (60, "3mo"), (180, "6mo"), (365, "1y"), (730, "2y"))
         if interval in {"1m", "2m", "5m", "15m", "30m", "90m"}:
             # the fine intervals are served for a much shorter window
-            ladder = ((7, "7d"), (30, "1mo"), (60, "1mo"))
+            ladder = ((1, "1d"), (7, "7d"), (30, "1mo"), (60, "1mo"))
         for days, name in ladder:
             if span_days <= days:
                 params["range"] = name

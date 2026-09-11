@@ -537,3 +537,5 @@ def test_every_bar_carries_the_second_that_tells_candles_apart():
     quote = quote_payload(series, last=2)
     assert [row[5] for row in quote["bars"]] == [int(bar.timestamp.timestamp()) for bar in series.bars[-2:]]
     assert quote["last_price"] == series.bars[-1].close
+    assert quote["delay_seconds"] > 3600          # the synthetic bars are dated 2025, so far behind
+    assert frame["delay_seconds"] == quote["delay_seconds"] or abs(frame["delay_seconds"] - quote["delay_seconds"]) < 5
