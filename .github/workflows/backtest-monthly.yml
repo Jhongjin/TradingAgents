@@ -22,6 +22,9 @@ on:
       only_factors:
         description: "Set to any value to skip the equity replay"
         default: ""
+      sweep:
+        description: "Set to any value to compare rule settings instead of one replay"
+        default: ""
   schedule:
     # 03:40 KST on the first of each month (18:40 UTC on the last day).
     - cron: "40 18 28-31 * *"
@@ -58,7 +61,7 @@ jobs:
           tradingagents backtest \
             --years "${{ github.event.inputs.years || '3' }}" \
             --universe "${{ github.event.inputs.universe || '180' }}" \
-            --persist \
+            ${{ github.event.inputs.sweep && '--sweep' || '--persist' }} \
             --output ./backtest.json
       - name: Measure the score's parts
         if: steps.guard.outputs.go == 'yes'
