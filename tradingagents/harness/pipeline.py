@@ -89,6 +89,12 @@ class PipelineConfig:
     exits_only: bool = False
     account_key: str = "paper"
     max_positions_per_sector: int = 2
+    # Measured, not assumed: across two years of the most traded Korean names,
+    # high 20-day volatility was the most consistent predictor of a worse
+    # return, at both a five and a twenty day horizon. Dropping the most
+    # volatile share of each day's candidates is the one change the study
+    # supports on its own. Off until a backtest shows it helps.
+    volatility_exclude_top_pct: float = 0.0
     # Off by default: turning it on changes what the account buys, and a rule
     # change has to be a dated decision, not a silent one.
     require_positive_flow: bool = False
@@ -113,6 +119,8 @@ class PipelineConfig:
             raise ValueError("commission_rate must be between 0 and 0.05")
         if self.max_positions_per_sector <= 0:
             raise ValueError("max_positions_per_sector must be positive")
+        if not 0 <= self.volatility_exclude_top_pct < 1:
+            raise ValueError("volatility_exclude_top_pct must be between 0 and 1")
         if not 0 < self.stop_loss_pct < 1:
             raise ValueError("stop_loss_pct must be between 0 and 1")
         if not 0 < self.take_profit_pct < 1:
@@ -274,7 +282,8 @@ def run_daily_pipeline(
         notes.append("no confirmer configured; require_llm_confirmation=True so no entries are placed (fail closed)")
     end_date = datetime.strptime(resolved_date, "%Y-%m-%d").date()
     start_date = end_date - timedelta(days=int(config.history_days * 1.6) + 10)
-    for candidate in ([] if config.exits_only else screener_result.candidates[: config.confirm_top_n]):
+    considered = [] if config.exits_only else _drop_most_volatile(screener_result.candidates, config, notes)
+    for candidate in considered[: config.confirm_top_n]:
         decisions.append(
             _process_candidate(
                 candidate,
@@ -386,6 +395,7 @@ def persist_pipeline_result(repo: Any, result: PipelineRunResult, *, config: Pip
                     "min_cash_reserve_pct": config.min_cash_reserve_pct,
                     "max_positions_per_sector": config.max_positions_per_sector,
                     "require_positive_flow": config.require_positive_flow,
+                    "volatility_exclude_top_pct": config.volatility_exclude_top_pct,
                     "commission_rate": config.commission_rate,
                     "initial_cash": config.initial_cash,
                 },
@@ -680,6 +690,28 @@ def _evaluate_exits(
         exit_reasons = [reason, *( [news_note] if news_note else [] ), result.message]
         decisions.append(PipelineDecision(code=code, name=(names or {}).get(code) or code, market="KR", stage="exit", reasons=exit_reasons, mandate=gate.as_dict(), order=result.as_dict()))
     return decisions
+
+
+def _drop_most_volatile(candidates: Sequence[Any], config: PipelineConfig, notes: list[str]) -> list[Any]:
+    """Remove the most volatile share of the day's candidates.
+
+    A relative cut needs no magic threshold and re-calibrates itself as the
+    market's volatility changes, which an absolute one would not.
+    """
+
+    rows = list(candidates or [])
+    if config.volatility_exclude_top_pct <= 0 or len(rows) < 5:
+        return rows
+    measured = [row for row in rows if getattr(getattr(row, "factors", None), "volatility_20d", None) is not None]
+    if len(measured) < 5:
+        return rows
+    measured.sort(key=lambda row: float(row.factors.volatility_20d))
+    keep = max(int(len(measured) * (1 - config.volatility_exclude_top_pct)), 1)
+    kept = {row.code for row in measured[:keep]}
+    dropped = [row for row in rows if row.code not in kept]
+    if dropped:
+        notes.append(f"variability filter removed {len(dropped)} of {len(rows)} candidates")
+    return [row for row in rows if row.code in kept or getattr(getattr(row, "factors", None), "volatility_20d", None) is None]
 
 
 def _investor_flow(code: str, config: PipelineConfig) -> dict | None:

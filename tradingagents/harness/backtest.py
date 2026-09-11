@@ -45,6 +45,7 @@ class BacktestConfig:
     max_positions: int = 10
     max_positions_per_sector: int = 2
     min_cash_reserve_pct: float = 0.10
+    volatility_exclude_top_pct: float = 0.0
     commission_rate: float = 0.00015
     initial_cash: float = 50_000_000.0
     history_window: int = 140
@@ -213,18 +214,26 @@ def run_rule_backtest(
             for code, position in broker.portfolio.positions.items()
         )
         if len(held) < config.max_positions:
-            ranked: list[tuple[float, str]] = []
+            ranked: list[tuple[float, str, float | None]] = []
             for code, window in points_before.items():
                 if code in held or code not in prices or len(window) < config.min_history:
                     continue
                 factors = compute_factor_scores(window[-config.history_window :], weights=config.factor_weights)
                 if factors.momentum_20d is None or factors.composite < config.min_composite:
                     continue
-                ranked.append((factors.composite, code))
+                ranked.append((factors.composite, code, factors.volatility_20d))
+            if config.volatility_exclude_top_pct > 0 and len(ranked) >= 5:
+                by_volatility = sorted(
+                    (item for item in ranked if item[2] is not None),
+                    key=lambda item: item[2],
+                )
+                keep = max(int(len(by_volatility) * (1 - config.volatility_exclude_top_pct)), 1)
+                allowed = {code for _score, code, _vol in by_volatility[:keep]}
+                ranked = [item for item in ranked if item[1] in allowed or item[2] is None]
             ranked.sort(reverse=True)
 
             slot_weight = 1.0 / max(config.max_positions, 1)
-            for _score, code in ranked[: config.top_n]:
+            for _score, code, _volatility in ranked[: config.top_n]:
                 if len(broker.portfolio.positions) >= config.max_positions:
                     break
                 sector = sector_of(code)
@@ -258,6 +267,18 @@ def run_rule_backtest(
             }
         )
 
+    by_year: dict[str, list[float]] = {}
+    for point in curve:
+        by_year.setdefault(point["date"][:4], []).append(float(point["equity"]))
+    yearly = [
+        {
+            "year": year,
+            "return": round((values[-1] / values[0]) - 1, 6) if values and values[0] else None,
+            "days": len(values),
+        }
+        for year, values in sorted(by_year.items())
+    ]
+
     equities = [point["equity"] for point in curve]
     summary = risk_summary(equities)
     wins = [trade for trade in trades if (trade.get("realized_return") or 0) > 0]
@@ -270,6 +291,7 @@ def run_rule_backtest(
         "average_holding_days": round(sum(holding_days) / len(holding_days), 1) if holding_days else None,
         "final_equity": equities[-1] if equities else None,
         "open_positions": len(broker.portfolio.positions),
+        "yearly_returns": yearly,
     }
     if benchmark:
         first = next((benchmark.get(point["date"]) for point in curve if benchmark.get(point["date"])), None)

@@ -132,3 +132,27 @@ def test_no_stored_replay_shows_no_card():
     client = TestClient(create_app(repo=repo, load_repo_from_env=False))
     assert client.get("/api/backtest").json()["status"] == "empty"
     assert "과거 시뮬레이션" not in client.get("/paper").text
+
+
+def test_the_variability_filter_narrows_what_can_be_bought():
+    """The factor study's one consistent signal, made testable."""
+
+    history = {f"{index:06d}": _series(0.002, seed=index) for index in range(1, 21)}
+
+    unfiltered = run_rule_backtest(history=history, start=date(2026, 7, 1), end=date(2027, 2, 1), config=BacktestConfig(top_n=3, max_positions=6))
+    strict = run_rule_backtest(
+        history=history,
+        start=date(2026, 7, 1),
+        end=date(2027, 2, 1),
+        config=BacktestConfig(top_n=3, max_positions=6, volatility_exclude_top_pct=0.9),
+    )
+    assert len({trade["ticker_code"] for trade in strict.trades}) < len({trade["ticker_code"] for trade in unfiltered.trades})
+    assert unfiltered.config["volatility_exclude_top_pct"] == 0.0  # off unless asked for
+    assert strict.config["volatility_exclude_top_pct"] == 0.9
+
+
+def test_the_result_breaks_down_by_year():
+    result = run_rule_backtest(history=HISTORY, start=date(2026, 7, 1), end=date(2027, 2, 1), config=BacktestConfig(top_n=2))
+    yearly = result.metrics["yearly_returns"]
+    assert [row["year"] for row in yearly] == ["2026", "2027"]
+    assert all(row["days"] > 0 for row in yearly)

@@ -1774,6 +1774,7 @@ def backtest_command(
     top_n: int = typer.Option(5, "--top", min=1, max=20, help="Names bought per day, as in the live run."),
     cash: float = typer.Option(50_000_000.0, "--cash", help="Starting capital."),
     label: str = typer.Option("rules", "--label", help="Which replay this is."),
+    sweep: bool = typer.Option(False, "--sweep", help="Try several stop/target and variability settings and compare them."),
     persist: bool = typer.Option(False, "--persist", help="Store the result for the site."),
     output: Optional[Path] = typer.Option(None, "--output", help="Write the full result JSON here."),
 ):
@@ -1858,6 +1859,49 @@ def backtest_command(
 
         return sector_of(code)
 
+    if sweep:
+        # One replay answers "what happened". A sweep answers "was this setting
+        # the reason", which is the question the factor study raised.
+        variants = [
+            ("현행 5%/10%", dict(stop_loss_pct=0.05, take_profit_pct=0.10)),
+            ("손절 넓힘 8%/10%", dict(stop_loss_pct=0.08, take_profit_pct=0.10)),
+            ("손절 넓힘 10%/15%", dict(stop_loss_pct=0.10, take_profit_pct=0.15)),
+            ("익절 늘림 5%/20%", dict(stop_loss_pct=0.05, take_profit_pct=0.20)),
+            ("변동성 상위 20% 제외", dict(volatility_exclude_top_pct=0.2)),
+            ("변동성 제외 + 손절 8%", dict(volatility_exclude_top_pct=0.2, stop_loss_pct=0.08)),
+            ("보유 40일", dict(max_holding_days=40)),
+        ]
+        table = Table(box=box.SIMPLE_HEAD, title=f"설정 비교 ({start} → {end})")
+        for column in ("설정", "수익률", "최대낙폭", "샤프", "거래", "승률", "평균보유"):
+            table.add_column(column)
+        rows_for_json = []
+        for name, overrides in variants:
+            variant = run_rule_backtest(
+                history=history,
+                names=names,
+                start=start,
+                end=end,
+                config=BacktestConfig(top_n=top_n, initial_cash=cash, **overrides),
+                sector_lookup=_sector,
+            )
+            m = variant.metrics
+            table.add_row(
+                name,
+                f"{(m.get('total_return') or 0) * 100:+.2f}%",
+                f"{(m.get('max_drawdown') or 0) * 100:.2f}%",
+                f"{m.get('sharpe_ratio')}",
+                str(m.get("trade_count")),
+                f"{(m.get('hit_rate') or 0):.1%}",
+                f"{m.get('average_holding_days')}",
+            )
+            rows_for_json.append({"variant": name, "overrides": overrides, "metrics": m})
+            console.print(f"[dim]  {name}: {(m.get('total_return') or 0) * 100:+.2f}%[/dim]")
+        console.print(table)
+        if output is not None:
+            output.write_text(json.dumps(rows_for_json, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+            console.print(f"[dim]saved {output}[/dim]")
+        return
+
     result = run_rule_backtest(
         history=history,
         names=names,
@@ -1874,6 +1918,8 @@ def backtest_command(
         f"최대낙폭 {(metrics.get('max_drawdown') or 0) * 100:.2f}% · "
         f"샤프 {metrics.get('sharpe_ratio')} · 거래 {metrics.get('trade_count')}건 · 승률 {metrics.get('hit_rate')}"
     )
+    for row in result.metrics.get("yearly_returns") or []:
+        console.print(f"[dim]  {row['year']}: {(row.get('return') or 0) * 100:+.2f}% ({row['days']}일)[/dim]")
     for note in result.notes:
         console.print(f"[yellow]{note}[/yellow]")
 
