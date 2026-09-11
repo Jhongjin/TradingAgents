@@ -52,18 +52,21 @@ def render_gold_chart_page(
 
     frames: dict[str, dict[str, Any]] = {}
     for interval in intervals:
+        # One timeframe failing must not take the page with it: the vendor
+        # rate-limits, and a host can refuse a directory the lab wants. Whatever
+        # is left still draws.
         try:
             series = fetch_bars(symbol, interval=interval)
+            if len(series) < 60:
+                continue
+            frames[interval] = build_frame(
+                series,
+                study=load_stored_study(repo, symbol, interval),
+                max_bars=bars,
+                min_stars=min_stars,
+            )
         except Exception:
             continue
-        if len(series) < 60:
-            continue
-        frames[interval] = build_frame(
-            series,
-            study=load_stored_study(repo, symbol, interval),
-            max_bars=bars,
-            min_stars=min_stars,
-        )
     if not frames:
         return (
             "<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\">"

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import os
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -83,10 +84,32 @@ class BarSeries:
 
 
 def cache_dir() -> Path:
+    """Where bars are kept, somewhere that can actually be written.
+
+    On a laptop that is the home directory. On a serverless host the home
+    directory is mounted read-only, and asking for the path there raises before
+    anything is even read, so the temporary area stands in: empty, writable, and
+    good enough for a cache whose only job is to avoid a second download.
+    """
+
     raw = os.getenv("GOLDLAB_CACHE_DIR")
-    path = Path(raw) if raw else Path.home() / ".goldlab" / "bars"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    candidates: list[Path] = []
+    if raw:
+        candidates.append(Path(raw))
+    else:
+        try:
+            candidates.append(Path.home() / ".goldlab" / "bars")
+        except RuntimeError:  # no home directory at all
+            pass
+    candidates.append(Path(tempfile.gettempdir()) / "goldlab" / "bars")
+
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            continue
+        return candidate
+    return candidates[-1]
 
 
 def cache_path(symbol: str, interval: str) -> Path:

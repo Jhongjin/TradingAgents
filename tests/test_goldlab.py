@@ -340,3 +340,34 @@ def test_a_pattern_without_a_measurement_is_marked_as_such():
     }
     measured = _hit_rows(hits, study)
     assert measured[0]["confidence"] == "강함" and measured[0]["samples"] == 500
+
+
+def test_the_cache_falls_back_when_the_home_directory_cannot_be_written(tmp_path, monkeypatch):
+    """A serverless host mounts home read-only; the chart still has to render."""
+
+    import pathlib
+
+    import goldlab.data as data
+    from goldlab.events import macro_events, events_file
+
+    monkeypatch.delenv("GOLDLAB_CACHE_DIR", raising=False)
+    monkeypatch.setattr(pathlib.Path, "home", classmethod(lambda cls: pathlib.Path("/read-only-home")))
+
+    real_mkdir = pathlib.Path.mkdir
+
+    def refuse_outside_tmp(self, *args, **kwargs):
+        if str(self).replace("\\", "/").startswith("/read-only-home"):
+            raise OSError(30, "Read-only file system")
+        return real_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(pathlib.Path, "mkdir", refuse_outside_tmp)
+    monkeypatch.setattr(data.tempfile, "gettempdir", lambda: str(tmp_path))
+
+    assert data.cache_dir() == tmp_path / "goldlab" / "bars"
+    assert data.cache_dir().exists()
+    assert events_file() == tmp_path / "goldlab" / "events.csv"
+
+    # The releases that follow a rule still appear; the operator's file is absent.
+    start = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    events = macro_events(start, start + timedelta(days=20), min_stars=3)
+    assert events and all(row["source"] == "rule" for row in events)
