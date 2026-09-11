@@ -55,6 +55,18 @@ def build_gold_frame(*, repo: Any = None, symbol: str = "GC=F", interval: str = 
     return build_frame(series, study=load_stored_study(repo, symbol, interval), max_bars=bars, min_stars=min_stars)
 
 
+def build_gold_quote(*, symbol: str = "GC=F", interval: str = DEFAULT_INTERVAL) -> dict[str, Any]:
+    """The newest candles for the page's quote timer. Cheap, so it can be frequent."""
+
+    from goldlab.chart import quote_payload
+    from goldlab.data import fetch_bars
+
+    series = fetch_bars(symbol, interval=interval, days=1)
+    if not len(series):
+        raise RuntimeError(f"no bars for {symbol} {interval}")
+    return quote_payload(series)
+
+
 def render_gold_chart_page(
     *,
     repo: Any = None,

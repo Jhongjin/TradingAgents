@@ -23,7 +23,7 @@ from .contracts import CONTRACTS, GOLD_FUTURES
 from .data import INTERVAL_MAX_DAYS, cache_path, fetch_bars, load_bars
 from .patterns import PATTERN_REGISTRY, detect_patterns
 from .live import DEFAULT_INTERVALS, save_study, scan_live
-from .chart import build_frame, render_chart
+from .chart import build_frame, quote_payload, render_chart
 from .events import events_file, write_events_template
 from .report import render_report
 from .study import DEFAULT_HORIZONS, run_pattern_study
@@ -370,6 +370,19 @@ def serve_command(
                     return
                 try:
                     payload = frame_for(interval, count)
+                except Exception as exc:
+                    self._send(503, json.dumps({"error": exc.__class__.__name__}).encode("utf-8"), "application/json")
+                    return
+                self._send(200, json.dumps(payload, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
+                return
+            if url.path == "/quote":
+                query = parse_qs(url.query)
+                interval = (query.get("interval") or [wanted[0]])[0]
+                if interval not in INTERVAL_MAX_DAYS:
+                    self._send(400, b'{"error":"unsupported interval"}', "application/json")
+                    return
+                try:
+                    payload = quote_payload(fetch_bars(symbol, interval=interval, days=1))
                 except Exception as exc:
                     self._send(503, json.dumps({"error": exc.__class__.__name__}).encode("utf-8"), "application/json")
                     return

@@ -480,7 +480,7 @@ def test_the_frame_reads_korean_time_and_carries_lines_forecasts_and_a_bias():
 
     live = render_chart({"1h": frame}, symbol="GC=F", intervals=("1m", "1h", "1d"), data_url="/lab/gold/data", bars=300)
     assert '"data_url": "/lab/gold/data"' in live and 'data-interval="1m"' in live and 'data-interval="1d"' in live
-    assert "자동으로 갱신" in live and "이동평균" in live and "추세선" in live and "KST" in live
+    assert "시세로 움직이고" in live and "quote_seconds" in live and "이동평균" in live and "추세선" in live and "KST" in live
     static = render_chart({"1h": frame}, symbol="GC=F")
     assert '"data_url": null' in static and "정지 화면" in static
 
@@ -516,3 +516,24 @@ def test_the_served_chart_fetches_one_timeframe_at_a_time(monkeypatch):
 
     assert client.get("/lab/gold/data?interval=7h").status_code == 400
     assert client.get("/lab/gold/data?interval=1mo").status_code == 503
+
+    quote = client.get("/lab/gold/quote?interval=5m")
+    assert quote.status_code == 200 and quote.headers["cache-control"] == "private, no-store"
+    body = quote.json()
+    assert len(body["bars"]) == 3 and body["bucket_seconds"] == 3600 and len(body["bars"][-1]) == 6   # the synthetic series is hourly whatever was asked
+    assert body["bars"][-1][5] == int(_synthetic(bars=400).bars[-1].timestamp.timestamp())
+    assert client.get("/lab/gold/quote?interval=9h").status_code == 400
+    assert client.get("/lab/gold/quote?interval=1mo").status_code == 503
+
+
+def test_every_bar_carries_the_second_that_tells_candles_apart():
+    from goldlab.chart import build_frame, quote_payload
+
+    series = _synthetic(bars=200)
+    frame = build_frame(series, study=None, max_bars=100)
+    assert frame["bucket_seconds"] == 3600
+    assert all(len(row) == 6 and isinstance(row[5], int) for row in frame["bars"])
+    assert frame["bars"][-1][5] == int(series.bars[-1].timestamp.timestamp())
+    quote = quote_payload(series, last=2)
+    assert [row[5] for row in quote["bars"]] == [int(bar.timestamp.timestamp()) for bar in series.bars[-2:]]
+    assert quote["last_price"] == series.bars[-1].close

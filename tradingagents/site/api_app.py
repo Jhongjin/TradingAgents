@@ -1444,6 +1444,28 @@ def create_app(
             headers={"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "private, no-store"},
         )
 
+    @app.get("/lab/gold/quote", include_in_schema=False)
+    def gold_chart_quote(
+        interval: Annotated[str, Query(max_length=8)] = "1h",
+    ) -> Response:
+        """The newest candles only, asked for every few seconds to move the last bar."""
+
+        from goldlab.data import INTERVAL_MAX_DAYS
+
+        from .gold_page import build_gold_quote
+
+        if interval not in INTERVAL_MAX_DAYS:
+            raise HTTPException(status_code=400, detail="unsupported interval")
+        try:
+            quote = build_gold_quote(interval=interval)
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail=f"quote source unavailable: {exc.__class__.__name__}") from exc
+        return Response(
+            json.dumps(quote, ensure_ascii=False),
+            media_type="application/json",
+            headers={"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "private, no-store"},
+        )
+
     @app.post("/api/admin/lab/gold/study", include_in_schema=False)
     def store_gold_study(
         body: GoldStudyBody,

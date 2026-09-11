@@ -30,6 +30,9 @@ from .sessions import SESSIONS, all_session_windows, session_summary
 KST = ZoneInfo("Asia/Seoul")
 DAILY_OR_LONGER = {"1d", "1wk", "1mo"}
 POLL_SECONDS = {"1m": 20, "2m": 20, "5m": 30, "15m": 30, "30m": 60, "1h": 60, "4h": 120, "1d": 300, "1wk": 600, "1mo": 600}
+# How often the last candle is nudged with a fresh quote, apart from the full redraw.
+QUOTE_SECONDS = {"1m": 5, "2m": 5, "5m": 5, "15m": 5, "30m": 10, "1h": 10, "4h": 10, "1d": 30, "1wk": 30, "1mo": 30}
+BUCKET_SECONDS = {"1m": 60, "2m": 120, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400, "1wk": 604800, "1mo": 2678400}
 
 CHART_CSS = """
 :root { color-scheme: dark; --bg:#0e1117; --panel:#161a22; --line:#252b37; --ink:#e8ebf2; --ink2:#98a2b6;
@@ -417,35 +420,88 @@ function renderHeader() {
   const f = frame();
   document.getElementById('price').textContent = f.last_price.toFixed(1);
   document.getElementById('meta').textContent = f.bars.length + '봉 · 마지막 ' + f.bars[f.bars.length - 1][0] + ' KST';
-  const live = document.getElementById('live');
-  live.querySelector('span').textContent = (DATA.data_url ? '갱신 ' : '생성 ') + f.generated_label;
-  live.classList.toggle('stale', !DATA.data_url);
 }
+
+let lastUpdate = null;     // when the chart last received anything
+let lastError = null;
+function liveText() {
+  const live = document.getElementById('live');
+  const text = live.querySelector('span');
+  if (!DATA.data_url) { live.classList.add('stale'); text.textContent = '정지 화면 · ' + frame().generated_label; return; }
+  if (lastError) { live.classList.add('stale'); text.textContent = '갱신 실패: ' + lastError; return; }
+  if (!lastUpdate) { text.textContent = '연결 중'; return; }
+  const ago = Math.max(0, Math.round((Date.now() - lastUpdate) / 1000));
+  live.classList.toggle('stale', ago > (DATA.quote_seconds[current] || 10) * 4);
+  text.textContent = '실시간 · ' + ago + '초 전 갱신';
+}
+setInterval(liveText, 1000);
 
 function render(keepSpan) {
   renderHeader();
   if (!view || !keepSpan) resetView(false); else if (pinned) resetView(true);
-  draw(); renderPanels();
+  draw(); renderPanels(); liveText();
 }
 
-async function fetchFrame(interval) {
-  const url = DATA.data_url + (DATA.data_url.includes('?') ? '&' : '?') + 'interval=' + encodeURIComponent(interval) + '&bars=' + DATA.bars;
+function apiUrl(path, interval, extra) {
+  const base = DATA.data_url.replace(/\/data$/, '') + path;
+  return base + (base.includes('?') ? '&' : '?') + 'interval=' + encodeURIComponent(interval) + (extra || '');
+}
+
+async function getJson(url) {
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) throw new Error('HTTP ' + response.status);
   return response.json();
 }
 
+function fetchFrame(interval) { return getJson(apiUrl('/data', interval, '&bars=' + DATA.bars)); }
+function fetchQuote(interval) { return getJson(apiUrl('/quote', interval)); }
+
+function received() { lastUpdate = Date.now(); lastError = null; }
+function failed(error) { lastError = (error && error.message) || String(error); liveText(); console.warn('goldlab refresh failed', error); }
+
+async function refreshFrame() {
+  const interval = current;
+  const fresh = await fetchFrame(interval);
+  if (interval !== current || !fresh || !fresh.bars || !fresh.bars.length) return;
+  DATA.intervals[interval] = fresh; received(); render(true);
+}
+
+// Move the last candle with the newest quote; a bar in a newer bucket means a
+// whole new candle, and that is the full redraw's job, so it is asked for.
+async function refreshQuote() {
+  const interval = current;
+  const quote = await fetchQuote(interval);
+  const f = frame();
+  if (interval !== current || !quote || !quote.bars || !quote.bars.length || !f) return;
+  received();
+  const bucket = f.bucket_seconds || 60;
+  const last = f.bars[f.bars.length - 1];
+  const incoming = quote.bars[quote.bars.length - 1];
+  const sameBar = Math.floor(last[5] / bucket) === Math.floor(incoming[5] / bucket);
+  if (!sameBar) {
+    if (incoming[5] > last[5]) { refreshFrame().catch(failed); }
+    return;
+  }
+  f.bars[f.bars.length - 1] = incoming;
+  f.last_price = incoming[4];
+  for (const [period, values] of Object.entries(f.ma || {})) {
+    if (values.length !== f.bars.length) continue;
+    const n = parseInt(period, 10);
+    if (f.bars.length >= n) {
+      let sum = 0; for (let i = f.bars.length - n; i < f.bars.length; i++) sum += f.bars[i][4];
+      values[values.length - 1] = Math.round(sum / n * 100) / 100;
+    }
+  }
+  renderHeader(); draw(); liveText();
+}
+
+let quoteTimer = null;
 function schedule() {
   if (timer) clearInterval(timer);
+  if (quoteTimer) clearInterval(quoteTimer);
   if (!DATA.data_url) return;
-  const seconds = DATA.poll_seconds[current] || 60;
-  timer = setInterval(async () => {
-    if (document.hidden) return;
-    try {
-      const fresh = await fetchFrame(current);
-      if (fresh && fresh.bars && fresh.bars.length) { DATA.intervals[current] = fresh; render(true); }
-    } catch (error) { document.getElementById('live').classList.add('stale'); }
-  }, seconds * 1000);
+  timer = setInterval(() => { if (!document.hidden) refreshFrame().catch(failed); }, (DATA.poll_seconds[current] || 60) * 1000);
+  quoteTimer = setInterval(() => { if (!document.hidden) refreshQuote().catch(failed); }, (DATA.quote_seconds[current] || 10) * 1000);
 }
 
 async function select(interval) {
@@ -454,11 +510,14 @@ async function select(interval) {
   if (!DATA.intervals[interval]) {
     if (!DATA.data_url) return;
     loading.style.display = 'flex';
-    try { DATA.intervals[interval] = await fetchFrame(interval); }
-    catch (error) { loading.textContent = interval + ' 시세를 불러오지 못했습니다'; return; }
+    try { DATA.intervals[interval] = await fetchFrame(interval); received(); }
+    catch (error) { loading.textContent = interval + ' 시세를 불러오지 못했습니다 (' + ((error && error.message) || error) + ')'; failed(error); return; }
     finally { if (DATA.intervals[interval]) loading.style.display = 'none'; }
+  } else if (DATA.data_url && !lastUpdate) {
+    lastUpdate = Date.now();   // the inlined frame is as fresh as the page
   }
   view = null; render(false); schedule();
+  if (DATA.data_url) refreshQuote().catch(failed);
 }
 
 document.querySelectorAll('.tabs button').forEach((button) => {
@@ -467,7 +526,9 @@ document.querySelectorAll('.tabs button').forEach((button) => {
 document.querySelectorAll('.toggles input').forEach((input) => {
   input.addEventListener('change', () => { show[input.dataset.key] = input.checked; draw(); });
 });
-document.addEventListener('visibilitychange', () => { if (!document.hidden && DATA.data_url) select(current); });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && DATA.data_url) refreshFrame().catch(failed);
+});
 window.addEventListener('resize', resize);
 select(current).then(resize);
 """
@@ -505,6 +566,28 @@ def _best_stats(study: Mapping[str, Any] | None, *, min_samples: int) -> dict[st
 def _label_time(stamp: datetime, interval: str) -> str:
     local = stamp.astimezone(KST)
     return local.strftime("%Y-%m-%d") if interval in DAILY_OR_LONGER else local.strftime("%m-%d %H:%M")
+
+
+def _bar_row(bar: Any, interval: str) -> list[Any]:
+    """Label, OHLC, and the epoch second the page uses to tell one candle from the next."""
+
+    return [_label_time(bar.timestamp, interval), bar.open, bar.high, bar.low, bar.close, int(bar.timestamp.timestamp())]
+
+
+def quote_payload(series: BarSeries, *, last: int = 3) -> dict[str, Any]:
+    """The newest few candles only: what the page asks for every few seconds."""
+
+    bars = series.bars[-last:]
+    now = datetime.now(timezone.utc).astimezone(KST)
+    return {
+        "interval": series.interval,
+        "bars": [_bar_row(bar, series.interval) for bar in bars],
+        "bucket_seconds": BUCKET_SECONDS.get(series.interval, 60),
+        "last_price": bars[-1].close if bars else None,
+        "last_time": bars[-1].timestamp.astimezone(KST).isoformat() if bars else None,
+        "generated_at": now.isoformat(),
+        "generated_label": now.strftime("%H:%M:%S"),
+    }
 
 
 def _hit_rows(hits: Sequence[PatternHit], study: Mapping[str, Any] | None, *, min_samples: int = 30, interval: str = "1h") -> list[dict]:
@@ -603,7 +686,8 @@ def build_frame(
     now = datetime.now(timezone.utc).astimezone(KST)
     return {
         "interval": interval,
-        "bars": [[_label_time(bar.timestamp, interval), bar.open, bar.high, bar.low, bar.close] for bar in bars],
+        "bars": [_bar_row(bar, interval) for bar in bars],
+        "bucket_seconds": BUCKET_SECONDS.get(interval, 60),
         "hits": hits,
         "forming": forming,
         "ma": moving_averages(bars),
@@ -651,6 +735,7 @@ def render_chart(
         "data_url": data_url,
         "bars": bars,
         "poll_seconds": POLL_SECONDS,
+        "quote_seconds": QUOTE_SECONDS,
     }
     tabs = "".join(
         f'<button data-interval="{html.escape(interval)}">{html.escape(interval)}</button>' for interval in order
@@ -660,7 +745,7 @@ def render_chart(
     )
     generated = datetime.now(timezone.utc).astimezone(KST).strftime("%Y-%m-%d %H:%M")
     refresh_note = (
-        "화면의 시간대는 자동으로 갱신됩니다(분봉 20~60초, 일봉 이상 5~10분). 시세는 제공처 기준이라 몇 분 지연될 수 있습니다."
+        "마지막 봉은 5~30초마다 시세로 움직이고, 패턴·추세선·이동평균은 20초~10분마다 다시 계산됩니다. 시세는 제공처 기준이라 몇 분 지연될 수 있습니다."
         if data_url
         else "이 파일은 생성 시점의 정지 화면입니다. 실시간은 goldlab serve 명령이나 웹 주소를 이용하세요."
     )
