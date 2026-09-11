@@ -1,0 +1,57 @@
+name: Gold pattern measurement
+
+# Re-measures what followed each gold futures pattern and stores the result so
+# the private chart at /lab/gold can quote a win rate beside every mark.
+#
+# Measuring years of bars takes minutes, which no web request can spend, so it
+# happens here. Nothing is traded and nothing is published publicly: the row is
+# read only by that one private page.
+
+on:
+  workflow_dispatch:
+    inputs:
+      intervals:
+        description: "Timeframes to measure"
+        default: "15m,1h,4h,1d"
+      horizons:
+        description: "Forward bars to measure"
+        default: "4,12,24,72"
+  schedule:
+    # 07:20 KST every Saturday (22:20 UTC Friday), after the week has closed.
+    - cron: "20 22 * * 5"
+
+concurrency:
+  group: goldlab-study
+  cancel-in-progress: false
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TRADINGAGENTS_POSTGRES_DRIVER: pg8000
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -e .
+      - name: Measure each timeframe
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "::error::DATABASE_URL secret is not set"; exit 1; fi
+          INTERVALS="${{ github.event.inputs.intervals || '15m,1h,4h,1d' }}"
+          for interval in $(echo "$INTERVALS" | tr ',' ' '); do
+            echo "::group::$interval"
+            python -m goldlab study \
+              --interval "$interval" \
+              --horizons "${{ github.event.inputs.horizons || '4,12,24,72' }}" \
+              || echo "::warning::$interval could not be measured"
+            echo "::endgroup::"
+          done
+      - name: Store them for the chart
+        run: |
+          python -m goldlab publish --direct --intervals "${{ github.event.inputs.intervals || '15m,1h,4h,1d' }}"

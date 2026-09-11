@@ -359,14 +359,25 @@ def publish_command(
     intervals: str = typer.Option("15m,1h,4h,1d", "--intervals"),
     base_url: str = typer.Option("https://agenttrust.kr", "--base-url"),
     token: Optional[str] = typer.Option(None, "--token", help="Operator token; falls back to OPERATOR_ACCESS_CODE."),
+    direct: bool = typer.Option(False, "--direct", help="Write to the database instead of posting to the site."),
 ):
-    """Send the local measurements to the web chart so it can quote them."""
+    """Send the local measurements to the web chart so it can quote them.
+
+    Two ways in. ``--direct`` writes the row itself, which is what the scheduled
+    run does: it already holds the database credentials and needs no second
+    secret. Without it the measurement is posted to the site, which is what an
+    operator on a laptop can do without database access.
+    """
 
     import os
 
-    import requests
-
     from .live import load_study
+
+    if direct:
+        _publish_directly(symbol, intervals)
+        return
+
+    import requests
 
     secret = token or os.getenv("OPERATOR_ACCESS_CODE") or os.getenv("TRADINGAGENTS_WORKER_TOKEN")
     if not secret:
@@ -388,6 +399,40 @@ def publish_command(
             continue
         body = response.json()
         console.print(f"[green]{interval}[/green] 패턴 {body.get('patterns')}건 전송")
+
+
+def _publish_directly(symbol: str, intervals: str) -> None:
+    """Store each measurement under the label the chart reads."""
+
+    import os
+
+    from tradingagents.site.gold_page import study_label
+    from tradingagents.storage import StorageRepository, create_storage_engine
+
+    from .live import load_study
+
+    if not os.getenv("DATABASE_URL"):
+        raise typer.BadParameter("--direct requires DATABASE_URL")
+    repo = StorageRepository(create_storage_engine())
+    for interval in [name.strip() for name in intervals.split(",") if name.strip()]:
+        study = load_study(symbol, interval)
+        if not study:
+            console.print(f"[yellow]{interval}: 측정 결과가 없습니다. study 를 먼저 실행하세요.[/yellow]")
+            continue
+        run_id = repo.save_backtest_run(
+            {
+                "start_date": str(study.get("start") or "")[:10] or "1970-01-01",
+                "end_date": str(study.get("end") or "")[:10] or "1970-01-01",
+                "universe_size": int(study.get("bars") or 0),
+                "metrics": {"study": study, "trade_count": len(study.get("patterns") or [])},
+                "config": {"symbol": symbol, "interval": interval, "horizons": study.get("horizons")},
+                "equity_curve": [],
+                "trades": [],
+                "notes": study.get("notes") or [],
+            },
+            label=study_label(symbol, interval),
+        )
+        console.print(f"[green]{interval}[/green] 패턴 {len(study.get('patterns') or [])}건 저장 (id={run_id})")
 
 
 def main() -> None:
