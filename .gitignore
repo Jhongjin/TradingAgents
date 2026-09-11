@@ -218,3 +218,6 @@ __marimo__/
 # Cache
 **/data_cache/
 .vercel
+
+# gold lab cache (personal, machine-local)
+.goldlab/
