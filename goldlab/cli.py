@@ -20,7 +20,7 @@ from rich.console import Console
 from rich.table import Table
 
 from .contracts import CONTRACTS, GOLD_FUTURES
-from .data import INTERVAL_MAX_DAYS, cache_path, load_bars
+from .data import INTERVAL_MAX_DAYS, cache_path, fetch_bars, load_bars
 from .patterns import PATTERN_REGISTRY, detect_patterns
 from .live import DEFAULT_INTERVALS, save_study, scan_live
 from .chart import build_frame, render_chart
@@ -287,7 +287,7 @@ def report_command(
 @app.command("chart")
 def chart_command(
     symbol: str = typer.Option("GC=F", "--symbol"),
-    intervals: str = typer.Option("5m,15m,1h,4h,1d", "--intervals"),
+    intervals: str = typer.Option("1m,5m,15m,1h,4h,1d,1wk,1mo", "--intervals"),
     bars: int = typer.Option(700, "--bars", min=120, max=2000, help="Bars per timeframe to draw."),
     stars: int = typer.Option(3, "--stars", min=1, max=3, help="Minimum importance for an economic release."),
     offline: bool = typer.Option(False, "--offline", help="Use the cached bars instead of fetching."),
@@ -320,6 +320,86 @@ def chart_command(
         import webbrowser
 
         webbrowser.open(output.resolve().as_uri())
+
+
+@app.command("serve")
+def serve_command(
+    symbol: str = typer.Option("GC=F", "--symbol"),
+    intervals: str = typer.Option("1m,5m,15m,1h,4h,1d,1wk,1mo", "--intervals"),
+    bars: int = typer.Option(600, "--bars", min=120, max=2000, help="Bars per timeframe to draw."),
+    stars: int = typer.Option(3, "--stars", min=1, max=3, help="Minimum importance for an economic release."),
+    port: int = typer.Option(8765, "--port"),
+    open_it: bool = typer.Option(True, "--open/--no-open"),
+):
+    """Serve the live chart on this machine; it refreshes itself while open."""
+
+    import json
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from urllib.parse import parse_qs, urlparse
+
+    from .live import load_study
+
+    wanted = [name.strip() for name in intervals.split(",") if name.strip()]
+
+    def frame_for(interval: str, count: int) -> dict:
+        series = fetch_bars(symbol, interval=interval)
+        if len(series) < 60:
+            raise RuntimeError(f"only {len(series)} bars")
+        return build_frame(series, study=load_study(symbol, interval), max_bars=count, min_stars=stars)
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args) -> None:  # noqa: A002 - stdlib signature
+            console.print(f"[dim]{self.address_string()} {format % args}[/dim]")
+
+        def _send(self, status: int, body: bytes, content_type: str) -> None:
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self) -> None:  # noqa: N802 - stdlib name
+            url = urlparse(self.path)
+            if url.path == "/data":
+                query = parse_qs(url.query)
+                interval = (query.get("interval") or [wanted[0]])[0]
+                count = max(120, min(2000, int((query.get("bars") or [bars])[0])))
+                if interval not in INTERVAL_MAX_DAYS:
+                    self._send(400, b'{"error":"unsupported interval"}', "application/json")
+                    return
+                try:
+                    payload = frame_for(interval, count)
+                except Exception as exc:
+                    self._send(503, json.dumps({"error": exc.__class__.__name__}).encode("utf-8"), "application/json")
+                    return
+                self._send(200, json.dumps(payload, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
+                return
+            if url.path in {"/", "/index.html"}:
+                frames = {}
+                try:
+                    first = "1h" if "1h" in wanted else wanted[0]
+                    frames[first] = frame_for(first, bars)
+                except Exception as exc:
+                    console.print(f"[yellow]첫 시간대를 불러오지 못했습니다: {exc.__class__.__name__}[/yellow]")
+                page = render_chart(frames, symbol=symbol, default_interval="1h", intervals=wanted, data_url="/data", bars=bars)
+                self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
+                return
+            self._send(404, b"not found", "text/plain")
+
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    address = f"http://127.0.0.1:{port}/"
+    console.print(f"[green]{address}[/green] (Ctrl+C 로 종료)")
+    if open_it:
+        import webbrowser
+
+        webbrowser.open(address)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
 
 
 @app.command("events")

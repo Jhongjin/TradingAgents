@@ -12,7 +12,7 @@ on:
     inputs:
       intervals:
         description: "Timeframes to measure"
-        default: "15m,1h,4h,1d"
+        default: "5m,15m,1h,4h,1d,1wk"
       horizons:
         description: "Forward bars to measure"
         default: "4,12,24,72"
@@ -43,7 +43,7 @@ jobs:
       - name: Measure each timeframe
         run: |
           if [ -z "$DATABASE_URL" ]; then echo "::error::DATABASE_URL secret is not set"; exit 1; fi
-          INTERVALS="${{ github.event.inputs.intervals || '15m,1h,4h,1d' }}"
+          INTERVALS="${{ github.event.inputs.intervals || '5m,15m,1h,4h,1d,1wk' }}"
           for interval in $(echo "$INTERVALS" | tr ',' ' '); do
             echo "::group::$interval"
             python -m goldlab study \
@@ -54,4 +54,4 @@ jobs:
           done
       - name: Store them for the chart
         run: |
-          python -m goldlab publish --direct --intervals "${{ github.event.inputs.intervals || '15m,1h,4h,1d' }}"
+          python -m goldlab publish --direct --intervals "${{ github.event.inputs.intervals || '5m,15m,1h,4h,1d,1wk' }}"

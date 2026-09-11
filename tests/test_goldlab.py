@@ -2,6 +2,7 @@
 
 import random
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -319,7 +320,7 @@ def test_the_chart_marks_patterns_sessions_and_releases(tmp_path):
     page = render_chart({"1h": frame}, symbol="GC=F")
     assert "<canvas id=\"chart\"" in page
     assert "noindex" in page  # a private chart, even when served
-    assert "세션 고저" in page and "경제지표" in page and "패턴 표시" in page
+    assert "세션 고저" in page and "경제지표" in page and "완성 패턴" in page and "형성 중인 패턴" in page
     for label in ("아시아", "유럽", "미국"):
         assert label in page
 
@@ -371,3 +372,147 @@ def test_the_cache_falls_back_when_the_home_directory_cannot_be_written(tmp_path
     start = datetime(2026, 9, 1, tzinfo=timezone.utc)
     events = macro_events(start, start + timedelta(days=20), min_stars=3)
     assert events and all(row["source"] == "rule" for row in events)
+
+
+def test_moving_averages_and_trend_lines_come_from_the_bars():
+    from goldlab.indicators import exponential_moving_average, simple_moving_average, trend_lines
+
+    values = [1.0, 2.0, 3.0, 4.0, 5.0]
+    assert simple_moving_average(values, 3) == [None, None, 2.0, 3.0, 4.0]
+    ema = exponential_moving_average(values, 3)
+    assert ema[:2] == [None, None] and ema[2] == 2.0 and ema[3] > 2.0
+    with pytest.raises(ValueError):
+        simple_moving_average(values, 0)
+
+    series = _synthetic(bars=500)
+    lines = trend_lines(series.bars)
+    assert {line["kind"] for line in lines} <= {"low", "high"}
+    for line in lines:
+        assert line["to_index"] == len(series.bars) - 1
+        assert line["from_index"] < line["anchor_index"] <= line["to_index"]
+        assert line["label"] in {"지지선", "저항선"} and isinstance(line["broken"], bool)
+
+
+def _double_bottom_bars(*, broken: bool):
+    """A fall, a bounce to a neckline, a second matching low, then the bar after."""
+
+    stamp = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    rows = []
+
+    def add(open_, high, low, close):
+        nonlocal stamp
+        stamp += timedelta(hours=1)
+        rows.append(_bar(stamp, open_, high, low, close))
+
+    price = 4000.0
+    for _ in range(30):                       # a quiet run-in so pivots exist
+        add(price, price + 2, price - 2, price)
+    for _ in range(8):                        # down to the first low
+        add(price, price + 1, price - 12, price - 10)
+        price -= 10
+    first_low = price
+    for _ in range(8):                        # up to the neckline
+        add(price, price + 12, price - 1, price + 10)
+        price += 10
+    neckline = price
+    for _ in range(8):                        # down to a matching second low
+        add(price, price + 1, price - 12, price - 10)
+        price -= 10
+    assert abs(price - first_low) < 1
+    for _ in range(5):                        # a partial bounce, short of the neckline
+        add(price, price + 8, price - 1, price + 6)
+        price += 6
+    if broken:
+        add(price, neckline + 15, price - 1, neckline + 12)
+    else:
+        add(price, price + 2, price - 2, price)
+    return bars_from_rows(rows, symbol="GC=F", interval="1h"), neckline
+
+
+def test_a_double_bottom_is_reported_while_it_forms_and_not_after_it_breaks():
+    from goldlab.patterns.forming import attach_record, detect_forming
+
+    series, neckline = _double_bottom_bars(broken=False)
+    forming = detect_forming(series.bars)
+    bottoms = [row for row in forming if row["pattern"] == "double_bottom"]
+    assert bottoms, [row["pattern"] for row in forming]
+    shape = bottoms[0]
+    assert shape["direction"] == "bullish"
+    assert abs(shape["trigger"] - neckline) < 15          # the neckline is the bounce's high
+    assert shape["distance"] > 0                          # and it sits above the last close
+    assert "넥라인" in shape["trigger_label"]
+
+    study = {"patterns": [{"pattern": "double_bottom", "horizons": {"12": {"count": 80, "win_rate": 0.61, "edge_win_rate": 0.09, "t_stat": 2.4}}}]}
+    quoted = attach_record(bottoms, study)[0]
+    assert quoted["samples"] == 80 and quoted["confidence"] == "보통" and quoted["win_rate"] == 0.61
+    assert attach_record(bottoms, None)[0]["confidence"] == "측정 없음"
+
+    broken, _ = _double_bottom_bars(broken=True)
+    assert not [row for row in detect_forming(broken.bars) if row["pattern"] == "double_bottom"]
+
+
+def test_the_frame_reads_korean_time_and_carries_lines_forecasts_and_a_bias():
+    from goldlab.chart import build_frame, render_chart, summarise_bias
+
+    series = _synthetic(bars=400)
+    frame = build_frame(series, study=None, max_bars=300)
+    first_utc = series.bars[-300].timestamp
+    assert frame["bars"][0][0] == first_utc.astimezone(ZoneInfo("Asia/Seoul")).strftime("%m-%d %H:%M")
+    assert set(frame["ma"]) == {"20", "50", "200"} and len(frame["ma"]["20"]) == 300
+    assert frame["ma"]["200"][198] is None and frame["ma"]["200"][199] is not None
+    assert isinstance(frame["trendlines"], list) and isinstance(frame["forming"], list)
+    assert frame["bias"]["direction"] == "판단 보류"      # nothing measured, so nothing to weigh
+    assert frame["generated_label"].count(":") == 2
+
+    daily_rows = []
+    for month in (9, 10, 11):
+        for day in range(1, 29):
+            daily_rows.append(_bar(datetime(2026, month, day, 4, tzinfo=timezone.utc), 4000, 4010, 3990, 4005))
+    daily = bars_from_rows(daily_rows, symbol="GC=F", interval="1d")
+    daily_frame = build_frame(daily, study=None, max_bars=100)
+    assert daily_frame["bars"][-1][0] == "2026-11-28"     # a daily bar shows its date, not a clock
+
+    strong_up = [{"direction": "bullish", "samples": 100, "edge_win_rate": 0.12, "t_stat": 3.0}]
+    weak_down = [{"direction": "bearish", "samples": 100, "edge_win_rate": 0.02, "t_stat": 1.0}]
+    assert summarise_bias(strong_up, weak_down)["direction"] == "상승 우세"
+    assert summarise_bias([], [])["direction"] == "판단 보류"
+    assert summarise_bias([{"direction": "bullish", "samples": 5, "edge_win_rate": 0.5, "t_stat": 5}], [])["direction"] == "판단 보류"
+
+    live = render_chart({"1h": frame}, symbol="GC=F", intervals=("1m", "1h", "1d"), data_url="/lab/gold/data", bars=300)
+    assert '"data_url": "/lab/gold/data"' in live and 'data-interval="1m"' in live and 'data-interval="1d"' in live
+    assert "자동으로 갱신" in live and "이동평균" in live and "추세선" in live and "KST" in live
+    static = render_chart({"1h": frame}, symbol="GC=F")
+    assert '"data_url": null' in static and "정지 화면" in static
+
+
+def test_the_served_chart_fetches_one_timeframe_at_a_time(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import goldlab.data as data
+    from tradingagents.site import create_app
+
+    calls: list[str] = []
+
+    def fake_fetch(symbol="GC=F", *, interval="1h", days=None):
+        calls.append(interval)
+        if interval == "1mo":
+            raise RuntimeError("vendor has nothing")
+        return _synthetic(bars=400)
+
+    monkeypatch.setattr(data, "fetch_bars", fake_fetch)
+    app = create_app(repo=None, load_repo_from_env=False, trust_member_user_header=False)
+    client = TestClient(app)
+
+    page = client.get("/lab/gold?bars=200")
+    assert page.status_code == 200
+    assert page.headers["cache-control"] == "private, no-store"
+    assert calls == ["1h"]                                 # only the opening timeframe is fetched up front
+    assert 'data-interval="1mo"' in page.text and "형성 중인 패턴" in page.text
+
+    fresh = client.get("/lab/gold/data?interval=15m&bars=200")
+    assert fresh.status_code == 200 and fresh.headers["cache-control"] == "private, no-store"
+    body = fresh.json()
+    assert len(body["bars"]) == 200 and "forming" in body and "ma" in body and "bias" in body
+
+    assert client.get("/lab/gold/data?interval=7h").status_code == 400
+    assert client.get("/lab/gold/data?interval=1mo").status_code == 503

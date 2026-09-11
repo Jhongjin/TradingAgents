@@ -30,6 +30,7 @@ INTERVAL_MAX_DAYS = {
     "4h": 730,   # resampled from 1h
     "1d": 20_000,
     "1wk": 20_000,
+    "1mo": 20_000,
 }
 RESAMPLED_FROM = {"4h": ("1h", 4)}
 

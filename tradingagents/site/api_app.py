@@ -1418,7 +1418,31 @@ def create_app(
 
         wanted = tuple(part.strip() for part in (intervals or "").split(",") if part.strip()) or DEFAULT_INTERVALS
         html = render_gold_chart_page(repo=request.app.state.repository, intervals=wanted, bars=bars)
-        return HTMLResponse(html, headers={"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "private, max-age=60"})
+        return HTMLResponse(html, headers={"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "private, no-store"})
+
+    @app.get("/lab/gold/data", include_in_schema=False)
+    def gold_chart_data(
+        request: Request,
+        interval: Annotated[str, Query(max_length=8)] = "1h",
+        bars: Annotated[int, Query(ge=120, le=1200)] = 600,
+    ) -> Response:
+        """One timeframe, fetched now, for the chart's tabs and its refresh timer."""
+
+        from goldlab.data import INTERVAL_MAX_DAYS
+
+        from .gold_page import build_gold_frame
+
+        if interval not in INTERVAL_MAX_DAYS:
+            raise HTTPException(status_code=400, detail="unsupported interval")
+        try:
+            frame = build_gold_frame(repo=request.app.state.repository, interval=interval, bars=bars)
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail=f"quote source unavailable: {exc.__class__.__name__}") from exc
+        return Response(
+            json.dumps(frame, ensure_ascii=False),
+            media_type="application/json",
+            headers={"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "private, no-store"},
+        )
 
     @app.post("/api/admin/lab/gold/study", include_in_schema=False)
     def store_gold_study(
