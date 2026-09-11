@@ -22,6 +22,8 @@ from rich.table import Table
 from .contracts import CONTRACTS, GOLD_FUTURES
 from .data import INTERVAL_MAX_DAYS, cache_path, load_bars
 from .patterns import PATTERN_REGISTRY, detect_patterns
+from .live import DEFAULT_INTERVALS, save_study, scan_live
+from .report import render_report
 from .study import DEFAULT_HORIZONS, run_pattern_study
 
 app = typer.Typer(help="Gold futures chart-pattern lab (private).", no_args_is_help=True)
@@ -142,9 +144,142 @@ def study_command(
     for note in result.notes:
         console.print(f"[yellow]{note}[/yellow]")
 
+    stored = save_study(result.as_dict(), symbol=symbol, interval=interval)
+    console.print(f"[dim]measurement stored at {stored}[/dim]")
     if output is not None:
         output.write_text(json.dumps(result.as_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
         console.print(f"[dim]saved {output}[/dim]")
+
+
+
+
+@app.command("now")
+def now_command(
+    symbol: str = typer.Option("GC=F", "--symbol"),
+    intervals: str = typer.Option(",".join(DEFAULT_INTERVALS), "--intervals", help="Timeframes to scan, comma separated."),
+    recent: int = typer.Option(3, "--recent", min=1, max=20, help="How many bars back still counts as 'now'."),
+    horizon: Optional[int] = typer.Option(None, "--horizon", help="Quote the record at this horizon instead of the strongest."),
+    measure: bool = typer.Option(False, "--measure", help="Re-measure the history before quoting it."),
+    offline: bool = typer.Option(False, "--offline", help="Use the cached bars instead of fetching."),
+    output: Optional[Path] = typer.Option(None, "--output", help="Write the scan JSON here."),
+):
+    """What has just formed on each timeframe, with the record that follows it."""
+
+    wanted = [name.strip() for name in intervals.split(",") if name.strip()]
+    scan = scan_live(
+        symbol,
+        intervals=wanted,
+        recent_bars=recent,
+        horizon=horizon,
+        refresh=not offline,
+        refresh_study=measure,
+    )
+
+    status = Table(box=box.SIMPLE_HEAD, title=f"{symbol} · {scan.generated_at[:16]}")
+    for column in ("주기", "상태", "봉", "마지막", "현재가"):
+        status.add_column(column)
+    for row in scan.intervals:
+        status.add_row(
+            row["interval"],
+            row.get("status", "-"),
+            str(row.get("bars", "-")),
+            str(row.get("last_timestamp", "-"))[:16],
+            f"{row['last_price']:,.1f}" if row.get("last_price") else "-",
+        )
+    console.print(status)
+
+    bias = scan.bias()
+    colour = "green" if bias["direction"] == "상승 우세" else ("red" if bias["direction"] == "하락 우세" else "yellow")
+    console.print(f"[{colour}]종합: {bias['direction']}[/{colour}] [dim](판정에 쓰인 신호 {bias['counted']}개)[/dim]")
+
+    if not scan.signals:
+        console.print("[yellow]지금 완성된 패턴이 없습니다.[/yellow]")
+        return
+
+    table = Table(box=box.SIMPLE_HEAD, title=f"최근 {recent}봉 안에 완성된 패턴 {len(scan.signals)}건")
+    for column in ("주기", "패턴", "방향", "시각", "승률", "기준대비", "표본", "t", "예상 상단", "예상 하단", "신뢰도"):
+        table.add_column(column)
+    for signal in scan.signals:
+        table.add_row(
+            signal.interval,
+            signal.label,
+            "상승" if signal.direction == "bullish" else "하락",
+            signal.timestamp[5:16].replace("T", " "),
+            f"{signal.win_rate:.1%}" if signal.win_rate is not None else "-",
+            f"{signal.edge_win_rate:+.1%}" if signal.edge_win_rate is not None else "-",
+            str(signal.samples or "-"),
+            str(signal.t_stat if signal.t_stat is not None else "-"),
+            f"{signal.upside_price:,.1f}" if signal.upside_price else "-",
+            f"{signal.downside_price:,.1f}" if signal.downside_price else "-",
+            signal.confidence,
+        )
+    console.print(table)
+
+    for note in scan.notes:
+        console.print(f"[yellow]{note}[/yellow]")
+
+    if output is not None:
+        output.write_text(json.dumps(scan.as_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+        console.print(f"[dim]saved {output}[/dim]")
+
+
+@app.command("watch")
+def watch_command(
+    symbol: str = typer.Option("GC=F", "--symbol"),
+    intervals: str = typer.Option(",".join(DEFAULT_INTERVALS), "--intervals"),
+    every: int = typer.Option(300, "--every", min=30, help="Seconds between scans."),
+    recent: int = typer.Option(2, "--recent", min=1, max=20),
+    rounds: int = typer.Option(0, "--rounds", min=0, help="Stop after this many scans; 0 runs until interrupted."),
+):
+    """Re-scan on a timer and print only what is new."""
+
+    import time
+
+    seen: set[tuple[str, str, str]] = set()
+    count = 0
+    while rounds == 0 or count < rounds:
+        count += 1
+        scan = scan_live(symbol, intervals=[name.strip() for name in intervals.split(",") if name.strip()], recent_bars=recent)
+        fresh = [signal for signal in scan.signals if (signal.interval, signal.pattern, signal.timestamp) not in seen]
+        for signal in fresh:
+            seen.add((signal.interval, signal.pattern, signal.timestamp))
+        stamp = scan.generated_at[11:16]
+        if fresh:
+            for signal in fresh:
+                arrow = "▲" if signal.direction == "bullish" else "▼"
+                console.print(
+                    f"[{'green' if signal.direction == 'bullish' else 'red'}]{arrow} {stamp} {signal.interval} {signal.label}[/] "
+                    f"승률 {signal.win_rate:.0%} (기준대비 {signal.edge_win_rate:+.0%}) · 표본 {signal.samples} · {signal.confidence}"
+                    if signal.win_rate is not None
+                    else f"{arrow} {stamp} {signal.interval} {signal.label} · 표본 부족"
+                )
+        else:
+            console.print(f"[dim]{stamp} 새로 완성된 패턴 없음 · 종합 {scan.bias()['direction']}[/dim]")
+        if rounds and count >= rounds:
+            break
+        time.sleep(every)
+
+
+@app.command("report")
+def report_command(
+    symbol: str = typer.Option("GC=F", "--symbol"),
+    intervals: str = typer.Option(",".join(DEFAULT_INTERVALS), "--intervals"),
+    recent: int = typer.Option(5, "--recent", min=1, max=30),
+    measure: bool = typer.Option(False, "--measure", help="Re-measure the history before writing the page."),
+    offline: bool = typer.Option(False, "--offline", help="Use the cached bars instead of fetching."),
+    output: Path = typer.Option(Path("gold-patterns.html"), "--output", help="Where to write the page."),
+    open_it: bool = typer.Option(True, "--open/--no-open", help="Open the page in the browser when done."),
+):
+    """Write a local page: what is live now, and the record behind each pattern."""
+
+    wanted = [name.strip() for name in intervals.split(",") if name.strip()]
+    scan = scan_live(symbol, intervals=wanted, recent_bars=recent, refresh=not offline, refresh_study=measure)
+    output.write_text(render_report(scan, intervals=wanted), encoding="utf-8")
+    console.print(f"[green]{output}[/green] · 패턴 {len(scan.signals)}건 · 종합 {scan.bias()['direction']}")
+    if open_it:
+        import webbrowser
+
+        webbrowser.open(output.resolve().as_uri())
 
 
 def main() -> None:

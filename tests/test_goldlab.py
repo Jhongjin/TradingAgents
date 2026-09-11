@@ -135,3 +135,112 @@ def test_base_rate_counts_every_bar_it_can():
     series = _synthetic(bars=500)
     rates = base_rates(series.bars, (10,))
     assert rates[10]["count"] == len(series) - 10
+
+
+def _stub_study(monkeypatch, stats: dict) -> None:
+    from goldlab import live
+
+    monkeypatch.setattr(live, "ensure_study", lambda *args, **kwargs: stats)
+
+
+def test_the_live_scan_quotes_the_record_beside_what_just_formed(monkeypatch, tmp_path):
+    from goldlab import live
+
+    series = _synthetic(bars=600)
+    monkeypatch.setattr(live, "load_bars", lambda symbol, interval, refresh=True: series)
+    _stub_study(
+        monkeypatch,
+        {
+            "bars": 5000,
+            "horizons": [4, 12],
+            "patterns": [
+                {
+                    "pattern": "inside_bar",
+                    "label": "인사이드 바",
+                    "direction": "bullish",
+                    "horizons": {
+                        "4": {"count": 900, "win_rate": 0.58, "base_win_rate": 0.52, "edge_win_rate": 0.06, "average_return": 0.002, "average_mfe": 0.004, "average_mae": -0.003, "t_stat": 3.4, "enough_samples": True},
+                        "12": {"count": 900, "win_rate": 0.55, "base_win_rate": 0.54, "edge_win_rate": 0.01, "average_return": 0.001, "average_mfe": 0.006, "average_mae": -0.005, "t_stat": 1.1, "enough_samples": True},
+                    },
+                }
+            ],
+        },
+    )
+
+    scan = live.scan_live("GC=F", intervals=["1h"], recent_bars=400)
+    inside = [signal for signal in scan.signals if signal.pattern == "inside_bar"]
+    assert inside, "the stubbed pattern should have been found"
+    signal = inside[0]
+    assert signal.samples == 900 and signal.win_rate == 0.58
+    assert signal.horizon == 4  # the horizon with the strongest record, not the first
+    assert signal.confidence == "강함"
+    # the projection is the measured excursion applied to the live price
+    assert signal.upside_price > signal.last_price > signal.downside_price
+    assert any("보장하지 않습니다" in note for note in scan.notes)
+
+
+def test_a_pattern_that_only_matched_the_market_is_marked_not_a_signal(monkeypatch):
+    from goldlab import live
+
+    series = _synthetic(bars=600)
+    monkeypatch.setattr(live, "load_bars", lambda symbol, interval, refresh=True: series)
+    _stub_study(
+        monkeypatch,
+        {
+            "bars": 5000,
+            "horizons": [4],
+            "patterns": [
+                {
+                    "pattern": "inside_bar",
+                    "label": "인사이드 바",
+                    "direction": "bullish",
+                    "horizons": {"4": {"count": 900, "win_rate": 0.52, "base_win_rate": 0.55, "edge_win_rate": -0.03, "average_return": 0.0001, "average_mfe": 0.003, "average_mae": -0.003, "t_stat": 0.4, "enough_samples": True}},
+                }
+            ],
+        },
+    )
+    scan = live.scan_live("GC=F", intervals=["1h"], recent_bars=400)
+    assert all(signal.confidence == "기준 미달" for signal in scan.signals if signal.pattern == "inside_bar")
+    assert scan.bias()["direction"] in {"판단 보류", "혼재", "하락 우세"}
+
+
+def test_a_thin_sample_never_earns_a_verdict(monkeypatch):
+    from goldlab import live
+
+    series = _synthetic(bars=600)
+    monkeypatch.setattr(live, "load_bars", lambda symbol, interval, refresh=True: series)
+    _stub_study(
+        monkeypatch,
+        {
+            "bars": 5000,
+            "horizons": [4],
+            "patterns": [
+                {
+                    "pattern": "inside_bar",
+                    "label": "인사이드 바",
+                    "direction": "bullish",
+                    "horizons": {"4": {"count": 8, "win_rate": 0.88, "base_win_rate": 0.52, "edge_win_rate": 0.36, "average_return": 0.02, "average_mfe": 0.03, "average_mae": -0.01, "t_stat": 5.0, "enough_samples": False}},
+                }
+            ],
+        },
+    )
+    scan = live.scan_live("GC=F", intervals=["1h"], recent_bars=400)
+    assert all(signal.confidence == "표본 부족" for signal in scan.signals if signal.pattern == "inside_bar")
+    # an eight-sample pattern must not swing the overall read
+    assert scan.bias()["counted"] == 0 and scan.bias()["direction"] == "판단 보류"
+
+
+def test_the_page_states_what_the_numbers_are(monkeypatch):
+    from goldlab import live
+    from goldlab.report import render_report
+
+    series = _synthetic(bars=600)
+    monkeypatch.setattr(live, "load_bars", lambda symbol, interval, refresh=True: series)
+    _stub_study(monkeypatch, {"bars": 5000, "horizons": [4], "patterns": []})
+    scan = live.scan_live("GC=F", intervals=["1h"], recent_bars=3)
+
+    page = render_report(scan, intervals=["1h"])
+    assert "<!doctype html>" in page and "차트 패턴 현황" in page
+    assert "예측이 아니라 기록입니다" in page
+    assert "종합 판단" in page and "지금 완성된 패턴" in page
+    assert page.count("<table") >= 1
