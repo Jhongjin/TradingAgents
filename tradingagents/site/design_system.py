@@ -54,7 +54,7 @@ DS_COMPONENT_CSS = """
 .ds, .ds body { margin: 0; }
 .ds { font-family: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif; font-size: 14px; line-height: 1.55; color: var(--ink); background: var(--bg); -webkit-font-smoothing: antialiased; min-height: 100vh; display: flex; flex-direction: column; }
 .ds *, .ds *::before, .ds *::after { box-sizing: border-box; }
-.ds h1, .ds h2, .ds h3 { margin: 0; font-weight: 700; line-height: 1.25; letter-spacing: -0.02em; color: var(--ink); text-wrap: balance; }
+.ds h1, .ds h2, .ds h3 { margin: 0; font-weight: 700; line-height: 1.25; letter-spacing: -0.02em; color: var(--ink); text-wrap: balance; word-break: keep-all; }
 .ds h1 { font-size: 30px; } .ds h2 { font-size: 16px; } .ds h3 { font-size: 14px; }
 .ds p { margin: 0; }
 .ds a { color: inherit; text-decoration: none; }

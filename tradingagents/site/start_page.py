@@ -16,8 +16,8 @@ from .seo import canonical_url
 
 START_CSS = """
 .start-hero { padding: 40px 0 30px; }
-.start-hero h1 { font-size: 32px; margin-top: 10px; max-width: 19ch; }
-.start-hero .lead { margin-top: 12px; max-width: 60ch; color: var(--ink2); font-size: 15px; line-height: 1.7; }
+.start-hero h1 { font-size: 32px; margin-top: 10px; max-width: 24ch; }
+.start-hero .lead { margin-top: 12px; max-width: 60ch; word-break: keep-all; color: var(--ink2); font-size: 15px; line-height: 1.7; }
 .start-hero .cta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
 .start-block { padding: 26px 0; border-top: 1px solid var(--line); }
 .start-block h2 { font-size: 19px; letter-spacing: -0.02em; }
