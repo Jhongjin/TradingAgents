@@ -18,7 +18,7 @@ from tradingagents.storage import StorageRepository
 
 from .design_system import TOKEN_STORAGE_KEY, badge, h, icon_tile, rating_label, render_shell, stat_tile
 from .plain_korean import exit_reason_label, market_label
-from .seo import canonical_url
+from .seo import ad_unit, canonical_url
 
 PAPER_CSS = """
 .paper-head { padding: 26px 0 18px; }
@@ -298,6 +298,12 @@ def _closed_row(item: Mapping[str, Any]) -> str:
     </tr>"""
 
 
+def _paid_plans_enabled() -> bool:
+    from .billing import paid_plans_enabled
+
+    return paid_plans_enabled()
+
+
 def _locked_positions_row(count: int) -> str:
     return f"""<tr class="paper-locked" data-paper-locked>
       <td colspan="6"><div class="paper-lock-copy">{badge("오늘 편입 " + str(count) + "종목", "b-amber")}<span>당일 편입 종목과 목표가·손절가는 데일리 패스에서 열립니다.</span><a class="link" href="/pricing">요금제 보기</a></div></td>
@@ -545,11 +551,12 @@ def render_paper_account_page(
   <div class="shell">
     <p class="eyebrow">AI 모의 계좌</p>
     <h1>선별한 종목을 실제로 담고, 규칙대로 정리한 기록</h1>
-    <p>매일 아침 선별한 종목을 세 계좌가 각자 매수합니다. AI 토론을 거친 계좌, 규칙 점수만 보는 계좌, 그리고 실제로 KIS 모의투자에 주문을 넣는 계좌입니다. 세 성적을 나란히 두면 AI가 실제로 보탠 몫이 드러납니다. 매수와 동시에 목표가와 손절선을 정하고, 다음 실행에서 그 선에 닿으면 자동으로 정리합니다. 실제 증권 계좌와 연결되지 않은 모의 기록입니다. 지난 기록은 모두 공개하며, 당일 편입·청산은 데일리 패스에서 열립니다.</p>
+    <p>매일 아침 선별한 종목을 세 계좌가 각자 매수합니다. AI 토론을 거친 계좌, 규칙 점수만 보는 계좌, 그리고 실제로 KIS 모의투자에 주문을 넣는 계좌입니다. 세 성적을 나란히 두면 AI가 실제로 보탠 몫이 드러납니다. 매수와 동시에 목표가와 손절선을 정하고, 다음 실행에서 그 선에 닿으면 자동으로 정리합니다. 실제 증권 계좌와 연결되지 않은 모의 기록입니다. {'지난 기록은 모두 공개하며, 당일 편입·청산은 데일리 패스에서 열립니다.' if _paid_plans_enabled() else '편입과 청산, 목표가와 손절가까지 모두 공개합니다.'}</p>
   </div>
 </div>
 <div class="shell">
   <div class="grid-5" style="margin-bottom: 18px;">{tiles}</div>
+  {ad_unit()}
 
   {_curve_card(curve)}
 

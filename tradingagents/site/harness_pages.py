@@ -9,7 +9,7 @@ from tradingagents.storage import StorageRepository
 from .plain_korean import market_label, order_status_label, reason_text
 from .design_system import badge, h, icon, icon_tile, rating_label, render_shell, stat_tile
 from .harness_api import HARNESS_NOTICES, build_harness_run_payload, build_harness_runs_payload
-from .seo import canonical_url
+from .seo import ad_unit, canonical_url
 
 STAGE_TONE = {
     "ordered": ("b-teal", "check"),
@@ -88,7 +88,7 @@ def render_harness_page(
     gate_notice = ""
     if plan_gate.get("locked"):
         gate_notice = f'<div class="soft harness-gate" style="padding: 12px 14px; margin-top: 12px; display: flex; gap: 10px; align-items: center; font-size: 13px;">{icon_tile("lock", "b-amber", small=True)}<span>{h(plan_gate.get("reason"))} <a class="link" href="/pricing">요금제 보기</a></span></div>'
-    elif run_payload.get("run"):
+    elif run_payload.get("run") and plan_gate.get("debate_transcript") is False:
         gate_notice = f'<div class="soft harness-gate" style="padding: 12px 14px; margin-top: 12px; display: flex; gap: 10px; align-items: center; font-size: 13px;">{icon_tile("lock", "b-amber", small=True)}<span>강세·약세·판정·리스크 점검 토론 전문은 데일리 패스 회원에게 열립니다. <a class="link" href="/pricing">요금제 보기</a></span></div>'
     run = run_payload.get("run") or {}
     decisions = run_payload.get("decisions") or []
@@ -171,6 +171,7 @@ def render_harness_page(
       <div class="row wrap"><a class="btn sm" href="/harness">최근 실행</a><a class="btn sm" href="/api/harness/runs">JSON 데이터</a><a class="btn sm ghost" href="/features/methodology">분석 기준 →</a></div>
     </div>
     <div class="grid-4" style="margin-top: 18px;">{tiles}</div>
+    {ad_unit()}
   </div>
 </section>
 <section class="block" style="padding-bottom: 28px;">

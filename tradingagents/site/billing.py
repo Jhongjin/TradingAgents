@@ -120,6 +120,36 @@ PLANS: dict[str, Plan] = {
 
 PAID_PLANS = ("daily", "pro")
 
+# Everything open, for everyone. This is what the site runs on unless paid
+# plans are switched back on; the plan keeps the id "free" so the pages, the
+# ads and the billing UI all read it as the free tier.
+OPEN_PLAN = Plan(
+    id="free",
+    name="무료",
+    price_krw=0,
+    tagline="선별, 토론 전문, 모의 계좌까지 전부 열립니다",
+    features=("당일 선별 결과 즉시 열람", "강세·약세·판정·리스크 점검 토론 전문", "세 모의 계좌의 편입·청산 전체", "텔레그램 아침 알림에 종목·등급 포함", "분석 요청 하루 5회"),
+    analysis_requests_per_day=5,
+    active_requests_limit=3,
+    same_day_harness=True,
+    debate_transcript=True,
+    custom_harness=False,
+    api_access=False,
+)
+
+PAID_PLANS_ENV = "TRADINGAGENTS_PAID_PLANS_ENABLED"
+
+
+def paid_plans_enabled() -> bool:
+    """Whether the daily and pro plans are for sale.
+
+    Off by default: the service is free and funded by ads, and the billing
+    code stays in place, dormant, for the day that changes. Set the variable
+    to turn the plans, the gates and the checkout back on together.
+    """
+
+    return (os.getenv(PAID_PLANS_ENV) or "").strip().lower() in {"1", "true", "yes", "on"}
+
 RESEARCH_TOOL_NOTICES = [
     "TradingAgents Korea는 리서치 도구입니다. 선별 결과와 AI 토론은 이용자가 스스로 판단하기 위한 분석 자료이며 특정 종목의 매매를 권유하지 않습니다.",
     "유료 플랜은 분석 도구의 이용 범위(열람 시점, 토론 전문, 요청 횟수)를 넓히는 것이며 수익을 보장하지 않습니다.",
@@ -141,6 +171,17 @@ class PlanAccess:
     def is_paid(self) -> bool:
         return self.plan.id in PAID_PLANS and self.status in {"trialing", "active"}
 
+    @property
+    def full_access(self) -> bool:
+        """May see today's picks, the transcript and the alerts with tickers.
+
+        True for a paying member, and for everyone while the plans are off.
+        Pages and notifiers ask this, not ``is_paid``, so that a free reader
+        under the open plan is treated the same as a subscriber.
+        """
+
+        return bool(self.plan.same_day_harness)
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "user_id": self.user_id,
@@ -157,6 +198,8 @@ def resolve_plan_access(repo: StorageRepository | None, user_id: str | None, *, 
     """Map a member (or anonymous visitor) to the plan they may use right now."""
 
     now = now or datetime.now(timezone.utc)
+    if not paid_plans_enabled():
+        return PlanAccess(user_id=user_id, plan=OPEN_PLAN, status="anonymous" if user_id is None else "free")
     if user_id is None:
         return PlanAccess(user_id=None, plan=PLANS["free"], status="anonymous")
     if repo is None:

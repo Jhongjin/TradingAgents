@@ -742,9 +742,21 @@ def create_app(
 
     @app.get("/api/billing/plans")
     def billing_plans() -> dict:
+        from .billing import OPEN_PLAN, paid_plans_enabled
+
+        if not paid_plans_enabled():
+            return {
+                "status": "available",
+                "mode": "free_for_all",
+                "paid_plans_enabled": False,
+                "plans": [OPEN_PLAN.as_dict()],
+                "payment_configured": False,
+                "notices": RESEARCH_TOOL_NOTICES,
+            }
         return {
             "status": "available",
             "mode": "research_tool",
+            "paid_plans_enabled": True,
             "plans": [PLANS[name].as_dict() for name in ("free", "daily", "pro")],
             "payment_configured": PortOneConfig.from_env().is_configured(),
             "notices": RESEARCH_TOOL_NOTICES,
@@ -777,6 +789,7 @@ def create_app(
         request: Request,
         x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
     ) -> dict:
+        _require_paid_plans()
         repo = request.app.state.repository
         if repo is None:
             raise HTTPException(status_code=503, detail="Storage repository is not configured")
@@ -792,6 +805,7 @@ def create_app(
         request: Request,
         x_tradingagents_user_id: Annotated[str | None, Header(alias="X-TradingAgents-User-Id")] = None,
     ) -> dict:
+        _require_paid_plans()
         user_id = resolve_member_user_id(request, x_tradingagents_user_id)
         try:
             return build_checkout_payload(user_id, body.plan, PortOneConfig.from_env(), redirect_url=f"{_request_site_base_url(request)}/mypage?billing=return")
@@ -3655,6 +3669,15 @@ def _process_subscription_renewals(request: Request) -> dict:
 
 def _require_worker_token(request: Request, header_token: str | None) -> None:
     _require_operator(request, header_token)
+
+
+def _require_paid_plans() -> None:
+    """Checkout and trials exist only while the plans are for sale."""
+
+    from .billing import paid_plans_enabled
+
+    if not paid_plans_enabled():
+        raise HTTPException(status_code=409, detail="현재 모든 기능을 무료로 제공하며 유료 플랜을 운영하지 않습니다.")
 
 
 def _require_operator(request: Request, header_token: str | None) -> str:

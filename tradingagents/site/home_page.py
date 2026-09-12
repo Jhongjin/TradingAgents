@@ -582,7 +582,7 @@ def _render(model: dict[str, Any]) -> str:
             for item in model["debate"]
         )
         gate = model.get("plan_gate") or {}
-        lock = badge("전문은 데일리 패스", "b-amber", icon_name="lock") if gate.get("plan") == "free" or not gate else ""
+        lock = badge("전문은 데일리 패스", "b-amber", icon_name="lock") if gate.get("debate_transcript") is False else ""
         debate_html = f"""<div class="card">
       <div class="card-h"><h2>{icon_tile("brain", "b-violet", small=True)}{_h(featured.get('ticker_name') or featured.get('ticker_code'))}, 이렇게 결정됐습니다</h2>{lock}</div>
       <div class="card-b"><div class="quotes">{quotes}</div></div>

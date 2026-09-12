@@ -70,4 +70,4 @@ def test_the_privacy_policy_discloses_third_party_ad_cookies():
     assert "광고와 쿠키" in html
     assert "Google AdSense" in html and "쿠키" in html
     assert "google.com/settings/ads" in html and "aboutads.info" in html
-    assert "유료 플랜 이용자에게는 광고를 게재하지 않으며" in html
+    assert "유료 플랜을 운영하는 기간에는 유료 이용자에게 광고를 게재하지 않으며" in html

@@ -47,6 +47,7 @@ BILLING_JS = """
     try{
       var me=await api('/api/billing/me');
       var a=me.access;
+      if(!el('plan-days')){if(me.is_admin){document.querySelectorAll('[data-admin-only]').forEach(function(n){n.hidden=false;});}say('billing-msg','');}else{
       var statusText={anonymous:'비로그인',free:'무료',trialing:'체험 중',active:'이용 중',past_due:'결제 실패 · 무료로 전환',canceled:'해지됨'}[a.status]||a.status;
       el('plan-name').textContent=a.plan.name;
       var badge=el('plan-status');badge.textContent=statusText;badge.className='badge '+(a.status==='trialing'?'b-amber':(a.status==='active'&&a.plan.id!=='free'?'b-teal':'b-grey'));
@@ -59,7 +60,7 @@ BILLING_JS = """
       if(!(me.events||[]).length){ev.textContent='아직 결제 이력이 없습니다.';}
       el('btn-cancel').hidden=!(a.status==='active'||a.status==='trialing');
       el('btn-refund').hidden=!(a.status==='active');
-      el('btn-trial').hidden=!(a.status==='free');
+      el('btn-trial').hidden=!(a.status==='free');}
       if(me.is_admin){document.querySelectorAll('[data-admin-only]').forEach(function(n){n.hidden=false;});}
       say('billing-msg','');
     }catch(e){say('billing-msg',e.message,true);}
@@ -115,24 +116,21 @@ BILLING_JS = """
 """
 
 
-def render_billing_page(*, site_base_url: str | None = None) -> str:
-    from .web_pages import _public_supabase_config, _script_json
+def _plan_card(daily, pro) -> str:
+    """The subscription card, or the note that there is nothing to subscribe to."""
 
-    config = _public_supabase_config()
-    config_json = _script_json({"supabase_url": config.get("supabase_url"), "supabase_anon_key": config.get("supabase_anon_key")})
-    notices = "".join(f"<li>{h(item)}</li>" for item in RESEARCH_TOOL_NOTICES)
-    daily, pro = PLANS["daily"], PLANS["pro"]
-    body = f"""
-<section class="hero billing-head">
-  <div class="shell row between wrap">
-    <div>{badge("마이페이지 · 구독 관리", "b-teal")}<h1 style="margin-top: 8px;">구독 관리</h1><p class="small ink2" style="margin-top: 4px;">로그인한 회원의 브라우저 세션을 사용합니다. 카드 정보는 결제사(포트원)에만 저장됩니다.</p></div>
-    <div class="row"><a class="btn sm" href="/mypage">{icon("users", 14)}마이페이지</a><a class="btn sm" href="/pricing">요금제 비교</a></div>
-  </div>
-</section>
-<section class="block" style="padding-bottom: 28px;">
-  <div class="shell grid-main">
-    <div class="stack">
-      <div class="card">
+    from .billing import paid_plans_enabled
+
+    if not paid_plans_enabled():
+        return f"""<div class="card">
+        <div class="card-h"><h2>{icon_tile("card", "b-teal", small=True)}내 플랜</h2><span class="badge b-teal">무료 · 전체 열람</span></div>
+        <div class="card-b">
+          <p class="big">모든 기능이 무료입니다</p>
+          <p class="small ink2" style="margin-top: 6px;">당일 선별, 토론 전문, 세 모의 계좌의 편입·청산, 텔레그램 아침 알림까지 결제 없이 열립니다. 광고로 운영하며, 유료 플랜은 운영하지 않습니다.</p>
+          <div class="msg" id="billing-msg" style="margin-top: 10px;"></div>
+        </div>
+      </div>"""
+    return f"""<div class="card">
         <div class="card-h"><h2>{icon_tile("card", "b-teal", small=True)}내 플랜</h2><span class="badge b-grey" id="plan-status">확인 중…</span></div>
         <div class="card-b">
           <div class="plan-hero">
@@ -153,13 +151,39 @@ def render_billing_page(*, site_base_url: str | None = None) -> str:
       <div class="card">
         <div class="card-h"><h2>{icon_tile("clock", "b-grey", small=True)}결제 이력</h2></div>
         <div class="card-b" style="padding-top: 6px;"><div class="events" id="events">불러오는 중…</div></div>
-      </div>
+      </div>"""
+
+
+def render_billing_page(*, site_base_url: str | None = None) -> str:
+    from .billing import paid_plans_enabled
+    from .web_pages import _public_supabase_config, _script_json
+
+    config = _public_supabase_config()
+    config_json = _script_json({"supabase_url": config.get("supabase_url"), "supabase_anon_key": config.get("supabase_anon_key")})
+    notices = "".join(f"<li>{h(item)}</li>" for item in RESEARCH_TOOL_NOTICES)
+    daily, pro = PLANS["daily"], PLANS["pro"]
+    paid = paid_plans_enabled()
+    heading = "구독 관리" if paid else "계정 설정"
+    lead = "로그인한 회원의 브라우저 세션을 사용합니다. 카드 정보는 결제사(포트원)에만 저장됩니다." if paid else "로그인한 회원의 브라우저 세션을 사용합니다. 알림 연결과 비밀번호를 여기서 관리합니다."
+    telegram_copy = "평일 아침 종목 선별이 발행되면 알려드립니다. 데일리 패스는 종목과 등급까지, 무료는 발행 안내만 받습니다." if paid else "평일 아침 종목 선별이 발행되면 종목과 등급까지 바로 받습니다. 목표가·손절가 도달과 청산도 알려드립니다."
+    pricing_text = "요금제 비교" if paid else "무료 안내"
+    body = f"""
+<section class="hero billing-head">
+  <div class="shell row between wrap">
+    <div>{badge("마이페이지 · " + heading, "b-teal")}<h1 style="margin-top: 8px;">{heading}</h1><p class="small ink2" style="margin-top: 4px;">{lead}</p></div>
+    <div class="row"><a class="btn sm" href="/mypage">{icon("users", 14)}마이페이지</a><a class="btn sm" href="/pricing">{pricing_text}</a></div>
+  </div>
+</section>
+<section class="block" style="padding-bottom: 28px;">
+  <div class="shell grid-main">
+    <div class="stack">
+      {_plan_card(daily, pro)}
     </div>
     <div class="stack">
       <div class="card">
         <div class="card-h"><h2>{icon_tile("send", "b-blue", small=True)}텔레그램 알림</h2><span class="badge b-grey" id="tg-status">확인 중…</span></div>
         <div class="card-b">
-          <p class="small ink2">평일 아침 종목 선별이 발행되면 알려드립니다. 데일리 패스는 종목과 등급까지, 무료는 발행 안내만 받습니다.</p>
+          <p class="small ink2">{telegram_copy}</p>
           <div class="actions" style="margin-top: 12px;">
             <button class="btn primary sm" type="button" data-action="tg-link">연결 코드 받기</button>
             <a class="btn sm" id="tg-open" href="#" target="_blank" rel="noopener" hidden>텔레그램에서 열기</a>
@@ -183,14 +207,14 @@ def render_billing_page(*, site_base_url: str | None = None) -> str:
       <div class="soft" style="padding: 14px 16px;">
         <p class="label">이용 원칙</p>
         <ul style="margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: var(--ink2); display: grid; gap: 4px;">{notices}</ul>
-        <p class="tiny" style="margin-top: 8px;"><a class="link" href="/terms">이용약관</a> · <a class="link" href="/pricing">요금제 비교</a></p>
+        <p class="tiny" style="margin-top: 8px;"><a class="link" href="/terms">이용약관</a> · <a class="link" href="/pricing">{pricing_text}</a></p>
       </div>
     </div>
   </div>
 </section>
 """
     return render_shell(
-        title="구독 관리 | TradingAgents Korea",
+        title=f"{heading} | TradingAgents Korea",
         body=body,
         canonical_path="/billing",
         site_base_url=site_base_url,

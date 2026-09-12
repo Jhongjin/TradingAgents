@@ -61,6 +61,9 @@ def _dummy_api_keys(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "")
     for name in _BROKER_ENV_VARS:
         monkeypatch.setenv(name, "")
+    # The site runs free-for-all by default. The billing suite exercises the
+    # dormant paid plans, so tests see them on unless one turns them off.
+    monkeypatch.setenv("TRADINGAGENTS_PAID_PLANS_ENABLED", os.environ.get("TRADINGAGENTS_PAID_PLANS_ENABLED", "1"))
 
 
 @pytest.fixture()

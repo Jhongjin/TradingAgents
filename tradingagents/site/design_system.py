@@ -252,6 +252,22 @@ def placeholder_series(seed: int, n: int = 40) -> list[float]:
 
 NAV_ITEMS: tuple[tuple[str, str], ...] = (("/", "오늘"), ("/harness", "선별 기록"), ("/paper", "모의 계좌"), ("/outcomes", "성과 검증"), ("/analyses", "AI 리포트"), ("/pricing", "요금제"))
 
+
+def _paid_plans_enabled() -> bool:
+    from .billing import paid_plans_enabled
+
+    return paid_plans_enabled()
+
+
+def pricing_label() -> str:
+    """What the pricing page is called: a price list, or the note that there is none."""
+
+    return "요금제" if _paid_plans_enabled() else "무료 안내"
+
+
+def nav_items() -> tuple[tuple[str, str], ...]:
+    return tuple((href, pricing_label() if href == "/pricing" else text) for href, text in NAV_ITEMS)
+
 SITE_NAME = "TradingAgents Korea"
 SITE_DESCRIPTION = "코스피200·코스닥150을 매일 아침 규칙으로 거르고 AI 토론으로 확인한 뒤 모의투자로 검증하는 한국 주식 리서치 도구입니다."
 
@@ -292,6 +308,7 @@ DS_JS = r"""
     var paid = s === 'active' && d.access.plan.id !== 'free';
     var planLabel = s === 'trialing' ? name + ' 체험' : (paid ? name : '무료');
     if(badge){
+      if(d.is_admin){ badge.hidden = false; }
       badge.textContent = d.is_admin ? '관리자' : planLabel;
       badge.className = 'badge plan-badge ' + (d.is_admin ? 'b-violet' : (s === 'trialing' ? 'b-amber' : (paid ? 'b-teal' : 'b-grey')));
       badge.title = d.is_admin ? ('관리자 · 현재 플랜 ' + planLabel) : '구독 관리';
@@ -321,7 +338,7 @@ def _theme_menu() -> str:
 
 
 def render_header(*, active: str | None = None, search: bool = True) -> str:
-    nav = "".join(f'<a href="{href}"{" aria-current=\"page\"" if href == active else ""}>{h(text)}</a>' for href, text in NAV_ITEMS)
+    nav = "".join(f'<a href="{href}"{" aria-current=\"page\"" if href == active else ""}>{h(text)}</a>' for href, text in nav_items())
     search_html = (
         f'<form class="top-search-form" action="/stocks" method="get" role="search"><label class="field top-search"><span class="muted">{icon("search", 14)}</span><input name="ticker" type="search" placeholder="종목명 또는 코드" aria-label="종목 검색" style="border: 0; background: transparent; outline: none; width: 100%; font: inherit; color: var(--ink);"></label></form>'
         if search
@@ -337,7 +354,7 @@ def render_header(*, active: str | None = None, search: bool = True) -> str:
       {search_html}
       {_theme_menu()}
       <span data-auth="signed-out" hidden><a class="btn ghost sm" href="/member">로그인</a> <a class="btn primary sm" href="/member?mode=signup">무료로 시작</a></span>
-      <span data-auth="signed-in" hidden class="row"><a class="badge plan-badge b-grey" href="/billing" data-plan-badge title="구독 관리">플랜 확인 중</a><a class="avatar" href="/mypage" data-avatar style="background: var(--accent); color: var(--on-accent);" aria-label="마이페이지" title="마이페이지">M</a></span>
+      <span data-auth="signed-in" hidden class="row"><a class="badge plan-badge b-grey" href="/billing" data-plan-badge data-paid-plans="{'1' if _paid_plans_enabled() else '0'}" title="구독 관리"{'' if _paid_plans_enabled() else ' hidden'}>플랜 확인 중</a><a class="avatar" href="/mypage" data-avatar style="background: var(--accent); color: var(--on-accent);" aria-label="마이페이지" title="마이페이지">M</a></span>
     </div>
   </div>
 </header>"""
@@ -351,7 +368,7 @@ def render_footer() -> str:
       <div>{icon_tile("layers", "b-blue", small=True)}<div><b>모든 숫자는 출처와 시각을 답니다.</b>pykrx · Naver · DART · KIS 중 어느 데이터인지 표시합니다.</div></div>
       <div>{icon_tile("brain", "b-violet", small=True)}<div><b>AI 의견은 연구 자료입니다.</b>투자 판단과 책임은 이용자에게 있으며 수익을 보장하지 않습니다.</div></div>
     </div>
-    <div class="links"><span>© 2026 TradingAgents Korea</span><a href="/features">서비스 소개</a><a href="/features/methodology">분석 기준</a><a href="/harness">선별 기록</a><a href="/outcomes">성과 검증</a><a href="/pricing">요금제</a><a href="/terms">이용약관</a><a href="/privacy">개인정보 처리방침</a><a href="/disclaimer">투자 유의사항</a><a href="/admin" data-admin-only hidden>운영 콘솔</a><a href="/admin/members" data-admin-only hidden>회원 관리</a></div>
+    <div class="links"><span>© 2026 TradingAgents Korea</span><a href="/features">서비스 소개</a><a href="/features/methodology">분석 기준</a><a href="/harness">선별 기록</a><a href="/outcomes">성과 검증</a><a href="/pricing">{h(pricing_label())}</a><a href="/terms">이용약관</a><a href="/privacy">개인정보 처리방침</a><a href="/disclaimer">투자 유의사항</a><a href="/admin" data-admin-only hidden>운영 콘솔</a><a href="/admin/members" data-admin-only hidden>회원 관리</a></div>
   </div>
 </footer>"""
 

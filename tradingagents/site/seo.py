@@ -103,7 +103,7 @@ def build_llms_txt(*, site_base_url: str | None = None, latest_run_date: str | N
 - [성과 검증]({link('/outcomes')}): 선정 종목의 5거래일·20거래일 수익률과 지수 대비 초과수익
 - [AI 리포트]({link('/analyses')}): 종목별 AI 분석 리포트
 - [분석 기준]({link('/features/methodology')}): 선별 규칙, 예측 모델, 토론 절차, 리스크 한도
-- [요금제]({link('/pricing')}): 무료 · 데일리 패스(월 10,000원) · 프로(월 30,000원)
+- [{pricing_line_label()}]({link('/pricing')}): {pricing_line_text()}
 
 ## 데이터 정책
 - 출처: pykrx(KRX 시세), Naver 금융, DART 공시, 한국투자증권 Open API(모의투자). 페이지마다 출처와 기준 시각을 표시합니다.
@@ -158,6 +158,42 @@ def adsense_head(publisher_id: str | None = None, *, token_storage_key: str = "t
         "fetch('/api/billing/me',{headers:{'Authorization':'Bearer '+t}}).then(function(r){return r.ok?r.json():null;}).then(function(d){"
         "var a=d&&d.access;var paid=Boolean(a&&a.status==='active'&&a.plan&&a.plan.id!=='free');"
         "if(!paid){resume();}}).catch(resume);})();</script>"
+    )
+
+
+def pricing_line_label() -> str:
+    from .billing import paid_plans_enabled
+
+    return "요금제" if paid_plans_enabled() else "무료 안내"
+
+
+def pricing_line_text() -> str:
+    from .billing import paid_plans_enabled
+
+    if paid_plans_enabled():
+        return "무료 · 데일리 패스(월 10,000원) · 프로(월 30,000원)"
+    return "모든 기능 무료 · 광고로 운영 · 실계좌 주문 없음"
+
+
+def ad_unit(*, slot_env: str = "TRADINGAGENTS_ADSENSE_SLOT_INFEED", css_class: str = "ad-unit") -> str:
+    """One responsive display unit, or nothing when no slot is configured.
+
+    Auto ads already run from the page head. This is for the one deliberate
+    placement per page, below the hero, where a unit does not push the table
+    the reader came for below the fold.
+    """
+
+    try:
+        publisher = normalize_adsense_publisher_id()
+    except ValueError:
+        return ""
+    slot = (os.getenv(slot_env) or "").strip()
+    if not publisher or not slot.isdigit():
+        return ""
+    return (
+        f'<div class="{css_class}" style="margin: 14px 0;"><ins class="adsbygoogle" style="display:block" data-ad-client="ca-{publisher}" '
+        f'data-ad-slot="{slot}" data-ad-format="auto" data-full-width-responsive="true"></ins>'
+        "<script>(window.adsbygoogle=window.adsbygoogle||[]).push({});</script></div>"
     )
 
 

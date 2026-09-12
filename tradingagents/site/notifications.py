@@ -296,7 +296,7 @@ def notify_harness_issue(
     details = []
     for recipient in recipients:
         access = resolve_plan_access(repo, str(recipient["user_id"]), now=now)
-        text = messages["paid"] if access.is_paid else messages["free"]
+        text = messages["paid"] if access.full_access else messages["free"]
         try:
             client.send_message(str(recipient["external_id"]), text)
             sent += 1
@@ -326,7 +326,7 @@ def notify_exit_alerts(repo: StorageRepository, client: TelegramClient, *, site_
         price_text = f" · 체결 {float(fill):,.0f}원" if fill else ""
         lines.append(f"• {item.get('ticker_name') or item.get('ticker_code')}({item.get('ticker_code')}) — {label}{f' · 모의 {qty}주' if qty else ''}{price_text} · {item.get('as_of_date')}")
     text = "<b>모의 계좌 청산 알림</b>\n" + "\n".join(lines) + f"\n\n계좌 보기: {base}/paper\n모의투자 기록이며 매매 권유가 아닙니다."
-    recipients = [r for r in repo.list_notification_recipients("telegram") if resolve_plan_access(repo, str(r["user_id"]), now=now).is_paid]
+    recipients = [r for r in repo.list_notification_recipients("telegram") if resolve_plan_access(repo, str(r["user_id"]), now=now).full_access]
     sent = failed = 0
     for recipient in recipients:
         try:
