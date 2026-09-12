@@ -424,25 +424,46 @@ def gate_paper_account_payload(payload: Mapping[str, Any] | None, access: PlanAc
     return result
 
 
+HEADLINE_ACCOUNTS = (None, "", "paper")
+
+
+def is_headline_run(run: Mapping[str, Any]) -> bool:
+    """A screening run of the AI book: the one the front page should show.
+
+    The intraday exit checks and the rules-only control book also record
+    runs, and after the morning they are the newest rows. They carry no
+    candidates, or belong to another account, so they are not what a reader
+    opening the site wants to see first.
+    """
+
+    metadata = run.get("metadata") or run.get("metadata_json") or {}
+    if metadata.get("account_key") not in HEADLINE_ACCOUNTS:
+        return False
+    if metadata.get("exits_only"):
+        return False
+    return int(run.get("candidate_count") or 0) > 0
+
+
 def latest_visible_run_id(repo: StorageRepository | None, access: PlanAccess, *, now: datetime | None = None) -> str | None:
-    """For free visitors pick the newest run dated before today; paid members get the newest."""
+    """The newest screening run a reader may see: today's with full access, else the last settled day's."""
 
     if repo is None:
         return None
     try:
-        runs = repo.list_harness_runs(limit=20)
+        runs = repo.list_harness_runs(limit=40)
     except Exception:
         return None
     if not runs:
         return None
+    headline = [run for run in runs if is_headline_run(run)] or runs
     if access.plan.same_day_harness:
-        return str(runs[0]["id"])
+        return str(headline[0]["id"])
     today = (now or datetime.now(KST)).astimezone(KST).date()
-    for run in runs:
+    for run in headline:
         as_of = _coerce_date(run.get("as_of_date"))
         if as_of and as_of < today:
             return str(run["id"])
-    return str(runs[0]["id"])  # only today's runs exist: return it locked
+    return str(headline[0]["id"])  # only today's runs exist: return it locked
 
 
 # ---------------------------------------------------------------- PortOne

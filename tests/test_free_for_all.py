@@ -89,12 +89,17 @@ def test_todays_run_and_todays_trades_are_open_to_a_visitor():
     assert visible["positions"] and visible["closed"] and visible["plan_gate"]["locked"] is False
 
 
-def test_the_newest_run_is_the_visible_one():
-    repo = _repo()
+def test_the_newest_screening_run_is_the_visible_one_not_the_bookkeeping_after_it():
     from tests.test_notifications import _seed_run  # the notification suite's seeded runs
+    from tradingagents.storage import HarnessRunInput
 
+    repo = _repo()
     old = _seed_run(repo, date(2026, 9, 9))
     new = _seed_run(repo, date(2026, 9, 12))
+    # After the morning run come the exit checks and the control book, both newer, both empty of picks.
+    repo.create_harness_run(HarnessRunInput(as_of_date=date(2026, 9, 12), candidate_count=0, order_count=0, metadata={"account_key": "paper", "exits_only": True}))
+    repo.create_harness_run(HarnessRunInput(as_of_date=date(2026, 9, 12), candidate_count=20, order_count=5, metadata={"account_key": "rules"}))
+
     assert latest_visible_run_id(repo, resolve_plan_access(None, None), now=NOW) == new
     assert old != new
 
