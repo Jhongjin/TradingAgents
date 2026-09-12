@@ -103,6 +103,7 @@ def build_llms_txt(*, site_base_url: str | None = None, latest_run_date: str | N
 - [성과 검증]({link('/outcomes')}): 선정 종목의 5거래일·20거래일 수익률과 지수 대비 초과수익
 - [AI 리포트]({link('/analyses')}): 종목별 AI 분석 리포트
 - [분석 기준]({link('/features/methodology')}): 선별 규칙, 예측 모델, 토론 절차, 리스크 한도
+- [30초 안내]({link('/start')}): 이 사이트가 무엇을 하는지, 무엇이 열려 있는지, 가입하면 무엇이 더해지는지
 - [{pricing_line_label()}]({link('/pricing')}): {pricing_line_text()}
 
 ## 데이터 정책
@@ -230,6 +231,7 @@ def build_sitemap_xml(
         (canonical_url("/outcomes", site_base_url=base), "hourly", "0.8"),
         (canonical_url("/analyses", site_base_url=base), "hourly", "0.8"),
         (canonical_url("/features", site_base_url=base), "weekly", "0.8"),
+        (canonical_url("/start", site_base_url=base), "monthly", "0.8"),
         (canonical_url("/pricing", site_base_url=base), "weekly", "0.6"),
     ]
     urls.extend((canonical_url(path, site_base_url=base), "weekly", "0.7") for path in _sitemap_harness_paths(harness_paths))

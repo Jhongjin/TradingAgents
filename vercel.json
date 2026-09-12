@@ -98,6 +98,10 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/start",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/lab/:path*",
       "destination": "/api/index.py"
     },

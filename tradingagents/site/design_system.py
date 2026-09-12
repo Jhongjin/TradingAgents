@@ -71,6 +71,13 @@ DS_COMPONENT_CSS = """
 .ds .label { font-size: 12px; font-weight: 500; color: var(--muted); }
 .ds .link { color: var(--accent-ink); font-weight: 600; }
 .ds .shell { width: min(1200px, 100% - 48px); margin: 0 auto; }
+.ds .intro-strip { background: var(--accent-soft); border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.ds .intro-strip .shell { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
+.ds .intro-strip p { flex: 1; min-width: 0; color: var(--ink); }
+.ds .intro-strip .btn { height: 30px; padding: 0 12px; font-size: 13px; }
+.ds .intro-close { border: 0; background: transparent; color: var(--ink2); font-size: 19px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 6px; font-family: inherit; }
+.ds .intro-close:hover { background: var(--panel); }
+@media (max-width: 720px) { .ds .intro-strip p { font-size: 12.5px; } .ds .intro-strip .intro-long { display: none; } }
 .ds .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
 .ds .card-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .ds .card-h h2 { display: flex; align-items: center; gap: 8px; }
@@ -319,6 +326,22 @@ DS_JS = r"""
     var av = inn.querySelector('[data-avatar]'); if(av && email){ av.textContent = email.slice(0,1).toUpperCase(); av.title = email; }
   }).catch(function(){ out.hidden = true; inn.hidden = false; });
 })();
+(function(){
+  // first-visit strip: shown to a browser with no prior visit and no session
+  var strip = document.getElementById('intro-strip');
+  if(!strip) return;
+  var KEY = 'ta-intro-seen';
+  var seen = '', token = '';
+  try { seen = localStorage.getItem(KEY) || ''; } catch(e) {}
+  try { token = localStorage.getItem('__TOKEN_KEY__') || sessionStorage.getItem('__TOKEN_KEY__') || ''; } catch(e) {}
+  if(seen || token) return;
+  function remember(){ try { localStorage.setItem(KEY, String(Date.now())); } catch(e) {} }
+  strip.hidden = false;
+  var close = strip.querySelector('[data-intro-close]');
+  if(close){ close.addEventListener('click', function(){ strip.hidden = true; remember(); }); }
+  var go = strip.querySelector('[data-intro-go]');
+  if(go){ go.addEventListener('click', remember); }
+})();
 """
 
 
@@ -335,6 +358,25 @@ def _theme_menu() -> str:
     for name in THEMES:
         rows.append(f'<button type="button" role="menuitemradio" data-theme="{name}" aria-checked="false"><span class="swatch" style="background: {swatches[name]};"></span>{h(THEME_LABELS[name])}</button>')
     return f'<div class="theme-pick"><button type="button" data-theme-trigger aria-haspopup="menu" aria-expanded="false" aria-label="테마 선택" title="테마">{icon("palette", 16)}</button><div class="theme-menu" role="menu" hidden>{"".join(rows)}</div></div>'
+
+
+def render_intro_strip() -> str:
+    """A one-line offer of an explanation, for a reader who has never been here.
+
+    Deliberately not a modal over the page: an interstitial that covers the
+    content on arrival is what Google penalises on mobile, and search and
+    video are how people reach this site. The browser reveals it only when
+    no visit and no session has been recorded, and hides it for good once
+    the reader answers either way.
+    """
+
+    return """<div class="intro-strip" id="intro-strip" hidden>
+  <div class="shell">
+    <p><b>처음 오셨나요?</b> AI가 매일 아침 고른 종목과 그 결과를 공개하는 곳입니다.<span class="intro-long"> 가입 없이 전부 보실 수 있습니다.</span></p>
+    <a class="btn primary" href="/start" data-intro-go>30초 안내</a>
+    <button type="button" class="intro-close" data-intro-close aria-label="안내 닫기">&times;</button>
+  </div>
+</div>"""
 
 
 def render_header(*, active: str | None = None, search: bool = True) -> str:
@@ -368,7 +410,7 @@ def render_footer() -> str:
       <div>{icon_tile("layers", "b-blue", small=True)}<div><b>모든 숫자는 출처와 시각을 답니다.</b>pykrx · Naver · DART · KIS 중 어느 데이터인지 표시합니다.</div></div>
       <div>{icon_tile("brain", "b-violet", small=True)}<div><b>AI 의견은 연구 자료입니다.</b>투자 판단과 책임은 이용자에게 있으며 수익을 보장하지 않습니다.</div></div>
     </div>
-    <div class="links"><span>© 2026 TradingAgents Korea</span><a href="/features">서비스 소개</a><a href="/features/methodology">분석 기준</a><a href="/harness">선별 기록</a><a href="/outcomes">성과 검증</a><a href="/pricing">{h(pricing_label())}</a><a href="/terms">이용약관</a><a href="/privacy">개인정보 처리방침</a><a href="/disclaimer">투자 유의사항</a><a href="/admin" data-admin-only hidden>운영 콘솔</a><a href="/admin/members" data-admin-only hidden>회원 관리</a></div>
+    <div class="links"><span>© 2026 TradingAgents Korea</span><a href="/start">30초 안내</a><a href="/features">서비스 소개</a><a href="/features/methodology">분석 기준</a><a href="/harness">선별 기록</a><a href="/outcomes">성과 검증</a><a href="/pricing">{h(pricing_label())}</a><a href="/terms">이용약관</a><a href="/privacy">개인정보 처리방침</a><a href="/disclaimer">투자 유의사항</a><a href="/admin" data-admin-only hidden>운영 콘솔</a><a href="/admin/members" data-admin-only hidden>회원 관리</a></div>
   </div>
 </footer>"""
 
@@ -492,6 +534,7 @@ def render_shell(
 <body class="ds {h(body_class)}">
 <a class="skip-link" href="#main-content">본문 바로가기</a>
 {render_header(active=active, search=search)}
+{render_intro_strip() if not noindex and canonical_path != "/start" else ""}
 <main id="main-content">
 {body}
 </main>

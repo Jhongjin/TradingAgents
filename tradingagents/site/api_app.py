@@ -1258,6 +1258,14 @@ def create_app(
     def disclaimer_page(request: Request) -> HTMLResponse:
         return HTMLResponse(render_policy_page("disclaimer", site_base_url=_request_site_base_url(request)))
 
+    @app.get("/start", response_class=HTMLResponse, include_in_schema=False)
+    def start_page(request: Request) -> HTMLResponse:
+        """What this site is, for someone who has just arrived."""
+
+        from .start_page import render_start_page
+
+        return HTMLResponse(render_start_page(site_base_url=_request_site_base_url(request)))
+
     @app.get("/features", response_class=HTMLResponse, include_in_schema=False)
     def feature_index(request: Request) -> HTMLResponse:
         return HTMLResponse(render_feature_index_page(site_base_url=_request_site_base_url(request)))
