@@ -171,3 +171,13 @@ def test_both_workflows_are_importable_and_ship_no_secrets():
     local = _json.loads(Path("automation/n8n/daily-short-local.json").read_text(encoding="utf-8"))
     model = next(node for node in local["nodes"] if "openAi" in node["type"])
     assert model.get("disabled") is True
+
+    # the file reaches YouTube under "data", the binary name every n8n node
+    # reads by default, so that node needs no editing after import
+    reader = next(node for node in local["nodes"] if node["type"].endswith("readWriteFile"))
+    assert reader["parameters"]["options"]["dataPropertyName"] == "data"
+    handoff = next(node for node in hosted["nodes"] if node["name"] == "받은 것 확인")
+    assert "binary: { data: binary.video }" in handoff["parameters"]["jsCode"]
+    for flow in (hosted, local):
+        upload = next(node for node in flow["nodes"] if node["type"].endswith("youTube"))
+        assert "binaryProperty" not in _json.dumps(upload["parameters"])   # the default is left alone

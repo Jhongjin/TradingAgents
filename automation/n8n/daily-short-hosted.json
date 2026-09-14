@@ -16,7 +16,10 @@
       "name": "영상 수신",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-620, 320],
+      "position": [
+        -620,
+        320
+      ],
       "webhookId": "b2000000-0000-4000-8000-0000000000aa",
       "credentials": {
         "httpHeaderAuth": {
@@ -24,17 +27,20 @@
           "name": ""
         }
       },
-      "notes": "렌더가 끝난 PC 가 여기로 mp4 와 제목·설명을 밀어 넣습니다. Header Auth 자격증명을 만들어 이름 X-Shorts-Token 과 임의의 긴 문자열을 넣고, 같은 값을 PC 의 TRADINGAGENTS_SHORTS_WEBHOOK_TOKEN 에 넣으세요."
+      "notes": "렌더가 끝난 PC 가 여기로 mp4 와 제목·설명을 밀어 넣습니다. multipart 필드 이름은 video 입니다. Header Auth 자격증명을 만들어 이름 X-Shorts-Token 과 임의의 긴 문자열을 넣고, 같은 값을 PC 의 TRADINGAGENTS_SHORTS_WEBHOOK_TOKEN 에 넣으세요."
     },
     {
       "parameters": {
-        "jsCode": "// The form fields arrive under body, the file as a binary property.\n// Everything is validated here so a bad post fails loudly rather than\n// uploading something empty to the channel.\nconst item = $input.first();\nconst body = item.json.body || item.json;\nconst binary = item.binary || {};\n\nif (!binary.video) {\n  throw new Error('영상 파일이 없습니다. multipart 필드 이름이 video 인지 확인하세요.');\n}\nconst title = String(body.title || '').trim();\nif (!title) {\n  throw new Error('제목이 비어 있습니다.');\n}\n\nreturn [{\n  json: {\n    story: String(body.story || 'unknown'),\n    label: String(body.label || ''),\n    reason: String(body.reason || ''),\n    title: title.slice(0, 95),\n    description: String(body.description || '').slice(0, 4900),\n    tags: String(body.tags || '주식,AI주식,모의투자,코스피,투자기록'),\n    privacyStatus: ['private', 'unlisted', 'public'].includes(String(body.privacyStatus)) ? String(body.privacyStatus) : 'private',\n    sizeMb: +((binary.video.fileSize || 0) / 1048576).toFixed(1),\n  },\n  binary: { video: binary.video },\n}];"
+        "jsCode": "// The form fields arrive under body, the file as a binary property.\n// Everything is validated here so a bad post fails loudly rather than\n// uploading something empty to the channel.\nconst item = $input.first();\nconst body = item.json.body || item.json;\nconst binary = item.binary || {};\n\nif (!binary.video) {\n  throw new Error('영상 파일이 없습니다. multipart 필드 이름이 video 인지 확인하세요.');\n}\nconst title = String(body.title || '').trim();\nif (!title) {\n  throw new Error('제목이 비어 있습니다.');\n}\n\nreturn [{\n  json: {\n    story: String(body.story || 'unknown'),\n    label: String(body.label || ''),\n    reason: String(body.reason || ''),\n    title: title.slice(0, 95),\n    description: String(body.description || '').slice(0, 4900),\n    tags: String(body.tags || '주식,AI주식,모의투자,코스피,투자기록'),\n    privacyStatus: ['private', 'unlisted', 'public'].includes(String(body.privacyStatus)) ? String(body.privacyStatus) : 'private',\n    sizeMb: +((binary.video.fileSize || 0) / 1048576).toFixed(1),\n  },\n  // handed on as 'data', which is the binary field every n8n node reads by default\n  binary: { data: binary.video },\n}];"
       },
       "id": "b2000000-0000-4000-8000-000000000002",
       "name": "받은 것 확인",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-380, 320]
+      "position": [
+        -380,
+        320
+      ]
     },
     {
       "parameters": {
@@ -54,14 +60,17 @@
       "name": "유튜브 업로드",
       "type": "n8n-nodes-base.youTube",
       "typeVersion": 1,
-      "position": [-140, 320],
+      "position": [
+        -140,
+        320
+      ],
       "credentials": {
         "youTubeOAuth2Api": {
           "id": "",
           "name": ""
         }
       },
-      "notes": "자격증명을 채운 뒤 업로드할 바이너리 필드 이름이 video 인지 노드에서 확인하세요. 유튜브 API 심사 전에는 올린 영상이 비공개로 잠깁니다."
+      "notes": "자격증명만 채우면 됩니다. Input Binary Field 는 기본값 data 그대로 두세요. 앞 노드가 그 이름으로 파일을 넘깁니다. 유튜브 API 심사 전에는 올린 영상이 비공개로 잠깁니다."
     },
     {
       "parameters": {
@@ -73,7 +82,10 @@
       "name": "텔레그램 알림",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [100, 320],
+      "position": [
+        100,
+        320
+      ],
       "credentials": {
         "telegramApi": {
           "id": "",
@@ -92,7 +104,10 @@
       "name": "업로드 결과 회신",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [340, 320],
+      "position": [
+        340,
+        320
+      ],
       "notes": "PC 가 이 응답의 videoId 를 받아 발행 기록에 적습니다. 그래야 내일의 선택기가 같은 이야기를 피합니다."
     },
     {
@@ -101,7 +116,10 @@
       "name": "실패 감지",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
-      "position": [-620, 560]
+      "position": [
+        -620,
+        560
+      ]
     },
     {
       "parameters": {
@@ -113,7 +131,10 @@
       "name": "실패 알림",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [-380, 560],
+      "position": [
+        -380,
+        560
+      ],
       "credentials": {
         "telegramApi": {
           "id": "",
@@ -124,19 +145,59 @@
   ],
   "connections": {
     "영상 수신": {
-      "main": [[{ "node": "받은 것 확인", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "받은 것 확인",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "받은 것 확인": {
-      "main": [[{ "node": "유튜브 업로드", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "유튜브 업로드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "유튜브 업로드": {
-      "main": [[{ "node": "텔레그램 알림", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "텔레그램 알림",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "텔레그램 알림": {
-      "main": [[{ "node": "업로드 결과 회신", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "업로드 결과 회신",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "실패 감지": {
-      "main": [[{ "node": "실패 알림", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "실패 알림",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {

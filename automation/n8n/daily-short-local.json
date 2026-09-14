@@ -16,7 +16,10 @@
       "name": "평일 아침 08:40",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-660, 300],
+      "position": [
+        -660,
+        300
+      ],
       "notes": "워크플로 설정의 Timezone 을 Asia/Seoul 로 두어야 한국 시간 08:40 에 돕니다."
     },
     {
@@ -25,7 +28,10 @@
       "name": "수동 실행",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
-      "position": [-660, 480]
+      "position": [
+        -660,
+        480
+      ]
     },
     {
       "parameters": {
@@ -63,7 +69,10 @@
       "name": "설정",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [-420, 380],
+      "position": [
+        -420,
+        380
+      ],
       "notes": "경로와 공개 범위를 여기서만 바꿉니다. 처음에는 privacyStatus 를 private 으로 두고 결과를 확인한 뒤 public 으로 올리세요."
     },
     {
@@ -74,7 +83,10 @@
       "name": "오늘 뭘 만들지 고른다",
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
-      "position": [-200, 380],
+      "position": [
+        -200,
+        380
+      ],
       "notes": "데이터가 스토리를 고릅니다. 발동한 스토리 중 점수가 가장 높고 실제로 렌더 가능한 것을 하나 돌려줍니다."
     },
     {
@@ -85,7 +97,10 @@
       "name": "선택 결과 읽기",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [20, 380]
+      "position": [
+        20,
+        380
+      ]
     },
     {
       "parameters": {
@@ -116,7 +131,10 @@
       "name": "만들 이야기가 있나",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [240, 380]
+      "position": [
+        240,
+        380
+      ]
     },
     {
       "parameters": {
@@ -126,7 +144,10 @@
       "name": "영상 만들기",
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
-      "position": [480, 260],
+      "position": [
+        480,
+        260
+      ],
       "notes": "내레이션을 먼저 만들어 길이를 재고, 장면을 그 길이에 맞춘 뒤 HyperFrames 로 찍고 음성을 입힙니다. 3~5분 걸립니다."
     },
     {
@@ -137,21 +158,27 @@
       "name": "영상과 설명문 찾기",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [700, 260]
+      "position": [
+        700,
+        260
+      ]
     },
     {
       "parameters": {
         "operation": "read",
         "fileSelector": "={{ $json.videoPath }}",
         "options": {
-          "dataPropertyName": "video"
+          "dataPropertyName": "data"
         }
       },
       "id": "a1000000-0000-4000-8000-000000000009",
       "name": "영상 파일 읽기",
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
-      "position": [920, 260]
+      "position": [
+        920,
+        260
+      ]
     },
     {
       "parameters": {
@@ -178,7 +205,10 @@
       "name": "제목 다듬기 (선택)",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.8,
-      "position": [920, 460],
+      "position": [
+        920,
+        460
+      ],
       "disabled": true,
       "credentials": {
         "openAiApi": {
@@ -206,14 +236,17 @@
       "name": "유튜브 업로드",
       "type": "n8n-nodes-base.youTube",
       "typeVersion": 1,
-      "position": [1140, 260],
+      "position": [
+        1140,
+        260
+      ],
       "credentials": {
         "youTubeOAuth2Api": {
           "id": "",
           "name": ""
         }
       },
-      "notes": "자격증명을 채운 뒤, 업로드할 바이너리 필드 이름이 'video' 인지 노드 화면에서 확인하세요. 앞 노드가 그 이름으로 파일을 싣습니다. 유튜브 API 심사를 통과하기 전에는 업로드된 영상이 비공개로 잠깁니다."
+      "notes": "자격증명만 채우면 됩니다. Input Binary Field 는 기본값 data 그대로 두세요. 앞 노드가 그 이름으로 파일을 싣습니다. 유튜브 API 심사 전에는 올린 영상이 비공개로 잠깁니다."
     },
     {
       "parameters": {
@@ -223,7 +256,10 @@
       "name": "발행 기록 남기기",
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
-      "position": [1360, 260],
+      "position": [
+        1360,
+        260
+      ],
       "notes": "무엇을 언제 올렸는지 적어둡니다. 내일의 선택기가 이 기록을 보고 같은 이야기를 반복하지 않습니다."
     },
     {
@@ -238,7 +274,10 @@
       "name": "텔레그램 알림",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [1580, 260],
+      "position": [
+        1580,
+        260
+      ],
       "credentials": {
         "telegramApi": {
           "id": "",
@@ -257,7 +296,10 @@
       "name": "조용한 날 보고",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [480, 520],
+      "position": [
+        480,
+        520
+      ],
       "credentials": {
         "telegramApi": {
           "id": "",
@@ -274,7 +316,10 @@
       "name": "업로드 전 대기",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [1140, 440],
+      "position": [
+        1140,
+        440
+      ],
       "webhookId": "a1000000-0000-4000-8000-0000000000ff",
       "disabled": true,
       "notes": "업로드가 자주 실패하면 이 노드를 켜서 파일 쓰기가 끝날 시간을 줍니다."
@@ -282,40 +327,132 @@
   ],
   "connections": {
     "평일 아침 08:40": {
-      "main": [[{ "node": "설정", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "설정",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "수동 실행": {
-      "main": [[{ "node": "설정", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "설정",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "설정": {
-      "main": [[{ "node": "오늘 뭘 만들지 고른다", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "오늘 뭘 만들지 고른다",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "오늘 뭘 만들지 고른다": {
-      "main": [[{ "node": "선택 결과 읽기", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "선택 결과 읽기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "선택 결과 읽기": {
-      "main": [[{ "node": "만들 이야기가 있나", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "만들 이야기가 있나",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "만들 이야기가 있나": {
       "main": [
-        [{ "node": "영상 만들기", "type": "main", "index": 0 }],
-        [{ "node": "조용한 날 보고", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "영상 만들기",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "조용한 날 보고",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "영상 만들기": {
-      "main": [[{ "node": "영상과 설명문 찾기", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "영상과 설명문 찾기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "영상과 설명문 찾기": {
-      "main": [[{ "node": "영상 파일 읽기", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "영상 파일 읽기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "영상 파일 읽기": {
-      "main": [[{ "node": "유튜브 업로드", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "유튜브 업로드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "유튜브 업로드": {
-      "main": [[{ "node": "발행 기록 남기기", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "발행 기록 남기기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "발행 기록 남기기": {
-      "main": [[{ "node": "텔레그램 알림", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "텔레그램 알림",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
