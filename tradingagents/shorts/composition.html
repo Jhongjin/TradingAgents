@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      /* Installed on this machine, so the declaration alone is enough; the
+         renderer needs to be told the family exists rather than given a file. */
+      @font-face { font-family: "Noto Sans KR"; font-weight: 300; src: local("Noto Sans KR Light"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 500; src: local("Noto Sans KR Medium"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 700; src: local("Noto Sans KR Bold"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 900; src: local("Noto Sans KR Black"), local("Noto Sans KR"); }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0d1521; }
+
+      :root {
+        --ink: #e9eef6;
+        --ink2: #97a8bd;
+        --muted: #63748b;
+        --loss: #4d9bff;
+        --gain: #ff5c60;
+        --paper: #f2ece0;
+        --hair: #22314a;
+      }
+
+      #root {
+        width: 1080px; height: 1920px; position: relative; overflow: hidden;
+        font-family: "Noto Sans KR", sans-serif; color: var(--ink);
+        font-variant-numeric: tabular-nums;
+      }
+      .clip { position: absolute; inset: 0; }
+
+      .pad { position: absolute; left: 116px; right: 84px; }
+      .kicker { font-weight: 300; font-size: 32px; color: var(--muted); letter-spacing: -0.01em; }
+      .head { font-weight: 900; font-size: 66px; letter-spacing: -0.035em; line-height: 1.22; }
+      .body { font-weight: 300; font-size: 36px; color: var(--ink2); line-height: 1.55; }
+      .figure { font-weight: 900; letter-spacing: -0.05em; line-height: 0.86; }
+      .unit { font-size: 0.4em; font-weight: 700; letter-spacing: -0.02em; }
+
+      /* ---- scene 1: the hook ------------------------------------------ */
+      #s1-fig { position: absolute; left: 104px; top: 470px; font-size: 320px; color: var(--loss); }
+      #s1-rule { position: absolute; left: 116px; width: 880px; top: 926px; height: 3px;
+                 background: var(--paper); transform-origin: left center; }
+      #s1-lines { top: 982px; }
+
+      /* ---- scene 2 + 3: the falls ------------------------------------- */
+      .lane { position: absolute; width: 176px; top: 0; height: 1920px; }
+      .stem { position: absolute; left: 86px; top: 520px; width: 4px; height: 0;
+              background: var(--loss); transform-origin: top center; }
+      .head-dot { position: absolute; left: 80px; top: 512px; width: 16px; height: 16px;
+                  border-radius: 50%; background: var(--paper); }
+      .end-dot { position: absolute; left: 78px; top: 512px; width: 20px; height: 20px;
+                 border-radius: 50%; background: var(--loss); }
+      .pct { position: absolute; left: 0; width: 176px; text-align: center; top: 512px;
+             font-weight: 900; font-size: 34px; color: var(--loss); letter-spacing: -0.02em; }
+      .name { position: absolute; left: -10px; width: 196px; top: 1240px; text-align: center;
+              font-weight: 500; font-size: 25px; color: var(--ink2); line-height: 1.3; }
+      #falls-rule { position: absolute; left: 116px; width: 880px; top: 520px; height: 2px;
+                    background: var(--hair); }
+      #falls-label { position: absolute; left: 116px; top: 466px; font-size: 26px;
+                     font-weight: 500; color: var(--muted); }
+
+      /* the account line, laid over the same scale */
+      #acct-line { position: absolute; left: 116px; width: 880px; top: {{ACCOUNT_TOP}}px; height: 5px;
+                   background: var(--paper); transform-origin: left center; }
+      #acct-tag { position: absolute; right: 84px; top: 404px; text-align: right; }
+      #acct-tag .v { font-weight: 900; font-size: 96px; letter-spacing: -0.04em; color: var(--paper); }
+      #acct-tag .k { font-weight: 300; font-size: 30px; color: var(--ink2); }
+
+      /* ---- scene 4: three books --------------------------------------- */
+      .book { position: absolute; left: 116px; right: 84px; }
+      .book .bk-name { font-weight: 500; font-size: 40px; }
+      .book .bk-val { position: absolute; right: 0; top: 0; font-weight: 900; font-size: 46px; letter-spacing: -0.03em; }
+      .book .bk-track { position: absolute; left: 0; top: 66px; width: 880px; height: 2px; background: var(--hair); }
+      .book .bk-bar { position: absolute; top: 58px; right: 0; width: 880px; height: 18px;
+                      background: var(--loss); transform-origin: right center; border-radius: 2px; }
+      .book .bk-sub { position: absolute; top: 92px; font-weight: 300; font-size: 26px; color: var(--muted); }
+
+      /* ---- scene 5: the outro ----------------------------------------- */
+      #s5-rule { position: absolute; left: 116px; width: 880px; top: 760px; height: 3px;
+                 background: var(--paper); transform-origin: left center; }
+      .url { font-weight: 900; font-size: 74px; letter-spacing: -0.035em; color: var(--paper); }
+      #tg-rule { position: absolute; left: 116px; width: 880px; top: 1052px; height: 2px; background: var(--hair); }
+      .fine { font-weight: 300; font-size: 25px; line-height: 1.5; color: var(--muted); }
+      .mark { position: absolute; right: 84px; top: 1498px; font-weight: 300; font-size: 28px; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="{{DURATION}}"
+         data-width="1080" data-height="1920">
+
+      <!-- 1. the hook ------------------------------------------------------->
+      <div class="clip" id="s1" data-start="{{HOOK_START}}" data-duration="{{HOOK_DURATION}}" data-track-index="0">
+        <p class="kicker pad" style="top: 240px;" id="s1-kick">{{KICKER}}</p>
+        <p class="figure" id="s1-fig"><span id="s1-num">0.00</span><span class="unit">%</span></p>
+        <p class="body pad" style="top: 852px;" id="s1-cap">{{CAPTION}}</p>
+        <div id="s1-rule"></div>
+        <div class="pad" id="s1-lines">
+          <p class="head" id="s1-l1">{{LINE1}}</p>
+          <p class="head" id="s1-l2">{{LINE2}}</p>
+        </div>
+      </div>
+
+      <!-- 2 + 3. the falls, then the account line over them ---------------->
+      <div class="clip" id="s2" data-start="{{FALLS_START}}" data-duration="{{FALLS_DURATION}}" data-track-index="0">
+        <p class="head pad" style="top: 250px;" id="s2-head">{{FALLS_HEAD}}</p>
+        <div id="falls-rule"></div>
+        <p id="falls-label">매수가</p>
+
+        {{LANES}}
+
+        <div id="acct-line"></div>
+        <div id="acct-tag">
+          <p class="k">계좌 전체는</p>
+          <p class="v">{{TOTAL_TEXT}}</p>
+        </div>
+        <p class="body pad" style="top: 1330px;" id="s2-note">
+          {{FALLS_NOTE}}
+        </p>
+      </div>
+
+      <!-- 4. the three books ----------------------------------------------->
+      <div class="clip" id="s4" data-start="{{BOOKS_START}}" data-duration="{{BOOKS_DURATION}}" data-track-index="0">
+        <p class="head pad" style="top: 250px;" id="s4-head">AI가 보탠 몫을 봅니다</p>
+        {{BOOKS}}
+        <p class="body pad" style="top: 1180px;" id="s4-note">
+          {{BOOKS_NOTE}}
+        </p>
+      </div>
+
+      <!-- 5. the outro ------------------------------------------------------>
+      <div class="clip" id="s5" data-start="{{OUTRO_START}}" data-duration="{{OUTRO_DURATION}}" data-track-index="0">
+        <div class="pad" style="top: 470px;">
+          <p class="head" id="s5-l1">{{OUTRO1}}</p>
+          <p class="head" id="s5-l2">{{OUTRO2}}</p>
+        </div>
+        <div id="s5-rule"></div>
+        <p class="body pad" style="top: 806px;" id="s5-call">틀린 날까지 전부 남는 기록</p>
+        <p class="url pad" style="top: 858px;" id="s5-url">{{URL}}</p>
+        <div id="tg-rule"></div>
+        <div class="pad" style="top: 1094px;" id="s5-tg">
+          <p class="fine" style="color: var(--ink2);">{{TELEGRAM_LINE}}</p>
+          <p class="url" style="font-size: 54px; margin-top: 14px;">{{TELEGRAM}}</p>
+        </div>
+        <p class="fine pad" style="top: 1404px; right: 300px;" id="s5-fine">
+          AI 실험 기록이며 매매 권유가 아닙니다.<br />모의 계좌 기록이고 실계좌 주문은 없습니다.
+        </p>
+      </div>
+
+      <p class="mark">{{URL}}</p>
+    </div>
+
+    <script>
+      // the fall scale: 0% at the entry rule, -18% at the floor
+      const TOP = 520, FLOOR = 1180, SPAN = {{FALL_SPAN}};
+      const depth = (pct) => ((Math.abs(pct) / SPAN) * (FLOOR - TOP));
+      const FALLS = {{FALL_DEPTHS}};
+
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // --- 1. hook ---------------------------------------------------------
+      const counter = { v: 0 };
+      tl.fromTo("#s1-kick", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0)
+        .fromTo("#s1-fig", { opacity: 0, scale: 0.93 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power3.out" }, 0.12)
+        .to(counter, {
+          v: {{TOTAL}}, duration: 1.15, ease: "power3.out",
+          onUpdate: () => { document.getElementById("s1-num").textContent = counter.v.toFixed(2); },
+        }, 0.2)
+        .fromTo("#s1-cap", { opacity: 0 }, { opacity: 1, duration: 0.35 }, 0.62)
+        .fromTo("#s1-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power3.out" }, 0.76)
+        .fromTo("#s1-l1", { opacity: 0 }, { opacity: 1, duration: 0.35 }, 1.0)
+        .fromTo("#s1-l2", { opacity: 0 }, { opacity: 1, duration: 0.35 }, 1.18);
+
+      // --- 2. the falls ----------------------------------------------------
+      const S2 = {{FALLS_START}};
+      tl.fromTo("#s2-head", { opacity: 0 }, { opacity: 1, duration: 0.4 }, S2)
+        .fromTo("#falls-rule", { scaleX: 0, transformOrigin: "left center" }, { scaleX: 1, duration: 0.5, ease: "power2.out" }, S2 + 0.15)
+        .fromTo("#falls-label", { opacity: 0 }, { opacity: 1, duration: 0.3 }, S2 + 0.4);
+
+      FALLS.forEach((pct, i) => {
+        const lane = `#lane${i} `;
+        const drop = depth(pct);
+        const at = S2 + 0.7 + i * 0.62;
+        tl.fromTo(lane + ".head-dot", { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.22, ease: "back.out(2)" }, at)
+          // the fall itself: the one motion this video is built around
+          .fromTo(lane + ".stem", { height: 0 }, { height: drop, duration: 0.52, ease: "power2.in" }, at + 0.18)
+          .fromTo(lane + ".end-dot", { y: 0, opacity: 0 }, { y: drop, opacity: 1, duration: 0.52, ease: "power2.in" }, at + 0.18)
+          .fromTo(lane + ".pct", { y: 0, opacity: 0 }, { y: drop + 34, opacity: 1, duration: 0.52, ease: "power2.in" }, at + 0.18)
+          .fromTo(lane + ".name", { opacity: 0 }, { opacity: 1, duration: 0.3 }, at + 0.6);
+      });
+
+      // --- 3. the same scale, and how far the account actually fell --------
+      const S3 = {{TURN_AT}};
+      tl.to("#lane0, #lane1, #lane2, #lane3, #lane4", { opacity: 0.26, duration: 0.5 }, S3)
+        .fromTo("#acct-line", { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: "power3.out" }, S3 + 0.15)
+        .fromTo("#acct-tag", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, S3 + 0.5)
+        .fromTo("#s2-note", { opacity: 0 }, { opacity: 1, duration: 0.4 }, S3 + 1.0);
+
+      // --- 4. three books --------------------------------------------------
+      const S4 = {{BOOKS_START}}, BOOKS = {{BOOK_VALUES}}, WORST = {{BOOK_WORST}};
+      tl.fromTo("#s4-head", { opacity: 0 }, { opacity: 1, duration: 0.4 }, S4);
+      BOOKS.forEach((pct, i) => {
+        const at = S4 + 0.4 + i * 0.3;
+        const grow = Math.abs(pct) / WORST;
+        tl.fromTo(`#bk${i} .bk-name, #bk${i} .bk-val, #bk${i} .bk-sub`, { opacity: 0 }, { opacity: 1, duration: 0.35 }, at)
+          .fromTo(`#bk${i} .bk-track`, { scaleX: 0, transformOrigin: "right center" }, { scaleX: 1, duration: 0.4 }, at)
+          // bars grow leftward from zero on the right, so a longer bar is a
+          // deeper loss; scaled rather than widened so the tail stays smooth
+          .fromTo(`#bk${i} .bk-bar`, { scaleX: 0 }, { scaleX: grow, duration: 0.6, ease: "power3.out" }, at + 0.1);
+      });
+      tl.fromTo("#s4-note", { opacity: 0 }, { opacity: 1, duration: 0.4 }, S4 + 1.6);
+
+      // --- 5. outro --------------------------------------------------------
+      const S5 = {{OUTRO_START}};
+      tl.fromTo("#s5-l1", { opacity: 0 }, { opacity: 1, duration: 0.35 }, S5)
+        .fromTo("#s5-l2", { opacity: 0 }, { opacity: 1, duration: 0.35 }, S5 + 0.18)
+        .fromTo("#s5-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power3.out" }, S5 + 0.42)
+        .fromTo("#s5-call", { opacity: 0 }, { opacity: 1, duration: 0.35 }, S5 + 0.55)
+        .fromTo("#s5-url", { opacity: 0 }, { opacity: 1, duration: 0.4 }, S5 + 0.7)
+        .fromTo("#tg-rule", { scaleX: 0, transformOrigin: "left center" }, { scaleX: 1, duration: 0.5 }, S5 + 1.15)
+        .fromTo("#s5-tg", { opacity: 0 }, { opacity: 1, duration: 0.4 }, S5 + 1.3)
+        .fromTo("#s5-fine", { opacity: 0 }, { opacity: 1, duration: 0.4 }, S5 + 1.7);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

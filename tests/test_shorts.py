@@ -5,6 +5,7 @@ font that can draw Hangul, which a bare CI image may not have, so those checks
 stand aside rather than fail when there is none.
 """
 
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -345,3 +346,47 @@ def test_a_counting_figure_holds_its_width():
     canvas = Canvas.blank("poster")
     assert canvas.measure_figure("11.11%", size=200) == canvas.measure_figure("88.88%", size=200)
     assert canvas.measure_figure("-1.17%", size=200) > canvas.measure_figure("1.17%", size=200)
+
+
+def test_the_html_composition_fills_every_slot_from_the_account(tmp_path):
+    """The page is generated, so no placeholder may survive into a render."""
+
+    import re
+
+    from tradingagents.shorts.hyperframes import compose_record, write_project
+
+    board = build_record(_payload(), now=NOW)
+    html, seconds = compose_record(_payload(), board)
+
+    assert not re.findall(r"\{\{[A-Z_0-9]+\}\}", html)          # nothing left unfilled
+    assert seconds == pytest.approx(board.seconds, abs=0.05)     # the page is as long as the cut
+    assert 'data-composition-id="main"' in html and 'data-duration="' in html
+    assert 'window.__timelines["main"]' in html and "paused: true" in html
+    assert "Date.now" not in html and "Math.random" not in html  # the render must be deterministic
+
+    # worst first, each lane carrying the trade it belongs to
+    assert html.index("-15.60%") < html.index("-6.53%") < html.index("+3.10%")
+    assert html.count('class="lane"') == 3                       # the payload closes three
+    assert "티에스이" in html and "제이앤티씨" in html
+    assert "-1.17%" in html and "1.5억원" in html
+
+    project = write_project(html, tmp_path / "hf", name="record")
+    assert project.html.read_text(encoding="utf-8") == html
+    assert json.loads((project.directory / "package.json").read_text(encoding="utf-8"))["scripts"]["render"]
+    assert project.seconds == pytest.approx(seconds, abs=0.01)
+
+
+def test_the_fall_scale_leaves_room_under_the_worst_trade():
+    from tradingagents.shorts.hyperframes import _fall_scale
+
+    assert _fall_scale([-0.156, -0.0653]) == pytest.approx(18.096, abs=0.01)   # 15.6% with headroom
+    assert _fall_scale([]) > 0                                                  # an empty book still scales
+    assert _fall_scale([-0.001]) >= 3.0                                         # and a tiny one does not blow up
+
+
+def test_an_account_with_nothing_closed_still_composes():
+    from tradingagents.shorts.hyperframes import compose_record
+
+    payload = {"summary": {"initial_cash": 5e7}, "accounts": [], "closed": [], "positions": []}
+    html, seconds = compose_record(payload, build_record(payload, now=NOW))
+    assert 'class="lane"' not in html and seconds > 0

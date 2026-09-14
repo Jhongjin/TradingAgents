@@ -2035,7 +2035,8 @@ def factor_study_command(
 @app.command("shorts")
 def shorts_command(
     story: str = typer.Option("record", "--story", help="Which cut to build: record, picks."),
-    theme: str = typer.Option("poster", "--theme", help="Visual direction: poster, terminal, print."),
+    theme: str = typer.Option("statement", "--theme", help="Visual direction for the drawn engine: statement, poster, terminal, print."),
+    engine: str = typer.Option("hyperframes", "--engine", help="How the frames are made: hyperframes (HTML) or pillow (drawn)."),
     output: Path = typer.Option(Path("shorts-out"), "--output", help="Directory the mp4, poster and caption land in."),
     source: Optional[str] = typer.Option(None, "--from", help="Read the account payload from this site instead of the database."),
     audio: Optional[Path] = typer.Option(None, "--audio", help="Music bed to mux under the video."),
@@ -2052,6 +2053,7 @@ def shorts_command(
 
     import json
     import os
+    import subprocess
 
     from tradingagents.shorts import build, render
     from tradingagents.shorts.render import write_caption, write_poster
@@ -2087,6 +2089,10 @@ def shorts_command(
         console.print(f"[green]{poster}[/green]\n[dim]{caption}[/dim]")
         return
 
+    if engine.strip().lower() == "hyperframes":
+        _render_hyperframes(board, payload, output, voice=voice, music=audio, story=story)
+        return
+
     track, audio_filter = audio, (f"volume=0.5,afade=t=out:st={max(board.seconds - 1.2, 0):.2f}:d=1.2" if audio else None)
     if voice:
         from tradingagents.shorts import voice as narration
@@ -2104,6 +2110,56 @@ def shorts_command(
         f"[green]{result.video}[/green] {result.video.stat().st_size / 1024:,.0f}KB · {result.frame_count}프레임\n"
         f"[dim]썸네일 {result.poster}\n설명문 {result.caption}[/dim]"
     )
+    console.print(f"[bold]{board.title}[/bold]")
+
+
+def _render_hyperframes(board, payload, output: Path, *, voice: bool, music: Optional[Path], story: str) -> None:
+    """Lay the cut out as a page, let HyperFrames check and film it, then add the voice.
+
+    Speech is generated first so the scenes can be sized to it, and the audio
+    is muxed afterwards rather than embedded, which keeps one mixing path for
+    both engines.
+    """
+
+    import shutil
+    import subprocess
+
+    from tradingagents.shorts import voice as narration
+    from tradingagents.shorts.hyperframes import compose_record, run, write_project
+
+    spoken = None
+    if voice and narration.available():
+        console.print("[dim]내레이션 생성 중… (한 줄에 10초 안팎)[/dim]")
+        spoken = narration.narrate(board, work_dir=output / "voice" / story, music=music)
+        board = spoken.board
+        console.print(f"[dim]내레이션 {len(spoken.lines)}줄 · 장면을 말 길이에 맞춤[/dim]")
+    elif voice:
+        console.print("[yellow]로컬 VoxCPM 을 찾지 못해 무음으로 만듭니다.[/yellow]")
+
+    html, seconds = compose_record(payload, board)
+    project = write_project(html, output / "hf" / story, name=story)
+    console.print(f"[dim]{project.html} · {seconds:.1f}초[/dim]")
+
+    console.print(run("check", project.directory).strip().splitlines()[-1])
+    console.print("[dim]렌더 중…[/dim]")
+    run("render", project.directory)
+
+    renders = sorted((project.directory / "renders").glob("*.mp4"), key=lambda item: item.stat().st_mtime)
+    if not renders:
+        raise typer.BadParameter("렌더 결과를 찾지 못했습니다")
+    silent = renders[-1]
+    target = output / f"{board.slug}-hf.mp4"
+
+    if spoken is not None:
+        subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error", "-i", str(silent), "-i", str(spoken.track),
+             "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", str(target)],
+            check=True,
+        )
+    else:
+        shutil.copyfile(silent, target)
+
+    console.print(f"[green]{target}[/green] {target.stat().st_size / 1024:,.0f}KB · {seconds:.1f}초")
     console.print(f"[bold]{board.title}[/bold]")
 
 
