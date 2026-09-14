@@ -2032,6 +2032,67 @@ def factor_study_command(
         console.print(f"[dim]persisted factor_study_id={run_id}[/dim]")
 
 
+@app.command("shorts")
+def shorts_command(
+    story: str = typer.Option("record", "--story", help="Which cut to build: record, picks."),
+    output: Path = typer.Option(Path("shorts-out"), "--output", help="Directory the mp4, poster and caption land in."),
+    source: Optional[str] = typer.Option(None, "--from", help="Read the account payload from this site instead of the database."),
+    audio: Optional[Path] = typer.Option(None, "--audio", help="Music bed to mux under the video."),
+    fps: int = typer.Option(30, "--fps", min=12, max=60),
+    poster_only: bool = typer.Option(False, "--poster-only", help="Write the still and the caption, skip encoding."),
+):
+    """Build a vertical short from the paper account's own record.
+
+    The cut is generated, not edited: the same payload the site renders decides
+    the hook, the rows and the closing line, so a video costs nothing to make
+    and the channel can keep its promise of publishing every result.
+    """
+
+    import json
+    import os
+
+    from tradingagents.shorts import build, render
+    from tradingagents.shorts.render import write_caption, write_poster
+
+    if source:
+        import requests
+
+        base = source.rstrip("/")
+        url = base if base.endswith("/api/paper-account") else f"{base}/api/paper-account"
+        response = requests.get(url, timeout=60)
+        response.raise_for_status()
+        payload = response.json()
+    else:
+        if not os.getenv("DATABASE_URL"):
+            raise typer.BadParameter("DATABASE_URL is required, or pass --from https://agenttrust.kr")
+        from tradingagents.harness.paper_state import build_combined_account_payload
+        from tradingagents.storage import StorageRepository, create_storage_engine
+
+        payload = build_combined_account_payload(StorageRepository(create_storage_engine()))
+
+    try:
+        board = build(story, payload)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    output.mkdir(parents=True, exist_ok=True)
+    target = output / f"{board.slug}.mp4"
+    console.print(f"[dim]{board.slug} · {len(board.scenes)}장면 · {board.seconds:.1f}초[/dim]")
+
+    if poster_only:
+        poster = write_poster(board, target.with_suffix(".png"))
+        caption = write_caption(board, target.with_suffix(".txt"))
+        console.print(f"[green]{poster}[/green]\n[dim]{caption}[/dim]")
+        return
+
+    result = render(board, target, fps=fps, audio=audio)
+    console.print(
+        f"[green]{result.video}[/green] {result.video.stat().st_size / 1024:,.0f}KB · {result.frame_count}프레임\n"
+        f"[dim]썸네일 {result.poster}\n설명문 {result.caption}[/dim]"
+    )
+    console.print(f"[bold]{board.title}[/bold]")
+
+
 @app.command("audit-verify")
 def audit_verify_command(
     path: Optional[Path] = typer.Option(None, "--path", help="Ledger path (default TRADINGAGENTS_AUDIT_LOG_PATH)."),
