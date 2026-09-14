@@ -200,7 +200,7 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
             caption=f"{initial / 100_000_000:.1f}억원으로 시작한 계좌의 지금 성적",
             lines=(f"지금까지 정리한 {closed_count}건,", verdict),
             seconds=3.4,
-            narration=f"AI 모의 계좌, 지금 성적은 {spoken_percent(total_return)}입니다.",
+            narration=f"AI한테 종목을 고르게 하고, 모의 계좌로 진짜 담아봤습니다. 지금 성적, {spoken_percent(total_return)}.",
         ),
         Rows(
             eyebrow="정리한 거래 전부",
@@ -208,7 +208,10 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
             rows=rows,
             note=f"실현 손익 {money(realized)}",
             seconds=3.0 + len(rows) * 0.9,
-            narration=f"정리한 {closed_count}건, 하나도 빼지 않았습니다.",
+            narration=(
+                f"정리한 {closed_count}건입니다. 좋은 것만 골라 보여드리는 게 아니라, 전부요."
+                + (f" 제일 크게 물린 건 {spoken_percent(float(worst['realized_return']), digits=1)}. 하루 만에 그렇게 됐어요." if worst else "")
+            ),
         ),
     ]
 
@@ -223,7 +226,10 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
                 inverted=True,
                 caption=f"{len(stopped)}건 모두 손절선에서 정리됐습니다.\n종목은 틀렸지만 손실은 정해둔 선에서 멈췄습니다.",
                 seconds=4.6,
-                narration=f"그런데 계좌 전체는 여기서 멈췄습니다. 전부, 살 때 정해둔 손절선에서 정리됐거든요.",
+                narration=(
+                    f"그런데 계좌 전체는 {spoken_percent(total_return)}에서 멈췄죠. "
+                    "살 때 나갈 가격을 미리 정해뒀거든요. 종목은 틀렸는데, 손실은 안 틀린 겁니다."
+                ),
             )
         )
 
@@ -236,7 +242,7 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
                 items=accounts,
                 note="같은 날 같은 후보로, 확인 방식만 다르게 굴립니다.",
                 seconds=5.8,
-                narration="AI가 확인한 계좌와, 규칙만 쓰는 계좌를 나란히 굴립니다.",
+                narration="같은 후보를 놓고 계좌를 따로 굴립니다. AI가 한 번 더 들여다본 쪽, 규칙만 보는 쪽. 그 차이가 곧 AI 몫이죠.",
             )
         )
 
@@ -244,8 +250,8 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
         headline=("맞힌 날만 올리는 채널은", "이미 많습니다."),
         call="틀린 날까지 전부 남는 기록",
         narration=(
-            "틀린 날까지 남는 기록은 에이전트트러스트에 있습니다. "
-            "텔레그램을 연결하면, 아침마다 선별 결과를 먼저 받습니다."
+            "맞힌 날만 올리는 채널, 이미 많잖아요. 여긴 틀린 날도 그대로 남습니다. "
+            "내일 아침 뭘 골랐는지는 텔레그램으로 먼저 갑니다."
         ),
     ))
 
@@ -303,7 +309,7 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, them
             caption="지금 담고 있는 종목입니다",
             lines=("사기 전에 목표가와", "손절가를 먼저 정했습니다."),
             seconds=3.4,
-            narration=f"AI 계좌가 지금 담고 있는 종목, {len(positions)}개입니다.",
+            narration=f"AI 계좌가 지금 들고 있는 종목, {len(positions)}개예요. 사기 전에 나갈 가격부터 정해뒀습니다.",
         ),
         Rows(
             eyebrow="보유 종목과 목표가",
@@ -311,7 +317,7 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, them
             rows=rows,
             note="목표가는 AI 토론이 정한 값이며 도달을 보장하지 않습니다.",
             seconds=3.0 + len(rows) * 0.9,
-            narration="종목과 목표가입니다. 도달을 보장하지는 않습니다.",
+            narration="종목이랑 목표가입니다. 닿는다는 보장은 없어요. 어디까지 보고 샀는지를 적어두는 거죠.",
         ),
         Rows(
             eyebrow="그리고 손절가",
@@ -319,14 +325,14 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, them
             rows=stops,
             note="이 선에 닿으면 다음 실행에서 자동으로 정리됩니다.",
             seconds=2.6 + len(stops) * 0.7,
-            narration="그리고 틀렸을 때 나갈 선입니다. 닿으면 자동으로 정리됩니다.",
+            narration="그리고 이건 틀렸을 때 나갈 선. 여기 닿으면 다음 실행에서 알아서 정리합니다.",
         ),
         _outro(
             headline=("결과는 며칠 뒤", "이 채널에 그대로 올라옵니다."),
             call="근거와 토론 전문",
             narration=(
-                "결과는 며칠 뒤 이 채널에 그대로 올라옵니다. "
-                "텔레그램을 연결하면 청산 알림까지 먼저 받습니다."
+                "맞았는지 틀렸는지는 며칠 뒤 이 채널에 그대로 올라옵니다. "
+                "정리되는 순간은 텔레그램으로 먼저 갑니다."
             ),
         ),
     )

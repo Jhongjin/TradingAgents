@@ -11,40 +11,66 @@
       @font-face { font-family: "Noto Sans KR"; font-weight: 500; src: local("Noto Sans KR Medium"), local("Noto Sans KR"); }
       @font-face { font-family: "Noto Sans KR"; font-weight: 700; src: local("Noto Sans KR Bold"), local("Noto Sans KR"); }
       @font-face { font-family: "Noto Sans KR"; font-weight: 900; src: local("Noto Sans KR Black"), local("Noto Sans KR"); }
+
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0d1521; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0b1320; }
 
       :root {
-        --ink: #e9eef6;
-        --ink2: #97a8bd;
-        --muted: #63748b;
+        --ink: #eaeff7;
+        --ink2: #94a6bd;
+        --muted: #5f7189;
         --loss: #4d9bff;
         --gain: #ff5c60;
-        --paper: #f2ece0;
-        --hair: #22314a;
+        --paper: #f3ecdf;
+        --hair: #1f2d44;
       }
 
       #root {
         width: 1080px; height: 1920px; position: relative; overflow: hidden;
         font-family: "Noto Sans KR", sans-serif; color: var(--ink);
         font-variant-numeric: tabular-nums;
+        /* not a flat swatch: one cool bloom top-left, one deeper pool bottom-right */
+        background:
+          radial-gradient(1200px 900px at 8% 4%, rgba(77, 155, 255, 0.11), transparent 62%),
+          radial-gradient(900px 800px at 96% 88%, rgba(12, 22, 38, 0.9), transparent 60%),
+          linear-gradient(178deg, #0d1726 0%, #0b1320 46%, #080f1a 100%);
       }
-      .clip { position: absolute; inset: 0; }
+      .clip { position: absolute; inset: 0; z-index: 10; }
+
+      /* film grain, from the HyperFrames registry, dialled well down: enough to
+         break the flat fill, not enough to read as an effect */
+      #grain { position: absolute; inset: 0; pointer-events: none; z-index: 90; }
+      #grain .g {
+        position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; opacity: 0.03;
+        background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.68' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        animation: hf-grain 0.75s steps(1) infinite;
+      }
+      @keyframes hf-grain {
+        0%,100% { transform: translate(0,0); } 20% { transform: translate(-8%,4%); }
+        40% { transform: translate(6%,-7%); } 60% { transform: translate(-4%,9%); }
+        80% { transform: translate(9%,2%); }
+      }
+
+      /* the cut between scenes: a band of light crosses behind the type */
+      #swipe { position: absolute; top: 0; left: -320px; width: 300px; height: 1920px; z-index: 2;
+               background: linear-gradient(90deg, transparent, rgba(77,155,255,0.14) 45%, rgba(243,236,223,0.30) 88%, transparent);
+               transform: translateX(0); }
 
       .pad { position: absolute; left: 116px; right: 84px; }
-      .kicker { font-weight: 300; font-size: 32px; color: var(--muted); letter-spacing: -0.01em; }
-      .head { font-weight: 900; font-size: 66px; letter-spacing: -0.035em; line-height: 1.22; }
-      .body { font-weight: 300; font-size: 36px; color: var(--ink2); line-height: 1.55; }
-      .figure { font-weight: 900; letter-spacing: -0.05em; line-height: 0.86; }
-      .unit { font-size: 0.4em; font-weight: 700; letter-spacing: -0.02em; }
+      .kicker { font-weight: 300; font-size: 31px; color: var(--muted); letter-spacing: 0.02em; }
+      .head { font-weight: 900; font-size: 66px; letter-spacing: -0.042em; line-height: 1.2; }
+      .body { font-weight: 300; font-size: 35px; color: var(--ink2); line-height: 1.55; }
+      .figure { font-weight: 900; letter-spacing: -0.055em; line-height: 0.86; }
+      .unit { font-size: 0.38em; font-weight: 700; letter-spacing: -0.02em; }
 
-      /* ---- scene 1: the hook ------------------------------------------ */
-      #s1-fig { position: absolute; left: 104px; top: 470px; font-size: 320px; color: var(--loss); }
+      /* ---- 1. the hook ------------------------------------------------- */
+      #s1-mask { position: absolute; left: 104px; top: 400px; width: 900px; height: 300px; overflow: hidden; }
+      #s1-fig { position: absolute; left: 0; top: 0; font-size: 320px; color: var(--loss); }
       #s1-rule { position: absolute; left: 116px; width: 880px; top: 926px; height: 3px;
                  background: var(--paper); transform-origin: left center; }
       #s1-lines { top: 982px; }
 
-      /* ---- scene 2 + 3: the falls ------------------------------------- */
+      /* ---- 2 + 3. the falls -------------------------------------------- */
       .lane { position: absolute; width: 176px; top: 0; height: 1920px; }
       .stem { position: absolute; left: 86px; top: 520px; width: 4px; height: 0;
               background: var(--loss); transform-origin: top center; }
@@ -52,38 +78,45 @@
                   border-radius: 50%; background: var(--paper); }
       .end-dot { position: absolute; left: 78px; top: 512px; width: 20px; height: 20px;
                  border-radius: 50%; background: var(--loss); }
+      .tick { position: absolute; left: 46px; top: 521px; width: 84px; height: 2px;
+              background: var(--loss); opacity: 0.5; transform-origin: center; }
       .pct { position: absolute; left: 0; width: 176px; text-align: center; top: 512px;
-             font-weight: 900; font-size: 34px; color: var(--loss); letter-spacing: -0.02em; }
+             font-weight: 900; font-size: 34px; color: var(--loss); letter-spacing: -0.03em; }
       .name { position: absolute; left: -10px; width: 196px; top: 1240px; text-align: center;
               font-weight: 500; font-size: 25px; color: var(--ink2); line-height: 1.3; }
       #falls-rule { position: absolute; left: 116px; width: 880px; top: 520px; height: 2px;
-                    background: var(--hair); }
+                    background: var(--hair); transform-origin: left center; }
       #falls-label { position: absolute; left: 116px; top: 466px; font-size: 26px;
                      font-weight: 500; color: var(--muted); }
 
-      /* the account line, laid over the same scale */
       #acct-line { position: absolute; left: 116px; width: 880px; top: {{ACCOUNT_TOP}}px; height: 5px;
                    background: var(--paper); transform-origin: left center; }
+      #acct-glow { position: absolute; left: 116px; width: 880px; top: {{ACCOUNT_TOP}}px; height: 5px;
+                   background: var(--paper); filter: blur(14px); opacity: 0.5; transform-origin: left center; }
       #acct-tag { position: absolute; right: 84px; top: 404px; text-align: right; }
-      #acct-tag .v { font-weight: 900; font-size: 96px; letter-spacing: -0.04em; color: var(--paper); }
+      #acct-tag .v { font-weight: 900; font-size: 96px; letter-spacing: -0.045em; color: var(--paper); }
       #acct-tag .k { font-weight: 300; font-size: 30px; color: var(--ink2); }
 
-      /* ---- scene 4: three books --------------------------------------- */
+      /* ---- 4. the three books ------------------------------------------ */
       .book { position: absolute; left: 116px; right: 84px; }
       .book .bk-name { font-weight: 500; font-size: 40px; }
-      .book .bk-val { position: absolute; right: 0; top: 0; font-weight: 900; font-size: 46px; letter-spacing: -0.03em; }
+      .book .bk-val { position: absolute; right: 0; top: 0; font-weight: 900; font-size: 46px; letter-spacing: -0.035em; }
       .book .bk-track { position: absolute; left: 0; top: 66px; width: 880px; height: 2px; background: var(--hair); }
       .book .bk-bar { position: absolute; top: 58px; right: 0; width: 880px; height: 18px;
-                      background: var(--loss); transform-origin: right center; border-radius: 2px; }
+                      background: var(--loss); transform-origin: right center; border-radius: 3px; }
       .book .bk-sub { position: absolute; top: 92px; font-weight: 300; font-size: 26px; color: var(--muted); }
+      #bk-zero { position: absolute; right: 84px; top: 540px; width: 2px; height: 640px;
+                 background: var(--hair); transform-origin: top center; }
 
-      /* ---- scene 5: the outro ----------------------------------------- */
+      /* ---- 5. the outro ------------------------------------------------- */
       #s5-rule { position: absolute; left: 116px; width: 880px; top: 760px; height: 3px;
                  background: var(--paper); transform-origin: left center; }
-      .url { font-weight: 900; font-size: 74px; letter-spacing: -0.035em; color: var(--paper); }
-      #tg-rule { position: absolute; left: 116px; width: 880px; top: 1052px; height: 2px; background: var(--hair); }
+      .url { font-weight: 900; font-size: 74px; letter-spacing: -0.04em; color: var(--paper); }
+      #tg-rule { position: absolute; left: 116px; width: 880px; top: 1052px; height: 2px;
+                 background: var(--hair); transform-origin: left center; }
       .fine { font-weight: 300; font-size: 25px; line-height: 1.5; color: var(--muted); }
-      .mark { position: absolute; right: 84px; top: 1498px; font-weight: 300; font-size: 28px; color: var(--muted); }
+      .mark { position: absolute; right: 84px; top: 1498px; font-weight: 300; font-size: 28px;
+              color: var(--muted); z-index: 12; }
     </style>
   </head>
   <body>
@@ -93,7 +126,9 @@
       <!-- 1. the hook ------------------------------------------------------->
       <div class="clip" id="s1" data-start="{{HOOK_START}}" data-duration="{{HOOK_DURATION}}" data-track-index="0">
         <p class="kicker pad" style="top: 240px;" id="s1-kick">{{KICKER}}</p>
-        <p class="figure" id="s1-fig"><span id="s1-num">0.00</span><span class="unit">%</span></p>
+        <div id="s1-mask">
+          <p class="figure" id="s1-fig"><span id="s1-num">0.00</span><span class="unit">%</span></p>
+        </div>
         <p class="body pad" style="top: 852px;" id="s1-cap">{{CAPTION}}</p>
         <div id="s1-rule"></div>
         <div class="pad" id="s1-lines">
@@ -102,7 +137,7 @@
         </div>
       </div>
 
-      <!-- 2 + 3. the falls, then the account line over them ---------------->
+      <!-- 2 + 3. the falls, then the account line laid over them ----------->
       <div class="clip" id="s2" data-start="{{FALLS_START}}" data-duration="{{FALLS_DURATION}}" data-track-index="0">
         <p class="head pad" style="top: 250px;" id="s2-head">{{FALLS_HEAD}}</p>
         <div id="falls-rule"></div>
@@ -110,6 +145,7 @@
 
         {{LANES}}
 
+        <div id="acct-glow"></div>
         <div id="acct-line"></div>
         <div id="acct-tag">
           <p class="k">계좌 전체는</p>
@@ -123,6 +159,7 @@
       <!-- 4. the three books ----------------------------------------------->
       <div class="clip" id="s4" data-start="{{BOOKS_START}}" data-duration="{{BOOKS_DURATION}}" data-track-index="0">
         <p class="head pad" style="top: 250px;" id="s4-head">AI가 보탠 몫을 봅니다</p>
+        <div id="bk-zero"></div>
         {{BOOKS}}
         <p class="body pad" style="top: 1180px;" id="s4-note">
           {{BOOKS_NOTE}}
@@ -149,10 +186,12 @@
       </div>
 
       <p class="mark">{{URL}}</p>
+      <div id="swipe"></div>
+      <div id="grain"><div class="g"></div></div>
     </div>
 
     <script>
-      // the fall scale: 0% at the entry rule, -18% at the floor
+      // the fall scale: the entry rule is 0%, the floor is the worst fall plus room
       const TOP = 520, FLOOR = 1180, SPAN = {{FALL_SPAN}};
       const depth = (pct) => ((Math.abs(pct) / SPAN) * (FLOOR - TOP));
       const FALLS = {{FALL_DEPTHS}};
@@ -160,68 +199,94 @@
       window.__timelines = window.__timelines || {};
       const tl = gsap.timeline({ paused: true });
 
+      // one panel crosses the frame at every scene boundary; transform only, so
+      // it stays smooth under seek-by-frame capture
+      function cut(at) {
+        tl.fromTo("#swipe", { x: 0 }, { x: 1420, duration: 0.5, ease: "power2.inOut" }, at - 0.22);
+      }
+
       // --- 1. hook ---------------------------------------------------------
       const counter = { v: 0 };
-      tl.fromTo("#s1-kick", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0)
-        .fromTo("#s1-fig", { opacity: 0, scale: 0.93 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power3.out" }, 0.12)
+      tl.fromTo("#s1-kick", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.32 }, 0)
+        // the figure rises into a mask rather than fading: it arrives, it does not appear
+        .fromTo("#s1-fig", { yPercent: 42, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.62, ease: "power3.out" }, 0.1)
         .to(counter, {
-          v: {{TOTAL}}, duration: 1.15, ease: "power3.out",
+          v: {{TOTAL}}, duration: 1.05, ease: "power3.out",
           onUpdate: () => { document.getElementById("s1-num").textContent = counter.v.toFixed(2); },
-        }, 0.2)
-        .fromTo("#s1-cap", { opacity: 0 }, { opacity: 1, duration: 0.35 }, 0.62)
-        .fromTo("#s1-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power3.out" }, 0.76)
-        .fromTo("#s1-l1", { opacity: 0 }, { opacity: 1, duration: 0.35 }, 1.0)
-        .fromTo("#s1-l2", { opacity: 0 }, { opacity: 1, duration: 0.35 }, 1.18);
+        }, 0.22)
+        .fromTo("#s1-cap", { opacity: 0 }, { opacity: 1, duration: 0.32 }, 0.66)
+        .fromTo("#s1-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46, ease: "power3.out" }, 0.78)
+        .fromTo("#s1-l1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.34 }, 0.98)
+        .fromTo("#s1-l2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.34 }, 1.13);
 
       // --- 2. the falls ----------------------------------------------------
       const S2 = {{FALLS_START}};
-      tl.fromTo("#s2-head", { opacity: 0 }, { opacity: 1, duration: 0.4 }, S2)
-        .fromTo("#falls-rule", { scaleX: 0, transformOrigin: "left center" }, { scaleX: 1, duration: 0.5, ease: "power2.out" }, S2 + 0.15)
-        .fromTo("#falls-label", { opacity: 0 }, { opacity: 1, duration: 0.3 }, S2 + 0.4);
+      cut(S2);
+      tl.fromTo("#s2-head", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S2)
+        .fromTo("#falls-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46, ease: "power2.out" }, S2 + 0.12)
+        .fromTo("#falls-label", { opacity: 0 }, { opacity: 1, duration: 0.28 }, S2 + 0.34);
 
       FALLS.forEach((pct, i) => {
-        const lane = `#lane${i} `;
+        const lane = "#lane" + i + " ";
         const drop = depth(pct);
-        const at = S2 + 0.7 + i * 0.62;
-        tl.fromTo(lane + ".head-dot", { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.22, ease: "back.out(2)" }, at)
-          // the fall itself: the one motion this video is built around
-          .fromTo(lane + ".stem", { height: 0 }, { height: drop, duration: 0.52, ease: "power2.in" }, at + 0.18)
-          .fromTo(lane + ".end-dot", { y: 0, opacity: 0 }, { y: drop, opacity: 1, duration: 0.52, ease: "power2.in" }, at + 0.18)
-          .fromTo(lane + ".pct", { y: 0, opacity: 0 }, { y: drop + 34, opacity: 1, duration: 0.52, ease: "power2.in" }, at + 0.18)
-          .fromTo(lane + ".name", { opacity: 0 }, { opacity: 1, duration: 0.3 }, at + 0.6);
+        const at = S2 + 0.58 + i * 0.5;
+        tl.fromTo(lane + ".head-dot", { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.2, ease: "back.out(2.4)" }, at)
+          // the fall: accelerating, because that is how it felt
+          .fromTo(lane + ".stem", { height: 0 }, { height: drop, duration: 0.46, ease: "power2.in" }, at + 0.16)
+          .fromTo(lane + ".end-dot", { y: 0 }, { y: drop, duration: 0.46, ease: "power2.in" }, at + 0.16)
+          // and it lands: a tick struck at the depth, then the figure snaps on
+          .fromTo(lane + ".tick", { y: 0, scaleX: 0, opacity: 0 },
+                  { y: drop, scaleX: 1, opacity: 0.5, duration: 0.22, ease: "power3.out" }, at + 0.6)
+          .fromTo(lane + ".pct", { y: drop + 34, opacity: 0, scale: 1.18 },
+                  { y: drop + 34, opacity: 1, scale: 1, duration: 0.26, ease: "back.out(2)" }, at + 0.62)
+          .fromTo(lane + ".name", { opacity: 0 }, { opacity: 1, duration: 0.28 }, at + 0.74);
       });
 
       // --- 3. the same scale, and how far the account actually fell --------
       const S3 = {{TURN_AT}};
-      tl.to("#lane0, #lane1, #lane2, #lane3, #lane4", { opacity: 0.26, duration: 0.5 }, S3)
-        .fromTo("#acct-line", { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: "power3.out" }, S3 + 0.15)
-        .fromTo("#acct-tag", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, S3 + 0.5)
-        .fromTo("#s2-note", { opacity: 0 }, { opacity: 1, duration: 0.4 }, S3 + 1.0);
+      const lanes = FALLS.map(function (_, i) { return "#lane" + i; }).join(", ");
+      tl.to(lanes, { opacity: 0.24, duration: 0.45 }, S3)
+        .fromTo("#acct-line", { scaleX: 0 }, { scaleX: 1, duration: 0.62, ease: "power3.out" }, S3 + 0.12)
+        .fromTo("#acct-glow", { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: 0.5, duration: 0.62, ease: "power3.out" }, S3 + 0.12)
+        .fromTo("#acct-tag", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, S3 + 0.42)
+        .fromTo("#s2-note", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S3 + 0.85);
 
       // --- 4. three books --------------------------------------------------
       const S4 = {{BOOKS_START}}, BOOKS = {{BOOK_VALUES}}, WORST = {{BOOK_WORST}};
-      tl.fromTo("#s4-head", { opacity: 0 }, { opacity: 1, duration: 0.4 }, S4);
+      cut(S4);
+      tl.fromTo("#s4-head", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S4)
+        .fromTo("#bk-zero", { scaleY: 0 }, { scaleY: 1, duration: 0.5, ease: "power2.out" }, S4 + 0.18);
       BOOKS.forEach((pct, i) => {
-        const at = S4 + 0.4 + i * 0.3;
+        const at = S4 + 0.42 + i * 0.3;
         const grow = Math.abs(pct) / WORST;
-        tl.fromTo(`#bk${i} .bk-name, #bk${i} .bk-val, #bk${i} .bk-sub`, { opacity: 0 }, { opacity: 1, duration: 0.35 }, at)
-          .fromTo(`#bk${i} .bk-track`, { scaleX: 0, transformOrigin: "right center" }, { scaleX: 1, duration: 0.4 }, at)
-          // bars grow leftward from zero on the right, so a longer bar is a
-          // deeper loss; scaled rather than widened so the tail stays smooth
-          .fromTo(`#bk${i} .bk-bar`, { scaleX: 0 }, { scaleX: grow, duration: 0.6, ease: "power3.out" }, at + 0.1);
+        const tally = { v: 0 };
+        const book = "#bk" + i;
+        const valueNode = document.querySelector(book + " .bk-val");
+        tl.fromTo(book + " .bk-name, " + book + " .bk-sub", { opacity: 0 }, { opacity: 1, duration: 0.3 }, at)
+          .fromTo(book + " .bk-track", { scaleX: 0, transformOrigin: "right center" }, { scaleX: 1, duration: 0.36 }, at)
+          // bars grow leftward from the zero rail, so a longer bar is a deeper loss
+          .fromTo(book + " .bk-bar", { scaleX: 0 }, { scaleX: grow, duration: 0.56, ease: "power3.out" }, at + 0.08)
+          .fromTo(book + " .bk-val", { opacity: 0 }, { opacity: 1, duration: 0.24 }, at + 0.08)
+          .to(tally, {
+            v: pct, duration: 0.56, ease: "power3.out",
+            onUpdate: function () {
+              if (valueNode) valueNode.textContent = (tally.v >= 0 ? "+" : "") + tally.v.toFixed(2) + "%";
+            },
+          }, at + 0.08);
       });
-      tl.fromTo("#s4-note", { opacity: 0 }, { opacity: 1, duration: 0.4 }, S4 + 1.6);
+      tl.fromTo("#s4-note", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S4 + 1.5);
 
       // --- 5. outro --------------------------------------------------------
       const S5 = {{OUTRO_START}};
-      tl.fromTo("#s5-l1", { opacity: 0 }, { opacity: 1, duration: 0.35 }, S5)
-        .fromTo("#s5-l2", { opacity: 0 }, { opacity: 1, duration: 0.35 }, S5 + 0.18)
-        .fromTo("#s5-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power3.out" }, S5 + 0.42)
-        .fromTo("#s5-call", { opacity: 0 }, { opacity: 1, duration: 0.35 }, S5 + 0.55)
-        .fromTo("#s5-url", { opacity: 0 }, { opacity: 1, duration: 0.4 }, S5 + 0.7)
-        .fromTo("#tg-rule", { scaleX: 0, transformOrigin: "left center" }, { scaleX: 1, duration: 0.5 }, S5 + 1.15)
-        .fromTo("#s5-tg", { opacity: 0 }, { opacity: 1, duration: 0.4 }, S5 + 1.3)
-        .fromTo("#s5-fine", { opacity: 0 }, { opacity: 1, duration: 0.4 }, S5 + 1.7);
+      cut(S5);
+      tl.fromTo("#s5-l1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32 }, S5)
+        .fromTo("#s5-l2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32 }, S5 + 0.16)
+        .fromTo("#s5-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46, ease: "power3.out" }, S5 + 0.38)
+        .fromTo("#s5-call", { opacity: 0 }, { opacity: 1, duration: 0.3 }, S5 + 0.5)
+        .fromTo("#s5-url", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S5 + 0.64)
+        .fromTo("#tg-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46 }, S5 + 1.05)
+        .fromTo("#s5-tg", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S5 + 1.18)
+        .fromTo("#s5-fine", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S5 + 1.55);
 
       window.__timelines["main"] = tl;
       tl.seek(0);

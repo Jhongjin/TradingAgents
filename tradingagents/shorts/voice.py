@@ -27,8 +27,10 @@ VOXCPM_HOME_ENV = "TRADINGAGENTS_VOXCPM_HOME"
 VOXCPM_PYTHON_ENV = "TRADINGAGENTS_VOXCPM_PYTHON"
 VOICE_REF_ENV = "TRADINGAGENTS_SHORTS_VOICE_REF"
 DEFAULT_HOME = Path("D:/AI/VoxCPM2")
-TAIL_SECONDS = 0.55      # the breath left after a line before the scene turns
-LEAD_SECONDS = 0.2       # and the beat before it starts
+TAIL_SECONDS = 0.5       # the breath left after a line before the scene turns
+LEAD_SECONDS = 0.18      # and the beat before it starts
+MAX_SLACK = 1.4          # the longest a shot may hold after its line has ended
+SPEED = 1.3              # VoxCPM reads deliberately; shorts want it brisker
 
 
 class VoiceUnavailableError(RuntimeError):
@@ -142,8 +144,14 @@ def _cached(lines: Sequence[dict], out_dir: Path, reference: Path | None, prompt
     return manifest
 
 
-def fit(board: Storyboard, manifest: dict) -> tuple[Storyboard, list[dict]]:
-    """Stretch each scene to hold its line, and say where each line starts."""
+def fit(board: Storyboard, manifest: dict, *, speed: float = SPEED) -> tuple[Storyboard, list[dict]]:
+    """Size each scene to its own line, and say where that line starts.
+
+    A shot is never shorter than its line, and never more than ``MAX_SLACK``
+    longer either. Without the cap a scene authored at seven seconds sits in
+    silence for five of them when its line turns out to be short, which is
+    exactly what the first cut did.
+    """
 
     spoken = {item["id"]: item for item in manifest.get("lines") or []}
     scenes = []
@@ -153,14 +161,16 @@ def fit(board: Storyboard, manifest: dict) -> tuple[Storyboard, list[dict]]:
         line = spoken.get(f"s{index}")
         seconds = scene.seconds
         if line:
-            seconds = max(seconds, LEAD_SECONDS + float(line["seconds"]) + TAIL_SECONDS)
-            placed.append({"start": cursor + LEAD_SECONDS, "path": line["path"], "seconds": float(line["seconds"])})
+            said = float(line["seconds"]) / max(speed, 0.1)
+            block = LEAD_SECONDS + said + TAIL_SECONDS
+            seconds = max(min(scene.seconds, block + MAX_SLACK), block)
+            placed.append({"start": cursor + LEAD_SECONDS, "path": line["path"], "seconds": said})
         scenes.append(replace(scene, seconds=seconds))
         cursor += seconds
     return replace(board, scenes=tuple(scenes)), placed
 
 
-def mix_track(placed: Sequence[dict], total: float, target: Path, *, music: Path | None = None) -> Path:
+def mix_track(placed: Sequence[dict], total: float, target: Path, *, music: Path | None = None, speed: float = SPEED) -> Path:
     """Lay each spoken line at its own second, over an optional music bed."""
 
     binary = shutil.which("ffmpeg")
@@ -174,7 +184,9 @@ def mix_track(placed: Sequence[dict], total: float, target: Path, *, music: Path
     for index, item in enumerate(placed):
         command += ["-i", str(item["path"])]
         delay = int(round(float(item["start"]) * 1000))
-        filters.append(f"[{index}:a]aresample=48000,adelay={delay}|{delay}[v{index}]")
+        # atempo changes pace without moving the pitch, so the voice stays the same voice
+        tempo = f"atempo={min(max(speed, 0.5), 2.0):.3f}," if abs(speed - 1.0) > 0.01 else ""
+        filters.append(f"[{index}:a]aresample=48000,{tempo}adelay={delay}|{delay}[v{index}]")
         labels.append(f"[v{index}]")
     if music is not None:
         position = len(placed)
@@ -192,7 +204,7 @@ def mix_track(placed: Sequence[dict], total: float, target: Path, *, music: Path
     return target
 
 
-def narrate(board: Storyboard, *, work_dir: Path | None = None, music: Path | None = None, device: str = "cuda") -> Narration:
+def narrate(board: Storyboard, *, work_dir: Path | None = None, music: Path | None = None, device: str = "cuda", speed: float = SPEED) -> Narration:
     """Speak the board, fit it to the speech, and hand back a track to mux."""
 
     lines = [
@@ -206,12 +218,12 @@ def narrate(board: Storyboard, *, work_dir: Path | None = None, music: Path | No
     root = Path(work_dir or Path(tempfile.gettempdir()) / "tradingagents-shorts" / board.slug)
     reference = voice_reference()
     manifest = speak(lines, root, reference=reference, prompt_text=reference_text(reference), device=device)
-    fitted, placed = fit(board, manifest)
-    track = mix_track(placed, fitted.seconds, root / "narration.wav", music=music)
+    fitted, placed = fit(board, manifest, speed=speed)
+    track = mix_track(placed, fitted.seconds, root / "narration.wav", music=music, speed=speed)
     return Narration(track=track, board=fitted, lines=tuple(placed))
 
 
 __all__ = [
-    "Narration", "VoiceUnavailableError", "available", "fit", "mix_track",
+    "MAX_SLACK", "Narration", "SPEED", "VoiceUnavailableError", "available", "fit", "mix_track",
     "narrate", "reference_text", "speak", "voice_reference", "voxcpm_home", "voxcpm_python",
 ]

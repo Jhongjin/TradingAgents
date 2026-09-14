@@ -184,9 +184,13 @@ def test_every_scene_carries_a_line_short_enough_to_fit_it():
         board = build(name, _payload(), now=NOW)
         for index, scene in enumerate(board.scenes):
             assert scene.narration.strip(), f"{name} s{index} 내레이션 없음"
-            assert len(scene.narration) <= 70, f"{name} s{index} 너무 김: {len(scene.narration)}자"
+            # spoken at 1.3x, so a line may run longer than it reads on the page
+            assert len(scene.narration) <= 90, f"{name} s{index} 너무 김: {len(scene.narration)}자"
         spoken = " ".join(scene.narration for scene in board.scenes)
         assert "%" not in spoken and "→" not in spoken     # a narrator reads words, not glyphs
+        # the tell the rulebook calls E, uniform rhythm: one ending on every line
+        closings = {line.rstrip(".!?")[-3:] for line in spoken.split(". ") if line.strip()}
+        assert len(closings) >= 5, f"{name} 어미가 단조롭습니다: {closings}"
         assert "원" not in spoken or "만원" in spoken       # and amounts in units, not digit strings
     # the record cut states the figure out loud, spelled the way it is said
     assert "퍼센트" in build("record", _payload(), now=NOW).scenes[0].narration
@@ -209,7 +213,7 @@ def test_the_outro_points_at_a_channel_only_once_one_exists(monkeypatch):
 
 
 def test_narration_stretches_a_scene_to_hold_its_line_and_never_shrinks_it():
-    from tradingagents.shorts.voice import LEAD_SECONDS, TAIL_SECONDS, fit
+    from tradingagents.shorts.voice import LEAD_SECONDS, MAX_SLACK, TAIL_SECONDS, fit
 
     board = build_record(_payload(), now=NOW)
     authored = [scene.seconds for scene in board.scenes]
@@ -219,10 +223,12 @@ def test_narration_stretches_a_scene_to_hold_its_line_and_never_shrinks_it():
             {"id": "s2", "path": "b.wav", "seconds": 0.5},     # far shorter
         ]
     }
-    fitted, placed = fit(board, manifest)
+    fitted, placed = fit(board, manifest, speed=1.0)
     seconds = [scene.seconds for scene in fitted.scenes]
-    assert seconds[0] == pytest.approx(LEAD_SECONDS + 20.0 + TAIL_SECONDS)
-    assert seconds[2] == authored[2]                            # a short line does not shorten the shot
+    assert seconds[0] == pytest.approx(LEAD_SECONDS + 20.0 + TAIL_SECONDS)   # stretched to hold a long line
+    # a shot never waits in silence for more than the slack it is allowed
+    assert seconds[2] == pytest.approx(LEAD_SECONDS + 0.5 + TAIL_SECONDS + MAX_SLACK)
+    assert seconds[2] < authored[2]
     assert seconds[1] == authored[1] and seconds[3] == authored[3]
     assert [item["path"] for item in placed] == ["a.wav", "b.wav"]
     assert placed[0]["start"] == pytest.approx(LEAD_SECONDS)
@@ -390,3 +396,49 @@ def test_an_account_with_nothing_closed_still_composes():
     payload = {"summary": {"initial_cash": 5e7}, "accounts": [], "closed": [], "positions": []}
     html, seconds = compose_record(payload, build_record(payload, now=NOW))
     assert 'class="lane"' not in html and seconds > 0
+
+
+def test_speech_is_sped_up_without_moving_its_pitch(tmp_path, monkeypatch):
+    """1.3x is an ffmpeg tempo filter, not a resample, so the voice stays the voice."""
+
+    import shutil
+
+    from tradingagents.shorts import voice
+
+    seen: dict = {}
+
+    def fake_run(command, **kwargs):
+        seen["command"] = command
+        Path(command[-1]).write_bytes(b"RIFF")
+
+        class Result:
+            returncode = 0
+            stdout = stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(shutil, "which", lambda name: "ffmpeg")
+    monkeypatch.setattr(voice.subprocess, "run", fake_run)
+    voice.mix_track([{"start": 0.5, "path": "a.wav", "seconds": 2.0}], 6.0, tmp_path / "n.wav", speed=1.3)
+
+    graph = seen["command"][seen["command"].index("-filter_complex") + 1]
+    assert "atempo=1.300" in graph and "adelay=500|500" in graph
+    assert "asetrate" not in graph                       # that one would move the pitch
+
+    seen.clear()
+    voice.mix_track([{"start": 0.0, "path": "a.wav", "seconds": 2.0}], 6.0, tmp_path / "n.wav", speed=1.0)
+    assert "atempo" not in seen["command"][seen["command"].index("-filter_complex") + 1]
+
+
+def test_the_composition_never_hides_its_own_type():
+    """The scene transition passes behind the text, which is why it validates."""
+
+    from tradingagents.shorts.hyperframes import compose_record
+
+    html, _ = compose_record(_payload(), build_record(_payload(), now=NOW))
+    swipe = html.split("#swipe {", 1)[1].split("}", 1)[0]
+    clip = html.split(".clip {", 1)[1].split("}", 1)[0]
+    assert "z-index: 2" in swipe and "z-index: 10" in clip
+    assert int(clip.split("z-index:")[1].split(";")[0]) > int(swipe.split("z-index:")[1].split(";")[0])
+    # and no interpolated selector, which the bundler's CSS parser cannot read
+    assert "${" not in html.split("<script>")[-1]

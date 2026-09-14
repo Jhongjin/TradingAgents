@@ -57,7 +57,7 @@ def _lane(index: int, item: Mapping[str, Any]) -> str:
     dates = f"{short_date(item.get('entry_date'))} → {short_date(item.get('exit_date'))}"
     return (
         f'<div class="lane" id="lane{index}" style="left: {left}px;">'
-        '<div class="head-dot"></div><div class="stem"></div>'
+        '<div class="head-dot"></div><div class="stem"></div><div class="tick"></div>'
         f'<div class="end-dot"></div><p class="pct">{float(item["realized_return"]) * 100:+.2f}%</p>'
         f'<p class="name">{name}<br />{dates}</p></div>'
     )
