@@ -5730,72 +5730,6 @@ h3 {
   background: rgba(246, 243, 232, 0.095);
 }
 
-.member-page .auth-social {
-  margin-top: 18px;
-}
-
-.member-page .auth-social-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 0 0 14px;
-  color: rgba(246, 243, 232, 0.42);
-  font-size: 12px;
-}
-
-.member-page .auth-social-divider::before,
-.member-page .auth-social-divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: rgba(246, 243, 232, 0.14);
-}
-
-.member-page .auth-social-row {
-  display: grid;
-  gap: 8px;
-}
-
-.member-page .auth-social-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  width: 100%;
-  height: 46px;
-  border: 1px solid rgba(246, 243, 232, 0.24);
-  border-radius: 8px;
-  background: rgba(246, 243, 232, 0.055);
-  color: var(--ink);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.member-page .auth-social-button:hover {
-  border-color: rgba(246, 243, 232, 0.4);
-  background: rgba(246, 243, 232, 0.095);
-}
-
-.member-page .auth-social-button[disabled] {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.member-page .auth-social-button.kakao {
-  border-color: #fee500;
-  background: #fee500;
-  color: #191600;
-}
-
-.member-page .auth-social-button.kakao:hover {
-  background: #ffec3d;
-}
-
-.member-page .auth-social-note {
-  margin: 10px 0 0;
-}
-
 .auth-form-note {
   margin: -8px 0 0;
   color: var(--home-muted-readable, rgba(246, 243, 232, 0.8));
@@ -12860,6 +12794,7 @@ MEMBER_PAGE_JS = """
   const signedInMeta = document.getElementById("memberSignedInMeta");
   const authButtons = Array.from(document.querySelectorAll("[data-auth-action]"));
   const socialPanel = document.getElementById("authSocial");
+  const socialDivider = document.getElementById("authDivider");
   const socialButtons = Array.from(document.querySelectorAll("[data-oauth-provider]"));
   const passwordToggle = document.getElementById("passwordToggle");
   const signOutButton = document.getElementById("signOutButton");
@@ -13433,23 +13368,45 @@ MEMBER_PAGE_JS = """
     clearMemberDataPoll();
     sessionKeys.forEach((key) => storageRemove(key));
     setSignedInState(false);
+    window.__taAuthSync?.();
+  }
+
+  // A social redirect hands back a token and nothing else, so who signed in has
+  // to be read out of the token itself; otherwise the page greets them by uuid.
+  function tokenClaims(token) {
+    try {
+      const part = String(token || "").split(".")[1];
+      if (!part) return {};
+      let encoded = part.replace(/-/g, "+").replace(/_/g, "/");
+      while (encoded.length % 4) encoded += "=";
+      const bytes = Array.prototype.map
+        .call(atob(encoded), (character) => `%${`00${character.charCodeAt(0).toString(16)}`.slice(-2)}`)
+        .join("");
+      return JSON.parse(decodeURIComponent(bytes)) || {};
+    } catch (_) {
+      return {};
+    }
   }
 
   function setSession(payload) {
     const session = payload?.session || payload || {};
-    const user = session.user || payload?.user || {};
+    const given = session.user || payload?.user || {};
     const token = session.access_token || "";
     const refresh = session.refresh_token || "";
     const expiresAt = session.expires_at
       ? Number(session.expires_at) * 1000
       : Date.now() + Math.max(Number(session.expires_in || 3600) - 30, 60) * 1000;
     if (!token) return false;
+    const claims = given.email || given.id ? {} : tokenClaims(token);
+    const email = given.email || claims.email || claims.user_metadata?.email || "";
+    const userId = given.id || claims.sub || "";
     storageSet(accessTokenKey, token);
     if (refresh) storageSet(refreshTokenKey, refresh);
     if (Number.isFinite(expiresAt)) storageSet(expiresAtKey, String(expiresAt));
-    if (user.email) storageSet(userEmailKey, String(user.email));
-    if (user.id) storageSet(userIdKey, String(user.id));
-    setSignedInState(true, { label: "세션 확인 중", user: user.email || user.id || "", meta: "대시보드 권한을 확인하고 있습니다." });
+    if (email) storageSet(userEmailKey, String(email));
+    if (userId) storageSet(userIdKey, String(userId));
+    setSignedInState(true, { label: "세션 확인 중", user: email || userId || "", meta: "대시보드 권한을 확인하고 있습니다." });
+    window.__taAuthSync?.();
     return true;
   }
 
@@ -15179,6 +15136,7 @@ MEMBER_PAGE_JS = """
       button.addEventListener("click", () => startOAuth(provider));
     });
     if (socialPanel) socialPanel.hidden = providers.length === 0;
+    if (socialDivider) socialDivider.hidden = providers.length === 0;
   })();
 
   passwordToggle?.addEventListener("click", () => {

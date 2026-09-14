@@ -533,6 +533,9 @@ def test_social_buttons_stay_dark_until_a_provider_is_actually_wired_up(monkeypa
     assert 'data-oauth-provider="google"' in html and 'data-oauth-provider="kakao"' in html
     assert '"providers":[]' in html        # so every button stays hidden and the panel with it
     assert "구글로 계속하기" in html
+    # one click before six fields, and the styles live where the page reads them
+    assert html.index('id="authSocial"') < html.index('id="authForm"')
+    assert ".member-page .auth-social-button" in html and ".member-page .auth-divider" in html
 
 
 def test_only_the_providers_named_get_a_button(monkeypatch):
@@ -566,6 +569,12 @@ def test_the_social_redirect_goes_through_supabase_and_comes_back_to_member(monk
     # a mail link carries a type; a social return does not, and must not claim
     # the member confirmed an email they were never asked about
     assert 'params.get("type") ? "이메일 확인 완료. 대시보드 확인 중" : "로그인 완료. 대시보드 확인 중"' in html
+    # the header is drawn first, so the session has to reach back for it
+    assert "window.__taAuthSync = syncAuth;" in html
+    assert "window.__taAuthSync?.();" in html
+    # and the member is named from the token, not left as a uuid
+    assert "function tokenClaims(token)" in html
+    assert "claims.user_metadata?.email" in html
 
 
 def test_api_app_serves_admin_ops_summary(monkeypatch):

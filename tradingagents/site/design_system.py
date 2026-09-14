@@ -301,30 +301,40 @@ DS_JS = r"""
     apply(current());
   }
   // auth-aware header: plan badge + avatar when a member session exists
-  var token = '';
-  try { token = localStorage.getItem('__TOKEN_KEY__') || sessionStorage.getItem('__TOKEN_KEY__') || ''; } catch(e) {}
-  var out = document.querySelector('[data-auth="signed-out"]');
-  var inn = document.querySelector('[data-auth="signed-in"]');
-  if(!out || !inn) return;
-  if(!token){ out.hidden = false; inn.hidden = true; return; }
-  out.hidden = true; inn.hidden = false;
-  fetch('/api/billing/me', { headers: { 'Authorization': 'Bearer ' + token } }).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
-    var badge = inn.querySelector('[data-plan-badge]');
-    if(!d || !d.access){ if(badge){ badge.textContent = '무료'; } return; }
-    var s = d.access.status, name = d.access.plan.name;
-    var paid = s === 'active' && d.access.plan.id !== 'free';
-    var planLabel = s === 'trialing' ? name + ' 체험' : (paid ? name : '무료');
-    if(badge){
-      if(d.is_admin){ badge.hidden = false; }
-      badge.textContent = d.is_admin ? '관리자' : planLabel;
-      badge.className = 'badge plan-badge ' + (d.is_admin ? 'b-violet' : (s === 'trialing' ? 'b-amber' : (paid ? 'b-teal' : 'b-grey')));
-      badge.title = d.is_admin ? ('관리자 · 현재 플랜 ' + planLabel) : '구독 관리';
-      if(d.is_admin){ badge.href = '/admin/members'; }
-    }
-    if(d.is_admin){ document.querySelectorAll('[data-admin-only]').forEach(function(n){ n.hidden = false; }); }
-    var email = (d.access && d.access.email) || '';
-    var av = inn.querySelector('[data-avatar]'); if(av && email){ av.textContent = email.slice(0,1).toUpperCase(); av.title = email; }
-  }).catch(function(){ out.hidden = true; inn.hidden = false; });
+  function syncAuth(){
+    var token = '';
+    try { token = localStorage.getItem('__TOKEN_KEY__') || sessionStorage.getItem('__TOKEN_KEY__') || ''; } catch(e) {}
+    var out = document.querySelector('[data-auth="signed-out"]');
+    var inn = document.querySelector('[data-auth="signed-in"]');
+    if(!out || !inn) return;
+    if(!token){ out.hidden = false; inn.hidden = true; return; }
+    out.hidden = true; inn.hidden = false;
+    fetch('/api/billing/me', { headers: { 'Authorization': 'Bearer ' + token } }).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+      var badge = inn.querySelector('[data-plan-badge]');
+      if(!d || !d.access){ if(badge){ badge.textContent = '무료'; } return; }
+      var s = d.access.status, name = d.access.plan.name;
+      var paid = s === 'active' && d.access.plan.id !== 'free';
+      var planLabel = s === 'trialing' ? name + ' 체험' : (paid ? name : '무료');
+      if(badge){
+        if(d.is_admin){ badge.hidden = false; }
+        badge.textContent = d.is_admin ? '관리자' : planLabel;
+        badge.className = 'badge plan-badge ' + (d.is_admin ? 'b-violet' : (s === 'trialing' ? 'b-amber' : (paid ? 'b-teal' : 'b-grey')));
+        badge.title = d.is_admin ? ('관리자 · 현재 플랜 ' + planLabel) : '구독 관리';
+        if(d.is_admin){ badge.href = '/admin/members'; }
+      }
+      if(d.is_admin){ document.querySelectorAll('[data-admin-only]').forEach(function(n){ n.hidden = false; }); }
+      var email = (d.access && d.access.email) || '';
+      var av = inn.querySelector('[data-avatar]'); if(av && email){ av.textContent = email.slice(0,1).toUpperCase(); av.title = email; }
+    }).catch(function(){ out.hidden = true; inn.hidden = false; });
+  }
+  // The header is drawn before the member page has had a chance to turn a
+  // social redirect into a session, so it has to be told when that lands -
+  // otherwise it keeps offering 로그인 to someone who just logged in.
+  window.__taAuthSync = syncAuth;
+  window.addEventListener('storage', function(ev){
+    if(!ev.key || ev.key.indexOf('tradingagents.member.') === 0) syncAuth();
+  });
+  syncAuth();
 })();
 (function(){
   // first-visit strip: shown to a browser with no prior visit and no session

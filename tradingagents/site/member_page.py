@@ -43,6 +43,19 @@ MEMBER_CSS = """
 .member-page .auth-form-note { font-size: 12px; color: var(--muted); margin: -8px 0 0; }
 .member-page .auth-status { font-size: 13px; color: var(--ink2); background: var(--bg2); border-radius: 9px; padding: 10px 12px; }
 .member-page .auth-status.member-error { color: var(--gain); background: var(--gain-soft); }
+/* ---- social sign-in: offered first, because it is one click and the form is six ---- */
+.member-page .auth-social { display: grid; gap: 9px; margin-top: 22px; }
+.member-page .auth-social-button { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 46px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--panel); color: var(--ink); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; transition: border-color .15s, background .15s; }
+.member-page .auth-social-button:hover { border-color: var(--ink2); background: var(--bg2); }
+.member-page .auth-social-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.member-page .auth-social-button[disabled] { opacity: .55; cursor: default; }
+.member-page .auth-social-button svg { flex: none; }
+.member-page .auth-social-button.kakao { border-color: #fee500; background: #fee500; color: #191600; }
+.member-page .auth-social-button.kakao:hover { border-color: #f2da00; background: #ffec3d; }
+.member-page .auth-social-note { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
+.member-page .auth-divider { display: flex; align-items: center; gap: 12px; margin: 22px 0 0; font-size: 12px; color: var(--muted); }
+.member-page .auth-divider::before, .member-page .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.member-page .auth-divider[hidden] { display: none; }
 /* ---- workspace ---- */
 .member-page .member-summary-band { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
 .member-page .member-summary-main { flex: 1 1 520px; min-width: 0; display: grid; gap: 14px; align-content: start; }
@@ -294,6 +307,25 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <div><p class="eyebrow">보안 로그인</p><h2 id="auth-panel-title">로그인 / 가입</h2></div>
       <span class="status-pill">조회 전용</span>
     </div>
+    <div class="auth-social" id="authSocial" hidden>
+      <button class="auth-social-button" type="button" data-oauth-provider="google" hidden>
+        <svg viewBox="0 0 18 18" aria-hidden="true" focusable="false" width="18" height="18">
+          <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.91c1.7-1.57 2.69-3.88 2.69-6.62z"/>
+          <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.26c-.81.54-1.84.86-3.05.86-2.35 0-4.34-1.58-5.05-3.71H.92v2.33A9 9 0 0 0 9 18z"/>
+          <path fill="#FBBC05" d="M3.95 10.71a5.41 5.41 0 0 1 0-3.42V4.96H.92a9 9 0 0 0 0 8.08l3.03-2.33z"/>
+          <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .92 4.96l3.03 2.33C4.66 5.16 6.65 3.58 9 3.58z"/>
+        </svg>
+        <span>구글로 계속하기</span>
+      </button>
+      <button class="auth-social-button kakao" type="button" data-oauth-provider="kakao" hidden>
+        <svg viewBox="0 0 18 18" aria-hidden="true" focusable="false" width="18" height="18">
+          <path fill="#191600" d="M9 1.5c-4.14 0-7.5 2.64-7.5 5.9 0 2.09 1.39 3.93 3.48 4.97l-.88 3.23c-.08.29.24.52.49.35l3.87-2.56c.18.01.36.02.54.02 4.14 0 7.5-2.64 7.5-5.9S13.14 1.5 9 1.5z"/>
+        </svg>
+        <span>카카오로 계속하기</span>
+      </button>
+      <p class="auth-social-note">비밀번호를 따로 만들지 않아도 됩니다.</p>
+    </div>
+    <p class="auth-divider" id="authDivider" hidden><span>또는 이메일로</span></p>
     <form class="member-form auth-form" id="authForm">
       <label><span>이메일</span><input name="email" type="email" autocomplete="email" placeholder="name@example.com" required></label>
       <label><span>비밀번호</span><span class="password-row"><input name="password" type="password" autocomplete="current-password" required><button class="ghost-button password-toggle" id="passwordToggle" type="button" aria-pressed="false" aria-label="비밀번호 표시">비밀번호 표시</button></span></label>
@@ -304,27 +336,6 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
       <p class="auth-form-note">처음이라면 가입하기로 마이페이지를 열 수 있습니다.</p>
       <div class="member-empty auth-status" id="authStatus" role="status" aria-live="polite">마이페이지 진입을 위해 인증이 필요합니다.</div>
     </form>
-    <div class="auth-social" id="authSocial" hidden>
-      <p class="auth-social-divider"><span>또는</span></p>
-      <div class="auth-social-row">
-        <button class="auth-social-button" type="button" data-oauth-provider="google" hidden>
-          <svg viewBox="0 0 18 18" aria-hidden="true" focusable="false" width="17" height="17">
-            <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.91c1.7-1.57 2.69-3.88 2.69-6.62z"/>
-            <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.26c-.81.54-1.84.86-3.05.86-2.35 0-4.34-1.58-5.05-3.71H.92v2.33A9 9 0 0 0 9 18z"/>
-            <path fill="#FBBC05" d="M3.95 10.71a5.41 5.41 0 0 1 0-3.42V4.96H.92a9 9 0 0 0 0 8.08l3.03-2.33z"/>
-            <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .92 4.96l3.03 2.33C4.66 5.16 6.65 3.58 9 3.58z"/>
-          </svg>
-          <span>구글로 계속하기</span>
-        </button>
-        <button class="auth-social-button kakao" type="button" data-oauth-provider="kakao" hidden>
-          <svg viewBox="0 0 18 18" aria-hidden="true" focusable="false" width="17" height="17">
-            <path fill="#191600" d="M9 1.5c-4.14 0-7.5 2.64-7.5 5.9 0 2.09 1.39 3.93 3.48 4.97l-.88 3.23c-.08.29.24.52.49.35l3.87-2.56c.18.01.36.02.54.02 4.14 0 7.5-2.64 7.5-5.9S13.14 1.5 9 1.5z"/>
-          </svg>
-          <span>카카오로 계속하기</span>
-        </button>
-      </div>
-      <p class="tiny muted auth-social-note">소셜 계정으로 들어오면 비밀번호를 따로 만들지 않아도 됩니다.</p>
-    </div>
     <p class="tiny muted" style="margin-top: 16px;">계속하면 <a class="link" href="/terms">이용약관</a>과 <a class="link" href="/privacy">개인정보 처리방침</a>에 동의하게 됩니다. AI 의견은 연구 자료이며 투자 판단의 책임은 이용자에게 있습니다.</p>
   </section>
 </section>
