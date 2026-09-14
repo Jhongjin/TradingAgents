@@ -518,6 +518,56 @@ def test_render_member_dashboard_exposes_only_public_supabase_config(monkeypatch
     assert '<meta name="robots" content="noindex, nofollow">' in html
 
 
+def _member_page_with_providers(monkeypatch, providers: str) -> str:
+    monkeypatch.setenv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key")
+    monkeypatch.setenv("TRADINGAGENTS_OAUTH_PROVIDERS", providers)
+    return render_member_dashboard_page(site_base_url="https://example.com")
+
+
+def test_social_buttons_stay_dark_until_a_provider_is_actually_wired_up(monkeypatch):
+    """The markup ships either way; only the config decides what is shown."""
+
+    html = _member_page_with_providers(monkeypatch, "")
+
+    assert 'data-oauth-provider="google"' in html and 'data-oauth-provider="kakao"' in html
+    assert '"providers":[]' in html        # so every button stays hidden and the panel with it
+    assert "구글로 계속하기" in html
+
+
+def test_only_the_providers_named_get_a_button(monkeypatch):
+    html = _member_page_with_providers(monkeypatch, "google")
+    assert '"providers":["google"]' in html
+
+    both = _member_page_with_providers(monkeypatch, " KAKAO , google ")
+    assert '"providers":["google","kakao"]' in both      # order is ours, not theirs
+
+    # a provider Supabase does not host is dropped rather than given a dead button
+    assert '"providers":[]' in _member_page_with_providers(monkeypatch, "naver,apple")
+
+
+def test_a_provider_is_useless_without_the_supabase_keys(monkeypatch):
+    monkeypatch.delenv("NEXT_PUBLIC_SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("TRADINGAGENTS_SUPABASE_URL", raising=False)
+    monkeypatch.setenv("TRADINGAGENTS_OAUTH_PROVIDERS", "google,kakao")
+
+    html = render_member_dashboard_page(site_base_url="https://example.com")
+
+    assert '"configured":false' in html
+    assert '"providers":[]' in html
+
+
+def test_the_social_redirect_goes_through_supabase_and_comes_back_to_member(monkeypatch):
+    html = _member_page_with_providers(monkeypatch, "google")
+
+    assert '"/auth/v1/authorize"' in html
+    assert "redirect_to: memberRedirectUrl()" in html
+    # a mail link carries a type; a social return does not, and must not claim
+    # the member confirmed an email they were never asked about
+    assert 'params.get("type") ? "이메일 확인 완료. 대시보드 확인 중" : "로그인 완료. 대시보드 확인 중"' in html
+
+
 def test_api_app_serves_admin_ops_summary(monkeypatch):
     monkeypatch.setenv("TRADINGAGENTS_WORKER_TOKEN", "worker-token")
     repo = _repo()

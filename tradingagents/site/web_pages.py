@@ -2676,7 +2676,26 @@ def _script_json(payload: dict[str, Any]) -> str:
     )
 
 
-def _public_supabase_config() -> dict[str, str | bool | None]:
+OAUTH_PROVIDERS_ENV = "TRADINGAGENTS_OAUTH_PROVIDERS"
+# Only providers Supabase hosts itself. Anything else needs its own plumbing,
+# and a button that leads nowhere is worse than no button.
+KNOWN_OAUTH_PROVIDERS = ("google", "kakao")
+
+
+def oauth_providers() -> list[str]:
+    """Which social sign-ins the operator has actually finished setting up.
+
+    The buttons stay hidden until this says otherwise: the console work happens
+    in Supabase and in Google's or Kakao's dashboard, and until it is done the
+    redirect comes straight back with an error.
+    """
+
+    raw = os.getenv(OAUTH_PROVIDERS_ENV, "")
+    chosen = [part.strip().lower() for part in raw.split(",") if part.strip()]
+    return [name for name in KNOWN_OAUTH_PROVIDERS if name in chosen]
+
+
+def _public_supabase_config() -> dict[str, Any]:
     url = os.getenv("NEXT_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL") or os.getenv("TRADINGAGENTS_SUPABASE_URL")
     anon_key = (
         os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
@@ -2687,6 +2706,7 @@ def _public_supabase_config() -> dict[str, str | bool | None]:
         "configured": bool(url and anon_key),
         "supabase_url": url.rstrip("/") if url else None,
         "supabase_anon_key": anon_key,
+        "providers": oauth_providers() if url and anon_key else [],
     }
 
 
@@ -5708,6 +5728,72 @@ h3 {
 .member-page .auth-form .auth-button-row [data-auth-action="signup"]:hover {
   border-color: rgba(215, 255, 63, 0.38);
   background: rgba(246, 243, 232, 0.095);
+}
+
+.member-page .auth-social {
+  margin-top: 18px;
+}
+
+.member-page .auth-social-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+  color: rgba(246, 243, 232, 0.42);
+  font-size: 12px;
+}
+
+.member-page .auth-social-divider::before,
+.member-page .auth-social-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(246, 243, 232, 0.14);
+}
+
+.member-page .auth-social-row {
+  display: grid;
+  gap: 8px;
+}
+
+.member-page .auth-social-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  height: 46px;
+  border: 1px solid rgba(246, 243, 232, 0.24);
+  border-radius: 8px;
+  background: rgba(246, 243, 232, 0.055);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.member-page .auth-social-button:hover {
+  border-color: rgba(246, 243, 232, 0.4);
+  background: rgba(246, 243, 232, 0.095);
+}
+
+.member-page .auth-social-button[disabled] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.member-page .auth-social-button.kakao {
+  border-color: #fee500;
+  background: #fee500;
+  color: #191600;
+}
+
+.member-page .auth-social-button.kakao:hover {
+  background: #ffec3d;
+}
+
+.member-page .auth-social-note {
+  margin: 10px 0 0;
 }
 
 .auth-form-note {
@@ -12773,6 +12859,8 @@ MEMBER_PAGE_JS = """
   const signedInUser = document.getElementById("memberSignedInUser");
   const signedInMeta = document.getElementById("memberSignedInMeta");
   const authButtons = Array.from(document.querySelectorAll("[data-auth-action]"));
+  const socialPanel = document.getElementById("authSocial");
+  const socialButtons = Array.from(document.querySelectorAll("[data-oauth-provider]"));
   const passwordToggle = document.getElementById("passwordToggle");
   const signOutButton = document.getElementById("signOutButton");
   const telegramCard = document.getElementById("memberTelegramCard");
@@ -13139,7 +13227,7 @@ MEMBER_PAGE_JS = """
   }
 
   function setAuthBusy(isBusy) {
-    authButtons.forEach((button) => {
+    authButtons.concat(socialButtons).forEach((button) => {
       button.disabled = isBusy;
       button.setAttribute("aria-busy", isBusy ? "true" : "false");
     });
@@ -13426,7 +13514,9 @@ MEMBER_PAGE_JS = """
       refresh_token: params.get("refresh_token") || "",
       expires_in: Number(params.get("expires_in") || 3600)
     });
-    setStatus("이메일 확인 완료. 대시보드 확인 중");
+    // a mail link says which kind it was; a social redirect says nothing,
+    // and telling someone their email is confirmed when they clicked 구글 is a lie
+    setStatus(params.get("type") ? "이메일 확인 완료. 대시보드 확인 중" : "로그인 완료. 대시보드 확인 중");
     return { shouldLoad: true };
   }
 
@@ -15067,6 +15157,29 @@ MEMBER_PAGE_JS = """
   authButtons.forEach((button) => {
     button.addEventListener("click", () => handleAuth(button.dataset.authAction || "signin"));
   });
+
+  function startOAuth(provider) {
+    if (!requireConfig()) return;
+    setAuthBusy(true);
+    setStatus(provider === "kakao" ? "카카오로 이동합니다" : "구글로 이동합니다");
+    window.location.assign(supabaseAuthUrl("/auth/v1/authorize", {
+      provider,
+      redirect_to: memberRedirectUrl()
+    }));
+  }
+
+  // A provider only gets a button once the operator has finished wiring it up
+  // in Supabase; otherwise the redirect bounces straight back with an error.
+  (function revealSocial() {
+    const providers = Array.isArray(config.providers) ? config.providers : [];
+    socialButtons.forEach((button) => {
+      const provider = button.dataset.oauthProvider || "";
+      if (!providers.includes(provider)) return;
+      button.hidden = false;
+      button.addEventListener("click", () => startOAuth(provider));
+    });
+    if (socialPanel) socialPanel.hidden = providers.length === 0;
+  })();
 
   passwordToggle?.addEventListener("click", () => {
     const input = authForm?.elements?.password;
