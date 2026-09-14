@@ -35,7 +35,8 @@ set STAMP=%DATE:~0,10%
 set LOG=%REPO%\logs\daily-short-%STAMP:/=-%.log
 
 echo ==== %DATE% %TIME% ==== >> "%LOG%"
-"%PYTHON%" -m cli.main shorts-daily --privacy private >> "%LOG%" 2>&1
+rem Goes out public. Change to private to have a look before anyone else does.
+"%PYTHON%" -m cli.main shorts-daily --privacy public >> "%LOG%" 2>&1
 set CODE=%ERRORLEVEL%
 echo exit=%CODE% >> "%LOG%"
 
