@@ -1,108 +1,126 @@
 """How a short looks: the palette, the type, and the canvas that draws it.
 
-A vertical video is watched on a phone, in a feed, with the sound off, and the
-player covers the top and bottom of the frame with its own controls. So the
-type is large, the contrast is high, every number is legible at a glance, and
-nothing that matters is drawn outside the safe band in the middle.
+The direction is a ledger, because that is what the channel is. A ledger has
+ruled lines rather than cards, tabular figures rather than prose numbers, a
+margin rail down the left, and a stamp when an entry is closed. Filled cards
+in a scrolling list is what every generated finance video already looks like;
+this is meant to look like a record being kept.
 
-The colours are the site's dark theme, and rising is red and falling is blue,
-which is what a Korean reader expects.
+Two typefaces do two jobs. Korean is set in Malgun Gothic, and every numeral is
+set in Consolas, which is monospaced, so a figure counting up on screen does
+not jitter as its digits change width.
+
+Practical constraints the design answers: it is watched on a phone, in a feed,
+usually with the sound off, and the player covers the top and bottom of the
+frame. So the type is large, contrast is high, and nothing that must be read
+sits outside the safe band.
 """
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Sequence
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 WIDTH, HEIGHT = 1080, 1920
 FPS = 30
 
-# The player's own chrome sits over the top ~180px and the bottom ~360px, and
-# the action buttons cover the right edge below the middle. Everything that
-# must be read lives inside this band.
-SAFE_TOP = 210
-SAFE_BOTTOM = 1560
-MARGIN = 76
-CONTENT_WIDTH = WIDTH - MARGIN * 2
+# The player's chrome covers the top ~190px and the bottom ~360px, and the
+# action buttons sit over the right edge below the middle.
+SAFE_TOP = 230
+SAFE_BOTTOM = 1540
+RAIL_X = 56
+MARGIN = 116
+CONTENT_WIDTH = WIDTH - MARGIN - 84
 
-BG = (11, 18, 32)
-BG2 = (16, 25, 42)
-PANEL = (23, 32, 49)
-PANEL_HI = (30, 41, 61)
-LINE = (46, 59, 81)
-INK = (233, 238, 246)
-INK2 = (160, 173, 192)
-MUTED = (117, 131, 151)
-ACCENT = (45, 212, 191)
-ACCENT_DIM = (16, 78, 74)
-UP = (255, 77, 94)
-DOWN = (77, 141, 255)
-AMBER = (245, 172, 60)
+# Ground and ink. Every value below clears 4.5:1 against BG.
+BG = (11, 15, 18)
+GRID = (20, 27, 32)
+HAIRLINE = (34, 44, 52)
+LINE = (46, 59, 69)
+INK = (237, 239, 243)
+INK2 = (167, 178, 188)
+MUTED = (120, 132, 143)
+ACCENT = (53, 208, 180)
+UP = (255, 90, 107)
+DOWN = (91, 156, 255)
+AMBER = (240, 179, 87)
+
+# kept so callers that still name the old surfaces keep working
+PANEL = GRID
+PANEL_HI = HAIRLINE
 
 FONT_ENV = "TRADINGAGENTS_SHORTS_FONT"
+NUMERAL_ENV = "TRADINGAGENTS_SHORTS_NUMERAL_FONT"
 FONT_CANDIDATES: tuple[tuple[str, str], ...] = (
-    # (regular, bold) pairs, in the order they are worth trying
     (r"C:\Windows\Fonts\malgun.ttf", r"C:\Windows\Fonts\malgunbd.ttf"),
     ("/usr/share/fonts/truetype/nanum/NanumGothic.ttf", "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf"),
     ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"),
     ("/System/Library/Fonts/AppleSDGothicNeo.ttc", "/System/Library/Fonts/AppleSDGothicNeo.ttc"),
 )
+NUMERAL_CANDIDATES: tuple[tuple[str, str], ...] = (
+    (r"C:\Windows\Fonts\consola.ttf", r"C:\Windows\Fonts\consolab.ttf"),
+    ("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"),
+    ("/System/Library/Fonts/Menlo.ttc", "/System/Library/Fonts/Menlo.ttc"),
+)
+
+
+def _first_pair(candidates: Sequence[tuple[str, str]], env: str) -> tuple[str, str] | None:
+    override = (os.getenv(env) or "").strip()
+    if override:
+        parts = [item.strip() for item in override.split(os.pathsep) if item.strip()]
+        if parts and Path(parts[0]).exists():
+            return parts[0], (parts[1] if len(parts) > 1 and Path(parts[1]).exists() else parts[0])
+    for regular, bold in candidates:
+        if Path(regular).exists():
+            return regular, (bold if Path(bold).exists() else regular)
+    return None
 
 
 def font_pair() -> tuple[str, str] | None:
     """The first regular/bold pair on this machine that can draw Hangul."""
 
-    override = (os.getenv(FONT_ENV) or "").strip()
-    if override:
-        parts = [item.strip() for item in override.split(os.pathsep) if item.strip()]
-        if parts and Path(parts[0]).exists():
-            return parts[0], (parts[1] if len(parts) > 1 and Path(parts[1]).exists() else parts[0])
-    for regular, bold in FONT_CANDIDATES:
-        if Path(regular).exists():
-            return regular, (bold if Path(bold).exists() else regular)
-    return None
+    return _first_pair(FONT_CANDIDATES, FONT_ENV)
+
+
+def numeral_pair() -> tuple[str, str] | None:
+    """A monospaced pair for figures, so a counting number holds its width."""
+
+    return _first_pair(NUMERAL_CANDIDATES, NUMERAL_ENV) or font_pair()
 
 
 class MissingFontError(RuntimeError):
     """No installed font can draw Korean, so nothing legible can be rendered."""
 
 
-@lru_cache(maxsize=64)
-def load_font(size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont:
-    pair = font_pair()
+@lru_cache(maxsize=96)
+def load_font(size: int, *, bold: bool = False, numeral: bool = False) -> ImageFont.FreeTypeFont:
+    pair = numeral_pair() if numeral else font_pair()
     if pair is None:
-        raise MissingFontError(
-            f"한글 글꼴을 찾지 못했습니다. {FONT_ENV} 환경변수에 TTF 경로를 지정하세요."
-        )
+        raise MissingFontError(f"한글 글꼴을 찾지 못했습니다. {FONT_ENV} 환경변수에 TTF 경로를 지정하세요.")
     return ImageFont.truetype(pair[1] if bold else pair[0], size)
 
 
 @lru_cache(maxsize=1)
 def background() -> Image.Image:
-    """One painted backdrop, reused by every frame: two soft glows on deep navy."""
+    """The sheet: near-black, faintly ruled, with one soft bloom behind the rail."""
 
     base = Image.new("RGB", (WIDTH, HEIGHT), BG)
-    # a vertical lift, so the frame is not a flat block of colour
-    gradient = Image.new("L", (1, HEIGHT))
-    for y in range(HEIGHT):
-        gradient.putpixel((0, y), int(26 * (1 - y / HEIGHT) ** 1.4))
-    base = Image.composite(Image.new("RGB", (WIDTH, HEIGHT), BG2), base, gradient.resize((WIDTH, HEIGHT)))
+    draw = ImageDraw.Draw(base)
+    for y in range(SAFE_TOP - 120, HEIGHT, 96):       # the ledger's own ruling, barely there
+        draw.rectangle((0, y, WIDTH, y), fill=GRID)
+    for x in range(MARGIN, WIDTH, 192):
+        draw.rectangle((x, 0, x, HEIGHT), fill=GRID)
 
     glow = Image.new("L", (WIDTH // 4, HEIGHT // 4), 0)
-    draw = ImageDraw.Draw(glow)
-    draw.ellipse((-40, -70, 190, 160), fill=70)          # top left, accent
-    glow = glow.filter(ImageFilter.GaussianBlur(28)).resize((WIDTH, HEIGHT))
-    base = Image.composite(Image.new("RGB", (WIDTH, HEIGHT), ACCENT_DIM), base, glow)
-
-    glow2 = Image.new("L", (WIDTH // 4, HEIGHT // 4), 0)
-    ImageDraw.Draw(glow2).ellipse((150, 330, 330, 500), fill=44)   # lower right, cool
-    glow2 = glow2.filter(ImageFilter.GaussianBlur(30)).resize((WIDTH, HEIGHT))
-    return Image.composite(Image.new("RGB", (WIDTH, HEIGHT), (24, 39, 66)), base, glow2)
+    ImageDraw.Draw(glow).ellipse((-70, 40, 150, 300), fill=52)
+    glow = glow.filter(ImageFilter.GaussianBlur(30)).resize((WIDTH, HEIGHT))
+    return Image.composite(Image.new("RGB", (WIDTH, HEIGHT), (12, 46, 43)), base, glow)
 
 
 def ease_out(x: float) -> float:
@@ -126,7 +144,7 @@ def mix(a: Sequence[int], b: Sequence[int], t: float) -> tuple[int, int, int]:
 
 
 def fade(colour: Sequence[int], alpha: float) -> tuple[int, int, int]:
-    """A colour dimmed toward the background, which is how fading in is drawn."""
+    """A colour dimmed toward the ground, which is how fading in is drawn."""
 
     return mix(BG, colour, alpha)
 
@@ -153,28 +171,41 @@ class Canvas:
     def draw(self) -> ImageDraw.ImageDraw:
         return ImageDraw.Draw(self.image, "RGBA")
 
+    # ---------------------------------------------------------------- text
     def text(
         self,
         xy: tuple[int, int],
         value: str,
         *,
-        size: int = 48,
+        size: int = 44,
         bold: bool = False,
+        numeral: bool = False,
         fill: Sequence[int] = INK,
         anchor: str = "la",
         alpha: float = 1.0,
-        spacing: int = 12,
+        spacing: int = 14,
+        tracking: int = 0,
     ) -> None:
-        if alpha <= 0.01:
+        if alpha <= 0.01 or not value:
             return
-        self.draw.text(xy, value, font=load_font(size, bold=bold), fill=fade(fill, alpha), anchor=anchor, spacing=spacing)
+        font = load_font(size, bold=bold, numeral=numeral)
+        colour = fade(fill, alpha)
+        if not tracking:
+            self.draw.text(xy, value, font=font, fill=colour, anchor=anchor, spacing=spacing)
+            return
+        # letter-spaced runs are only used for small labels, so the slow path is fine
+        x, y = xy
+        for character in value:
+            self.draw.text((x, y), character, font=font, fill=colour, anchor=anchor)
+            x += self.draw.textlength(character, font=font) + tracking
 
-    def measure(self, value: str, *, size: int = 48, bold: bool = False) -> tuple[int, int]:
-        box = self.draw.textbbox((0, 0), value, font=load_font(size, bold=bold))
-        return box[2] - box[0], box[3] - box[1]
+    def measure(self, value: str, *, size: int = 44, bold: bool = False, numeral: bool = False, tracking: int = 0) -> tuple[int, int]:
+        font = load_font(size, bold=bold, numeral=numeral)
+        box = self.draw.textbbox((0, 0), value, font=font)
+        return box[2] - box[0] + tracking * max(len(value) - 1, 0), box[3] - box[1]
 
-    def fit(self, value: str, width: int, *, size: int = 48, bold: bool = False) -> str:
-        """Trim to the width available, with an ellipsis, so a long name never overruns."""
+    def fit(self, value: str, width: int, *, size: int = 44, bold: bool = False) -> str:
+        """Trim to the width available, so a long name never overruns its column."""
 
         if self.measure(value, size=size, bold=bold)[0] <= width:
             return value
@@ -183,57 +214,86 @@ class Canvas:
             trimmed = trimmed[:-1]
         return (trimmed + "…") if trimmed else ""
 
-    def panel(
+    # --------------------------------------------------------------- rules
+    def rule(
         self,
-        box: tuple[int, int, int, int],
+        y: int,
         *,
-        radius: int = 28,
-        fill: Sequence[int] = PANEL,
-        outline: Sequence[int] | None = LINE,
+        x0: int = MARGIN,
+        x1: int = WIDTH - 84,
         alpha: float = 1.0,
+        colour: Sequence[int] = HAIRLINE,
+        weight: int = 2,
+        progress: float = 1.0,
     ) -> None:
+        """A ruled line, optionally drawn part way: rules wipe in from the left."""
+
+        if alpha <= 0.01 or progress <= 0:
+            return
+        end = x0 + (x1 - x0) * max(0.0, min(1.0, progress))
+        self.draw.rectangle((x0, y, end, y + weight - 1), fill=fade(colour, alpha))
+
+    def rail(self, progress: float, *, alpha: float = 1.0) -> None:
+        """The margin rail: the whole video's position, drawn as part of the page."""
+
+        top, bottom = SAFE_TOP - 40, SAFE_BOTTOM + 40
+        self.draw.rectangle((RAIL_X, top, RAIL_X + 3, bottom), fill=fade(HAIRLINE, alpha))
+        filled = top + (bottom - top) * max(0.0, min(1.0, progress))
+        if filled > top:
+            self.draw.rectangle((RAIL_X, top, RAIL_X + 3, filled), fill=fade(ACCENT, alpha))
+
+    def label(self, xy: tuple[int, int], value: str, *, colour: Sequence[int] = ACCENT, alpha: float = 1.0, size: int = 30) -> None:
+        """A small tracked label with a short accent tick, used as a section head."""
+
         if alpha <= 0.01:
             return
-        self.draw.rounded_rectangle(
-            box,
-            radius=radius,
-            fill=fade(fill, alpha),
-            outline=fade(outline, alpha) if outline else None,
-            width=2 if outline else 0,
-        )
+        x, y = xy
+        self.draw.rectangle((x, y + size // 2 - 1, x + 28, y + size // 2 + 1), fill=fade(colour, alpha))
+        self.text((x + 44, y + size // 2), value, size=size, bold=True, fill=colour, anchor="lm", alpha=alpha, tracking=2)
 
-    def chip(self, xy: tuple[int, int], label: str, *, colour: Sequence[int] = ACCENT, size: int = 34, alpha: float = 1.0) -> int:
-        """A small pill, returning the width it took."""
+    def tag(self, xy: tuple[int, int], value: str, *, colour: Sequence[int] = MUTED, alpha: float = 1.0, size: int = 26) -> int:
+        """An outlined marker beside a row, the ledger's note in the margin."""
 
-        pad_x, pad_y = 22, 12
-        text_w, text_h = self.measure(label, size=size, bold=True)
-        width = text_w + pad_x * 2
-        height = text_h + pad_y * 2 + 6
-        self.panel((xy[0], xy[1], xy[0] + width, xy[1] + height), radius=height // 2, fill=mix(BG, colour, 0.16), outline=mix(BG, colour, 0.45), alpha=alpha)
-        self.text((xy[0] + pad_x, xy[1] + height // 2), label, size=size, bold=True, fill=colour, anchor="lm", alpha=alpha)
+        if alpha <= 0.01:
+            return 0
+        pad = 14
+        width = self.measure(value, size=size, bold=True)[0] + pad * 2
+        height = size + 16
+        self.draw.rounded_rectangle((xy[0], xy[1], xy[0] + width, xy[1] + height), radius=6, outline=fade(colour, alpha * 0.8), width=2)
+        self.text((xy[0] + pad, xy[1] + height // 2), value, size=size, bold=True, fill=colour, anchor="lm", alpha=alpha)
         return width
 
-    def rule(self, y: int, *, x0: int = MARGIN, x1: int = WIDTH - MARGIN, alpha: float = 1.0, colour: Sequence[int] = LINE) -> None:
+    def stamp(self, centre: tuple[int, int], value: str, *, colour: Sequence[int] = AMBER, alpha: float = 1.0, size: int = 76, angle: float = -8.0, scale: float = 1.0) -> None:
+        """The closed-entry stamp: a boxed word set at an angle, pressed on.
+
+        Drawn on its own layer and rotated, which is the one flourish this
+        design spends, so it has to land rather than fade.
+        """
+
         if alpha <= 0.01:
             return
-        self.draw.rectangle((x0, y, x1, y + 2), fill=fade(colour, alpha))
+        pad_x, pad_y = 40, 22
+        probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+        font = load_font(size, bold=True)
+        box = probe.textbbox((0, 0), value, font=font)
+        width, height = box[2] - box[0] + pad_x * 2, box[3] - box[1] + pad_y * 2
+        layer = Image.new("RGBA", (width + 16, height + 16), (0, 0, 0, 0))
+        pen = ImageDraw.Draw(layer)
+        ink = (*colour, int(255 * min(1.0, alpha)))
+        pen.rounded_rectangle((8, 8, width + 8, height + 8), radius=10, outline=ink, width=5)
+        pen.text((width // 2 + 8, height // 2 + 8), value, font=font, fill=ink, anchor="mm")
+        if scale != 1.0:
+            layer = layer.resize((max(1, int(layer.width * scale)), max(1, int(layer.height * scale))), Image.LANCZOS)
+        layer = layer.rotate(angle, resample=Image.BICUBIC, expand=True)
+        self.image.paste(layer, (centre[0] - layer.width // 2, centre[1] - layer.height // 2), layer)
 
-    def bar(
-        self,
-        box: tuple[int, int, int, int],
-        progress: float,
-        *,
-        colour: Sequence[int] = ACCENT,
-        track: Sequence[int] = PANEL_HI,
-        radius: int | None = None,
-        alpha: float = 1.0,
-    ) -> None:
+    def bar(self, box: tuple[float, float, float, float], *, colour: Sequence[int] = ACCENT, alpha: float = 1.0, radius: int = 4) -> None:
+        """A thin mark with rounded ends, anchored to the baseline it grows from."""
+
         x0, y0, x1, y1 = box
-        r = radius if radius is not None else (y1 - y0) // 2
-        self.panel((x0, y0, x1, y1), radius=r, fill=track, outline=None, alpha=alpha)
-        filled = x0 + max(0.0, min(1.0, progress)) * (x1 - x0)
-        if filled - x0 > 2:
-            self.panel((x0, y0, filled, y1), radius=r, fill=colour, outline=None, alpha=alpha)
+        if abs(x1 - x0) < 2 or alpha <= 0.01:
+            return
+        self.draw.rounded_rectangle((min(x0, x1), y0, max(x0, x1), y1), radius=radius, fill=fade(colour, alpha))
 
 
 def money(value: float | None, *, unit: str = "원") -> str:
@@ -258,8 +318,8 @@ def korean_date(value: str | None) -> str:
 
 
 __all__ = [
-    "ACCENT", "AMBER", "BG", "Canvas", "CONTENT_WIDTH", "DOWN", "FPS", "HEIGHT", "INK", "INK2",
-    "LINE", "MARGIN", "MUTED", "MissingFontError", "PANEL", "PANEL_HI", "SAFE_BOTTOM", "SAFE_TOP",
-    "UP", "WIDTH", "appear", "background", "ease_out", "fade", "font_pair", "korean_date",
-    "load_font", "mix", "money", "percent", "tone",
+    "ACCENT", "AMBER", "BG", "Canvas", "CONTENT_WIDTH", "DOWN", "FPS", "GRID", "HAIRLINE", "HEIGHT",
+    "INK", "INK2", "LINE", "MARGIN", "MUTED", "MissingFontError", "PANEL", "PANEL_HI", "RAIL_X",
+    "SAFE_BOTTOM", "SAFE_TOP", "UP", "WIDTH", "appear", "background", "ease_out", "fade",
+    "font_pair", "korean_date", "load_font", "mix", "money", "numeral_pair", "percent", "tone",
 ]

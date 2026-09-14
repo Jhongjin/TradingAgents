@@ -2038,6 +2038,7 @@ def shorts_command(
     output: Path = typer.Option(Path("shorts-out"), "--output", help="Directory the mp4, poster and caption land in."),
     source: Optional[str] = typer.Option(None, "--from", help="Read the account payload from this site instead of the database."),
     audio: Optional[Path] = typer.Option(None, "--audio", help="Music bed to mux under the video."),
+    voice: bool = typer.Option(True, "--voice/--no-voice", help="Narrate with the local VoxCPM and fit the cut to the speech."),
     fps: int = typer.Option(30, "--fps", min=12, max=60),
     poster_only: bool = typer.Option(False, "--poster-only", help="Write the still and the caption, skip encoding."),
 ):
@@ -2085,7 +2086,19 @@ def shorts_command(
         console.print(f"[green]{poster}[/green]\n[dim]{caption}[/dim]")
         return
 
-    result = render(board, target, fps=fps, audio=audio)
+    track, audio_filter = audio, (f"volume=0.5,afade=t=out:st={max(board.seconds - 1.2, 0):.2f}:d=1.2" if audio else None)
+    if voice:
+        from tradingagents.shorts import voice as narration
+
+        if not narration.available():
+            console.print("[yellow]로컬 VoxCPM 을 찾지 못해 무음으로 만듭니다.[/yellow]")
+        else:
+            console.print("[dim]내레이션 생성 중… (한 줄에 10초 안팎)[/dim]")
+            spoken = narration.narrate(board, work_dir=output / "voice" / story, music=audio)
+            board, track, audio_filter = spoken.board, spoken.track, None
+            console.print(f"[dim]내레이션 {len(spoken.lines)}줄 · 영상 {board.seconds:.1f}초로 맞춤[/dim]")
+
+    result = render(board, target, fps=fps, audio=track, audio_filter=audio_filter)
     console.print(
         f"[green]{result.video}[/green] {result.video.stat().st_size / 1024:,.0f}KB · {result.frame_count}프레임\n"
         f"[dim]썸네일 {result.poster}\n설명문 {result.caption}[/dim]"

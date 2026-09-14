@@ -171,3 +171,81 @@ def test_encoding_without_ffmpeg_says_so(monkeypatch, tmp_path):
     monkeypatch.setattr(shutil, "which", lambda name: None)
     with pytest.raises(FfmpegMissingError, match="ffmpeg"):
         encode(build_record(_payload(), now=NOW), Path(tmp_path / "out.mp4"))
+
+
+def test_every_scene_carries_a_line_short_enough_to_fit_it():
+    """Spoken Korean runs about six characters a second; a line must fit its shot."""
+
+    for name in ("record", "picks"):
+        board = build(name, _payload(), now=NOW)
+        for index, scene in enumerate(board.scenes):
+            assert scene.narration.strip(), f"{name} s{index} 내레이션 없음"
+            assert len(scene.narration) <= 70, f"{name} s{index} 너무 김: {len(scene.narration)}자"
+        spoken = " ".join(scene.narration for scene in board.scenes)
+        assert "%" not in spoken and "→" not in spoken     # a narrator reads words, not glyphs
+        assert "원" not in spoken or "만원" in spoken       # and amounts in units, not digit strings
+    # the record cut states the figure out loud, spelled the way it is said
+    assert "퍼센트" in build("record", _payload(), now=NOW).scenes[0].narration
+
+
+def test_the_outro_points_at_a_channel_only_once_one_exists(monkeypatch):
+    monkeypatch.delenv("TRADINGAGENTS_TELEGRAM_CHANNEL", raising=False)
+    monkeypatch.delenv("TELEGRAM_CHANNEL_USERNAME", raising=False)
+    monkeypatch.setenv("TELEGRAM_BOT_USERNAME", "TradingAgentsKRBot")
+
+    outro = build("record", _payload(), now=NOW).scenes[-1]
+    assert outro.telegram.endswith("/start")            # the bot is not something a viewer can follow
+    assert "가입하고 텔레그램을 연결하면" in outro.telegram_line
+    assert "@TradingAgentsKRBot" not in outro.telegram
+
+    monkeypatch.setenv("TRADINGAGENTS_TELEGRAM_CHANNEL", "agenttrust_kr")
+    board = build("record", _payload(), now=NOW)
+    assert board.scenes[-1].telegram == "@agenttrust_kr"
+    assert "t.me/agenttrust_kr" in board.description
+
+
+def test_narration_stretches_a_scene_to_hold_its_line_and_never_shrinks_it():
+    from tradingagents.shorts.voice import LEAD_SECONDS, TAIL_SECONDS, fit
+
+    board = build_record(_payload(), now=NOW)
+    authored = [scene.seconds for scene in board.scenes]
+    manifest = {
+        "lines": [
+            {"id": "s0", "path": "a.wav", "seconds": 20.0},    # far longer than the shot
+            {"id": "s2", "path": "b.wav", "seconds": 0.5},     # far shorter
+        ]
+    }
+    fitted, placed = fit(board, manifest)
+    seconds = [scene.seconds for scene in fitted.scenes]
+    assert seconds[0] == pytest.approx(LEAD_SECONDS + 20.0 + TAIL_SECONDS)
+    assert seconds[2] == authored[2]                            # a short line does not shorten the shot
+    assert seconds[1] == authored[1] and seconds[3] == authored[3]
+    assert [item["path"] for item in placed] == ["a.wav", "b.wav"]
+    assert placed[0]["start"] == pytest.approx(LEAD_SECONDS)
+    assert placed[1]["start"] == pytest.approx(seconds[0] + seconds[1] + LEAD_SECONDS)
+    assert fitted.seconds > board.seconds
+
+
+def test_a_machine_without_voxcpm_says_so(monkeypatch, tmp_path):
+    from tradingagents.shorts import voice
+
+    monkeypatch.setenv(voice.VOXCPM_HOME_ENV, str(tmp_path / "nowhere"))
+    monkeypatch.setenv(voice.VOXCPM_PYTHON_ENV, str(tmp_path / "nopython.exe"))
+    assert voice.available() is False
+    with pytest.raises(voice.VoiceUnavailableError, match="VoxCPM"):
+        voice.speak([{"id": "s0", "text": "안녕하세요"}], tmp_path)
+
+
+@needs_font
+def test_the_page_is_ruled_rather_than_filled():
+    """The design's premise: hairlines and a margin rail, not stacked cards."""
+
+    from tradingagents.shorts.design import ACCENT, RAIL_X
+
+    board = build_record(_payload(), now=NOW)
+    early, late = paint(board, 0.4), paint(board, board.seconds - 0.3)
+    # the rail fills as the cut runs, so the same pixel differs early and late
+    low = (RAIL_X + 1, 1400)
+    assert early.getpixel(low) != late.getpixel(low)
+    assert late.getpixel(low)[1] > late.getpixel(low)[2]        # green-dominant: the accent
+    assert early.getpixel((RAIL_X + 1, 260))[1] >= early.getpixel((RAIL_X + 1, 1400))[1]

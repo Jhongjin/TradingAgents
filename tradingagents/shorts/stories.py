@@ -50,8 +50,54 @@ def _display_host() -> str:
     return site_url().split("://", 1)[-1]
 
 
+def _telegram_line() -> str:
+    handle = telegram_handle()
+    if handle:
+        return f"아침 알림 텔레그램 → https://t.me/{handle.lstrip('@')}"
+    return f"아침 알림 받기 → {site_url()}/start"
+
+
 def _link(path: str, campaign: str, *, stamp: str) -> str:
     return f"{site_url()}{path}?utm_source=youtube&utm_medium=shorts&utm_campaign={campaign}&utm_content={stamp}"
+
+
+def telegram_handle() -> str:
+    """The public channel the outro points at, if one has been opened.
+
+    Deliberately not the bot: a viewer cannot subscribe to it without signing
+    up first, so pointing a video at the bot would promise something the tap
+    does not deliver. Until a channel exists the outro sends people to the
+    site, which is where the connection is actually made.
+    """
+
+    for name in ("TRADINGAGENTS_TELEGRAM_CHANNEL", "TELEGRAM_CHANNEL_USERNAME"):
+        raw = (os.getenv(name) or "").strip()
+        if raw:
+            return raw if raw.startswith("@") else f"@{raw.rsplit('/', 1)[-1]}"
+    return ""
+
+
+def spoken_percent(value: float | None, *, digits: int = 2) -> str:
+    """A figure a narrator can read: the sign as a word, the unit spelled out."""
+
+    if value is None:
+        return "알 수 없음"
+    magnitude = f"{abs(value) * 100:.{digits}f}".rstrip("0").rstrip(".")
+    return f"{'마이너스 ' if value < 0 else '플러스 ' if value > 0 else ''}{magnitude}퍼센트"
+
+
+def spoken_money(value: float | None) -> str:
+    """Rounded to a unit a person would say out loud, not read digit by digit."""
+
+    if not value:
+        return "0원"
+    amount = abs(float(value))
+    sign = "손실 " if value < 0 else "이익 "
+    if amount >= 100_000_000:
+        return f"{sign}{amount / 100_000_000:.1f}억원"
+    if amount >= 10_000:
+        return f"{sign}{amount / 10_000:,.0f}만원"
+    return f"{sign}{amount:,.0f}원"
 
 
 def short_date(value: Any) -> str:
@@ -85,6 +131,25 @@ def _account_rows(payload: Mapping[str, Any]) -> tuple[dict, ...]:
             }
         )
     return tuple(rows)
+
+
+def _outro(*, headline: tuple[str, ...], call: str, narration: str) -> Outro:
+    """Every cut ends the same way: where the record lives, then the alerts."""
+
+    handle = telegram_handle()
+    return Outro(
+        headline=headline,
+        call=call,
+        url=_display_host(),
+        telegram=handle or f"{_display_host()}/start",
+        telegram_line=(
+            "매일 아침 선별 결과와 청산 알림을 텔레그램으로 먼저"
+            if handle
+            else "가입하고 텔레그램을 연결하면 매일 아침 먼저 받습니다"
+        ),
+        seconds=5.4,
+        narration=narration,
+    )
 
 
 def build_record(payload: Mapping[str, Any], *, now: datetime | None = None) -> Storyboard:
@@ -131,6 +196,7 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None) -> 
             caption=f"{initial / 100_000_000:.1f}억원으로 시작한 계좌의 지금 성적",
             lines=(f"지금까지 정리한 {closed_count}건,", verdict),
             seconds=3.4,
+            narration=f"AI 모의 계좌, 지금 성적은 {spoken_percent(total_return)}입니다.",
         ),
         Rows(
             eyebrow="정리한 거래 전부",
@@ -138,6 +204,7 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None) -> 
             rows=rows,
             note=f"실현 손익 {money(realized)}",
             seconds=3.0 + len(rows) * 0.9,
+            narration=f"정리한 {closed_count}건, 하나도 빼지 않았습니다.",
         ),
     ]
 
@@ -147,8 +214,11 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None) -> 
                 eyebrow="그런데",
                 lines=(f"한 종목은 {percent(float(worst['realized_return']), digits=1)}였는데", "계좌 전체는"),
                 highlight=percent(total_return),
+                highlight_colour=tone(total_return),
+                stamp="손절" if stopped else "정리",
                 caption=f"{len(stopped)}건 모두 손절선에서 정리됐습니다.\n종목은 틀렸지만 손실은 정해둔 선에서 멈췄습니다.",
                 seconds=4.6,
+                narration=f"그런데 계좌 전체는 여기서 멈췄습니다. 전부, 살 때 정해둔 손절선에서 정리됐거든요.",
             )
         )
 
@@ -161,17 +231,18 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None) -> 
                 items=accounts,
                 note="같은 날 같은 후보로, 확인 방식만 다르게 굴립니다.",
                 seconds=5.8,
+                narration="AI가 확인한 계좌와, 규칙만 쓰는 계좌를 나란히 굴립니다.",
             )
         )
 
-    scenes.append(
-        Outro(
-            headline=("맞힌 날만 올리는 채널은", "이미 많습니다."),
-            call="틀린 날까지 전부 남는 기록",
-            url=_display_host(),
-            seconds=3.6,
-        )
-    )
+    scenes.append(_outro(
+        headline=("맞힌 날만 올리는 채널은", "이미 많습니다."),
+        call="틀린 날까지 전부 남는 기록",
+        narration=(
+            "틀린 날까지 남는 기록은 에이전트트러스트에 있습니다. "
+            "텔레그램을 연결하면, 아침마다 선별 결과를 먼저 받습니다."
+        ),
+    ))
 
     return Storyboard(
         slug=f"record-{stamp}",
@@ -179,7 +250,8 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None) -> 
         description=(
             f"AI가 고른 종목을 모의 계좌가 담고, 정리한 결과를 하나도 빼지 않고 공개합니다.\n\n"
             f"전체 기록 → {_link('/paper', 'record', stamp=stamp)}\n"
-            f"검증 결과 → {_link('/outcomes', 'record', stamp=stamp)}\n\n"
+            f"검증 결과 → {_link('/outcomes', 'record', stamp=stamp)}\n"
+            f"{_telegram_line()}\n\n"
             "AI 실험 기록이며 매매 권유가 아닙니다. 모의 계좌 기록이고 실계좌 주문은 없습니다.\n"
             "#주식 #AI주식 #모의투자 #코스피 #손절"
         ),
@@ -225,6 +297,7 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None) -> S
             caption="지금 담고 있는 종목입니다",
             lines=("사기 전에 목표가와", "손절가를 먼저 정했습니다."),
             seconds=3.4,
+            narration=f"AI 계좌가 지금 담고 있는 종목, {len(positions)}개입니다.",
         ),
         Rows(
             eyebrow="보유 종목과 목표가",
@@ -232,6 +305,7 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None) -> S
             rows=rows,
             note="목표가는 AI 토론이 정한 값이며 도달을 보장하지 않습니다.",
             seconds=3.0 + len(rows) * 0.9,
+            narration="종목과 목표가입니다. 도달을 보장하지는 않습니다.",
         ),
         Rows(
             eyebrow="그리고 손절가",
@@ -239,12 +313,15 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None) -> S
             rows=stops,
             note="이 선에 닿으면 다음 실행에서 자동으로 정리됩니다.",
             seconds=2.6 + len(stops) * 0.7,
+            narration="그리고 틀렸을 때 나갈 선입니다. 닿으면 자동으로 정리됩니다.",
         ),
-        Outro(
+        _outro(
             headline=("결과는 며칠 뒤", "이 채널에 그대로 올라옵니다."),
             call="근거와 토론 전문",
-            url=_display_host(),
-            seconds=3.6,
+            narration=(
+                "결과는 며칠 뒤 이 채널에 그대로 올라옵니다. "
+                "텔레그램을 연결하면 청산 알림까지 먼저 받습니다."
+            ),
         ),
     )
 
@@ -254,7 +331,8 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None) -> S
         description=(
             "AI가 고른 종목과, 매수와 동시에 정한 목표가·손절가입니다. 결과는 며칠 뒤 같은 채널에 올라옵니다.\n\n"
             f"오늘의 선별 → {_link('/harness', 'picks', stamp=stamp)}\n"
-            f"모의 계좌 → {_link('/paper', 'picks', stamp=stamp)}\n\n"
+            f"모의 계좌 → {_link('/paper', 'picks', stamp=stamp)}\n"
+            f"{_telegram_line()}\n\n"
             "AI 실험 기록이며 매매 권유가 아닙니다. 모의 계좌 기록이고 실계좌 주문은 없습니다.\n"
             "#주식 #AI주식 #모의투자 #코스피 #목표가"
         ),
