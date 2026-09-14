@@ -176,8 +176,12 @@ def test_both_workflows_are_importable_and_ship_no_secrets():
     # reads by default, so that node needs no editing after import
     reader = next(node for node in local["nodes"] if node["type"].endswith("readWriteFile"))
     assert reader["parameters"]["options"]["dataPropertyName"] == "data"
+    # and it finds that file whatever n8n called it, because the key depends on
+    # the version: 'video', 'video0', or the multipart field name
     handoff = next(node for node in hosted["nodes"] if node["name"] == "받은 것 확인")
-    assert "binary: { data: binary.video }" in handoff["parameters"]["jsCode"]
+    code = handoff["parameters"]["jsCode"]
+    assert "binary: { data: file }" in code
+    assert "Object.keys(binary)" in code and "binary.video" not in code
     for flow in (hosted, local):
         upload = next(node for node in flow["nodes"] if node["type"].endswith("youTube"))
         assert "binaryProperty" not in _json.dumps(upload["parameters"])   # the default is left alone
