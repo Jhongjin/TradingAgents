@@ -2058,21 +2058,7 @@ def shorts_command(
     from tradingagents.shorts import build, render
     from tradingagents.shorts.render import write_caption, write_poster
 
-    if source:
-        import requests
-
-        base = source.rstrip("/")
-        url = base if base.endswith("/api/paper-account") else f"{base}/api/paper-account"
-        response = requests.get(url, timeout=60)
-        response.raise_for_status()
-        payload = response.json()
-    else:
-        if not os.getenv("DATABASE_URL"):
-            raise typer.BadParameter("DATABASE_URL is required, or pass --from https://agenttrust.kr")
-        from tradingagents.harness.paper_state import build_combined_account_payload
-        from tradingagents.storage import StorageRepository, create_storage_engine
-
-        payload = build_combined_account_payload(StorageRepository(create_storage_engine()))
+    payload = _shorts_payload(source)
 
     try:
         board = build(story, payload, theme=theme)
@@ -2161,6 +2147,69 @@ def _render_hyperframes(board, payload, output: Path, *, voice: bool, music: Opt
 
     console.print(f"[green]{target}[/green] {target.stat().st_size / 1024:,.0f}KB · {seconds:.1f}초")
     console.print(f"[bold]{board.title}[/bold]")
+
+
+def _shorts_payload(source: Optional[str]) -> dict:
+    """The account as the site sees it, from the database or from a running site."""
+
+    import os
+
+    if source:
+        import requests
+
+        base = source.rstrip("/")
+        url = base if base.endswith("/api/paper-account") else f"{base}/api/paper-account"
+        response = requests.get(url, timeout=60)
+        response.raise_for_status()
+        return response.json()
+    if not os.getenv("DATABASE_URL"):
+        raise typer.BadParameter("DATABASE_URL is required, or pass --from https://agenttrust.kr")
+    from tradingagents.harness.paper_state import build_combined_account_payload
+    from tradingagents.storage import StorageRepository, create_storage_engine
+
+    return build_combined_account_payload(StorageRepository(create_storage_engine()))
+
+
+@app.command("shorts-plan")
+def shorts_plan_command(
+    source: Optional[str] = typer.Option(None, "--from", help="Read the account payload from this site instead of the database."),
+    as_json: bool = typer.Option(True, "--json/--table", help="Print the decision as JSON for a workflow to read."),
+    ledger: Optional[Path] = typer.Option(None, "--ledger", help="Where the published record is kept."),
+):
+    """Decide which story the channel tells today.
+
+    The schedule does not pick the story, the data does: every story carries
+    the condition that fires it, and the strongest one that can actually be
+    rendered wins. Prints one JSON object, which is what the automation reads.
+    """
+
+    import json as _json
+
+    from tradingagents.shorts.bank import plan, read_ledger
+
+    payload = _shorts_payload(source)
+    decision = plan(payload, ledger=read_ledger(ledger))
+    if as_json:
+        print(_json.dumps(decision, ensure_ascii=False))
+        return
+    console.print(f"[bold]{decision['date']}[/bold] → {decision.get('story') or '없음'} · {decision['reason']}")
+    for item in decision["candidates"][:10]:
+        mark = "[green]●[/green]" if item["renderable"] else "[dim]○[/dim]"
+        console.print(f"  {mark} {item['score']:.3f} {item['label']:<20} {item['reason']}")
+
+
+@app.command("shorts-record")
+def shorts_record_command(
+    story: str = typer.Option(..., "--story", help="The story key that was published."),
+    video_id: Optional[str] = typer.Option(None, "--video-id", help="The YouTube video id, once it is known."),
+    ledger: Optional[Path] = typer.Option(None, "--ledger", help="Where the published record is kept."),
+):
+    """Write down what went out, so tomorrow knows what is no longer new."""
+
+    from tradingagents.shorts.bank import record_published
+
+    row = record_published(story, video_id=video_id, path=ledger)
+    console.print(f"[green]기록[/green] {row['date']} · {row['story']} · {row.get('video_id') or '업로드 전'}")
 
 
 @app.command("audit-verify")

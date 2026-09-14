@@ -1,0 +1,332 @@
+{
+  "name": "AgentTrust · 매일 쇼츠 발행",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "40 8 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "평일 아침 08:40",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-660, 300],
+      "notes": "워크플로 설정의 Timezone 을 Asia/Seoul 로 두어야 한국 시간 08:40 에 돕니다."
+    },
+    {
+      "parameters": {},
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "수동 실행",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-660, 480]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c1",
+              "name": "repo",
+              "value": "D:\\Codex\\TradingAgents",
+              "type": "string"
+            },
+            {
+              "id": "c2",
+              "name": "python",
+              "value": "D:\\Codex\\TradingAgents\\.codex-test-venv\\Scripts\\python.exe",
+              "type": "string"
+            },
+            {
+              "id": "c3",
+              "name": "outputDir",
+              "value": "D:\\Codex\\TradingAgents\\shorts-out",
+              "type": "string"
+            },
+            {
+              "id": "c4",
+              "name": "privacyStatus",
+              "value": "private",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "설정",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-420, 380],
+      "notes": "경로와 공개 범위를 여기서만 바꿉니다. 처음에는 privacyStatus 를 private 으로 두고 결과를 확인한 뒤 public 으로 올리세요."
+    },
+    {
+      "parameters": {
+        "command": "=cd /d \"{{ $json.repo }}\" && \"{{ $json.python }}\" -m cli.main shorts-plan --json"
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "오늘 뭘 만들지 고른다",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [-200, 380],
+      "notes": "데이터가 스토리를 고릅니다. 발동한 스토리 중 점수가 가장 높고 실제로 렌더 가능한 것을 하나 돌려줍니다."
+    },
+    {
+      "parameters": {
+        "jsCode": "// The CLI prints one JSON object on stdout. Anything the interpreter\n// warned about goes to stderr, so only the last line is parsed.\nconst config = $('설정').first().json;\nconst raw = String($input.first().json.stdout || '').trim();\nconst line = raw.split('\\n').filter((item) => item.trim().startsWith('{')).pop();\nif (!line) {\n  throw new Error('스토리 선택 결과를 읽지 못했습니다: ' + raw.slice(-400));\n}\nconst plan = JSON.parse(line);\nreturn [{ json: { ...config, ...plan, hasStory: Boolean(plan.story) } }];"
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "선택 결과 읽기",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [20, 380]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-1",
+              "leftValue": "={{ $json.hasStory }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "만들 이야기가 있나",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [240, 380]
+    },
+    {
+      "parameters": {
+        "command": "=cd /d \"{{ $json.repo }}\" && \"{{ $json.python }}\" -m cli.main shorts --story {{ $json.renderer }} --output \"{{ $json.outputDir }}\""
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "영상 만들기",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [480, 260],
+      "notes": "내레이션을 먼저 만들어 길이를 재고, 장면을 그 길이에 맞춘 뒤 HyperFrames 로 찍고 음성을 입힙니다. 3~5분 걸립니다."
+    },
+    {
+      "parameters": {
+        "jsCode": "// The render prints the paths it wrote. The caption file beside the mp4\n// carries the title and the description, already tagged with UTM links.\nconst fs = require('fs');\nconst path = require('path');\nconst config = $('선택 결과 읽기').first().json;\nconst out = String($input.first().json.stdout || '');\n\nconst mp4 = (out.match(/([^\\s\"']+\\.mp4)/) || [])[1];\nif (!mp4) {\n  throw new Error('렌더 결과에서 mp4 경로를 찾지 못했습니다: ' + out.slice(-500));\n}\nconst file = path.isAbsolute(mp4) ? mp4 : path.join(config.outputDir, mp4);\nif (!fs.existsSync(file)) {\n  throw new Error('렌더된 파일이 없습니다: ' + file);\n}\n\n// the caption sits next to the video under the same stem, minus the engine suffix\nconst stem = file.replace(/\\.mp4$/, '').replace(/-hf$/, '');\nconst captionPath = [stem + '.txt', file.replace(/\\.mp4$/, '.txt')].find((item) => fs.existsSync(item));\nconst caption = captionPath ? fs.readFileSync(captionPath, 'utf8') : '';\nconst lines = caption.split('\\n');\nconst title = (lines[0] || 'AI 모의계좌 기록').slice(0, 95);\nconst description = lines.slice(2).join('\\n').trim();\nconst thumb = fs.existsSync(stem + '.png') ? stem + '.png' : null;\n\nreturn [{ json: { ...config, videoPath: file, thumbnailPath: thumb, title, description, sizeMb: +(fs.statSync(file).size / 1048576).toFixed(1) } }];"
+      },
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "영상과 설명문 찾기",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 260]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $json.videoPath }}",
+        "options": {
+          "dataPropertyName": "video"
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "name": "영상 파일 읽기",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [920, 260]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "너는 한국어 유튜브 쇼츠 제목을 다듬는다. 숫자와 종목명은 절대 바꾸지 않는다. 과장 표현, 낚시성 표현, 매매 권유로 읽힐 표현은 쓰지 않는다. 결과만 한 줄로 출력한다."
+            },
+            {
+              "role": "user",
+              "content": "=다음 제목을 45자 이내로 더 자연스럽게 다듬어줘. 숫자는 그대로 둬.\n\n{{ $json.title }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000010",
+      "name": "제목 다듬기 (선택)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [920, 460],
+      "disabled": true,
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": ""
+        }
+      },
+      "notes": "기본은 꺼둡니다. 대본과 숫자는 데이터에서 그대로 나오므로 LLM 이 필요 없고, 제목만 다듬고 싶을 때 켜세요. 켤 경우 OpenAI 자격증명을 채우고 이 노드를 '영상과 설명문 찾기' 뒤에 연결하세요."
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $json.title }}",
+        "regionCode": "KR",
+        "categoryId": "22",
+        "options": {
+          "description": "={{ $json.description }}",
+          "privacyStatus": "={{ $json.privacyStatus }}",
+          "selfDeclaredMadeForKids": false,
+          "tags": "주식,AI주식,모의투자,코스피,투자기록"
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000011",
+      "name": "유튜브 업로드",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [1140, 260],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "",
+          "name": ""
+        }
+      },
+      "notes": "자격증명을 채운 뒤, 업로드할 바이너리 필드 이름이 'video' 인지 노드 화면에서 확인하세요. 앞 노드가 그 이름으로 파일을 싣습니다. 유튜브 API 심사를 통과하기 전에는 업로드된 영상이 비공개로 잠깁니다."
+    },
+    {
+      "parameters": {
+        "command": "=cd /d \"{{ $('영상과 설명문 찾기').first().json.repo }}\" && \"{{ $('영상과 설명문 찾기').first().json.python }}\" -m cli.main shorts-record --story {{ $('선택 결과 읽기').first().json.story }} --video-id {{ $json.id || 'unknown' }}"
+      },
+      "id": "a1000000-0000-4000-8000-000000000012",
+      "name": "발행 기록 남기기",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1360, 260],
+      "notes": "무엇을 언제 올렸는지 적어둡니다. 내일의 선택기가 이 기록을 보고 같은 이야기를 반복하지 않습니다."
+    },
+    {
+      "parameters": {
+        "chatId": "",
+        "text": "=✅ 쇼츠 발행\n\n{{ $('영상과 설명문 찾기').first().json.title }}\n\n스토리: {{ $('선택 결과 읽기').first().json.chosen.label }}\n사유: {{ $('선택 결과 읽기').first().json.reason }}\n영상: https://youtu.be/{{ $('유튜브 업로드').first().json.id }}",
+        "additionalFields": {
+          "disable_web_page_preview": false
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000013",
+      "name": "텔레그램 알림",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1580, 260],
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": ""
+        }
+      },
+      "notes": "chatId 에 운영자 채팅 id 를 넣으세요."
+    },
+    {
+      "parameters": {
+        "chatId": "",
+        "text": "=🟡 오늘은 올릴 이야기가 없습니다\n\n{{ $json.reason }}\n\n대기 중인 스토리: {{ $json.waiting.join(', ') }}",
+        "additionalFields": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000014",
+      "name": "조용한 날 보고",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [480, 520],
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": ""
+        }
+      },
+      "notes": "상비 콘텐츠가 만들어지기 전까지는 이 가지를 탈 수 있습니다. 억지로 올리는 것보다 쉬는 편이 낫습니다."
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "id": "a1000000-0000-4000-8000-000000000015",
+      "name": "업로드 전 대기",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1140, 440],
+      "webhookId": "a1000000-0000-4000-8000-0000000000ff",
+      "disabled": true,
+      "notes": "업로드가 자주 실패하면 이 노드를 켜서 파일 쓰기가 끝날 시간을 줍니다."
+    }
+  ],
+  "connections": {
+    "평일 아침 08:40": {
+      "main": [[{ "node": "설정", "type": "main", "index": 0 }]]
+    },
+    "수동 실행": {
+      "main": [[{ "node": "설정", "type": "main", "index": 0 }]]
+    },
+    "설정": {
+      "main": [[{ "node": "오늘 뭘 만들지 고른다", "type": "main", "index": 0 }]]
+    },
+    "오늘 뭘 만들지 고른다": {
+      "main": [[{ "node": "선택 결과 읽기", "type": "main", "index": 0 }]]
+    },
+    "선택 결과 읽기": {
+      "main": [[{ "node": "만들 이야기가 있나", "type": "main", "index": 0 }]]
+    },
+    "만들 이야기가 있나": {
+      "main": [
+        [{ "node": "영상 만들기", "type": "main", "index": 0 }],
+        [{ "node": "조용한 날 보고", "type": "main", "index": 0 }]
+      ]
+    },
+    "영상 만들기": {
+      "main": [[{ "node": "영상과 설명문 찾기", "type": "main", "index": 0 }]]
+    },
+    "영상과 설명문 찾기": {
+      "main": [[{ "node": "영상 파일 읽기", "type": "main", "index": 0 }]]
+    },
+    "영상 파일 읽기": {
+      "main": [[{ "node": "유튜브 업로드", "type": "main", "index": 0 }]]
+    },
+    "유튜브 업로드": {
+      "main": [[{ "node": "발행 기록 남기기", "type": "main", "index": 0 }]]
+    },
+    "발행 기록 남기기": {
+      "main": [[{ "node": "텔레그램 알림", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Seoul",
+    "saveManualExecutions": true,
+    "executionTimeout": 3600
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": ""
+  },
+  "tags": []
+}
