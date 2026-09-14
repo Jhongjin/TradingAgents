@@ -71,11 +71,28 @@ def voice_reference() -> Path | None:
     return default if default.exists() else None
 
 
+def reference_text(reference: Path | None = None) -> str | None:
+    """What is said in the reference clip, read from the .txt beside it.
+
+    VoxCPM clones a voice far more closely when it is told what the prompt
+    audio says, so the transcript travels with the wav.
+    """
+
+    source = reference or voice_reference()
+    if source is None:
+        return None
+    beside = source.with_suffix(".txt")
+    if not beside.exists():
+        return None
+    text = " ".join(beside.read_text(encoding="utf-8").split())
+    return text or None
+
+
 def available() -> bool:
     return voxcpm_python() is not None and (voxcpm_home() / "models" / "VoxCPM2").exists()
 
 
-def speak(lines: Sequence[dict], out_dir: Path, *, reference: Path | None = None, device: str = "cuda") -> dict:
+def speak(lines: Sequence[dict], out_dir: Path, *, reference: Path | None = None, prompt_text: str | None = None, device: str = "cuda") -> dict:
     """Synthesize one wav per line and return the manifest VoxCPM wrote."""
 
     python = voxcpm_python()
@@ -84,10 +101,14 @@ def speak(lines: Sequence[dict], out_dir: Path, *, reference: Path | None = None
             f"VoxCPM 을 찾지 못했습니다. {VOXCPM_HOME_ENV} 또는 {VOXCPM_PYTHON_ENV} 를 설정해 주세요."
         )
     out_dir.mkdir(parents=True, exist_ok=True)
+    cached = _cached(lines, out_dir, reference, prompt_text)
+    if cached is not None:
+        return cached
     job = {
         "model": str(voxcpm_home() / "models" / "VoxCPM2"),
         "out_dir": str(out_dir),
         "reference": str(reference) if reference else None,
+        "reference_text": prompt_text,
         "device": device,
         "lines": [dict(line) for line in lines],
     }
@@ -98,6 +119,27 @@ def speak(lines: Sequence[dict], out_dir: Path, *, reference: Path | None = None
     if result.returncode != 0:
         raise VoiceUnavailableError(f"VoxCPM 실패 ({result.returncode}): {(result.stderr or '')[-600:]}")
     return json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+
+
+def _cached(lines: Sequence[dict], out_dir: Path, reference: Path | None, prompt_text: str | None = None) -> dict | None:
+    """Reuse the last take when the words and the voice have not changed."""
+
+    manifest_path = out_dir / "manifest.json"
+    job_path = out_dir / "job.json"
+    if not (manifest_path.exists() and job_path.exists()):
+        return None
+    try:
+        previous = json.loads(job_path.read_text(encoding="utf-8"))
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    same_text = [(item["id"], item["text"]) for item in previous.get("lines") or []] == [(item["id"], item["text"]) for item in lines]
+    same_voice = (previous.get("reference") or None) == (str(reference) if reference else None) and (previous.get("reference_text") or None) == (prompt_text or None)
+    if not (same_text and same_voice):
+        return None
+    if not all(Path(item["path"]).exists() for item in manifest.get("lines") or []):
+        return None
+    return manifest
 
 
 def fit(board: Storyboard, manifest: dict) -> tuple[Storyboard, list[dict]]:
@@ -162,7 +204,8 @@ def narrate(board: Storyboard, *, work_dir: Path | None = None, music: Path | No
         raise VoiceUnavailableError("읽을 내레이션이 없습니다.")
 
     root = Path(work_dir or Path(tempfile.gettempdir()) / "tradingagents-shorts" / board.slug)
-    manifest = speak(lines, root, reference=voice_reference(), device=device)
+    reference = voice_reference()
+    manifest = speak(lines, root, reference=reference, prompt_text=reference_text(reference), device=device)
     fitted, placed = fit(board, manifest)
     track = mix_track(placed, fitted.seconds, root / "narration.wav", music=music)
     return Narration(track=track, board=fitted, lines=tuple(placed))
@@ -170,5 +213,5 @@ def narrate(board: Storyboard, *, work_dir: Path | None = None, music: Path | No
 
 __all__ = [
     "Narration", "VoiceUnavailableError", "available", "fit", "mix_track",
-    "narrate", "speak", "voice_reference", "voxcpm_home", "voxcpm_python",
+    "narrate", "reference_text", "speak", "voice_reference", "voxcpm_home", "voxcpm_python",
 ]

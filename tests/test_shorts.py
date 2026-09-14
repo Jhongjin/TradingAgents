@@ -11,13 +11,13 @@ from pathlib import Path
 import pytest
 
 from tradingagents.shorts import build
-from tradingagents.shorts.design import DOWN, UP, font_pair
+from tradingagents.shorts.design import THEMES, fonts_available
 from tradingagents.shorts.render import FfmpegMissingError, paint, scene_at, write_caption
 from tradingagents.shorts.scenes import Bars, Hook, Outro, Rows, Statement
 from tradingagents.shorts.stories import build_picks, build_record, short_date
 
 NOW = datetime(2026, 9, 14, 2, 0, tzinfo=timezone.utc)  # 11:00 KST
-needs_font = pytest.mark.skipif(font_pair() is None, reason="한글 글꼴이 없는 환경")
+needs_font = pytest.mark.skipif(not fonts_available(), reason="한글 글꼴이 없는 환경")
 
 
 def _payload() -> dict:
@@ -61,15 +61,15 @@ def test_the_record_cut_opens_with_the_loss_and_lists_every_trade():
     assert isinstance(bars, Bars) and isinstance(outro, Outro)
 
     assert hook.value_to == pytest.approx(-0.011748)
-    assert hook.value_colour == DOWN                       # a loss is blue, as a Korean chart reads
+    assert hook.value_colour == "down"                     # a loss is blue, as a Korean chart reads
     assert hook.lines == ("지금까지 정리한 3건,", "전부 손실이었습니다.")
     assert "1.5억원" in hook.caption
 
     # worst first, so the number that stops a scroll is the one on screen soonest
     assert [row["label"] for row in rows.rows] == ["티에스이", "SK이노베이션", "제이앤티씨"]
     assert [row["badge"] for row in rows.rows] == ["손절", "손절", "익절"]
-    assert rows.rows[0]["value"] == "-15.60%" and rows.rows[0]["colour"] == DOWN
-    assert rows.rows[-1]["colour"] == UP
+    assert rows.rows[0]["value"] == "-15.60%" and rows.rows[0]["colour"] == "down"
+    assert rows.rows[-1]["colour"] == "up"
     assert rows.rows[0]["sub"] == "AI 확인 · 9/10 매수 → 9/11 정리"
     assert "-1,750,034원" in rows.note
 
@@ -88,7 +88,7 @@ def test_a_winning_record_changes_the_verdict_not_the_shape():
     board = build_record(payload, now=NOW)
     hook = board.scenes[0]
     assert hook.lines[1] == "2건이 이익이었습니다."
-    assert hook.value_colour == UP
+    assert hook.value_colour == "up"
     assert "+2.34%" in board.title
 
 
@@ -104,7 +104,7 @@ def test_the_picks_cut_shows_the_ai_book_with_both_levels():
     assert hook.value == "2종목"                             # only the AI book, not the rules one
     assert [row["label"] for row in targets.rows] == ["신한지주", "삼성SDI"]   # newest entry first
     assert targets.rows[0]["value"] == "122,472원" and targets.rows[0]["badge"] == "비중 확대"
-    assert stops.rows[0]["value"] == "108,297원" and stops.rows[0]["colour"] == DOWN
+    assert stops.rows[0]["value"] == "108,297원" and stops.rows[0]["colour"] == "down"
     assert "-4.5%" in stops.rows[0]["sub"]
     assert isinstance(outro, Outro)
 
@@ -150,11 +150,13 @@ def test_the_caption_file_is_ready_to_paste(tmp_path):
 @needs_font
 def test_a_frame_is_painted_at_the_size_a_short_is_watched_at():
     board = build_record(_payload(), now=NOW)
+    from tradingagents.shorts.design import RAIL_X, THEMES
+
     frame = paint(board, 2.0)
     assert frame.size == (1080, 1920)
-    # the hook has ink on it, and the progress line has started
-    assert len(frame.getcolors(maxcolors=1 << 20) or []) > 40
-    assert frame.getpixel((90, 187)) != frame.getpixel((990, 187))
+    assert len(frame.getcolors(maxcolors=1 << 20) or []) > 40      # the hook has ink on it
+    # the rail has started filling, so its top differs from the ground
+    assert frame.getpixel((RAIL_X + 1, 300)) != THEMES[board.theme].ground
 
 
 @needs_font
@@ -240,7 +242,7 @@ def test_a_machine_without_voxcpm_says_so(monkeypatch, tmp_path):
 def test_the_page_is_ruled_rather_than_filled():
     """The design's premise: hairlines and a margin rail, not stacked cards."""
 
-    from tradingagents.shorts.design import ACCENT, RAIL_X
+    from tradingagents.shorts.design import RAIL_X
 
     board = build_record(_payload(), now=NOW)
     early, late = paint(board, 0.4), paint(board, board.seconds - 0.3)
@@ -249,3 +251,96 @@ def test_the_page_is_ruled_rather_than_filled():
     assert early.getpixel(low) != late.getpixel(low)
     assert late.getpixel(low)[1] > late.getpixel(low)[2]        # green-dominant: the accent
     assert early.getpixel((RAIL_X + 1, 260))[1] >= early.getpixel((RAIL_X + 1, 1400))[1]
+
+
+def test_the_clone_reference_travels_with_its_transcript(tmp_path, monkeypatch):
+    """VoxCPM imitates a voice far more closely when told what the clip says."""
+
+    from tradingagents.shorts import voice
+
+    wav = tmp_path / "narrator.wav"
+    wav.write_bytes(b"RIFF")
+    (tmp_path / "narrator.txt").write_text("안녕하세요.\n오늘은 기록을 남깁니다.\n", encoding="utf-8")
+    monkeypatch.setenv(voice.VOICE_REF_ENV, str(wav))
+
+    assert voice.voice_reference() == wav
+    assert voice.reference_text() == "안녕하세요. 오늘은 기록을 남깁니다."   # folded onto one line
+
+    bare = tmp_path / "bare.wav"
+    bare.write_bytes(b"RIFF")
+    assert voice.reference_text(bare) is None
+
+
+def test_a_take_is_reused_only_while_the_words_and_the_voice_hold(tmp_path):
+    import json
+
+    from tradingagents.shorts.voice import _cached
+
+    lines = [{"id": "s0", "text": "같은 말"}]
+    wav = tmp_path / "s0.wav"
+    wav.write_bytes(b"RIFF")
+    (tmp_path / "manifest.json").write_text(json.dumps({"lines": [{"id": "s0", "path": str(wav), "seconds": 1.0}]}), encoding="utf-8")
+    (tmp_path / "job.json").write_text(json.dumps({"reference": "ref.wav", "reference_text": "대본", "lines": lines}, ensure_ascii=False), encoding="utf-8")
+
+    assert _cached(lines, tmp_path, Path("ref.wav"), "대본") is not None
+    assert _cached([{"id": "s0", "text": "다른 말"}], tmp_path, Path("ref.wav"), "대본") is None   # rewritten
+    assert _cached(lines, tmp_path, Path("other.wav"), "대본") is None                            # new voice
+    assert _cached(lines, tmp_path, Path("ref.wav"), "다른 대본") is None                          # new transcript
+    wav.unlink()
+    assert _cached(lines, tmp_path, Path("ref.wav"), "대본") is None                              # take is gone
+
+
+def _near(actual, expected, tolerance: int = 14) -> bool:
+    """Texture nudges a ground by a few levels; this asks whether it is that colour."""
+
+    return all(abs(a - b) <= tolerance for a, b in zip(actual, expected))
+
+
+@needs_font
+def test_the_same_cut_renders_in_every_theme_and_they_differ():
+    from tradingagents.shorts.design import THEMES
+
+    frames = {}
+    for key in THEMES:
+        board = build_record(_payload(), now=NOW, theme=key)
+        assert board.theme == key
+        frames[key] = paint(board, 2.0)
+        assert frames[key].size == (1080, 1920)
+        assert _near(frames[key].getpixel((540, 60)), THEMES[key].ground)   # each paints its own ground
+
+    assert len({frame.tobytes() for frame in frames.values()}) == 3
+    assert sum(THEMES["print"].ground) > sum(THEMES["poster"].ground)     # one direction is light on purpose
+
+
+def test_an_unknown_theme_says_which_ones_exist():
+    from tradingagents.shorts.design import theme
+
+    with pytest.raises(ValueError, match="poster"):
+        theme("neon")
+
+
+@needs_font
+def test_the_poster_theme_flips_the_page_for_the_turn():
+    """Only the statement inverts, and only where the theme asks for it."""
+
+    from tradingagents.shorts.design import THEMES
+
+    poster = build_record(_payload(), now=NOW, theme="poster")
+    statement_at = sum(scene.seconds for scene in poster.scenes[:2]) + 1.0
+    assert poster.scenes[2].inverted is True
+    assert _near(paint(poster, statement_at).getpixel((540, 60)), THEMES["poster"].accent)
+    assert _near(paint(poster, 1.0).getpixel((540, 60)), THEMES["poster"].ground)
+
+    printed = build_record(_payload(), now=NOW, theme="print")
+    assert _near(paint(printed, statement_at).getpixel((540, 60)), THEMES["print"].ground)
+
+
+@needs_font
+def test_a_counting_figure_holds_its_width():
+    """Digits are placed on a fixed advance, so an animated number cannot twitch."""
+
+    from tradingagents.shorts.design import Canvas
+
+    canvas = Canvas.blank("poster")
+    assert canvas.measure_figure("11.11%", size=200) == canvas.measure_figure("88.88%", size=200)
+    assert canvas.measure_figure("-1.17%", size=200) > canvas.measure_figure("1.17%", size=200)

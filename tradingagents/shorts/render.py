@@ -16,7 +16,7 @@ from typing import Iterator
 
 from PIL import Image
 
-from .design import FPS, HEIGHT, MARGIN, MUTED, WIDTH, Canvas
+from .design import FPS, HEIGHT, MARGIN, WIDTH, Canvas, theme as resolve_theme
 from .scenes import Scene
 from .stories import Storyboard
 
@@ -52,14 +52,16 @@ def chrome(canvas: Canvas, board: Storyboard, seconds: float, *, watermark: str)
 
     canvas.rail(seconds / max(board.seconds, 0.001))
     if watermark:
-        canvas.text((WIDTH - 84, 1500), watermark, size=29, fill=MUTED, anchor="ra", alpha=0.8)
+        canvas.text((WIDTH - 84, 1498), watermark, size=28, fill="muted", anchor="ra", alpha=0.8)
 
 
 def paint(board: Storyboard, seconds: float, *, watermark: str | None = None) -> Image.Image:
     """The single frame at that moment of the cut."""
 
-    canvas = Canvas.blank()
+    active = resolve_theme(board.theme)
     found = scene_at(board.scenes, seconds)
+    flip = bool(found and getattr(found[0], "inverted", False) and active.invert_statement)
+    canvas = Canvas.blank(active, inverted=flip)
     if found is not None:
         scene, local = found
         scene.draw(canvas, local)

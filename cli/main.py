@@ -2035,6 +2035,7 @@ def factor_study_command(
 @app.command("shorts")
 def shorts_command(
     story: str = typer.Option("record", "--story", help="Which cut to build: record, picks."),
+    theme: str = typer.Option("poster", "--theme", help="Visual direction: poster, terminal, print."),
     output: Path = typer.Option(Path("shorts-out"), "--output", help="Directory the mp4, poster and caption land in."),
     source: Optional[str] = typer.Option(None, "--from", help="Read the account payload from this site instead of the database."),
     audio: Optional[Path] = typer.Option(None, "--audio", help="Music bed to mux under the video."),
@@ -2072,12 +2073,12 @@ def shorts_command(
         payload = build_combined_account_payload(StorageRepository(create_storage_engine()))
 
     try:
-        board = build(story, payload)
+        board = build(story, payload, theme=theme)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
     output.mkdir(parents=True, exist_ok=True)
-    target = output / f"{board.slug}.mp4"
+    target = output / f"{board.slug}-{board.theme}.mp4"
     console.print(f"[dim]{board.slug} · {len(board.scenes)}장면 · {board.seconds:.1f}초[/dim]")
 
     if poster_only:
@@ -2094,7 +2095,7 @@ def shorts_command(
             console.print("[yellow]로컬 VoxCPM 을 찾지 못해 무음으로 만듭니다.[/yellow]")
         else:
             console.print("[dim]내레이션 생성 중… (한 줄에 10초 안팎)[/dim]")
-            spoken = narration.narrate(board, work_dir=output / "voice" / story, music=audio)
+            spoken = narration.narrate(board, work_dir=output / "voice" / story, music=audio)  # cached per story
             board, track, audio_filter = spoken.board, spoken.track, None
             console.print(f"[dim]내레이션 {len(spoken.lines)}줄 · 영상 {board.seconds:.1f}초로 맞춤[/dim]")
 

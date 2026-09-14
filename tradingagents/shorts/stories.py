@@ -14,7 +14,7 @@ from datetime import date, datetime
 from typing import Any, Callable, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
-from .design import ACCENT, AMBER, DOWN, INK, UP, korean_date, money, percent, tone
+from .design import DEFAULT_THEME, korean_date, money, percent, tone
 from .scenes import Bars, Hook, Outro, Rows, Scene, Statement
 
 KST = ZoneInfo("Asia/Seoul")
@@ -35,6 +35,7 @@ class Storyboard:
     description: str
     tags: tuple[str, ...]
     scenes: tuple[Scene, ...]
+    theme: str = DEFAULT_THEME
 
     @property
     def seconds(self) -> float:
@@ -152,7 +153,7 @@ def _outro(*, headline: tuple[str, ...], call: str, narration: str) -> Outro:
     )
 
 
-def build_record(payload: Mapping[str, Any], *, now: datetime | None = None) -> Storyboard:
+def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME) -> Storyboard:
     """The whole record so far: what was closed, and what it did to the account.
 
     This is the cut for a channel nobody knows yet. It has a beginning and an
@@ -183,7 +184,7 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None) -> 
             "value": percent(float(item["realized_return"])),
             "colour": tone(float(item["realized_return"])),
             "badge": EXIT_LABELS.get(str(item.get("exit_reason")), "정리"),
-            "badge_colour": AMBER,
+            "badge_colour": "warn",
         }
         for item in closed[:5]
     )
@@ -216,6 +217,7 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None) -> 
                 highlight=percent(total_return),
                 highlight_colour=tone(total_return),
                 stamp="손절" if stopped else "정리",
+                inverted=True,
                 caption=f"{len(stopped)}건 모두 손절선에서 정리됐습니다.\n종목은 틀렸지만 손실은 정해둔 선에서 멈췄습니다.",
                 seconds=4.6,
                 narration=f"그런데 계좌 전체는 여기서 멈췄습니다. 전부, 살 때 정해둔 손절선에서 정리됐거든요.",
@@ -257,10 +259,11 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None) -> 
         ),
         tags=("주식", "AI주식", "모의투자", "코스피", "손절", "투자기록"),
         scenes=tuple(scenes),
+        theme=theme,
     )
 
 
-def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None) -> Storyboard:
+def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME) -> Storyboard:
     """What the AI book is holding right now, with the levels it set on entry."""
 
     positions = [item for item in payload.get("positions") or [] if str(item.get("account")) == "paper"]
@@ -273,9 +276,9 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None) -> S
             "label": str(item.get("ticker_name") or item.get("ticker_code")),
             "sub": f"{short_date(item.get('entry_date'))} 매수 · 평단 {float(item.get('average_price') or 0):,.0f}원",
             "value": f"{float(item.get('target_price') or 0):,.0f}원",
-            "colour": UP,
+            "colour": "up",
             "badge": _rating(item.get("decision_rating")) or "판정 없음",
-            "badge_colour": ACCENT,
+            "badge_colour": "accent",
         }
         for item in positions[:5]
     )
@@ -283,7 +286,7 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None) -> S
         {
             "label": str(item.get("ticker_name") or item.get("ticker_code")),
             "value": f"{float(item.get('stop_price') or 0):,.0f}원",
-            "colour": DOWN,
+            "colour": "down",
             "sub": f"평단 대비 {percent((float(item.get('stop_price') or 0) / float(item.get('average_price') or 1)) - 1, digits=1)}",
         }
         for item in positions[:5]
@@ -293,7 +296,7 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None) -> S
         Hook(
             eyebrow=f"AI 확인 계좌 · {korean_date(_today(now).isoformat())}",
             value=str(len(positions)) + "종목",
-            value_colour=INK,
+            value_colour="ink",
             caption="지금 담고 있는 종목입니다",
             lines=("사기 전에 목표가와", "손절가를 먼저 정했습니다."),
             seconds=3.4,
@@ -338,6 +341,7 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None) -> S
         ),
         tags=("주식", "AI주식", "모의투자", "코스피", "목표가", "손절가"),
         scenes=scenes,
+        theme=theme,
     )
 
 
@@ -347,10 +351,10 @@ STORIES: dict[str, Callable[..., Storyboard]] = {
 }
 
 
-def build(name: str, payload: Mapping[str, Any], *, now: datetime | None = None) -> Storyboard:
+def build(name: str, payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME) -> Storyboard:
     if name not in STORIES:
         raise ValueError(f"알 수 없는 스토리 {name!r}. 가능한 값: {', '.join(sorted(STORIES))}")
-    return STORIES[name](payload, now=now)
+    return STORIES[name](payload, now=now, theme=theme)
 
 
 __all__ = ["STORIES", "Storyboard", "build", "build_picks", "build_record", "short_date", "site_url"]
