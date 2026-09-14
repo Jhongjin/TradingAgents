@@ -1,0 +1,153 @@
+{
+  "name": "AgentTrust · 쇼츠 수신 및 업로드",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agenttrust-short",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {
+          "binaryPropertyName": "video",
+          "rawBody": false
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000001",
+      "name": "영상 수신",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-620, 320],
+      "webhookId": "b2000000-0000-4000-8000-0000000000aa",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": ""
+        }
+      },
+      "notes": "렌더가 끝난 PC 가 여기로 mp4 와 제목·설명을 밀어 넣습니다. Header Auth 자격증명을 만들어 이름 X-Shorts-Token 과 임의의 긴 문자열을 넣고, 같은 값을 PC 의 TRADINGAGENTS_SHORTS_WEBHOOK_TOKEN 에 넣으세요."
+    },
+    {
+      "parameters": {
+        "jsCode": "// The form fields arrive under body, the file as a binary property.\n// Everything is validated here so a bad post fails loudly rather than\n// uploading something empty to the channel.\nconst item = $input.first();\nconst body = item.json.body || item.json;\nconst binary = item.binary || {};\n\nif (!binary.video) {\n  throw new Error('영상 파일이 없습니다. multipart 필드 이름이 video 인지 확인하세요.');\n}\nconst title = String(body.title || '').trim();\nif (!title) {\n  throw new Error('제목이 비어 있습니다.');\n}\n\nreturn [{\n  json: {\n    story: String(body.story || 'unknown'),\n    label: String(body.label || ''),\n    reason: String(body.reason || ''),\n    title: title.slice(0, 95),\n    description: String(body.description || '').slice(0, 4900),\n    tags: String(body.tags || '주식,AI주식,모의투자,코스피,투자기록'),\n    privacyStatus: ['private', 'unlisted', 'public'].includes(String(body.privacyStatus)) ? String(body.privacyStatus) : 'private',\n    sizeMb: +((binary.video.fileSize || 0) / 1048576).toFixed(1),\n  },\n  binary: { video: binary.video },\n}];"
+      },
+      "id": "b2000000-0000-4000-8000-000000000002",
+      "name": "받은 것 확인",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-380, 320]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $json.title }}",
+        "regionCode": "KR",
+        "categoryId": "22",
+        "options": {
+          "description": "={{ $json.description }}",
+          "privacyStatus": "={{ $json.privacyStatus }}",
+          "selfDeclaredMadeForKids": false,
+          "tags": "={{ $json.tags }}"
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000003",
+      "name": "유튜브 업로드",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [-140, 320],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "",
+          "name": ""
+        }
+      },
+      "notes": "자격증명을 채운 뒤 업로드할 바이너리 필드 이름이 video 인지 노드에서 확인하세요. 유튜브 API 심사 전에는 올린 영상이 비공개로 잠깁니다."
+    },
+    {
+      "parameters": {
+        "chatId": "",
+        "text": "=✅ 쇼츠 발행\n\n{{ $('받은 것 확인').first().json.title }}\n\n스토리: {{ $('받은 것 확인').first().json.label }}\n사유: {{ $('받은 것 확인').first().json.reason }}\n공개: {{ $('받은 것 확인').first().json.privacyStatus }}\nhttps://youtu.be/{{ $json.id }}",
+        "additionalFields": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000004",
+      "name": "텔레그램 알림",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [100, 320],
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": ""
+        }
+      },
+      "notes": "chatId 에 운영자 채팅 id 를 넣으세요."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, videoId: $('유튜브 업로드').first().json.id, story: $('받은 것 확인').first().json.story }) }}",
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000005",
+      "name": "업로드 결과 회신",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [340, 320],
+      "notes": "PC 가 이 응답의 videoId 를 받아 발행 기록에 적습니다. 그래야 내일의 선택기가 같은 이야기를 피합니다."
+    },
+    {
+      "parameters": {},
+      "id": "b2000000-0000-4000-8000-000000000006",
+      "name": "실패 감지",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [-620, 560]
+    },
+    {
+      "parameters": {
+        "chatId": "",
+        "text": "=🔴 쇼츠 업로드 실패\n\n워크플로: {{ $json.workflow.name }}\n노드: {{ $json.execution.lastNodeExecuted }}\n오류: {{ $json.execution.error.message }}",
+        "additionalFields": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000007",
+      "name": "실패 알림",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [-380, 560],
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": ""
+        }
+      }
+    }
+  ],
+  "connections": {
+    "영상 수신": {
+      "main": [[{ "node": "받은 것 확인", "type": "main", "index": 0 }]]
+    },
+    "받은 것 확인": {
+      "main": [[{ "node": "유튜브 업로드", "type": "main", "index": 0 }]]
+    },
+    "유튜브 업로드": {
+      "main": [[{ "node": "텔레그램 알림", "type": "main", "index": 0 }]]
+    },
+    "텔레그램 알림": {
+      "main": [[{ "node": "업로드 결과 회신", "type": "main", "index": 0 }]]
+    },
+    "실패 감지": {
+      "main": [[{ "node": "실패 알림", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Seoul",
+    "saveManualExecutions": true,
+    "executionTimeout": 1800
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": ""
+  },
+  "tags": []
+}

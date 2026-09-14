@@ -2198,6 +2198,130 @@ def shorts_plan_command(
         console.print(f"  {mark} {item['score']:.3f} {item['label']:<20} {item['reason']}")
 
 
+def _shorts_build(renderer: str, payload: dict, output: Path):
+    """Render one story here and hand back the board and the files it wrote."""
+
+    from tradingagents.shorts import build, voice as narration
+    from tradingagents.shorts.hyperframes import compose_record, run, write_project
+
+    board = build(renderer, payload)
+    if narration.available():
+        console.print("[dim]내레이션 생성 중…[/dim]")
+        spoken = narration.narrate(board, work_dir=output / "voice" / renderer)
+        board = spoken.board
+    else:
+        spoken = None
+        console.print("[yellow]로컬 VoxCPM 을 찾지 못해 무음으로 만듭니다.[/yellow]")
+
+    html, seconds = compose_record(payload, board)
+    project = write_project(html, output / "hf" / renderer, name=renderer)
+    run("check", project.directory)
+    console.print("[dim]렌더 중…[/dim]")
+    run("render", project.directory)
+
+    renders = sorted((project.directory / "renders").glob("*.mp4"), key=lambda item: item.stat().st_mtime)
+    if not renders:
+        raise typer.BadParameter("렌더 결과를 찾지 못했습니다")
+
+    import shutil
+    import subprocess
+
+    video = output / f"{board.slug}-hf.mp4"
+    if spoken is not None:
+        subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error", "-i", str(renders[-1]), "-i", str(spoken.track),
+             "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", str(video)],
+            check=True,
+        )
+    else:
+        shutil.copyfile(renders[-1], video)
+
+    from tradingagents.shorts.render import write_caption
+
+    return board, video, write_caption(board, video.with_suffix(".txt"))
+
+
+def _shorts_caption(caption: Path, board) -> tuple[str, str]:
+    """Title and description, as the caption file already lays them out."""
+
+    lines = caption.read_text(encoding="utf-8").splitlines()
+    title = (lines[0] if lines else board.title).strip()[:95]
+    body = "\n".join(lines[2:]).strip()
+    return title or board.title[:95], body or board.description
+
+
+@app.command("shorts-daily")
+def shorts_daily_command(
+    source: Optional[str] = typer.Option(None, "--from", help="Read the account payload from this site instead of the database."),
+    output: Path = typer.Option(Path("shorts-out"), "--output", help="Directory the mp4, poster and caption land in."),
+    webhook: Optional[str] = typer.Option(None, "--webhook", help="n8n webhook that uploads it. Falls back to TRADINGAGENTS_SHORTS_WEBHOOK."),
+    privacy: str = typer.Option("private", "--privacy", help="private, unlisted or public."),
+    ledger: Optional[Path] = typer.Option(None, "--ledger", help="Where the published record is kept."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Choose and render, but do not post it anywhere."),
+):
+    """Choose today's story, make it, and hand it to n8n to publish.
+
+    The render needs this machine: its GPU draws the frames and its VoxCPM
+    speaks the lines. So the work runs here and the finished file is pushed
+    out to a hosted n8n, which means nothing has to reach in through the
+    firewall. The webhook answers with the video id, which goes straight into
+    the ledger so tomorrow's choice knows what already ran.
+    """
+
+    import json as _json
+    import os
+
+    from tradingagents.shorts.bank import BY_KEY, plan, read_ledger, record_published
+
+    payload = _shorts_payload(source)
+    decision = plan(payload, ledger=read_ledger(ledger))
+    if not decision.get("story"):
+        console.print(f"[yellow]오늘은 올릴 이야기가 없습니다.[/yellow] {decision['reason']}")
+        raise typer.Exit(code=0)
+
+    story = BY_KEY[decision["story"]]
+    console.print(f"[bold]{decision['date']}[/bold] · {story.label} · {decision['chosen']['reason']}")
+
+    board, video, caption = _shorts_build(story.renderer, payload, output)
+    title, description = _shorts_caption(caption, board)
+    console.print(f"[green]{video}[/green] {video.stat().st_size / 1048576:,.1f}MB")
+
+    target = webhook or (os.getenv("TRADINGAGENTS_SHORTS_WEBHOOK") or "").strip()
+    if dry_run or not target:
+        console.print("[dim]웹훅을 주지 않아 전송은 건너뜁니다.[/dim]" if not target else "[dim]--dry-run: 전송하지 않습니다.[/dim]")
+        raise typer.Exit(code=0)
+
+    import requests
+
+    token = (os.getenv("TRADINGAGENTS_SHORTS_WEBHOOK_TOKEN") or "").strip()
+    with video.open("rb") as handle:
+        response = requests.post(
+            target,
+            headers={"X-Shorts-Token": token} if token else {},
+            data={
+                "story": story.key,
+                "label": story.label,
+                "reason": decision["chosen"]["reason"],
+                "title": title,
+                "description": description,
+                "tags": ",".join(board.tags),
+                "privacyStatus": privacy,
+            },
+            files={"video": (video.name, handle, "video/mp4")},
+            timeout=900,
+        )
+    if response.status_code >= 400:
+        console.print(f"[red]업로드 실패 {response.status_code}[/red] {response.text[:300]}")
+        raise typer.Exit(code=1)
+
+    try:
+        video_id = (response.json() or {}).get("videoId")
+    except ValueError:
+        video_id = None
+    record_published(story.key, video_id=video_id, path=ledger, title=title)
+    console.print(f"[green]발행 완료[/green] {('https://youtu.be/' + video_id) if video_id else '업로드됨'}")
+
+
 @app.command("shorts-record")
 def shorts_record_command(
     story: str = typer.Option(..., "--story", help="The story key that was published."),

@@ -133,3 +133,41 @@ def test_every_story_declares_what_it_needs():
         assert story.renderer in {None, "record", "picks"}
     assert any(story.renderable for story in STORIES)
     assert any(not story.renderable for story in STORIES)   # the plan is honest about what is unbuilt
+
+
+def test_both_workflows_are_importable_and_ship_no_secrets():
+    """The files handed to n8n: wired end to end, every credential left blank."""
+
+    import json as _json
+    from pathlib import Path
+
+    for name in ("daily-short-hosted.json", "daily-short-local.json"):
+        flow = _json.loads(Path("automation/n8n", name).read_text(encoding="utf-8"))
+        names = {node["name"] for node in flow["nodes"]}
+        assert flow["settings"]["timezone"] == "Asia/Seoul"      # 08:40 has to mean 08:40 in Seoul
+
+        # every connection points at a node that exists
+        for source, wiring in flow["connections"].items():
+            assert source in names, f"{name}: {source}"
+            for branch in wiring["main"]:
+                for link in branch:
+                    assert link["node"] in names, f"{name}: {link['node']}"
+
+        credentials = [value for node in flow["nodes"] for value in (node.get("credentials") or {}).values()]
+        assert credentials, f"{name}: 자격증명 슬롯이 없습니다"
+        assert all(item["id"] == "" and item["name"] == "" for item in credentials)
+        assert "youTube" in {node["type"].rsplit(".", 1)[-1] for node in flow["nodes"]}
+
+        blob = _json.dumps(flow, ensure_ascii=False)
+        for leak in ("sk-", "AIza", "ya29.", "bot1", "password"):
+            assert leak not in blob, f"{name}: {leak}"
+
+    hosted = _json.loads(Path("automation/n8n/daily-short-hosted.json").read_text(encoding="utf-8"))
+    webhook = next(node for node in hosted["nodes"] if node["type"].endswith("webhook"))
+    assert webhook["parameters"]["authentication"] == "headerAuth"   # the ear is not left open
+    assert webhook["parameters"]["httpMethod"] == "POST"
+
+    # the model that only rewrites titles ships switched off
+    local = _json.loads(Path("automation/n8n/daily-short-local.json").read_text(encoding="utf-8"))
+    model = next(node for node in local["nodes"] if "openAi" in node["type"])
+    assert model.get("disabled") is True
