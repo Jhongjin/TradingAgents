@@ -128,7 +128,7 @@ def _account_rows(payload: Mapping[str, Any]) -> tuple[dict, ...]:
                 "label": str(item.get("label") or item.get("key")),
                 "value": float(value),
                 "text": percent(float(value)),
-                "sub": f"보유 {int(summary.get('open_count') or 0)}종목 · 정리 {int(summary.get('closed_count') or 0)}건",
+                "sub": f"보유 {int(summary.get('open_count') or 0)}종목   정리 {int(summary.get('closed_count') or 0)}건",
             }
         )
     return tuple(rows)
@@ -180,7 +180,10 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
     rows = tuple(
         {
             "label": str(item.get("ticker_name") or item.get("ticker_code")),
-            "sub": f"{item.get('account_label') or ''} · {short_date(item.get('entry_date'))} 매수 → {short_date(item.get('exit_date'))} 정리",
+            "sub": f"{short_date(item.get('entry_date'))} 매수   {short_date(item.get('exit_date'))} 정리   {item.get('account_label') or ''}",
+            "entry": item.get("entry_price"),
+            "exit": item.get("exit_price"),
+            "stop": item.get("stop_price"),
             "value": percent(float(item["realized_return"])),
             "colour": tone(float(item["realized_return"])),
             "badge": EXIT_LABELS.get(str(item.get("exit_reason")), "정리"),
@@ -191,7 +194,7 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
 
     scenes: list[Scene] = [
         Hook(
-            eyebrow=f"AI 모의 계좌 · {korean_date(_today(now).isoformat())} 기준",
+            eyebrow=f"AI 모의 계좌 {korean_date(_today(now).isoformat())} 기준",
             value_to=total_return,
             value_colour=tone(total_return),
             caption=f"{initial / 100_000_000:.1f}억원으로 시작한 계좌의 지금 성적",
@@ -274,7 +277,7 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, them
     rows = tuple(
         {
             "label": str(item.get("ticker_name") or item.get("ticker_code")),
-            "sub": f"{short_date(item.get('entry_date'))} 매수 · 평단 {float(item.get('average_price') or 0):,.0f}원",
+            "sub": f"{short_date(item.get('entry_date'))} 매수   평단 {float(item.get('average_price') or 0):,.0f}원",
             "value": f"{float(item.get('target_price') or 0):,.0f}원",
             "colour": "up",
             "badge": _rating(item.get("decision_rating")) or "판정 없음",
@@ -294,7 +297,7 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, them
 
     scenes: tuple[Scene, ...] = (
         Hook(
-            eyebrow=f"AI 확인 계좌 · {korean_date(_today(now).isoformat())}",
+            eyebrow=f"AI 확인 계좌 {korean_date(_today(now).isoformat())}",
             value=str(len(positions)) + "종목",
             value_colour="ink",
             caption="지금 담고 있는 종목입니다",

@@ -40,11 +40,20 @@ class Scene:
 
 
 def _head(canvas: Canvas, label: str, heading: str, local: float) -> None:
-    """Every body scene opens the same way: a tracked label, a rule, a heading."""
+    """The heading, and above it a label only where the theme asks for one.
 
-    canvas.label((MARGIN, SAFE_TOP), label, alpha=appear(local, 0.0, 0.3))
-    canvas.rule(SAFE_TOP + 60, progress=appear(local, 0.05, 0.5))
-    canvas.text((MARGIN, SAFE_TOP + 94), heading, size=62, role="heading", alpha=appear(local, 0.14, 0.4))
+    A tracked label over every heading is one of the surest tells of a
+    generated page, so the themes that do without it let the heading and the
+    rule carry the section on their own.
+    """
+
+    if canvas.theme.eyebrows:
+        canvas.label((MARGIN, SAFE_TOP), label, alpha=appear(local, 0.0, 0.3))
+        canvas.rule(SAFE_TOP + 60, progress=appear(local, 0.05, 0.5))
+        canvas.text((MARGIN, SAFE_TOP + 94), heading, size=62, role="heading", alpha=appear(local, 0.14, 0.4))
+        return
+    canvas.text((MARGIN, SAFE_TOP + 10), heading, size=64, role="heading", alpha=appear(local, 0.0, 0.35))
+    canvas.rule(SAFE_TOP + 118, progress=appear(local, 0.1, 0.5))
 
 
 @dataclass
@@ -62,7 +71,11 @@ class Hook(Scene):
     seconds: float = 3.4
 
     def draw(self, canvas: Canvas, local: float) -> None:
-        canvas.label((MARGIN, SAFE_TOP), self.eyebrow, alpha=appear(local, 0.0, 0.35))
+        if canvas.theme.eyebrows:
+            canvas.label((MARGIN, SAFE_TOP), self.eyebrow, alpha=appear(local, 0.0, 0.35))
+        else:
+            # the same fact without the label device: a plain quiet line
+            canvas.text((MARGIN, SAFE_TOP + 4), self.eyebrow, size=32, fill="muted", alpha=appear(local, 0.0, 0.35))
 
         shown = self.value
         if self.value_to is not None:
@@ -103,7 +116,9 @@ class Rows(Scene):
             if progress <= 0.01:
                 continue
             y = top + index * pitch
-            shift = int((1 - progress) * 34)
+            # a slide on every row is the generic entrance; the theme that
+            # draws paths lets rows simply arrive instead
+            shift = 0 if canvas.theme.paths else int((1 - progress) * 34)
 
             value = str(row.get("value") or "")
             value_w = canvas.measure_figure(value, size=54) if value else 0
@@ -113,6 +128,14 @@ class Rows(Scene):
                         size=46, role="strong", alpha=progress, anchor="lm")
             if value:
                 canvas.figure((RIGHT + shift, y + 42), value, size=54, fill=row.get("colour") or "ink", alpha=progress, anchor="rm")
+
+            entry, exit_price = row.get("entry"), row.get("exit")
+            if canvas.theme.paths and entry and exit_price:
+                width = 170
+                canvas.trade_path((RIGHT - value_w - width - 44, y + 8, RIGHT - value_w - 44, y + 76),
+                                  entry=float(entry), exit_price=float(exit_price),
+                                  stop=float(row["stop"]) if row.get("stop") else None,
+                                  fill=row.get("colour") or "ink", alpha=progress, progress=progress)
 
             sub = str(row.get("sub") or "")
             tag = str(row.get("badge") or "")
@@ -197,7 +220,8 @@ class Statement(Scene):
 
     def draw(self, canvas: Canvas, local: float) -> None:
         flipped = canvas.inverted
-        canvas.label((MARGIN, SAFE_TOP), self.eyebrow, fill="ink" if flipped else "accent", alpha=appear(local, 0.0, 0.3))
+        if canvas.theme.eyebrows:
+            canvas.label((MARGIN, SAFE_TOP), self.eyebrow, fill="ink" if flipped else "accent", alpha=appear(local, 0.0, 0.3))
 
         y = 470
         for index, line in enumerate(self.lines):
@@ -231,7 +255,7 @@ class Outro(Scene):
     call: str = ""
     telegram: str = ""
     telegram_line: str = "매일 아침 선별 결과와 청산 알림을 텔레그램으로 먼저"
-    disclaimer: str = "AI 실험 기록이며 매매 권유가 아닙니다 · 모의 계좌 · 실계좌 주문 없음"
+    disclaimer: str = "AI 실험 기록이며 매매 권유가 아닙니다. 모의 계좌 기록이고 실계좌 주문은 없습니다."
     seconds: float = 5.4
 
     def draw(self, canvas: Canvas, local: float) -> None:

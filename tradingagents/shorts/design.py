@@ -81,6 +81,13 @@ BODY_STRONG = FontSpec(("Pretendard-SemiBold.ttf", "NotoSansKR-Medium.ttf", "mal
 MONO = FontSpec(("consola.ttf", "DejaVuSansMono.ttf"))
 MONO_BOLD = FontSpec(("consolab.ttf", "DejaVuSansMono-Bold.ttf"))
 ROUND_BOLD = FontSpec(("NanumSquareRoundB.ttf", "NotoSansKR-VF.ttf", "malgunbd.ttf"), "Bold")
+KR = ("NotoSansKR-VF.ttf", "malgun.ttf")
+KR_THIN = FontSpec(KR, "Light")
+KR_LIGHT = FontSpec(KR, "DemiLight")
+KR_REGULAR = FontSpec(KR, "Regular")
+KR_MEDIUM = FontSpec(KR, "Medium")
+KR_BOLD = FontSpec(KR, "Bold")
+KR_BLACK = FontSpec(KR, "Black")
 
 
 class MissingFontError(RuntimeError):
@@ -135,6 +142,8 @@ class Theme:
     label_font: FontSpec = BODY_STRONG
     texture: str = "grid"
     invert_statement: bool = False
+    eyebrows: bool = True        # a label above every heading is a generated-page tell
+    paths: bool = False          # draw each trade as the move it actually made
     label_tracking: int = 3
     rule_weight: int = 2
 
@@ -185,8 +194,23 @@ PRINT = Theme(
     texture="paper", label_tracking=4, rule_weight=3,
 )
 
-THEMES: dict[str, Theme] = {theme.key: theme for theme in (POSTER, TERMINAL, PRINT)}
-DEFAULT_THEME = "poster"
+STATEMENT = Theme(
+    key="statement",
+    label="명세",
+    note="증권 계좌 명세서에서 온 화면. 색은 상승·하락 두 가지뿐이고, 강조는 색이 아니라 굵기와 밝기로 합니다.",
+    # a deep navy taken from the colour a Korean screen already uses for a fall,
+    # rather than a near-black with a bright accent dropped on top of it
+    ground=(13, 21, 33), ink=(230, 236, 244), ink2=(154, 170, 190), muted=(104, 121, 142),
+    accent=(245, 238, 223), on_accent=(13, 21, 33),
+    up=(255, 92, 96), down=(77, 155, 255), warn=(245, 238, 223),
+    hairline=(35, 49, 68), grid=(17, 27, 41),
+    display=KR_BLACK, heading=KR_BOLD, body=KR_LIGHT, body_strong=KR_MEDIUM,
+    figure=KR_BLACK, label_font=KR_MEDIUM,
+    texture="none", eyebrows=False, paths=True, label_tracking=0, rule_weight=2,
+)
+
+THEMES: dict[str, Theme] = {theme.key: theme for theme in (STATEMENT, POSTER, TERMINAL, PRINT)}
+DEFAULT_THEME = "statement"
 
 
 def theme(name: str | Theme | None = None) -> Theme:
@@ -483,6 +507,41 @@ class Canvas:
             return
         self.draw.rounded_rectangle((min(x0, x1), y0, max(x0, x1), y1), radius=radius, fill=self.colour(fill, alpha))
 
+    def trade_path(
+        self,
+        box: tuple[int, int, int, int],
+        *,
+        entry: float,
+        exit_price: float,
+        stop: float | None = None,
+        fill: str | Sequence[int] = "ink",
+        alpha: float = 1.0,
+        progress: float = 1.0,
+    ) -> None:
+        """Entry to exit as one segment, with the level it was meant to stop at.
+
+        Two prices that really happened and one that was set in advance. It is
+        a diagram, not an invented chart: no path is drawn between them that
+        the data does not contain.
+        """
+
+        if alpha <= 0.01:
+            return
+        x0, y0, x1, y1 = box
+        span = max(abs(exit_price - entry), abs((stop if stop else entry) - entry), entry * 0.001) * 1.35
+        def place(price: float) -> float:
+            return y0 + (y1 - y0) * (0.5 - (price - entry) / (2 * span))
+
+        if stop:
+            level = place(stop)
+            if y0 <= level <= y1:
+                for dash in range(int(x0), int(x1), 12):
+                    self.draw.rectangle((dash, level, dash + 6, level + 1), fill=self.colour("muted", alpha * 0.8))
+        end_x = x0 + (x1 - x0) * max(0.0, min(1.0, progress))
+        end_y = place(entry) + (place(exit_price) - place(entry)) * max(0.0, min(1.0, progress))
+        self.draw.line((x0, place(entry), end_x, end_y), fill=self.colour(fill, alpha), width=3)
+        self.draw.ellipse((end_x - 5, end_y - 5, end_x + 5, end_y + 5), fill=self.colour(fill, alpha))
+
     def block(self, box: tuple[int, int, int, int], *, fill: str | Sequence[int] = "accent", alpha: float = 1.0) -> None:
         if alpha <= 0.01:
             return
@@ -511,7 +570,7 @@ def korean_date(value: str | None) -> str:
 
 
 __all__ = [
-    "BODY", "BODY_STRONG", "CONTENT_WIDTH", "Canvas", "DEFAULT_THEME", "DISPLAY_BLACK", "FPS",
+    "BODY", "BODY_STRONG", "CONTENT_WIDTH", "Canvas", "DEFAULT_THEME", "DISPLAY_BLACK", "FPS", "STATEMENT",
     "FontSpec", "HEIGHT", "MARGIN", "MONO", "MONO_BOLD", "MissingFontError", "POSTER", "PRINT",
     "RAIL_X", "SAFE_BOTTOM", "SAFE_TOP", "TERMINAL", "THEMES", "Theme", "WIDTH", "appear",
     "background", "ease_out", "fonts_available", "korean_date", "load_font", "mix", "money",

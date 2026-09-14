@@ -70,7 +70,8 @@ def test_the_record_cut_opens_with_the_loss_and_lists_every_trade():
     assert [row["badge"] for row in rows.rows] == ["손절", "손절", "익절"]
     assert rows.rows[0]["value"] == "-15.60%" and rows.rows[0]["colour"] == "down"
     assert rows.rows[-1]["colour"] == "up"
-    assert rows.rows[0]["sub"] == "AI 확인 · 9/10 매수 → 9/11 정리"
+    assert rows.rows[0]["sub"] == "9/10 매수   9/11 정리   AI 확인"   # spaced columns, not a dotted meta string
+    assert "·" not in rows.rows[0]["sub"] and "→" not in rows.rows[0]["sub"]
     assert "-1,750,034원" in rows.note
 
     assert statement.highlight == "-1.17%" and "2건 모두 손절선" in statement.caption
@@ -308,7 +309,7 @@ def test_the_same_cut_renders_in_every_theme_and_they_differ():
         assert frames[key].size == (1080, 1920)
         assert _near(frames[key].getpixel((540, 60)), THEMES[key].ground)   # each paints its own ground
 
-    assert len({frame.tobytes() for frame in frames.values()}) == 3
+    assert len({frame.tobytes() for frame in frames.values()}) == len(THEMES)
     assert sum(THEMES["print"].ground) > sum(THEMES["poster"].ground)     # one direction is light on purpose
 
 
