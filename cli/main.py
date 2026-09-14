@@ -2321,11 +2321,18 @@ def shorts_daily_command(
         raise typer.Exit(code=1)
 
     try:
-        video_id = (response.json() or {}).get("videoId")
+        answer = response.json() or {}
     except ValueError:
-        video_id = None
+        answer = {}
+    video_id = answer.get("videoId")
     record_published(story.key, video_id=video_id, path=ledger, title=title)
-    console.print(f"[green]발행 완료[/green] {('https://youtu.be/' + video_id) if video_id else '업로드됨'}")
+    if video_id:
+        console.print(f"[green]발행 완료[/green] https://youtu.be/{video_id}")
+    else:
+        # the upload itself went through; it is the answer that came back thin,
+        # so say what n8n actually sent rather than writing a silent null
+        console.print("[green]업로드됨[/green] [yellow]videoId 회신 없음[/yellow] "
+                      f"{response.status_code} {response.text[:200]!r}")
 
 
 @app.command("shorts-record")

@@ -459,7 +459,9 @@
     "executionOrder": "v1",
     "timezone": "Asia/Seoul",
     "saveManualExecutions": true,
-    "executionTimeout": 3600
+    "executionTimeout": 3600,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
   },
   "pinData": {},
   "meta": {
