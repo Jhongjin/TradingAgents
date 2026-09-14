@@ -18,3 +18,6 @@ tradingagents.egg-info
 results
 eval_results
 htmlcov
+shorts-out
+logs
+assets/voice
