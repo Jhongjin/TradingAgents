@@ -75,7 +75,7 @@
     {
       "parameters": {
         "chatId": "",
-        "text": "=✅ 쇼츠 발행\n\n{{ $('받은 것 확인').first().json.title }}\n\n스토리: {{ $('받은 것 확인').first().json.label }}\n사유: {{ $('받은 것 확인').first().json.reason }}\n공개: {{ $('받은 것 확인').first().json.privacyStatus }}\nhttps://youtu.be/{{ $json.id }}",
+        "text": "=✅ 쇼츠 발행\n\n{{ $('받은 것 확인').first().json.title }}\n\n스토리: {{ $('받은 것 확인').first().json.label }}\n사유: {{ $('받은 것 확인').first().json.reason }}\n공개: {{ $('받은 것 확인').first().json.privacyStatus }}\nhttps://youtu.be/{{ (($json.id && $json.id.videoId) || $json.id || $json.videoId || '') }}",
         "additionalFields": {}
       },
       "id": "b2000000-0000-4000-8000-000000000004",
@@ -97,7 +97,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: true, videoId: $('유튜브 업로드').first().json.id, story: $('받은 것 확인').first().json.story }) }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, videoId: (($('유튜브 업로드').first().json.id && $('유튜브 업로드').first().json.id.videoId) || $('유튜브 업로드').first().json.id || $('유튜브 업로드').first().json.videoId || ''), story: $('받은 것 확인').first().json.story }) }}",
         "options": {}
       },
       "id": "b2000000-0000-4000-8000-000000000005",
