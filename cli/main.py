@@ -2293,6 +2293,12 @@ def shorts_daily_command(
 
     import requests
 
+    from tradingagents.dataflows.http_trust import apply_system_truststore_if_available
+
+    # this machine sits behind a TLS-inspecting proxy, so the chain is only
+    # trusted by Windows' own store, not by the one bundled with certifi
+    apply_system_truststore_if_available()
+
     token = (os.getenv("TRADINGAGENTS_SHORTS_WEBHOOK_TOKEN") or "").strip()
     with video.open("rb") as handle:
         response = requests.post(
