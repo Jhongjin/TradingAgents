@@ -20,12 +20,25 @@ n8n 이 어디 있느냐에 따라 둘 중 하나를 고르면 됩니다.
 **설치**
 
 1. n8n 에서 `daily-short-hosted.json` 을 Import 합니다.
-2. **영상 수신** 노드에 Header Auth 자격증명을 만듭니다. 이름 `X-Shorts-Token`,
-   값은 임의의 긴 문자열.
+2. **영상 수신** 노드에 Header Auth 자격증명을 **새로** 만듭니다. Name 은 `X-Shorts-Token`,
+   Value 는 임의의 긴 문자열. 다른 워크플로의 자격증명을 재사용하면 헤더 이름이 달라
+   403 만 돌아옵니다. 값은 이렇게 뽑으면 됩니다.
+
+   ```
+   python -c "import secrets; print(secrets.token_urlsafe(32))"
+   ```
+
 3. **유튜브 업로드** 에 YouTube OAuth2, **텔레그램** 두 노드에 자격증명과 `chatId` 를 넣습니다.
-4. 워크플로를 저장하고 **Active** 로 켠 뒤, 웹훅 Production URL 을 복사합니다.
-5. `automation\daily-short.cmd` 를 열어 `TRADINGAGENTS_SHORTS_WEBHOOK` 에 그 URL,
-   `TRADINGAGENTS_SHORTS_WEBHOOK_TOKEN` 에 2 번의 값을 넣습니다.
+4. 워크플로를 저장하고 **Active** 로 켠 뒤, 웹훅 Production URL 을 복사해
+   `automation\daily-short.cmd` 의 `TRADINGAGENTS_SHORTS_WEBHOOK` 에 넣습니다.
+5. 토큰은 그 파일에 넣지 마세요. 버전 관리 대상이라 커밋과 함께 새어 나갑니다.
+   사용자 환경 변수로 한 번만 심어두면 알아서 전달됩니다.
+
+   ```
+   setx TRADINGAGENTS_SHORTS_WEBHOOK_TOKEN "2 번에서 만든 값"
+   ```
+
+   창을 새로 연 다음부터 적용됩니다.
 6. 작업 스케줄러에 등록합니다.
 
 ```

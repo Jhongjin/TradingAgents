@@ -15,10 +15,18 @@ setlocal
 set REPO=D:\Codex\TradingAgents
 set PYTHON=%REPO%\.codex-test-venv\Scripts\python.exe
 
-rem The webhook and its shared secret. Fill these in, or set them as user
-rem environment variables and delete these two lines.
+rem The webhook address is not a secret, so it lives here. The shared secret is,
+rem and this file is in version control, so it is never written here: set it once
+rem as a user environment variable and it arrives on its own.
+rem
+rem   setx TRADINGAGENTS_SHORTS_WEBHOOK_TOKEN "the same value as n8n's X-Shorts-Token"
+rem
 set TRADINGAGENTS_SHORTS_WEBHOOK=https://n8n.admate.ai.kr/webhook/agenttrust-short
-set TRADINGAGENTS_SHORTS_WEBHOOK_TOKEN=
+
+if not defined TRADINGAGENTS_SHORTS_WEBHOOK_TOKEN (
+  echo TRADINGAGENTS_SHORTS_WEBHOOK_TOKEN is not set - n8n would answer 403. 1>&2
+  exit /b 2
+)
 
 cd /d "%REPO%" || exit /b 1
 
