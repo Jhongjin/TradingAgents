@@ -288,7 +288,7 @@ def create_app(
             or request.url.path.startswith("/stocks/")
             or request.url.path == "/features"
             or request.url.path.startswith("/features/")
-            or request.url.path in {"/privacy", "/terms", "/disclaimer", "/pricing"}
+            or request.url.path in {"/privacy", "/terms", "/disclaimer", "/pricing", "/paper", "/start"}
             or request.url.path in {"/ads.txt", "/robots.txt", "/sitemap.xml", "/llms.txt", "/site.webmanifest"}
             or request.url.path.startswith("/og/")
             or request.url.path.endswith("/history")
@@ -326,6 +326,16 @@ def create_app(
                 "Cache-Control",
                 f"public, max-age={seconds}, stale-while-revalidate={seconds * 2}",
             )
+        elif request.url.path in {"/api/paper-account", "/api/paper-account/curve", "/api/backtest", "/api/factor-study"}:
+            # The same public account every anonymous visitor sees. A signed-in
+            # request never reaches here - it is caught by the Authorization
+            # branch above - and Vary keeps a shared cache from mixing the two.
+            seconds = request.app.state.public_cache_seconds
+            response.headers.setdefault(
+                "Cache-Control",
+                f"public, max-age={seconds}, stale-while-revalidate={seconds * 2}",
+            )
+            response.headers.setdefault("Vary", "Authorization")
         elif request.url.path == "/api/readiness":
             response.headers.setdefault("Cache-Control", "private, no-store")
         elif request.url.path.startswith("/api/member/"):

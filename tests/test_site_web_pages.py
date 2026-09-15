@@ -958,3 +958,22 @@ def test_api_app_sitemap_includes_stored_public_analysis_tickers(monkeypatch):
     assert "http://testserver/stocks/005930" in response.text
     assert "http://testserver/stocks/373220" in response.text
     assert f"http://testserver/analyses/{run_id}" in response.text
+
+
+def test_the_public_account_pages_are_allowed_to_be_cached():
+    """`/paper` costs fourteen seconds to build and is the same for everyone."""
+
+    with TestClient(create_app(repo=None, load_repo_from_env=False, public_cache_seconds=60)) as client:
+        for path in ("/paper", "/start"):
+            cache = client.get(path).headers.get("cache-control", "")
+            assert cache.startswith("public, max-age="), f"{path}: {cache}"
+
+        for path in ("/api/paper-account", "/api/backtest", "/api/factor-study"):
+            response = client.get(path)
+            assert response.headers.get("cache-control", "").startswith("public, max-age=")
+            # a shared cache must not hand the anonymous copy to a signed-in caller
+            assert response.headers.get("vary") == "Authorization"
+
+        # and a request that carries a session is never publicly cacheable
+        signed_in = client.get("/api/paper-account", headers={"Authorization": "Bearer x"})
+        assert signed_in.headers.get("cache-control") == "private, no-store"
