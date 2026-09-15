@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Mapping
 
 from tradingagents.storage import StorageRepository
 
@@ -61,6 +61,32 @@ def _outcome_cell(outcomes: list[dict[str, Any]]) -> str:
         else:
             parts.append(f'{h(horizon)}D <small>데이터 없음</small>')
     return "<br>".join(parts)
+
+
+def _without_transcripts(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """The run, minus the debate transcripts the page never draws.
+
+    Each confirmed decision carries the whole bull/bear/judge exchange - about
+    30KB apiece - and it was going out inside every page view although nothing
+    on the page reads it. The transcripts are still served in full at
+    ``/api/harness/runs/latest`` for anyone who wants them.
+    """
+
+    copied = dict(payload or {})
+    decisions = []
+    for decision in copied.get("decisions") or []:
+        row = dict(decision)
+        detail = dict(row.get("detail") or {})
+        confirmation = detail.get("confirmation")
+        if isinstance(confirmation, Mapping) and "raw" in confirmation:
+            trimmed = {key: value for key, value in confirmation.items() if key != "raw"}
+            trimmed["raw_available_at"] = "/api/harness/runs/latest"
+            detail["confirmation"] = trimmed
+            row["detail"] = detail
+        decisions.append(row)
+    if decisions:
+        copied["decisions"] = decisions
+    return copied
 
 
 def render_harness_page(
@@ -146,7 +172,7 @@ def render_harness_page(
     ) or '<p class="muted small">저장된 실행 기록이 없습니다.</p>'
 
     notices = "".join(f"<li>{h(notice)}</li>" for notice in HARNESS_NOTICES)
-    payload_json = _script_json({"runs": runs_payload, "run": run_payload})
+    payload_json = _script_json({"runs": runs_payload, "run": _without_transcripts(run_payload)})
     broker_badge = badge("기록만 (체결 없음)" if run.get("dry_run", True) else str(run.get("broker") or "-"), "b-grey" if run.get("dry_run", True) else "b-teal")
 
     tiles = "".join(

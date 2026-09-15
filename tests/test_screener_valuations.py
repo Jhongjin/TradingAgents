@@ -127,3 +127,31 @@ def test_the_rule_change_of_2026_09_15_is_pinned_and_published():
     labelled = {key for key, _label, _unit in RULE_LABELS}
     assert "volatility_exclude_top_pct" in labelled
     assert format_rule("volatility_exclude_top_pct", 0.2) == "20%"
+
+
+def test_the_harness_page_does_not_ship_transcripts_nobody_reads():
+    """30KB of debate per decision was going out inside a page that never drew it."""
+
+    from tradingagents.site.harness_pages import _without_transcripts
+
+    payload = {
+        "run": {"id": "abc"},
+        "decisions": [
+            {"ticker_code": "005930", "detail": {
+                "confirmation": {"rating": "Overweight", "rationale": "짧은 이유", "raw": {"debate": {"turns": {"bull": "x" * 20_000}}}},
+                "order": {"status": "filled"},
+            }},
+            {"ticker_code": "000660", "detail": {"confirmation": {"rating": "Neutral"}}},
+        ],
+    }
+
+    trimmed = _without_transcripts(payload)
+    first = trimmed["decisions"][0]["detail"]["confirmation"]
+
+    assert "raw" not in first
+    assert first["rating"] == "Overweight" and first["rationale"] == "짧은 이유"
+    assert first["raw_available_at"] == "/api/harness/runs/latest"
+    # a decision without a transcript is passed through untouched
+    assert trimmed["decisions"][1]["detail"]["confirmation"] == {"rating": "Neutral"}
+    # and the original is not mutated
+    assert "raw" in payload["decisions"][0]["detail"]["confirmation"]
