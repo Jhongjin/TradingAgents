@@ -36,6 +36,9 @@ class Storyboard:
     tags: tuple[str, ...]
     scenes: tuple[Scene, ...]
     theme: str = DEFAULT_THEME
+    # Posted under the video as the channel. Short, because the first two
+    # lines are all anyone reads before the fold.
+    comment: str = ""
 
     @property
     def seconds(self) -> float:
@@ -56,6 +59,21 @@ def _telegram_line() -> str:
     if handle:
         return f"아침 알림 텔레그램 → https://t.me/{handle.lstrip('@')}"
     return f"아침 알림 받기 → {site_url()}/start"
+
+
+def _comment(lead: str, *, path: str, campaign: str, stamp: str) -> str:
+    """The comment that goes under the video, as the channel.
+
+    A viewer who got this far wants the receipts, so the first line says what
+    is on the other end and the second is the link. The landing page follows
+    for whoever arrived with no idea what this channel is.
+    """
+
+    lines = [lead, _link(path, campaign, stamp=stamp), "", f"처음이시면 → {_link('/start', campaign, stamp=stamp)}"]
+    handle = telegram_handle()
+    if handle:
+        lines.append(f"매일 아침 먼저 받기 → https://t.me/{handle.lstrip('@')}")
+    return "\n".join(lines)
 
 
 def _link(path: str, campaign: str, *, stamp: str) -> str:
@@ -269,6 +287,10 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
         tags=("주식", "AI주식", "모의투자", "코스피", "손절", "투자기록"),
         scenes=tuple(scenes),
         theme=theme,
+        comment=_comment(
+            f"영상에 나온 {closed_count}건, 고른 이유부터 정리한 값까지 전부 여기 있습니다.",
+            path="/paper", campaign="record", stamp=stamp,
+        ),
     )
 
 
@@ -351,6 +373,10 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, them
         tags=("주식", "AI주식", "모의투자", "코스피", "목표가", "손절가"),
         scenes=scenes,
         theme=theme,
+        comment=_comment(
+            "이 종목들이 며칠 뒤 어떻게 정리됐는지는 같은 자리에 그대로 남습니다.",
+            path="/harness", campaign="picks", stamp=stamp,
+        ),
     )
 
 

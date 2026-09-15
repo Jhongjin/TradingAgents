@@ -31,7 +31,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// The form fields arrive under body, the file as a binary property. Which key\n// that file lands under depends on the n8n version - 'video', 'video0', or the\n// multipart field name - so it is found rather than assumed, and when nothing\n// arrives the error names the keys that did, which is what you need to see.\nconst item = $input.first();\nconst body = item.json.body || item.json;\nconst binary = item.binary || {};\nconst keys = Object.keys(binary);\n\nconst key = keys.find((name) => String(binary[name].mimeType || '').startsWith('video/')) || keys[0];\nif (!key) {\n  throw new Error('영상 파일이 없습니다. 받은 바이너리 키: ' + JSON.stringify(keys));\n}\nconst file = binary[key];\n\nconst title = String(body.title || '').trim();\nif (!title) {\n  throw new Error('제목이 비어 있습니다.');\n}\n\nreturn [{\n  json: {\n    story: String(body.story || 'unknown'),\n    label: String(body.label || ''),\n    reason: String(body.reason || ''),\n    title: title.slice(0, 95),\n    description: String(body.description || '').slice(0, 4900),\n    tags: String(body.tags || '주식,AI주식,모의투자,코스피,투자기록'),\n    privacyStatus: ['private', 'unlisted', 'public'].includes(String(body.privacyStatus)) ? String(body.privacyStatus) : 'private',\n    receivedAs: key,\n    size: String(file.fileSize || ''),\n  },\n  // handed on as 'data', which is the binary field every n8n node reads by default\n  binary: { data: file },\n}];"
+        "jsCode": "// The form fields arrive under body, the file as a binary property. Which key\n// that file lands under depends on the n8n version - 'video', 'video0', or the\n// multipart field name - so it is found rather than assumed, and when nothing\n// arrives the error names the keys that did, which is what you need to see.\nconst item = $input.first();\nconst body = item.json.body || item.json;\nconst binary = item.binary || {};\nconst keys = Object.keys(binary);\n\nconst key = keys.find((name) => String(binary[name].mimeType || '').startsWith('video/')) || keys[0];\nif (!key) {\n  throw new Error('영상 파일이 없습니다. 받은 바이너리 키: ' + JSON.stringify(keys));\n}\nconst file = binary[key];\n\nconst title = String(body.title || '').trim();\nif (!title) {\n  throw new Error('제목이 비어 있습니다.');\n}\n\nreturn [{\n  json: {\n    story: String(body.story || 'unknown'),\n    label: String(body.label || ''),\n    reason: String(body.reason || ''),\n    title: title.slice(0, 95),\n    description: String(body.description || '').slice(0, 4900),\n    tags: String(body.tags || '주식,AI주식,모의투자,코스피,투자기록'),\n    privacyStatus: ['private', 'unlisted', 'public'].includes(String(body.privacyStatus)) ? String(body.privacyStatus) : 'private',\n    comment: String(body.comment || '').slice(0, 9000),\n    receivedAs: key,\n    size: String(file.fileSize || ''),\n  },\n  // handed on as 'data', which is the binary field every n8n node reads by default\n  binary: { data: file },\n}];"
       },
       "id": "b2000000-0000-4000-8000-000000000002",
       "name": "받은 것 확인",
@@ -74,8 +74,45 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/youtube/v3/commentThreads",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "snippet"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ snippet: { videoId: (($('유튜브 업로드').first().json.id && $('유튜브 업로드').first().json.id.videoId) || $('유튜브 업로드').first().json.id || $('유튜브 업로드').first().json.videoId || ''), topLevelComment: { snippet: { textOriginal: $('받은 것 확인').first().json.comment } } } }) }}",
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000008",
+      "name": "채널 댓글",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        100,
+        180
+      ],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "",
+          "name": ""
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "업로드 직후 채널 계정으로 댓글을 답니다. 유튜브 노드와 같은 자격증명을 쓰며, n8n 의 YouTube OAuth2 에는 youtube.force-ssl 범위가 이미 들어 있어 재인증이 필요 없습니다. 댓글 '고정'은 Data API 에 없어 Studio 에서 손으로 해야 합니다. 실패해도 업로드는 그대로 두도록 오류 시 계속 진행으로 설정했습니다."
+    },
+    {
+      "parameters": {
         "chatId": "",
-        "text": "=✅ 쇼츠 발행\n\n{{ $('받은 것 확인').first().json.title }}\n\n스토리: {{ $('받은 것 확인').first().json.label }}\n사유: {{ $('받은 것 확인').first().json.reason }}\n공개: {{ $('받은 것 확인').first().json.privacyStatus }}\nhttps://youtu.be/{{ (($json.id && $json.id.videoId) || $json.id || $json.videoId || '') }}",
+        "text": "=✅ 쇼츠 발행\n\n{{ $('받은 것 확인').first().json.title }}\n\n스토리: {{ $('받은 것 확인').first().json.label }}\n사유: {{ $('받은 것 확인').first().json.reason }}\n공개: {{ $('받은 것 확인').first().json.privacyStatus }}\n댓글: {{ $json.id ? '달림 · Studio 에서 고정해 주세요' : '실패 (수동 작성 필요)' }}\nhttps://youtu.be/{{ (($json.id && $json.id.videoId) || $json.id || $json.videoId || '') }}",
         "additionalFields": {}
       },
       "id": "b2000000-0000-4000-8000-000000000004",
@@ -170,7 +207,7 @@
       "main": [
         [
           {
-            "node": "텔레그램 알림",
+            "node": "채널 댓글",
             "type": "main",
             "index": 0
           }
@@ -193,6 +230,17 @@
         [
           {
             "node": "실패 알림",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "채널 댓글": {
+      "main": [
+        [
+          {
+            "node": "텔레그램 알림",
             "type": "main",
             "index": 0
           }

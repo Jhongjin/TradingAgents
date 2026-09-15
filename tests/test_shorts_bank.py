@@ -185,3 +185,54 @@ def test_both_workflows_are_importable_and_ship_no_secrets():
     for flow in (hosted, local):
         upload = next(node for node in flow["nodes"] if node["type"].endswith("youTube"))
         assert "binaryProperty" not in _json.dumps(upload["parameters"])   # the default is left alone
+
+
+def test_the_upload_flow_posts_a_comment_and_says_what_it_cannot_do():
+    """A pinned comment is half automatable: the API posts, Studio pins."""
+
+    import json as _json
+    from pathlib import Path
+
+    flow = _json.loads(Path("automation/n8n/daily-short-hosted.json").read_text(encoding="utf-8"))
+    nodes = {node["name"]: node for node in flow["nodes"]}
+
+    comment = nodes["채널 댓글"]
+    assert comment["parameters"]["url"] == "https://www.googleapis.com/youtube/v3/commentThreads"
+    # the same credential as the upload: n8n's YouTube scopes already carry force-ssl
+    assert comment["parameters"]["nodeCredentialType"] == "youTubeOAuth2Api"
+    assert comment["credentials"]["youTubeOAuth2Api"] == {"id": "", "name": ""}
+    # a failed comment must never lose a finished upload
+    assert comment["onError"] == "continueRegularOutput"
+    assert "고정" in comment["notes"] and "Studio" in comment["notes"]
+
+    # and it sits between the upload and the notification
+    assert flow["connections"]["유튜브 업로드"]["main"][0][0]["node"] == "채널 댓글"
+    assert flow["connections"]["채널 댓글"]["main"][0][0]["node"] == "텔레그램 알림"
+
+    # the text comes from the PC, which is where the story's own words are
+    assert "$('받은 것 확인').first().json.comment" in comment["parameters"]["jsonBody"]
+    assert "comment: String(body.comment" in nodes["받은 것 확인"]["parameters"]["jsCode"]
+
+    # the operator is told to go and pin it, because nothing else will
+    assert "Studio 에서 고정해 주세요" in nodes["텔레그램 알림"]["parameters"]["text"]
+
+
+def test_the_comment_leads_with_the_receipts_and_lands_a_newcomer():
+    from tradingagents.shorts.stories import build_record, site_url
+
+    payload = {
+        "summary": {"initial_cash": 1.5e8, "total_return": -0.0173, "closed_count": 8, "win_count": 0},
+        "accounts": [{"key": "paper", "label": "AI 확인",
+                      "summary": {"total_return": -0.0195, "open_count": 5, "closed_count": 3}}],
+        "positions": [],
+        "closed": [{"ticker_name": "티에스이", "realized_return": -0.156, "exit_reason": "stop_loss",
+                    "exit_date": "2026-09-11", "entry_date": "2026-09-10"}],
+    }
+    comment = build_record(payload).comment
+    lines = comment.splitlines()
+
+    assert "8건" in lines[0]                              # what is on the other end
+    assert lines[1].startswith(f"{site_url()}/paper?")     # and the link, before the fold
+    assert "utm_source=youtube" in lines[1]
+    assert any("/start?" in line for line in lines)        # for whoever arrived cold
+    assert len(comment) < 500                              # nobody reads past this

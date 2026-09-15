@@ -2312,6 +2312,7 @@ def shorts_daily_command(
                 "description": description,
                 "tags": ",".join(board.tags),
                 "privacyStatus": privacy,
+                "comment": board.comment,
             },
             files={"video": (video.name, handle, "video/mp4")},
             timeout=900,
