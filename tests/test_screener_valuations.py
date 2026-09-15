@@ -309,3 +309,30 @@ def test_a_sharpe_from_three_days_is_not_printed():
                          "summary": {**summary, "risk": {"sharpe_ratio": 1.199344, "annualized_volatility": 0.2431}}})
     assert "샤프 <b>1.20</b>" in thick          # two decimals, like everything beside it
     assert "변동성 <b>24.3%</b>" in thick       # a percentage, and unsigned
+
+
+def test_a_missing_number_does_not_keep_its_unit():
+    """The holdings table read "- -원" and the harness one "-주 기준가 -원"."""
+
+    from tradingagents.site.harness_pages import _shares as harness_shares
+    from tradingagents.site.harness_pages import _won as harness_won
+    from tradingagents.site.paper_account_page import _shares, _won
+
+    assert _won(None) == "-" and _won(0) == "0원" and _won(113_400) == "113,400원"
+    assert _shares(None) == "-" and _shares(43) == "43주"
+    assert harness_won(None) == "-" and harness_won(1000) == "1,000원"
+    assert harness_shares(None) == "-" and harness_shares(76) == "76주"
+
+
+def test_a_reader_is_not_shown_the_field_name_and_the_raw_ratio():
+    """/stocks printed "drawdown_from_window_high: -0.3013" at a reader."""
+
+    from tradingagents.site.web_pages import _lens_metric_bits
+
+    bits = _lens_metric_bits({"drawdown_from_window_high": -0.3013, "annualized_volatility_20d": 0.6756})
+    assert bits == "고점 대비 낙폭 -30.1% · 20일 연환산 변동성 67.6%"   # 변동성은 부호 없음
+    assert "drawdown_from_window_high" not in bits
+
+    assert _lens_metric_bits({"volume_ratio": 0.235}) == "거래량 배수 0.23배"
+    assert _lens_metric_bits({"live_trading": "disabled"}) == "실거래 disabled"
+    assert _lens_metric_bits({}) == ""

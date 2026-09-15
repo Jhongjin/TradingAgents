@@ -2591,24 +2591,44 @@ def _lens_status_label(status: str) -> str:
     }.get(status, "확인")
 
 
+# The field name and the raw ratio were being printed at a reader:
+# "drawdown_from_window_high: -0.3013". Each one gets a Korean name and the
+# unit it is actually measured in.
+LENS_METRIC_LABELS: tuple[tuple[str, str, str], ...] = (
+    ("return_20d", "20일 수익률", "percent"),
+    ("volume_ratio", "거래량 배수", "times"),
+    ("drawdown_from_window_high", "고점 대비 낙폭", "percent"),
+    # volatility has size but no direction, so it carries no sign
+    ("annualized_volatility_20d", "20일 연환산 변동성", "size"),
+    ("analysis_status", "리포트 상태", "text"),
+    ("refresh_reason", "갱신 사유", "text"),
+    ("live_trading", "실거래", "text"),
+)
+
+
+def _lens_metric_value(value: Any, unit: str) -> str:
+    if unit == "text":
+        return str(value)
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if unit == "percent":
+        return f"{number * 100:+.1f}%"
+    if unit == "size":
+        return f"{abs(number) * 100:.1f}%"
+    return f"{number:.2f}배"
+
+
 def _lens_metric_bits(metrics: dict[str, Any]) -> str:
-    preferred = [
-        "return_20d",
-        "volume_ratio",
-        "drawdown_from_window_high",
-        "annualized_volatility_20d",
-        "analysis_status",
-        "refresh_reason",
-        "live_trading",
-    ]
     bits = []
-    for key in preferred:
+    for key, label, unit in LENS_METRIC_LABELS:
         if key not in metrics or metrics[key] is None:
             continue
-        bits.append(f"{key}: {metrics[key]}")
+        bits.append(f"{label} {_lens_metric_value(metrics[key], unit)}")
         if len(bits) >= 2:
             break
-    return " / ".join(bits)
+    return " · ".join(bits)
 
 
 def _outcome_status_label(status: str) -> str:

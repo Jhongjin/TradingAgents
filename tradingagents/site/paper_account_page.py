@@ -158,6 +158,17 @@ def _pct(value: Any, digits: int = 2) -> str:
         return "-"
 
 
+def _won(value: Any) -> str:
+    """A missing amount is "-", not "-원": the unit belongs to the number."""
+
+    text = _num(value)
+    return text if text == "-" else f"{text}원"
+
+
+def _shares(value: Any) -> str:
+    text = _num(value)
+    return text if text == "-" else f"{text}주"
+
 def _sign_class(value: Any) -> str:
     try:
         number = float(value)
@@ -282,8 +293,8 @@ def _books_card(books: list[Mapping[str, Any]]) -> str:
         rows.append(
             f'<div class="paper-book"><p class="label">{h(book.get("label"))}</p>'
             f'<p class="v num {_sign_class(summary.get("return"))}">{h(_pct(summary.get("return")))}</p>'
-            f'<p class="tiny muted">평가 {h(_num(summary.get("equity")))}원 · 현금 {h(_num(summary.get("cash")))}원 · '
-            f'시작 {h(_num(summary.get("initial_cash")))}원 · 보유 {h(summary.get("open_count") or 0)}종목</p></div>'
+            f'<p class="tiny muted">평가 {h(_won(summary.get("equity")))} · 현금 {h(_won(summary.get("cash")))} · '
+            f'시작 {h(_won(summary.get("initial_cash")))} · 보유 {h(summary.get("open_count") or 0)}종목</p></div>'
         )
     if not rows:
         return ""
@@ -299,10 +310,10 @@ def _holding_row(item: Mapping[str, Any]) -> str:
     market = market_label(item.get("market"), code)
     return f"""<tr data-holding="{h(code)}" data-average="{h(item.get('average_price') or 0)}" data-quantity="{h(item.get('quantity') or 0)}">
       <td><a href="/stocks/{h(code)}"><b style="font-weight: 700;">{h(item.get('ticker_name') or code)}</b></a> {_source_badge(item)}<small>{h(code)}{' · ' + h(market) if market else ''} · 진입 {h(item.get('entry_date') or '-')}</small></td>
-      <td class="num">{h(item.get('quantity'))}주<small>평단 {h(_num(item.get('average_price')))}원</small></td>
+      <td class="num">{h(_shares(item.get('quantity')))}<small>평단 {h(_won(item.get('average_price')))}</small></td>
       <td class="num" data-current>{h(_num(item.get('current_price'))) + '원' if item.get('current_price') else '불러오는 중'}</td>
-      <td class="num">{h(_num(item.get('target_price')))}원<small>손절 {h(_num(item.get('stop_price')))}원</small></td>
-      <td class="{_sign_class(item.get('unrealized_return'))} num" data-pnl>{h(_pct(item.get('unrealized_return')))}<small>{h(_num(item.get('unrealized_pnl')))}원</small></td>
+      <td class="num">{h(_won(item.get('target_price')))}<small>손절 {h(_won(item.get('stop_price')))}</small></td>
+      <td class="{_sign_class(item.get('unrealized_return'))} num" data-pnl>{h(_pct(item.get('unrealized_return')))}<small>{h(_won(item.get('unrealized_pnl')))}</small></td>
       <td class="paper-why-cell">{_why_cell(item)}</td>
     </tr>"""
 
@@ -311,9 +322,9 @@ def _closed_row(item: Mapping[str, Any]) -> str:
     code = str(item.get("ticker_code") or "")
     return f"""<tr>
       <td><a href="/stocks/{h(code)}"><b style="font-weight: 700;">{h(item.get('ticker_name') or code)}</b></a> {_source_badge(item)}<small>{h(code)} · {h(item.get('entry_date') or '-')} → {h(item.get('exit_date') or '-')}</small></td>
-      <td class="num">{h(item.get('quantity'))}주<small>{h(_num(item.get('entry_price')))}원 → {h(_num(item.get('exit_price')))}원</small></td>
+      <td class="num">{h(_shares(item.get('quantity')))}<small>{h(_won(item.get('entry_price')))} → {h(_won(item.get('exit_price')))}</small></td>
       <td>{badge(exit_reason_label(item.get('exit_reason')), 'b-grey')}</td>
-      <td class="{_sign_class(item.get('realized_return'))} num">{h(_pct(item.get('realized_return')))}<small>{h(_num(item.get('realized_pnl')))}원</small></td>
+      <td class="{_sign_class(item.get('realized_return'))} num">{h(_pct(item.get('realized_return')))}<small>{h(_won(item.get('realized_pnl')))}</small></td>
       <td class="paper-why-cell">{_why_cell(item)}</td>
     </tr>"""
 

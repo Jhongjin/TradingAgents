@@ -47,6 +47,17 @@ def _fmt_num(value: Any, digits: int = 0) -> str:
         return "-"
 
 
+def _won(value: Any) -> str:
+    """A missing amount is "-", not "-원"."""
+
+    text = _fmt_num(value)
+    return text if text == "-" else f"{text}원"
+
+
+def _shares(value: Any) -> str:
+    text = _fmt_num(value)
+    return text if text == "-" else f"{text}주"
+
 def _outcome_cell(outcomes: list[dict[str, Any]]) -> str:
     if not outcomes:
         return '<span class="muted">-</span>'
@@ -146,7 +157,7 @@ def render_harness_page(
           <td class="num">{h(_fmt_num(item.get('composite_score'), 3))}</td>
           <td class="num">{h(_fmt_pct(item.get('forecast_expected_return')))}<small>상승 {h(_fmt_pct(item.get('forecast_probability_up')) if item.get('forecast_probability_up') is not None else '-')}</small></td>
           <td>{badge(rating_label(item.get('confirmation_rating')), 'b-violet') if item.get('confirmation_rating') else '<span class="muted">-</span>'}<small class="num">{h(_fmt_num(item.get('confirmation_confidence'), 2))} · {h(item.get('confirmation_source') or '-')}</small></td>
-          <td class="num">{h(item.get('quantity') or '-')}주<small>기준가 {h(_fmt_num(item.get('entry_price')))}원 · 손절 {h(_fmt_num(item.get('stop_price')))}원</small></td>
+          <td class="num">{h(_shares(item.get('quantity')))}<small>기준가 {h(_won(item.get('entry_price')))} · 손절 {h(_won(item.get('stop_price')))}</small></td>
           <td>{h(order_status_label(item.get('order_status')))}</td>
           <td>{_outcome_cell(item.get('outcomes') or [])}</td>
           <td class="harness-reasons">{h(reason_text(item.get('reasons')))}</td>
