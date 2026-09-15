@@ -29,7 +29,7 @@ from .stories import Storyboard, short_date, site_url, telegram_handle
 
 CLI_VERSION = "0.8.38"
 FALL_TOP, FALL_FLOOR = 520, 1180      # 0% and the floor of the fall scale, in px
-LANE_WIDTH = 176
+LANE_WIDTH = 158
 LANES_LEFT = 116
 
 
@@ -42,6 +42,17 @@ class Composition:
     directory: Path
     html: Path
     seconds: float
+
+
+def _stop_loss_pct() -> float:
+    """The stop the account is actually run with, not a number typed here."""
+
+    try:
+        from tradingagents.harness.pipeline import PipelineConfig
+
+        return float(PipelineConfig().stop_loss_pct)
+    except Exception:                                   # noqa: BLE001 - the cut still draws
+        return 0.08
 
 
 def _fall_scale(returns: Sequence[float]) -> float:
@@ -58,6 +69,7 @@ def _lane(index: int, item: Mapping[str, Any]) -> str:
     return (
         f'<div class="lane" id="lane{index}" style="left: {left}px;">'
         '<div class="head-dot"></div><div class="stem"></div><div class="tick"></div>'
+        '<div class="strike-x"></div><div class="strike"></div>'
         f'<div class="end-dot"></div><p class="pct">{float(item["realized_return"]) * 100:+.2f}%</p>'
         f'<p class="name">{name}<br />{dates}</p></div>'
     )
@@ -100,6 +112,11 @@ def compose_record(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, 
     total_seconds = hook + falls + books_seconds + outro
     turn = hook + (lengths[1] if len(lengths) > 1 else 7.0)
 
+    # The stop level the account actually trades on, read from the rule rather
+    # than written here: the whole point of drawing it is that it was set first.
+    stop_pct = _stop_loss_pct()
+    stop_top = FALL_TOP + min(stop_pct * 100 / span, 1.0) * (FALL_FLOOR - FALL_TOP)
+
     handle = telegram_handle()
     host = site_url().split("://", 1)[-1]
 
@@ -124,6 +141,10 @@ def compose_record(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, 
         "{{FALLS_HEAD}}": f"{len(closed)}건이 이만큼 떨어졌습니다",
         "{{LANES}}": "\n        ".join(_lane(index, item) for index, item in enumerate(closed)),
         "{{ACCOUNT_TOP}}": f"{FALL_TOP + (abs(total) * 100 / span) * (FALL_FLOOR - FALL_TOP):.0f}",
+        "{{STOP_PCT}}": f"{stop_pct * 100:.2f}",
+        "{{STOP_TOP}}": f"{stop_top:.0f}",
+        "{{STOP_TAG_TOP}}": f"{stop_top - 40:.0f}",
+        "{{STOP_LABEL}}": f"손절선 −{stop_pct * 100:.0f}%",
         "{{FALLS_NOTE}}": "다섯 건 모두 살 때 정해둔 손절선에서 정리됐습니다." if closed else "",
         "{{BOOKS}}": "\n        ".join(_book(index, item, 560 + index * 200) for index, item in enumerate(books)),
         "{{BOOKS_NOTE}}": "같은 날 같은 후보로, 확인 방식만 다르게 굴립니다.",

@@ -442,3 +442,53 @@ def test_the_composition_never_hides_its_own_type():
     assert int(clip.split("z-index:")[1].split(";")[0]) > int(swipe.split("z-index:")[1].split(";")[0])
     # and no interpolated selector, which the bundler's CSS parser cannot read
     assert "${" not in html.split("<script>")[-1]
+
+
+def test_the_stop_line_is_drawn_at_the_rule_the_account_actually_runs():
+    """Drawing it is only worth anything if it is the real level, read from the rule."""
+
+    from tradingagents.harness.pipeline import PipelineConfig
+    from tradingagents.shorts.hyperframes import _stop_loss_pct, compose_record
+    from tradingagents.shorts.stories import build_record
+
+    assert _stop_loss_pct() == PipelineConfig().stop_loss_pct
+
+    payload = _payload()
+    html, _seconds = compose_record(payload, build_record(payload, now=NOW))
+
+    stop = PipelineConfig().stop_loss_pct * 100
+    assert f"손절선 −{stop:.0f}%" in html
+    assert "{{STOP_TOP}}" not in html and "{{STOP_PCT}}" not in html and "{{STOP_LABEL}}" not in html
+    assert f"const STOP = depth({stop:.2f});" in html
+
+
+def test_every_lane_can_be_struck_and_only_the_ones_that_crossed_are():
+    """A fall shallower than the stop never reached it, and is not marked."""
+
+    from tradingagents.shorts.hyperframes import compose_record
+    from tradingagents.shorts.stories import build_record
+
+    payload = _payload()
+    html, _seconds = compose_record(payload, build_record(payload, now=NOW))
+
+    closed = [row for row in payload["closed"] if row.get("realized_return") is not None][:5]
+    assert html.count('class="strike"') == len(closed)
+    assert html.count('class="strike-x"') == len(closed)
+    # the guard that keeps a shallow fall unmarked
+    assert "if (drop > STOP + 1)" in html
+
+
+def test_the_push_in_moves_a_wrapper_and_not_the_timed_clip():
+    """A transform on the clip itself would fight the frame-by-frame capture."""
+
+    from tradingagents.shorts.hyperframes import compose_record
+    from tradingagents.shorts.stories import build_record
+
+    payload = _payload()
+    html, _seconds = compose_record(payload, build_record(payload, now=NOW))
+
+    assert 'id="falls-cam"' in html
+    assert 'tl.to("#falls-cam", { scale: 1.18' in html
+    assert 'tl.to("#s2", { scale' not in html          # never the clip
+    # and the right-hand label steps out rather than being cut in half by the zoom
+    assert '.to("#stop-tag", { opacity: 0' in html
