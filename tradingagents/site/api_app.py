@@ -1406,6 +1406,7 @@ def create_app(
                 top_n=top_n,
                 min_market_cap=min_market_cap,
                 max_per=max_per,
+                valuations=screener_cache.valuations(request.app.state.repository),
             )
         except (VendorUnavailableError, ValueError) as exc:
             if parked:
@@ -1623,6 +1624,18 @@ def create_app(
         from . import screener_cache
 
         return screener_cache.refresh(request.app.state.repository)
+
+    @app.get("/api/cron/refresh-valuations", include_in_schema=False)
+    def refresh_valuations_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        """Collect PER and PBR for the universe so the limits have something to read."""
+
+        _require_worker_token(request, x_tradingagents_worker_token)
+        from . import screener_cache
+
+        return screener_cache.refresh_valuations(request.app.state.repository)
 
     @app.get("/api/cron/record-paper-snapshot", include_in_schema=False)
     def record_paper_snapshot_cron(

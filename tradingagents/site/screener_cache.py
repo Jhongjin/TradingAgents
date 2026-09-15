@@ -69,6 +69,53 @@ def write(repo: Any, payload: dict[str, Any]) -> bool:
     return True
 
 
+def valuations(repo: Any) -> dict[str, dict[str, float]]:
+    """The parked PER/PBR lookup, or nothing when it has not been collected."""
+
+    if repo is None:
+        return {}
+    from tradingagents.screener.valuations import CACHE_KEY as VALUATION_KEY
+
+    try:
+        row = repo.latest_cached_payload(VALUATION_KEY)
+    except Exception:                                   # noqa: BLE001
+        return {}
+    parked = (row or {}).get("payload_json")
+    ratios = (parked or {}).get("ratios") if isinstance(parked, dict) else None
+    return ratios if isinstance(ratios, dict) else {}
+
+
+def refresh_valuations(repo: Any, *, snapshot_loader: Any = None, fetcher: Any = None) -> dict[str, Any]:
+    """Collect PER and PBR for the universe and park them. The cron calls this.
+
+    One cheap request per stock, which is too many to make while a visitor
+    waits but nothing on a schedule.
+    """
+
+    from tradingagents.screener.universe import load_index_snapshot
+    from tradingagents.screener.valuations import CACHE_KEY as VALUATION_KEY
+    from tradingagents.screener.valuations import fetch_valuations
+
+    started = datetime.now(timezone.utc)
+    load = snapshot_loader or load_index_snapshot
+    snapshot = load()
+    codes = [row.code for row in snapshot.rows]
+    ratios = fetch_valuations(codes, fetcher=fetcher)
+    stored = False
+    if repo is not None and ratios:
+        try:
+            repo.save_cached_payload(VALUATION_KEY, {"ratios": ratios}, as_of_date=snapshot.as_of_date)
+            stored = True
+        except Exception:                               # noqa: BLE001
+            stored = False
+    return {
+        "asked": len(codes),
+        "answered": len(ratios),
+        "stored": stored,
+        "seconds": round((datetime.now(timezone.utc) - started).total_seconds(), 1),
+    }
+
+
 def refresh(repo: Any, *, builder: Any = None) -> dict[str, Any]:
     """Compute the screener now and park it. This is what the cron calls."""
 
@@ -76,7 +123,7 @@ def refresh(repo: Any, *, builder: Any = None) -> dict[str, Any]:
 
     build = builder or build_screener_payload
     started = datetime.now(timezone.utc)
-    payload = build()
+    payload = build(valuations=valuations(repo))
     stored = write(repo, payload)
     return {
         "status": payload.get("status", "unknown"),

@@ -37,6 +37,7 @@ def build_screener_payload(
     min_market_cap: float | None = None,
     max_per: float | None = None,
     screener_runner: Callable[..., Any] | None = None,
+    valuations: Any = None,
 ) -> dict[str, Any]:
     """Build a JSON-ready ranked candidate list for KOSPI/KOSDAQ."""
 
@@ -53,7 +54,7 @@ def build_screener_payload(
     overrides["time_budget_seconds"] = _web_time_budget_seconds()
     config = ScreenerConfig(**overrides)
     runner = screener_runner or screen_korean_market
-    result = runner(as_of_date, config=config)
+    result = runner(as_of_date, config=config, valuations=valuations)
     payload = result.as_dict()
     payload["status"] = "available" if result.candidates else "empty"
     payload["mode"] = "screener"

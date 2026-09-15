@@ -118,6 +118,7 @@ def screen_korean_market(
     snapshot: MarketSnapshot | None = None,
     history_fetcher: HistoryFetcher | None = None,
     snapshot_loader: Callable[..., MarketSnapshot] | None = None,
+    valuations: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> ScreenerResult:
     """Screen KOSPI/KOSDAQ for candidates with favourable, explainable setups.
 
@@ -179,10 +180,17 @@ def screen_korean_market(
     end_date = datetime.strptime(snapshot.as_of_date, "%Y-%m-%d").date()
     start_date = end_date - timedelta(days=int(config.history_days * 1.6) + 10)
 
-    prefiltered = _prefilter(snapshot.rows, config)
+    rows, priced = _attach_valuations(snapshot.rows, valuations)
+    prefiltered = _prefilter(rows, config)
     notes = [
         f"snapshot {snapshot.as_of_date} from {snapshot.vendor}",
-        f"prefilter kept {len(prefiltered)} of {len(snapshot.rows)} rows",
+        f"prefilter kept {len(prefiltered)} of {len(rows)} rows",
+        # The config carries PER and PBR limits, so say plainly whether they
+        # were in a position to exclude anything. Advertising a filter that
+        # silently passes everything is worse than not having one.
+        f"PER·PBR 한도 적용: {priced}/{len(rows)}종목에 지표 있음"
+        if priced
+        else "PER·PBR 지표 없음: 밸류에이션 한도 미적용",
     ]
     if fallback_note:
         notes.append(fallback_note)
@@ -331,6 +339,32 @@ def _resolve_universe_size() -> int:
     if value <= 0:
         raise ValueError("TRADINGAGENTS_SCREENER_UNIVERSE_SIZE must be positive")
     return value
+
+
+def _attach_valuations(
+    rows: Sequence[MarketSnapshotRow],
+    valuations: Mapping[str, Mapping[str, Any]] | None,
+) -> tuple[list[MarketSnapshotRow], int]:
+    """Fill in PER, PBR and yield from a lookup, and count what got filled.
+
+    The market-cap ranking that builds the universe carries no valuation
+    ratios. Without them the PER and PBR limits compare against nothing and
+    pass every row, so the count comes back too and the notes say so.
+    """
+
+    from dataclasses import replace
+
+    filled: list[MarketSnapshotRow] = []
+    priced = 0
+    for row in rows:
+        ratios = (valuations or {}).get(row.code) or {}
+        per = row.per if row.per is not None else ratios.get("per")
+        pbr = row.pbr if row.pbr is not None else ratios.get("pbr")
+        yield_ = row.dividend_yield if row.dividend_yield is not None else ratios.get("dividend_yield")
+        if per is not None or pbr is not None:
+            priced += 1
+        filled.append(replace(row, per=per, pbr=pbr, dividend_yield=yield_))
+    return filled, priced
 
 
 def _prefilter(rows: Sequence[MarketSnapshotRow], config: ScreenerConfig) -> list[MarketSnapshotRow]:

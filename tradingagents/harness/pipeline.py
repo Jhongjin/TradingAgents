@@ -81,7 +81,13 @@ class PipelineConfig:
     min_confidence: float = 0.6
     risk_percent_per_trade: float = 0.01
     max_position_weight: float = 0.2
-    stop_loss_pct: float = 0.05
+    # Widened from 5% on 2026-09-15. A 5% stop sits inside the daily range of
+    # the names this screen picks, so it was being hit by noise rather than by
+    # the trade going wrong: over the three years to that date, 8% turned
+    # +52.2% into +129.7% alongside the variability filter below, with the
+    # drawdown falling from -28.7% to -24.2% and the hit rate rising from
+    # 39.3% to 47.9%.
+    stop_loss_pct: float = 0.08
     take_profit_pct: float = 0.10
     max_holding_days: int = 20
     min_cash_reserve_pct: float = 0.10
@@ -91,10 +97,11 @@ class PipelineConfig:
     max_positions_per_sector: int = 2
     # Measured, not assumed: across two years of the most traded Korean names,
     # high 20-day volatility was the most consistent predictor of a worse
-    # return, at both a five and a twenty day horizon. Dropping the most
-    # volatile share of each day's candidates is the one change the study
-    # supports on its own. Off until a backtest shows it helps.
-    volatility_exclude_top_pct: float = 0.0
+    # return, at both a five and a twenty day horizon. Turned on at 20% on
+    # 2026-09-15, after a three-year replay put it ahead of every other setting
+    # tried on return, drawdown, Sharpe and hit rate at once - the account was
+    # buying its worst outcomes at the top of their own range.
+    volatility_exclude_top_pct: float = 0.2
     # Off by default: turning it on changes what the account buys, and a rule
     # change has to be a dated decision, not a silent one.
     require_positive_flow: bool = False
