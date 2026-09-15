@@ -199,8 +199,14 @@ def test_the_route_turns_that_into_a_404(monkeypatch):
 
 
 def test_the_edge_redirects_a_trailing_slash_instead_of_losing_it():
+    """/paper/ was a 404 at the edge: the rewrites match /paper exactly.
+
+    The config schema refuses unknown keys, so the reason lives here.
+    """
+
     import json
     from pathlib import Path
 
     config = json.loads(Path("vercel.json").read_text(encoding="utf-8"))
     assert config["trailingSlash"] is False
+    assert not any(key.startswith("_") for key in config), "vercel.json 은 추가 속성을 거부합니다"
