@@ -50,8 +50,6 @@ MEMBER_CSS = """
 .member-page .auth-social-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .member-page .auth-social-button[disabled] { opacity: .55; cursor: default; }
 .member-page .auth-social-button svg { flex: none; }
-.member-page .auth-social-button.kakao { border-color: #fee500; background: #fee500; color: #191600; }
-.member-page .auth-social-button.kakao:hover { border-color: #f2da00; background: #ffec3d; }
 .member-page .auth-social-note { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
 .member-page .auth-divider { display: flex; align-items: center; gap: 12px; margin: 22px 0 0; font-size: 12px; color: var(--muted); }
 .member-page .auth-divider::before, .member-page .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
@@ -316,12 +314,6 @@ def render_member_dashboard_page(*, site_base_url: str | None = None, canonical_
           <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .92 4.96l3.03 2.33C4.66 5.16 6.65 3.58 9 3.58z"/>
         </svg>
         <span>구글로 계속하기</span>
-      </button>
-      <button class="auth-social-button kakao" type="button" data-oauth-provider="kakao" hidden>
-        <svg viewBox="0 0 18 18" aria-hidden="true" focusable="false" width="18" height="18">
-          <path fill="#191600" d="M9 1.5c-4.14 0-7.5 2.64-7.5 5.9 0 2.09 1.39 3.93 3.48 4.97l-.88 3.23c-.08.29.24.52.49.35l3.87-2.56c.18.01.36.02.54.02 4.14 0 7.5-2.64 7.5-5.9S13.14 1.5 9 1.5z"/>
-        </svg>
-        <span>카카오로 계속하기</span>
       </button>
       <p class="auth-social-note">비밀번호를 따로 만들지 않아도 됩니다.</p>
     </div>

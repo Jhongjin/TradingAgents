@@ -1379,14 +1379,28 @@ def create_app(
 
     @app.get("/api/screener")
     def screener(
+        request: Request,
         as_of_date: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None,
         markets: Annotated[str, Query(pattern=r"^(?i:kospi|kosdaq)(,(?i:kospi|kosdaq))*$")] = "KOSPI,KOSDAQ",
         top_n: Annotated[int, Query(ge=1, le=50)] = 20,
         min_market_cap: Annotated[float | None, Query(ge=0)] = None,
         max_per: Annotated[float | None, Query(gt=0)] = None,
     ) -> dict:
+        from . import screener_cache
+
+        # Ranking the whole tape takes half a minute, and the default ranking is
+        # the same for everyone, so a cron works that one out ahead of time. A
+        # request that asks for anything else is computed on the spot.
+        asked_for_the_usual = (
+            as_of_date is None and markets.upper() == "KOSPI,KOSDAQ"
+            and top_n == 20 and min_market_cap is None and max_per is None
+        )
+        parked, fresh = screener_cache.read(request.app.state.repository) if asked_for_the_usual else (None, False)
+        if parked and fresh:
+            return parked
+
         try:
-            return build_screener_payload(
+            payload = build_screener_payload(
                 as_of_date=as_of_date,
                 markets=markets,
                 top_n=top_n,
@@ -1394,7 +1408,13 @@ def create_app(
                 max_per=max_per,
             )
         except (VendorUnavailableError, ValueError) as exc:
+            if parked:
+                # The vendors are down but we have yesterday's answer. Say so.
+                return {**parked, "stale": True}
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if asked_for_the_usual:
+            screener_cache.write(request.app.state.repository, payload)
+        return payload
 
     @app.get("/api/forecast/{ticker}")
     def forecast(
@@ -1591,6 +1611,18 @@ def create_app(
         from .paper_snapshot_worker import build_paper_curve_payload
 
         return build_paper_curve_payload(request.app.state.repository)
+
+    @app.get("/api/cron/refresh-screener", include_in_schema=False)
+    def refresh_screener_cron(
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        """Rank the tape now so no visitor has to wait for it."""
+
+        _require_worker_token(request, x_tradingagents_worker_token)
+        from . import screener_cache
+
+        return screener_cache.refresh(request.app.state.repository)
 
     @app.get("/api/cron/record-paper-snapshot", include_in_schema=False)
     def record_paper_snapshot_cron(

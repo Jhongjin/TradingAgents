@@ -530,7 +530,7 @@ def test_social_buttons_stay_dark_until_a_provider_is_actually_wired_up(monkeypa
 
     html = _member_page_with_providers(monkeypatch, "")
 
-    assert 'data-oauth-provider="google"' in html and 'data-oauth-provider="kakao"' in html
+    assert 'data-oauth-provider="google"' in html
     assert '"providers":[]' in html        # so every button stays hidden and the panel with it
     assert "구글로 계속하기" in html
     # one click before six fields, and the styles live where the page reads them
@@ -542,18 +542,18 @@ def test_only_the_providers_named_get_a_button(monkeypatch):
     html = _member_page_with_providers(monkeypatch, "google")
     assert '"providers":["google"]' in html
 
-    both = _member_page_with_providers(monkeypatch, " KAKAO , google ")
-    assert '"providers":["google","kakao"]' in both      # order is ours, not theirs
+    assert '"providers":["google"]' in _member_page_with_providers(monkeypatch, " GOOGLE ")
 
-    # a provider Supabase does not host is dropped rather than given a dead button
-    assert '"providers":[]' in _member_page_with_providers(monkeypatch, "naver,apple")
+    # anything we have not actually wired up is dropped rather than given a
+    # dead button - kakao returns no email until its business review passes
+    assert '"providers":[]' in _member_page_with_providers(monkeypatch, "naver,apple,kakao")
 
 
 def test_a_provider_is_useless_without_the_supabase_keys(monkeypatch):
     monkeypatch.delenv("NEXT_PUBLIC_SUPABASE_URL", raising=False)
     monkeypatch.delenv("SUPABASE_URL", raising=False)
     monkeypatch.delenv("TRADINGAGENTS_SUPABASE_URL", raising=False)
-    monkeypatch.setenv("TRADINGAGENTS_OAUTH_PROVIDERS", "google,kakao")
+    monkeypatch.setenv("TRADINGAGENTS_OAUTH_PROVIDERS", "google")
 
     html = render_member_dashboard_page(site_base_url="https://example.com")
 

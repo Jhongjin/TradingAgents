@@ -24,6 +24,18 @@ def test_vercel_json_routes_api_and_health_to_fastapi_entrypoint():
             "schedule": "10 7 * * 1-5",
         },
         {
+            "path": "/api/cron/refresh-screener",
+            "schedule": "5 0 * * 1-5",
+        },
+        {
+            "path": "/api/cron/refresh-screener",
+            "schedule": "30 2 * * 1-5",
+        },
+        {
+            "path": "/api/cron/refresh-screener",
+            "schedule": "40 6 * * 1-5",
+        },
+        {
             "path": "/api/cron/process-analysis-outcomes",
             "schedule": "10 10 * * 1-5",
         },

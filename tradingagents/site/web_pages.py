@@ -2677,9 +2677,10 @@ def _script_json(payload: dict[str, Any]) -> str:
 
 
 OAUTH_PROVIDERS_ENV = "TRADINGAGENTS_OAUTH_PROVIDERS"
-# Only providers Supabase hosts itself. Anything else needs its own plumbing,
-# and a button that leads nowhere is worse than no button.
-KNOWN_OAUTH_PROVIDERS = ("google", "kakao")
+# Google only. Kakao hands back no email address until the app passes Kakao's
+# business review, and this site identifies members - admins, notifications,
+# billing - by email, so a Kakao button would sign people in as nobody.
+KNOWN_OAUTH_PROVIDERS = ("google",)
 
 
 def oauth_providers() -> list[str]:
@@ -15118,7 +15119,7 @@ MEMBER_PAGE_JS = """
   function startOAuth(provider) {
     if (!requireConfig()) return;
     setAuthBusy(true);
-    setStatus(provider === "kakao" ? "카카오로 이동합니다" : "구글로 이동합니다");
+    setStatus("구글로 이동합니다");
     window.location.assign(supabaseAuthUrl("/auth/v1/authorize", {
       provider,
       redirect_to: memberRedirectUrl()

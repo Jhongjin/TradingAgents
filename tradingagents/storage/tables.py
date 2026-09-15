@@ -447,3 +447,16 @@ paper_simulation_events = Table(
     Column("metadata_json", JSON, nullable=False, default=dict),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
 )
+
+# Somewhere to park an answer that is expensive to work out and the same for
+# everyone who asks. The screener reads the whole KOSPI and KOSDAQ tape, which
+# takes half a minute; a cron works it out and every visitor reads the result.
+cached_payloads = Table(
+    "cached_payloads",
+    metadata,
+    Column("id", Uuid(as_uuid=False), primary_key=True),
+    Column("cache_key", String(64), nullable=False, index=True),
+    Column("as_of_date", Date, nullable=True),
+    Column("payload_json", JSON, nullable=False, default=dict),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+)

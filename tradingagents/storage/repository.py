@@ -39,6 +39,7 @@ from .tables import (
     analysis_outcomes,
     analysis_refresh_requests,
     backtest_runs,
+    cached_payloads,
     member_preferences,
     paper_account_snapshots,
     analysis_runs,
@@ -1153,6 +1154,44 @@ class StorageRepository:
             select(backtest_runs)
             .where(backtest_runs.c.label == label)
             .order_by(desc(backtest_runs.c.created_at))
+            .limit(1)
+        )
+        with self.engine.begin() as conn:
+            row = conn.execute(stmt).mappings().first()
+        return dict(row) if row else None
+
+    def save_cached_payload(self, cache_key: str, payload: Mapping[str, Any], *, as_of_date: Any = None) -> str:
+        """Park an answer that is costly to work out and identical for everyone.
+
+        Only the newest row per key is ever read, so the older ones go in the
+        same transaction: this is a cache, not a history.
+        """
+
+        row_id = _id()
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(cached_payloads).values(
+                    id=row_id,
+                    cache_key=cache_key,
+                    as_of_date=_coerce_date(as_of_date) if as_of_date else None,
+                    payload_json=dict(payload),
+                )
+            )
+            conn.execute(
+                delete(cached_payloads).where(
+                    cached_payloads.c.cache_key == cache_key,
+                    cached_payloads.c.id != row_id,
+                )
+            )
+        return row_id
+
+    def latest_cached_payload(self, cache_key: str) -> dict[str, Any] | None:
+        """The newest parked answer for this key, or None when there is none."""
+
+        stmt = (
+            select(cached_payloads)
+            .where(cached_payloads.c.cache_key == cache_key)
+            .order_by(desc(cached_payloads.c.created_at))
             .limit(1)
         )
         with self.engine.begin() as conn:
