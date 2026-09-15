@@ -60,6 +60,7 @@ STORIES: tuple[Story, ...] = (
     Story("equity_extreme", "계좌 신고가·신저가", "event", 0.85, 5, None),
     Story("big_mover", "한 종목이 계좌를 흔들었다", "event", 0.95, 3, None),
     Story("rejected", "거른 종목의 그 뒤", "event", 1.0, 4, None),
+    Story("debate", "강세 AI vs 약세 AI", "event", 1.0, 2, "debate"),
     Story("milestone", "이정표", "event", 1.0, 30, None),
     # --- the calendar ------------------------------------------------------
     Story("weekly", "주간 성적표", "periodic", 1.0, 6, None),
@@ -225,6 +226,36 @@ def evaluate(payload: Mapping[str, Any], *, now: datetime | None = None, ledger:
         previous = _last_detail(history, "crossover", "gap")
         if previous is not None and (gap >= 0) != (float(previous) >= 0):
             add("crossover", min(abs(gap) * 25, 1.0), "AI 계좌와 규칙 계좌의 순서가 뒤집혔습니다.", gap=round(gap, 5))
+
+    # --- the argument behind one of today's buys ---------------------------
+    # A transcript is only worth a cut when the two sides actually disagreed:
+    # both arguing the same way is a formality, not a story.
+    debate = payload.get("debate") or {}
+    turns = debate.get("turns") or {}
+    if turns.get("bull") and turns.get("bear"):
+        def _sure(role: str) -> float:
+            try:
+                return float(((turns.get(role) or {}).get("data") or {}).get("conviction") or 0.0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        bull, bear = _sure("bull"), _sure("bear")
+        decision = debate.get("decision") or {}
+        bought = str(decision.get("stage") or "") == "ordered"
+        # the loudest version: the surer side lost
+        upset = (bear > bull and bought) or (bull > bear and not bought)
+        add(
+            "debate",
+            1.0 if upset else max(0.45, min(abs(bull - bear) * 4, 0.9)),
+            (
+                "더 확신한 쪽과 반대로 판정이 났습니다."
+                if upset
+                else f"강세 {bull:.2f} 대 약세 {bear:.2f} 로 붙었습니다."
+            ),
+            bull=round(bull, 3),
+            bear=round(bear, 3),
+            ticker=str(decision.get("ticker_name") or decision.get("ticker_code") or ""),
+        )
 
     if closed_count in MILESTONES:
         add("milestone", 1.0, f"{closed_count}번째 거래를 정리했습니다.", count=closed_count)

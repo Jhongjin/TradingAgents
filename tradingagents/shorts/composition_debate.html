@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Noto Sans KR"; font-weight: 300; src: local("Noto Sans KR Light"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 500; src: local("Noto Sans KR Medium"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 700; src: local("Noto Sans KR Bold"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 900; src: local("Noto Sans KR Black"), local("Noto Sans KR"); }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0b1320; }
+
+      :root {
+        --ink: #eaeff7;
+        --ink2: #94a6bd;
+        --muted: #5f7189;
+        /* Korean convention: rising is red, falling is blue. The bull argues
+           for the first and the bear for the second, so each side wears the
+           colour of the outcome it is arguing toward. */
+        --bull: #ff5c60;
+        --bear: #4d9bff;
+        --paper: #f3ecdf;
+        --hair: #1f2d44;
+      }
+
+      #root {
+        width: 1080px; height: 1920px; position: relative; overflow: hidden;
+        font-family: "Noto Sans KR", sans-serif; color: var(--ink);
+        font-variant-numeric: tabular-nums;
+        background:
+          radial-gradient(1100px 820px at 4% 6%, rgba(255, 92, 96, 0.10), transparent 60%),
+          radial-gradient(1100px 820px at 96% 92%, rgba(77, 155, 255, 0.10), transparent 60%),
+          linear-gradient(178deg, #0d1726 0%, #0b1320 48%, #080f1a 100%);
+      }
+      .clip { position: absolute; inset: 0; z-index: 10; }
+
+      #grain { position: absolute; inset: 0; pointer-events: none; z-index: 90; }
+      #grain .g {
+        position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; opacity: 0.03;
+        background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.68' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        animation: hf-grain 0.75s steps(1) infinite;
+      }
+      @keyframes hf-grain {
+        0%,100% { transform: translate(0,0); } 20% { transform: translate(-8%,4%); }
+        40% { transform: translate(6%,-7%); } 60% { transform: translate(-4%,9%); }
+        80% { transform: translate(9%,2%); }
+      }
+      #swipe { position: absolute; top: 0; left: -320px; width: 300px; height: 1920px; z-index: 2;
+               background: linear-gradient(90deg, transparent, rgba(243,236,223,0.10) 45%, rgba(243,236,223,0.28) 88%, transparent);
+               transform: translateX(0); }
+
+      .pad { position: absolute; left: 116px; right: 84px; }
+      .kicker { font-weight: 300; font-size: 31px; color: var(--muted); letter-spacing: 0.02em; }
+      .head { font-weight: 900; font-size: 66px; letter-spacing: -0.042em; line-height: 1.2; }
+      .body { font-weight: 300; font-size: 34px; color: var(--ink2); line-height: 1.5; word-break: keep-all; }
+      .mark { position: absolute; right: 84px; top: 1498px; font-weight: 300; font-size: 28px;
+              color: var(--muted); z-index: 12; }
+
+      /* ---- 1. the two of them ------------------------------------------- */
+      #d1-name { position: absolute; left: 116px; right: 84px; top: 560px; font-weight: 900;
+                 font-size: 118px; letter-spacing: -0.05em; line-height: 1; }
+      #d1-code { position: absolute; left: 116px; top: 698px; font-weight: 300; font-size: 34px; color: var(--muted); }
+      .side-chip { position: absolute; top: 840px; width: 340px; padding: 18px 0; text-align: center;
+                   border-radius: 14px; font-weight: 900; font-size: 46px; letter-spacing: -0.03em; }
+      #d1-bull { left: 116px; color: var(--bull); border: 3px solid var(--bull); }
+      #d1-bear { right: 84px; color: var(--bear); border: 3px solid var(--bear); }
+      #d1-vs { position: absolute; left: 470px; top: 848px; width: 140px; text-align: center;
+               font-weight: 900; font-size: 52px; color: var(--muted); letter-spacing: -0.03em; }
+
+      /* ---- 2. what each side said --------------------------------------- */
+      .claim { position: absolute; width: 812px; padding: 22px 26px; border-radius: 16px;
+               font-weight: 500; font-size: 33px; line-height: 1.42; word-break: keep-all;
+               background: rgba(255,255,255,0.035); }
+      .claim .who { display: block; font-weight: 900; font-size: 25px; letter-spacing: 0.02em;
+                    margin-bottom: 10px; }
+      .claim.bull { left: 116px; border-left: 6px solid var(--bull); }
+      .claim.bull .who { color: var(--bull); }
+      .claim.bear { right: 84px; border-right: 6px solid var(--bear); text-align: right; }
+      .claim.bear .who { color: var(--bear); }
+
+      /* ---- 3. how sure each of them was --------------------------------- */
+      #beam-track { position: absolute; left: 116px; width: 880px; top: 864px; height: 34px;
+                    border-radius: 17px; background: var(--hair); }
+      #beam-bull { position: absolute; left: 116px; top: 864px; height: 34px; border-radius: 17px 0 0 17px;
+                   background: var(--bull); transform-origin: left center; width: {{BULL_WIDTH}}px; }
+      #beam-bear { position: absolute; right: 84px; top: 864px; height: 34px; border-radius: 0 17px 17px 0;
+                   background: var(--bear); transform-origin: right center; width: {{BEAR_WIDTH}}px; }
+      #beam-split { position: absolute; left: {{SPLIT_X}}px; top: 842px; width: 4px; height: 78px;
+                    background: var(--paper); }
+      .sure { position: absolute; top: 720px; font-weight: 900; font-size: 84px; letter-spacing: -0.045em; }
+      #sure-bull { left: 116px; color: var(--bull); }
+      #sure-bear { right: 84px; color: var(--bear); text-align: right; }
+      .sure-k { position: absolute; top: 954px; font-weight: 500; font-size: 30px; color: var(--ink2); }
+      #sure-bull-k { left: 116px; }
+      #sure-bear-k { right: 84px; text-align: right; }
+
+      /* ---- 4. the verdict ----------------------------------------------- */
+      #v-stamp { position: absolute; left: 116px; right: 84px; top: 640px; text-align: center;
+                 padding: 40px 0; border: 4px solid var(--paper); border-radius: 22px; }
+      #v-stamp .r { font-weight: 900; font-size: 104px; letter-spacing: -0.05em; color: var(--paper); }
+      #v-stamp .c { margin-top: 12px; font-weight: 300; font-size: 34px; color: var(--ink2); }
+
+      /* ---- 5. the outro -------------------------------------------------- */
+      #d5-rule { position: absolute; left: 116px; width: 880px; top: 760px; height: 3px;
+                 background: var(--paper); transform-origin: left center; }
+      .url { font-weight: 900; font-size: 74px; letter-spacing: -0.04em; color: var(--paper); }
+      #tg-rule { position: absolute; left: 116px; width: 880px; top: 1052px; height: 2px;
+                 background: var(--hair); transform-origin: left center; }
+      .fine { font-weight: 300; font-size: 25px; line-height: 1.5; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="{{DURATION}}"
+         data-width="1080" data-height="1920">
+
+      <!-- 1. the two of them ------------------------------------------------>
+      <div class="clip" id="d1" data-start="0" data-duration="{{S1_DURATION}}" data-track-index="0">
+        <p class="kicker pad" style="top: 300px;" id="d1-kick">{{KICKER}}</p>
+        <p id="d1-name">{{NAME}}</p>
+        <p id="d1-code">{{CODE}}</p>
+        <div class="side-chip" id="d1-bull">강세 AI</div>
+        <p id="d1-vs">vs</p>
+        <div class="side-chip" id="d1-bear">약세 AI</div>
+        <p class="body pad" style="top: 1030px;" id="d1-cap">{{HOOK_CAPTION}}</p>
+      </div>
+
+      <!-- 2. what each side said -------------------------------------------->
+      <div class="clip" id="d2" data-start="{{S2_START}}" data-duration="{{S2_DURATION}}" data-track-index="0">
+        <p class="head pad" style="top: 250px;" id="d2-head">같은 숫자, 반대 결론</p>
+        {{CLAIMS}}
+        <p class="body pad" style="top: 1390px;" id="d2-note">{{TWIST}}</p>
+      </div>
+
+      <!-- 3. how sure each of them was -------------------------------------->
+      <div class="clip" id="d3" data-start="{{S3_START}}" data-duration="{{S3_DURATION}}" data-track-index="0">
+        <p class="head pad" style="top: 250px;" id="d3-head">얼마나 확신했나</p>
+        <p class="sure" id="sure-bull">0</p>
+        <p class="sure" id="sure-bear">0</p>
+        <div id="beam-track"></div>
+        <div id="beam-bull"></div>
+        <div id="beam-bear"></div>
+        <div id="beam-split"></div>
+        <p class="sure-k" id="sure-bull-k">강세</p>
+        <p class="sure-k" id="sure-bear-k">약세</p>
+        <p class="body pad" style="top: 1110px;" id="d3-note">{{TWIST}}</p>
+      </div>
+
+      <!-- 4. the verdict ---------------------------------------------------->
+      <div class="clip" id="d4" data-start="{{S4_START}}" data-duration="{{S4_DURATION}}" data-track-index="0">
+        <p class="head pad" style="top: 250px;" id="d4-head">판정</p>
+        <div id="v-stamp">
+          <p class="r">{{RATING}}</p>
+          <p class="c">확신도 {{CONFIDENCE}}%</p>
+        </div>
+        <p class="body pad" style="top: 1030px;" id="d4-note">{{VERDICT_NOTE}}</p>
+      </div>
+
+      <!-- 5. the outro ------------------------------------------------------>
+      <div class="clip" id="d5" data-start="{{S5_START}}" data-duration="{{S5_DURATION}}" data-track-index="0">
+        <div class="pad" style="top: 560px;">
+          <p class="head" id="d5-l1">{{OUTRO1}}</p>
+          <p class="head" id="d5-l2">{{OUTRO2}}</p>
+        </div>
+        <div id="d5-rule"></div>
+        <p class="body pad" style="top: 800px;" id="d5-call">{{OUTRO_CALL}}</p>
+        <p class="url pad" style="top: 858px;" id="d5-url">{{URL}}</p>
+        <div id="tg-rule"></div>
+        <div class="pad" style="top: 1090px;" id="d5-tg">
+          <p class="fine" style="color: var(--ink2);">{{TELEGRAM_LINE}}</p>
+          <p class="url" style="font-size: 54px; margin-top: 14px;">{{TELEGRAM}}</p>
+        </div>
+        <p class="fine pad" style="top: 1300px;" id="d5-fine">AI 실험 기록이며 매매 권유가 아닙니다.</p>
+      </div>
+
+      <p class="mark">{{URL}}</p>
+      <div id="swipe"></div>
+      <div id="grain"><div class="g"></div></div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      function cut(at) {
+        tl.fromTo("#swipe", { x: 0 }, { x: 1420, duration: 0.5, ease: "power2.inOut" }, at - 0.22);
+      }
+
+      // --- 1. the two of them ----------------------------------------------
+      // They arrive from opposite edges and stop short of each other, which is
+      // the whole shape of the video in one move.
+      tl.fromTo("#d1-kick", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.32 }, 0)
+        .fromTo("#d1-name", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.1)
+        .fromTo("#d1-code", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.34)
+        .fromTo("#d1-bull", { opacity: 0, x: -260 }, { opacity: 1, x: 0, duration: 0.56, ease: "power3.out" }, 0.62)
+        .fromTo("#d1-bear", { opacity: 0, x: 260 }, { opacity: 1, x: 0, duration: 0.56, ease: "power3.out" }, 0.62)
+        .fromTo("#d1-vs", { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2.6)" }, 1.06)
+        .fromTo("#d1-cap", { opacity: 0 }, { opacity: 1, duration: 0.34 }, 1.3);
+
+      // --- 2. what each side said ------------------------------------------
+      const S2 = {{S2_START}}, SIDES = {{CLAIM_SIDES}};
+      cut(S2);
+      tl.fromTo("#d2-head", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S2);
+      SIDES.forEach(function (side, i) {
+        const node = "#claim" + i;
+        const from = side === "bull" ? -300 : 300;
+        tl.fromTo(node, { opacity: 0, x: from }, { opacity: 1, x: 0, duration: 0.5, ease: "power3.out" }, S2 + 0.5 + i * 0.62);
+      });
+      tl.fromTo("#d2-note", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S2 + 0.6 + SIDES.length * 0.62);
+
+      // --- 3. how sure each of them was ------------------------------------
+      // The beam is the argument: two bars push toward each other and stop
+      // where the convictions actually leave them, not in the middle.
+      const S3 = {{S3_START}}, BULL = {{BULL_SURE}}, BEAR = {{BEAR_SURE}};
+      cut(S3);
+      const bullCount = { v: 0 }, bearCount = { v: 0 };
+      const bullNode = document.getElementById("sure-bull");
+      const bearNode = document.getElementById("sure-bear");
+      tl.fromTo("#d3-head", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S3)
+        .fromTo("#beam-track", { opacity: 0 }, { opacity: 1, duration: 0.3 }, S3 + 0.16)
+        .fromTo("#beam-bull", { scaleX: 0 }, { scaleX: 1, duration: 0.72, ease: "power3.out" }, S3 + 0.3)
+        .fromTo("#beam-bear", { scaleX: 0 }, { scaleX: 1, duration: 0.72, ease: "power3.out" }, S3 + 0.3)
+        .fromTo("#beam-split", { opacity: 0, scaleY: 0 }, { opacity: 1, scaleY: 1, duration: 0.3, ease: "back.out(2.4)" }, S3 + 0.92)
+        .fromTo("#sure-bull-k, #sure-bear-k", { opacity: 0 }, { opacity: 1, duration: 0.3 }, S3 + 0.4)
+        .to(bullCount, {
+          v: BULL, duration: 0.72, ease: "power3.out",
+          onUpdate: function () { if (bullNode) bullNode.textContent = bullCount.v.toFixed(0); },
+        }, S3 + 0.3)
+        .to(bearCount, {
+          v: BEAR, duration: 0.72, ease: "power3.out",
+          onUpdate: function () { if (bearNode) bearNode.textContent = bearCount.v.toFixed(0); },
+        }, S3 + 0.3)
+        .fromTo("#d3-note", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S3 + 1.3);
+
+      // --- 4. the verdict ---------------------------------------------------
+      const S4 = {{S4_START}};
+      cut(S4);
+      tl.fromTo("#d4-head", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S4)
+        .fromTo("#v-stamp", { opacity: 0, scale: 1.22 }, { opacity: 1, scale: 1, duration: 0.46, ease: "power3.out" }, S4 + 0.28)
+        .fromTo("#d4-note", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S4 + 0.95);
+
+      // --- 5. outro ---------------------------------------------------------
+      const S5 = {{S5_START}};
+      cut(S5);
+      tl.fromTo("#d5-l1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32 }, S5)
+        .fromTo("#d5-l2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32 }, S5 + 0.16)
+        .fromTo("#d5-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46, ease: "power3.out" }, S5 + 0.38)
+        .fromTo("#d5-call", { opacity: 0 }, { opacity: 1, duration: 0.3 }, S5 + 0.5)
+        .fromTo("#d5-url", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S5 + 0.64)
+        .fromTo("#tg-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46 }, S5 + 1.05)
+        .fromTo("#d5-tg", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S5 + 1.18)
+        .fromTo("#d5-fine", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S5 + 1.55);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

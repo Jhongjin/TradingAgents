@@ -163,6 +163,107 @@ def compose_record(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, 
     return template, total_seconds
 
 
+BEAM_LEFT, BEAM_WIDTH = 116, 880
+CLAIM_TOPS = (430, 660, 910, 1140)
+
+
+def _claim_block(index: int, side: str, text: str) -> str:
+    who = "강세 AI" if side == "bull" else "약세 AI"
+    top = CLAIM_TOPS[min(index, len(CLAIM_TOPS) - 1)]
+    return (
+        f'<div class="claim {side}" id="claim{index}" style="top: {top}px;">'
+        f'<span class="who">{who}</span>{text}</div>'
+    )
+
+
+def compose_debate(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, float]:
+    """Two sides of an argument, and the beam that shows who was surer.
+
+    The bars do not meet in the middle. They stop where the two convictions
+    leave them, so a glance at the split is a reading of the disagreement.
+    """
+
+    debate = payload.get("debate") or {}
+    decision = debate.get("decision") or {}
+    turns = debate.get("turns") or {}
+
+    def conviction(role: str) -> float:
+        try:
+            return max(0.0, min(1.0, float(((turns.get(role) or {}).get("data") or {}).get("conviction") or 0.0)))
+        except (TypeError, ValueError):
+            return 0.0
+
+    bull_sure, bear_sure = conviction("bull"), conviction("bear")
+    total_sure = bull_sure + bear_sure
+    bull_share = (bull_sure / total_sure) if total_sure else 0.5
+    bull_width = max(60.0, min(BEAM_WIDTH - 60.0, BEAM_WIDTH * bull_share))
+
+    # the claims, alternating so the argument reads as an exchange
+    lengths = [scene.seconds for scene in board.scenes]
+    starts, running = [], 0.0
+    for value in lengths:
+        starts.append(running)
+        running += value
+
+    claims: list[str] = []
+    sides: list[str] = []
+    scene_lines = list(board.scenes[1].lines) if len(board.scenes) > 1 else []
+    half = len(scene_lines) // 2
+    paired = [(line, "bull") for line in scene_lines[:half]] + [(line, "bear") for line in scene_lines[half:]]
+    ordered = [paired[index // 2 + (half if index % 2 else 0)] for index in range(len(paired))] if half else paired
+    for index, (text, side) in enumerate(ordered):
+        claims.append(_claim_block(index, side, text))
+        sides.append(side)
+
+    judge = (turns.get("judge") or {}).get("data") or {}
+    try:
+        confidence = float(judge.get("confidence") or decision.get("confirmation_confidence") or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+
+    handle = telegram_handle()
+    host = site_url().split("://", 1)[-1]
+    outro = board.scenes[-1]
+
+    template = (Path(__file__).parent / "composition_debate.html").read_text(encoding="utf-8")
+    replacements = {
+        "{{DURATION}}": f"{running:.2f}",
+        "{{S1_DURATION}}": f"{lengths[0]:.2f}",
+        "{{S2_START}}": f"{starts[1]:.2f}",
+        "{{S2_DURATION}}": f"{lengths[1]:.2f}",
+        "{{S3_START}}": f"{starts[2]:.2f}",
+        "{{S3_DURATION}}": f"{lengths[2]:.2f}",
+        "{{S4_START}}": f"{starts[3]:.2f}",
+        "{{S4_DURATION}}": f"{lengths[3]:.2f}",
+        "{{S5_START}}": f"{starts[4]:.2f}",
+        "{{S5_DURATION}}": f"{lengths[4]:.2f}",
+        "{{KICKER}}": board.scenes[0].eyebrow,
+        "{{NAME}}": str(decision.get("ticker_name") or decision.get("ticker_code") or "종목"),
+        "{{CODE}}": str(decision.get("ticker_code") or ""),
+        "{{HOOK_CAPTION}}": board.scenes[0].caption,
+        "{{CLAIMS}}": "\n        ".join(claims),
+        "{{CLAIM_SIDES}}": json.dumps(sides),
+        "{{TWIST}}": board.scenes[2].caption if len(board.scenes) > 2 else "",
+        "{{BULL_SURE}}": f"{bull_sure * 100:.0f}",
+        "{{BEAR_SURE}}": f"{bear_sure * 100:.0f}",
+        "{{BULL_WIDTH}}": f"{bull_width:.0f}",
+        "{{BEAR_WIDTH}}": f"{BEAM_WIDTH - bull_width:.0f}",
+        "{{SPLIT_X}}": f"{BEAM_LEFT + bull_width - 2:.0f}",
+        "{{RATING}}": board.scenes[3].lines[0] if len(board.scenes) > 3 and board.scenes[3].lines else "",
+        "{{CONFIDENCE}}": f"{confidence * 100:.0f}",
+        "{{VERDICT_NOTE}}": board.scenes[3].caption if len(board.scenes) > 3 else "",
+        "{{OUTRO1}}": outro.headline[0] if getattr(outro, "headline", ()) else "",
+        "{{OUTRO2}}": outro.headline[1] if len(getattr(outro, "headline", ())) > 1 else "",
+        "{{OUTRO_CALL}}": getattr(outro, "call", ""),
+        "{{URL}}": host,
+        "{{TELEGRAM_LINE}}": getattr(outro, "telegram_line", ""),
+        "{{TELEGRAM}}": handle or f"{host}/start",
+    }
+    for token, value in replacements.items():
+        template = template.replace(token, str(value))
+    return template, running
+
+
 def write_project(html: str, directory: Path, *, name: str) -> Composition:
     """Lay the composition out as a HyperFrames project the CLI can drive."""
 

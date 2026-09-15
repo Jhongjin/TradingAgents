@@ -380,9 +380,135 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, them
     )
 
 
+def _claims(turn: Mapping[str, Any], *, count: int = 2, limit: int = 44) -> tuple[str, ...]:
+    """The shortest claims a side made, because the shortest are the sharpest.
+
+    Each side argues seven or eight points and no one reads seven points on a
+    phone. Shortest-first is not cherry-picking for agreement - both sides are
+    cut the same way - it is cutting for legibility.
+    """
+
+    claims = [
+        " ".join(str((row or {}).get("claim") or "").split())
+        for row in ((turn or {}).get("data") or {}).get("arguments") or []
+    ]
+    usable = sorted((claim for claim in claims if claim), key=len)
+    picked = [claim if len(claim) <= limit else f"{claim[: limit - 1]}…" for claim in usable[:count]]
+    return tuple(picked)
+
+
+def _conviction(turn: Mapping[str, Any]) -> float:
+    try:
+        return max(0.0, min(1.0, float(((turn or {}).get("data") or {}).get("conviction") or 0.0)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def build_debate(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME) -> Storyboard:
+    """One pick, and the argument the two sides had over it.
+
+    The account pages show what was bought. This shows what was said before it
+    was: a bull case, a bear case, how sure each side was, and which way the
+    judge came down. When the bear was the more certain of the two and the
+    judge bought anyway, that is the cut - it is the one day the machinery is
+    visibly not just agreeing with itself.
+    """
+
+    debate = payload.get("debate") or {}
+    decision = debate.get("decision") or {}
+    turns = debate.get("turns") or {}
+    stamp = _today(now).strftime("%Y%m%d")
+
+    name = str(decision.get("ticker_name") or decision.get("ticker_code") or "종목")
+    code = str(decision.get("ticker_code") or "")
+    bull, bear = turns.get("bull") or {}, turns.get("bear") or {}
+    judge = (turns.get("judge") or {}).get("data") or {}
+
+    bull_claims, bear_claims = _claims(bull), _claims(bear)
+    bull_sure, bear_sure = _conviction(bull), _conviction(bear)
+    rating = _rating(judge.get("recommendation") or decision.get("confirmation_rating"))
+    try:
+        confidence = float(judge.get("confidence") or decision.get("confirmation_confidence") or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    bought = str(decision.get("stage") or "") == "ordered"
+
+    # the line that makes it a story rather than a transcript
+    if bear_sure > bull_sure and bought:
+        twist = "더 확신한 쪽은 약세였는데, 판정은 매수였습니다."
+        spoken = f"이상한 건, 더 자신 있었던 쪽은 약세였다는 겁니다. 그런데도 결론은 샀어요."
+    elif bull_sure > bear_sure and not bought:
+        twist = "더 확신한 쪽은 강세였는데, 사지 않았습니다."
+        spoken = "강세 쪽이 더 확신했는데도 안 샀습니다. 리스크 게이트에서 걸렸거든요."
+    else:
+        twist = "확신이 높은 쪽으로 결론이 났습니다."
+        spoken = "결론은 확신이 높은 쪽으로 났습니다."
+
+    scenes: tuple[Scene, ...] = (
+        Hook(
+            eyebrow=f"{korean_date(_today(now).isoformat())} · AI 확인 단계",
+            value_to=None,
+            caption=f"{name}({code}) 하나를 두고 둘이 붙었습니다",
+            lines=("강세 AI와 약세 AI가", "같은 데이터를 보고 싸웁니다."),
+            seconds=3.4,
+            narration=f"{name} 하나 놓고 AI 둘이 붙었습니다. 같은 숫자를 보고요.",
+        ),
+        Statement(
+            eyebrow="양쪽 주장",
+            lines=bull_claims + bear_claims,
+            caption=twist,
+            seconds=7.0,
+            narration=(
+                (f"강세 쪽은 이렇게 말합니다. {bull_claims[0]}" if bull_claims else "")
+                + (f" 약세 쪽은 반대로 봅니다. {bear_claims[0]}" if bear_claims else "")
+            ),
+        ),
+        Statement(
+            eyebrow="얼마나 확신했나",
+            lines=(f"강세 {bull_sure * 100:.0f}", f"약세 {bear_sure * 100:.0f}"),
+            caption=twist,
+            seconds=5.0,
+            narration=spoken,
+        ),
+        Statement(
+            eyebrow="판정",
+            lines=(rating, f"확신도 {confidence * 100:.0f}%"),
+            caption="이 판단이 맞았는지는 며칠 뒤 같은 채널에 그대로 올라옵니다.",
+            seconds=5.0,
+            narration=f"판정은 {rating}. 맞았는지 틀렸는지는 며칠 뒤에 그대로 올립니다.",
+        ),
+        _outro(
+            headline=("맞힌 날만 올리는 채널은", "이미 많습니다."),
+            call="틀린 날도 그대로 남습니다",
+            narration="맞힌 날만 올리는 채널, 이미 많잖아요. 여긴 틀린 날도 그대로 남습니다. 내일 아침 뭘 골랐는지는 텔레그램으로 먼저 갑니다.",
+        ),
+    )
+
+    return Storyboard(
+        slug=f"debate-{stamp}",
+        title=f"AI 둘이 {name} 놓고 싸웠습니다 | 강세 vs 약세 판정 공개",
+        description=(
+            f"같은 데이터를 본 강세 AI와 약세 AI가 {name}을 두고 맞붙은 기록입니다. 양쪽 근거와 확신도, 그리고 판정까지 그대로 공개합니다.\n\n"
+            f"오늘의 선별 → {_link('/harness', 'debate', stamp=stamp)}\n"
+            f"모의 계좌 → {_link('/paper', 'debate', stamp=stamp)}\n"
+            f"{_telegram_line()}\n\n"
+            "AI 실험 기록이며 매매 권유가 아닙니다. 모의 계좌 기록이고 실계좌 주문은 없습니다.\n"
+            "#주식 #AI주식 #모의투자 #코스피 #AI토론"
+        ),
+        tags=("주식", "AI주식", "모의투자", "코스피", "AI토론", "종목분석"),
+        scenes=scenes,
+        theme=theme,
+        comment=_comment(
+            f"{name}을 두고 양쪽이 낸 근거 전부와, 이 판단이 며칠 뒤 어떻게 됐는지가 여기 있습니다.",
+            path="/harness", campaign="debate", stamp=stamp,
+        ),
+    )
+
+
 STORIES: dict[str, Callable[..., Storyboard]] = {
     "record": build_record,
     "picks": build_picks,
+    "debate": build_debate,
 }
 
 

@@ -492,3 +492,86 @@ def test_the_push_in_moves_a_wrapper_and_not_the_timed_clip():
     assert 'tl.to("#s2", { scale' not in html          # never the clip
     # and the right-hand label steps out rather than being cut in half by the zoom
     assert '.to("#stop-tag", { opacity: 0' in html
+
+
+def _debate(*, bull: float = 0.79, bear: float = 0.90, stage: str = "ordered") -> dict:
+    return {
+        "decision": {"ticker_name": "안랩", "ticker_code": "053800", "stage": stage,
+                     "confirmation_rating": "Overweight", "confirmation_confidence": 0.76},
+        "turns": {
+            "bull": {"data": {"conviction": bull, "arguments": [
+                {"claim": "이동평균 정배열로 상승추세가 구조적으로 확인된다."},
+                {"claim": "거래량 급증이 동반되어 수급 확인이 이뤄지고 있다."},
+                {"claim": "아주 길고 장황해서 화면에 절대로 들어가지 않을 문장 " * 4},
+            ]}},
+            "bear": {"data": {"conviction": bear, "arguments": [
+                {"claim": "RSI 73.57은 과열권으로 단기 되돌림 위험을 시사한다."},
+                {"claim": "종가가 60일 고점에 근접해 리스크-보상이 나쁘다."},
+            ]}},
+            "judge": {"data": {"recommendation": "Overweight", "confidence": "0.76"}},
+        },
+    }
+
+
+def test_the_debate_cut_leads_with_the_side_that_was_surer_and_lost():
+    """Both arguing the same way is a formality; the upset is the story."""
+
+    from tradingagents.shorts.stories import build_debate
+
+    upset = build_debate({"debate": _debate(bull=0.79, bear=0.90, stage="ordered")})
+    assert "더 확신한 쪽은 약세였는데, 판정은 매수였습니다." in upset.scenes[2].caption
+
+    other = build_debate({"debate": _debate(bull=0.90, bear=0.50, stage="gate_rejected")})
+    assert "더 확신한 쪽은 강세였는데, 사지 않았습니다." in other.scenes[2].caption
+
+    agreed = build_debate({"debate": _debate(bull=0.90, bear=0.50, stage="ordered")})
+    assert "확신이 높은 쪽으로 결론이 났습니다." in agreed.scenes[2].caption
+
+
+def test_the_claims_are_cut_for_a_phone_and_both_sides_the_same_way():
+    from tradingagents.shorts.stories import _claims
+
+    turn = _debate()["turns"]["bull"]
+    picked = _claims(turn)
+
+    assert len(picked) == 2
+    assert all(len(claim) <= 44 for claim in picked)
+    # shortest first, applied to both sides alike, so it is legibility and not
+    # a thumb on the scale
+    assert len(picked[0]) <= len(picked[1])
+    assert picked[0].endswith("확인된다.") or "…" in picked[0]
+
+
+def test_the_beam_stops_where_the_convictions_leave_it():
+    """A bar that always met in the middle would say nothing."""
+
+    from tradingagents.shorts.hyperframes import BEAM_WIDTH, compose_debate
+    from tradingagents.shorts.stories import build_debate
+
+    payload = {"debate": _debate(bull=0.79, bear=0.90)}
+    html, seconds = compose_debate(payload, build_debate(payload))
+
+    assert seconds > 20
+    # the bear was surer, so the split sits left of centre
+    import re
+
+    bull_width = int(re.search(r"#beam-bull \{[^}]*?width: (\d+)px", html, re.S).group(1))
+    bear_width = int(re.search(r"#beam-bear \{[^}]*?width: (\d+)px", html, re.S).group(1))
+    assert bull_width < BEAM_WIDTH / 2 < bear_width
+    assert bull_width + bear_width == BEAM_WIDTH
+    # the figures count up rather than being printed, so they live in the timeline
+    assert "BULL = 79, BEAR = 90" in html
+    assert "{{" not in html                      # every slot filled
+    assert '"bull"' in html and '"bear"' in html  # the sides drive the entry direction
+
+
+def test_a_run_with_no_transcript_does_not_put_the_debate_on_the_shelf():
+    from tradingagents.shorts.bank import evaluate
+
+    quiet = {"summary": {"closed_count": 3}, "accounts": [], "closed": [], "positions": []}
+    assert "debate" not in {row.story.key for row in evaluate(quiet, now=NOW, ledger=[])}
+
+    loud = {**quiet, "debate": _debate()}
+    rows = {row.story.key: row for row in evaluate(loud, now=NOW, ledger=[])}
+    assert rows["debate"].score > 0
+    assert "더 확신한 쪽과 반대로" in rows["debate"].reason

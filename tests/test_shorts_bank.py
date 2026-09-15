@@ -96,7 +96,7 @@ def test_a_milestone_fires_only_on_the_round_number():
 def test_only_a_story_that_can_actually_be_drawn_is_chosen():
     decision = plan(_payload(closed_before=4, exits=(("가", -0.02, "take_profit"),)), now=MONDAY, ledger=[])
     chosen = BY_KEY[decision["story"]]
-    assert chosen.renderable and decision["renderer"] in {"record", "picks"}
+    assert chosen.renderable and decision["renderer"] in {"record", "picks", "debate"}
     # take_profit fired and scored well, but nothing draws it yet, so it waits
     assert "take_profit" in {item["key"] for item in decision["candidates"]}
     assert "take_profit" in decision["waiting"]
@@ -130,7 +130,7 @@ def test_every_story_declares_what_it_needs():
     for story in STORIES:
         assert story.tier in {"daily", "event", "periodic", "standby"}
         assert 0 < story.completeness <= 1 and story.cooldown_days >= 1
-        assert story.renderer in {None, "record", "picks"}
+        assert story.renderer in {None, "record", "picks", "debate"}
     assert any(story.renderable for story in STORIES)
     assert any(not story.renderable for story in STORIES)   # the plan is honest about what is unbuilt
 

@@ -2111,7 +2111,7 @@ def _render_hyperframes(board, payload, output: Path, *, voice: bool, music: Opt
     import subprocess
 
     from tradingagents.shorts import voice as narration
-    from tradingagents.shorts.hyperframes import compose_record, run, write_project
+    from tradingagents.shorts.hyperframes import compose_debate, compose_record, run, write_project
 
     spoken = None
     if voice and narration.available():
@@ -2122,7 +2122,9 @@ def _render_hyperframes(board, payload, output: Path, *, voice: bool, music: Opt
     elif voice:
         console.print("[yellow]로컬 VoxCPM 을 찾지 못해 무음으로 만듭니다.[/yellow]")
 
-    html, seconds = compose_record(payload, board)
+    # each story draws on its own page; the account cuts share one
+    compose = compose_debate if story == "debate" else compose_record
+    html, seconds = compose(payload, board)
     project = write_project(html, output / "hf" / story, name=story)
     console.print(f"[dim]{project.html} · {seconds:.1f}초[/dim]")
 
@@ -2149,6 +2151,44 @@ def _render_hyperframes(board, payload, output: Path, *, voice: bool, music: Opt
     console.print(f"[bold]{board.title}[/bold]")
 
 
+def _latest_debate(source: Optional[str]) -> dict | None:
+    """The newest bought pick that came with a bull/bear transcript.
+
+    The account payload says what was bought; this says what was argued over
+    it, which is a different cut and the one the debate story draws.
+    """
+
+    import os
+
+    try:
+        if source:
+            import requests
+
+            from tradingagents.dataflows.http_trust import apply_system_truststore_if_available
+
+            apply_system_truststore_if_available()
+            base = source.rstrip("/")
+            response = requests.get(f"{base}/api/harness/runs/latest", timeout=60)
+            response.raise_for_status()
+            run = response.json()
+        else:
+            if not os.getenv("DATABASE_URL"):
+                return None
+            from tradingagents.site.harness_api import build_harness_run_payload
+            from tradingagents.storage import StorageRepository, create_storage_engine
+
+            run = build_harness_run_payload(StorageRepository(create_storage_engine())) or {}
+    except Exception:                                   # noqa: BLE001 - the other stories still work
+        return None
+
+    for decision in run.get("decisions") or []:
+        raw = ((decision.get("detail") or {}).get("confirmation") or {}).get("raw") or {}
+        turns = ((raw.get("debate") or {}).get("turns")) or {}
+        if turns.get("bull") and turns.get("bear"):
+            return {"decision": decision, "turns": turns, "as_of_date": (run.get("run") or {}).get("as_of_date")}
+    return None
+
+
 def _shorts_payload(source: Optional[str]) -> dict:
     """The account as the site sees it, from the database or from a running site."""
 
@@ -2157,17 +2197,26 @@ def _shorts_payload(source: Optional[str]) -> dict:
     if source:
         import requests
 
+        from tradingagents.dataflows.http_trust import apply_system_truststore_if_available
+
+        apply_system_truststore_if_available()
         base = source.rstrip("/")
         url = base if base.endswith("/api/paper-account") else f"{base}/api/paper-account"
         response = requests.get(url, timeout=60)
         response.raise_for_status()
-        return response.json()
-    if not os.getenv("DATABASE_URL"):
+        payload = response.json()
+    elif not os.getenv("DATABASE_URL"):
         raise typer.BadParameter("DATABASE_URL is required, or pass --from https://agenttrust.kr")
-    from tradingagents.harness.paper_state import build_combined_account_payload
-    from tradingagents.storage import StorageRepository, create_storage_engine
+    else:
+        from tradingagents.harness.paper_state import build_combined_account_payload
+        from tradingagents.storage import StorageRepository, create_storage_engine
 
-    return build_combined_account_payload(StorageRepository(create_storage_engine()))
+        payload = build_combined_account_payload(StorageRepository(create_storage_engine()))
+
+    debate = _latest_debate(source)
+    if debate:
+        payload = {**payload, "debate": debate}
+    return payload
 
 
 @app.command("shorts-plan")
