@@ -2111,7 +2111,9 @@ def _render_hyperframes(board, payload, output: Path, *, voice: bool, music: Opt
     import subprocess
 
     from tradingagents.shorts import voice as narration
-    from tradingagents.shorts.hyperframes import compose_debate, compose_record, run, write_project
+    from tradingagents.shorts.hyperframes import (
+        compose_candles, compose_curve, compose_debate, compose_record, run, write_project,
+    )
 
     spoken = None
     if voice and narration.available():
@@ -2123,7 +2125,7 @@ def _render_hyperframes(board, payload, output: Path, *, voice: bool, music: Opt
         console.print("[yellow]로컬 VoxCPM 을 찾지 못해 무음으로 만듭니다.[/yellow]")
 
     # each story draws on its own page; the account cuts share one
-    compose = compose_debate if story == "debate" else compose_record
+    compose = {"debate": compose_debate, "curve": compose_curve, "candles": compose_candles}.get(story, compose_record)
     html, seconds = compose(payload, board)
     project = write_project(html, output / "hf" / story, name=story)
     console.print(f"[dim]{project.html} · {seconds:.1f}초[/dim]")
@@ -2189,6 +2191,85 @@ def _latest_debate(source: Optional[str]) -> dict | None:
     return None
 
 
+def _account_curve(source: Optional[str]) -> dict | None:
+    """The account's day-by-day line against the index, for the weekly cut."""
+
+    import os
+
+    try:
+        if source:
+            import requests
+
+            from tradingagents.dataflows.http_trust import apply_system_truststore_if_available
+
+            apply_system_truststore_if_available()
+            response = requests.get(f"{source.rstrip('/')}/api/paper-account/curve", timeout=60)
+            response.raise_for_status()
+            return response.json()
+        if not os.getenv("DATABASE_URL"):
+            return None
+        from tradingagents.site.paper_snapshot_worker import build_paper_curve_payload
+        from tradingagents.storage import StorageRepository, create_storage_engine
+
+        return build_paper_curve_payload(StorageRepository(create_storage_engine()), account_key="paper")
+    except Exception:                                   # noqa: BLE001 - the other stories still work
+        return None
+
+
+def _biggest_mover(payload: dict, source: Optional[str]) -> dict | None:
+    """The closed trade that moved the account most, on its own tape.
+
+    Sessions are fetched around the holding window with a run-up before the
+    buy, so the entry line is seen sitting on a chart that already existed.
+    """
+
+    closed = [row for row in payload.get("closed") or [] if row.get("realized_return") is not None]
+    if not closed:
+        return None
+    realized = sum(abs(float(row.get("realized_pnl") or 0.0)) for row in closed) or 1.0
+    trade = max(closed, key=lambda row: abs(float(row.get("realized_pnl") or 0.0)))
+    code = str(trade.get("ticker_code") or "").strip()
+    if not code:
+        return None
+
+    try:
+        if source:
+            import requests
+
+            from tradingagents.dataflows.http_trust import apply_system_truststore_if_available
+
+            apply_system_truststore_if_available()
+            response = requests.get(
+                f"{source.rstrip('/')}/api/stocks/{code}",
+                params={"include_analysis": "false"},
+                timeout=60,
+            )
+            response.raise_for_status()
+            bars = ((response.json() or {}).get("chart") or {}).get("points") or []
+        else:
+            from tradingagents.dataflows.chart_data import get_ohlcv_chart_series
+
+            series = get_ohlcv_chart_series(code, str(trade.get("entry_date"))[:10], str(trade.get("exit_date"))[:10])
+            bars = [row for row in series.points]
+    except Exception:                                   # noqa: BLE001 - the other stories still work
+        return None
+
+    entry, exit_ = str(trade.get("entry_date") or "")[:10], str(trade.get("exit_date") or "")[:10]
+    dates = [str(row.get("date") or "")[:10] for row in bars]
+    if entry not in dates or exit_ not in dates:
+        return None
+    first, last = dates.index(entry), dates.index(exit_)
+    window = bars[max(first - 12, 0) : min(last + 6, len(bars))]
+    if len(window) < 6:
+        return None
+    return {
+        "trade": trade,
+        "bars": window,
+        "held_days": max(last - first, 1),
+        "share": abs(float(trade.get("realized_pnl") or 0.0)) / realized,
+    }
+
+
 def _shorts_payload(source: Optional[str]) -> dict:
     """The account as the site sees it, from the database or from a running site."""
 
@@ -2216,6 +2297,12 @@ def _shorts_payload(source: Optional[str]) -> dict:
     debate = _latest_debate(source)
     if debate:
         payload = {**payload, "debate": debate}
+    curve = _account_curve(source)
+    if curve:
+        payload = {**payload, "curve": curve}
+    mover = _biggest_mover(payload, source)
+    if mover:
+        payload = {**payload, "candles": mover}
     return payload
 
 

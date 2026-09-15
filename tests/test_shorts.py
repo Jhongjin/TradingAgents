@@ -6,6 +6,7 @@ stand aside rather than fail when there is none.
 """
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -575,3 +576,78 @@ def test_a_run_with_no_transcript_does_not_put_the_debate_on_the_shelf():
     rows = {row.story.key: row for row in evaluate(loud, now=NOW, ledger=[])}
     assert rows["debate"].score > 0
     assert "더 확신한 쪽과 반대로" in rows["debate"].reason
+
+
+def _bars(count: int = 16, *, start: float = 300_000.0) -> list[dict]:
+    return [
+        {"date": f"2026-08-{20 + index:02d}"[:10], "open": start + index * 500,
+         "high": start + index * 500 + 900, "low": start + index * 500 - 900,
+         "close": start + index * 500 + 200, "volume": 1000 + index}
+        for index in range(count)
+    ]
+
+
+def _mover(*, stop: float | None = None) -> dict:
+    bars = _bars()
+    return {
+        "trade": {"ticker_name": "티에스이", "ticker_code": "131290",
+                  "entry_date": bars[12]["date"], "exit_date": bars[13]["date"],
+                  "entry_price": 306_500.0, "stop_price": stop,
+                  "realized_return": -0.156, "realized_pnl": -1_200_000.0, "exit_reason": "stop_loss"},
+        "bars": bars, "held_days": 1, "share": 0.42,
+    }
+
+
+def test_a_stop_that_was_never_recorded_is_not_drawn_or_narrated():
+    """An absent level used to be drawn at the floor with a blank price on it."""
+
+    from tradingagents.shorts.hyperframes import compose_candles
+    from tradingagents.shorts.stories import build_candles
+
+    payload = {"candles": _mover(stop=None)}
+    board = build_candles(payload)
+    html, _seconds = compose_candles(payload, board)
+
+    # the chart carries neither the line nor its price; the closing caption
+    # still talks about stops as a rule, which is a different claim
+    assert 'id="lvl-stop"' not in html and 'id="tag-stop"' not in html
+    assert "{{HAS_STOP}}" not in html and "const HAS_STOP = false;" in html
+    assert "매수선은 살 때 이미 그어져 있었습니다." in board.scenes[1].caption
+    assert "손절선" not in (board.scenes[1].narration or "")
+
+    with_stop = {"candles": _mover(stop=282_000.0)}
+    drawn, _ = compose_candles(with_stop, build_candles(with_stop))
+    assert "손절선 282,000원" in drawn and "const HAS_STOP = true;" in drawn
+
+
+def test_a_one_day_trade_does_not_stack_its_two_flags():
+    from tradingagents.shorts.hyperframes import compose_candles
+    from tradingagents.shorts.stories import build_candles
+
+    payload = {"candles": _mover()}
+    html, _seconds = compose_candles(payload, build_candles(payload))
+
+    # 매수 keeps the stylesheet's height; 정리 is pushed below it
+    dropped = re.search(r'id="flag-out-k"[^>]*top: (\d+)px', html)
+    assert dropped and int(dropped.group(1)) == 1326
+
+    far = dict(_mover())
+    far["trade"] = {**far["trade"], "exit_date": far["bars"][15]["date"]}
+    spread, _ = compose_candles({"candles": far}, build_candles({"candles": far}))
+    level = re.search(r'id="flag-out-k"[^>]*top: (\d+)px', spread)
+    assert level and int(level.group(1)) == 1282      # far apart, so they sit on one line
+
+
+def test_every_candle_grows_from_its_own_base():
+    """scaleY on a bar must not push the bars beside it around."""
+
+    from tradingagents.shorts.hyperframes import compose_candles
+    from tradingagents.shorts.stories import build_candles
+
+    payload = {"candles": _mover()}
+    html, seconds = compose_candles(payload, build_candles(payload))
+
+    assert html.count('class="candle') == 16
+    assert "BAR_COUNT = 16" not in html and "BARS = 16" in html
+    assert "transform-origin: center bottom" in html or "transform-origin: center top" in html
+    assert "{{" not in html and seconds > 15

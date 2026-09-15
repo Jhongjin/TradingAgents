@@ -81,10 +81,17 @@ def test_standby_material_is_always_in_the_running_and_never_wins_a_loud_day():
     assert loud[0].story.tier != "standby"
 
 
-def test_friday_puts_the_weekly_report_in_the_running():
-    friday = {item["key"] for item in plan(_payload(), now=FRIDAY, ledger=[])["candidates"]}
-    monday = {item["key"] for item in plan(_payload(), now=MONDAY, ledger=[])["candidates"]}
+def test_friday_puts_the_weekly_report_in_the_running_once_there_is_a_line_to_draw():
+    from tradingagents.shorts.bank import MIN_CURVE_DAYS
+
+    drawable = {**_payload(), "curve": {"points": [{"date": f"d{i}"} for i in range(MIN_CURVE_DAYS)]}}
+    friday = {item["key"] for item in plan(drawable, now=FRIDAY, ledger=[])["candidates"]}
+    monday = {item["key"] for item in plan(drawable, now=MONDAY, ledger=[])["candidates"]}
     assert "weekly" in friday and "weekly" not in monday
+
+    # two points is a line segment, not a curve, so the cut waits
+    thin = {**_payload(), "curve": {"points": [{"date": "d0"}, {"date": "d1"}]}}
+    assert "weekly" not in {item["key"] for item in plan(thin, now=FRIDAY, ledger=[])["candidates"]}
 
 
 def test_a_milestone_fires_only_on_the_round_number():
@@ -130,7 +137,10 @@ def test_every_story_declares_what_it_needs():
     for story in STORIES:
         assert story.tier in {"daily", "event", "periodic", "standby"}
         assert 0 < story.completeness <= 1 and story.cooldown_days >= 1
-        assert story.renderer in {None, "record", "picks", "debate"}
+        assert story.renderer in {None, "record", "picks", "debate", "curve", "candles"}
+    from tradingagents.shorts.stories import STORIES as BUILDERS
+    # every renderer a story names must have something that draws it
+    assert {story.renderer for story in STORIES if story.renderer} <= set(BUILDERS)
     assert any(story.renderable for story in STORIES)
     assert any(not story.renderable for story in STORIES)   # the plan is honest about what is unbuilt
 

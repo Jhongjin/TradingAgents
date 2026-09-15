@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Noto Sans KR"; font-weight: 300; src: local("Noto Sans KR Light"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 500; src: local("Noto Sans KR Medium"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 700; src: local("Noto Sans KR Bold"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 900; src: local("Noto Sans KR Black"), local("Noto Sans KR"); }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0b1320; }
+
+      :root {
+        --ink: #eaeff7; --ink2: #94a6bd; --muted: #5f7189;
+        --up: #ff5c60; --down: #4d9bff;
+        --paper: #f3ecdf; --hair: #1f2d44; --rule: #f0b429;
+      }
+
+      #root {
+        width: 1080px; height: 1920px; position: relative; overflow: hidden;
+        font-family: "Noto Sans KR", sans-serif; color: var(--ink);
+        font-variant-numeric: tabular-nums;
+        background:
+          radial-gradient(1200px 900px at 8% 4%, rgba(77, 155, 255, 0.10), transparent 62%),
+          radial-gradient(900px 800px at 96% 88%, rgba(12, 22, 38, 0.9), transparent 60%),
+          linear-gradient(178deg, #0d1726 0%, #0b1320 46%, #080f1a 100%);
+      }
+      .clip { position: absolute; inset: 0; z-index: 10; }
+
+      #grain { position: absolute; inset: 0; pointer-events: none; z-index: 90; }
+      #grain .g {
+        position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; opacity: 0.03;
+        background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.68' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        animation: hf-grain 0.75s steps(1) infinite;
+      }
+      @keyframes hf-grain {
+        0%,100% { transform: translate(0,0); } 20% { transform: translate(-8%,4%); }
+        40% { transform: translate(6%,-7%); } 60% { transform: translate(-4%,9%); }
+        80% { transform: translate(9%,2%); }
+      }
+      #swipe { position: absolute; top: 0; left: -320px; width: 300px; height: 1920px; z-index: 2;
+               background: linear-gradient(90deg, transparent, rgba(77,155,255,0.14) 45%, rgba(243,236,223,0.30) 88%, transparent);
+               transform: translateX(0); }
+
+      .pad { position: absolute; left: 116px; right: 84px; }
+      .kicker { font-weight: 300; font-size: 31px; color: var(--muted); letter-spacing: 0.02em; }
+      .head { font-weight: 900; font-size: 66px; letter-spacing: -0.042em; line-height: 1.2; }
+      .body { font-weight: 300; font-size: 34px; color: var(--ink2); line-height: 1.5; word-break: keep-all; }
+      .mark { position: absolute; right: 84px; top: 1498px; font-weight: 300; font-size: 28px;
+              color: var(--muted); z-index: 12; }
+
+      /* ---- 1. the hook --------------------------------------------------- */
+      #k1-name { position: absolute; left: 116px; right: 84px; top: 470px; font-weight: 900;
+                 font-size: 112px; letter-spacing: -0.05em; line-height: 1; }
+      #k1-code { position: absolute; left: 116px; top: 600px; font-weight: 300; font-size: 34px; color: var(--muted); }
+      #k1-mask { position: absolute; left: 104px; top: 680px; width: 900px; height: 260px; overflow: hidden; }
+      #k1-fig { position: absolute; left: 0; top: 0; font-size: 250px; font-weight: 900;
+                letter-spacing: -0.055em; line-height: 0.9; color: {{MOVE_COLOUR}}; }
+      #k1-rule { position: absolute; left: 116px; width: 880px; top: 990px; height: 3px;
+                 background: var(--paper); transform-origin: left center; }
+
+      /* ---- 2. the candles ------------------------------------------------ */
+      /* A candle is a wick plus a body, both absolutely placed from the chart
+         box's own top, so a bar can be revealed with a transform alone. */
+      #tape { position: absolute; left: 116px; top: 640px; width: 880px; height: 620px; }
+      .candle { position: absolute; width: {{CANDLE_W}}px; }
+      .candle .wick { position: absolute; left: {{WICK_X}}px; width: 3px; }
+      .candle .body { position: absolute; left: 0; width: {{CANDLE_W}}px; min-height: 3px; border-radius: 1px; }
+      .candle.up .wick, .candle.up .body { background: var(--up); }
+      .candle.down .wick, .candle.down .body { background: var(--down); }
+      .lvl { position: absolute; left: 0; width: 880px; height: 0; transform-origin: left center; }
+      #lvl-entry { border-top: 3px dashed var(--paper); }
+      #lvl-stop { border-top: 3px dashed var(--rule); }
+      .lvl-tag { position: absolute; right: 0; font-weight: 700; font-size: 25px; letter-spacing: -0.02em; }
+      #tag-entry { color: var(--paper); }
+      #tag-stop { color: var(--rule); }
+      .flag { position: absolute; width: 4px; height: 620px; top: 0; background: rgba(243,236,223,0.22); }
+      .flag-k { position: absolute; top: 1282px; font-weight: 700; font-size: 25px; color: var(--ink2); }
+      #k2-note { position: absolute; left: 116px; right: 84px; top: 1406px; }
+
+      /* ---- 3. what it did to the account --------------------------------- */
+      .fact { position: absolute; left: 116px; right: 84px; }
+      .fact .k { font-weight: 500; font-size: 36px; color: var(--ink2); }
+      .fact .v { position: absolute; right: 0; top: -8px; font-weight: 900; font-size: 62px; letter-spacing: -0.04em; }
+      .fact .rule { position: absolute; left: 0; top: 80px; width: 880px; height: 2px; background: var(--hair);
+                    transform-origin: left center; }
+
+      /* ---- 4. the outro --------------------------------------------------- */
+      #k4-rule { position: absolute; left: 116px; width: 880px; top: 760px; height: 3px;
+                 background: var(--paper); transform-origin: left center; }
+      .url { font-weight: 900; font-size: 74px; letter-spacing: -0.04em; color: var(--paper); }
+      #tg-rule { position: absolute; left: 116px; width: 880px; top: 1052px; height: 2px;
+                 background: var(--hair); transform-origin: left center; }
+      .fine { font-weight: 300; font-size: 25px; line-height: 1.5; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="{{DURATION}}"
+         data-width="1080" data-height="1920">
+
+      <!-- 1. the hook ------------------------------------------------------->
+      <div class="clip" id="k1" data-start="0" data-duration="{{S1_DURATION}}" data-track-index="0">
+        <p class="kicker pad" style="top: 300px;" id="k1-kick">{{KICKER}}</p>
+        <p id="k1-name">{{NAME}}</p>
+        <p id="k1-code">{{CODE}}</p>
+        <div id="k1-mask"><p id="k1-fig">{{MOVE_TEXT}}</p></div>
+        <div id="k1-rule"></div>
+        <p class="body pad" style="top: 1046px;" id="k1-cap">{{HOOK_CAPTION}}</p>
+      </div>
+
+      <!-- 2. the candles ---------------------------------------------------->
+      <div class="clip" id="k2" data-start="{{S2_START}}" data-duration="{{S2_DURATION}}" data-track-index="0">
+        <p class="head pad" style="top: 300px;" id="k2-head">{{TAPE_HEAD}}</p>
+        <div id="tape">
+          {{CANDLES}}
+          <div class="lvl" id="lvl-entry" style="top: {{ENTRY_Y}}px;"></div>
+          {{STOP_LINE}}
+          <div class="flag" id="flag-in" style="left: {{ENTRY_X}}px;"></div>
+          <div class="flag" id="flag-out" style="left: {{EXIT_X}}px;"></div>
+        </div>
+        <p class="lvl-tag" id="tag-entry" style="top: {{ENTRY_TAG_TOP}}px; right: 84px;">매수 {{ENTRY_TEXT}}</p>
+        {{STOP_TAG}}
+        <p class="flag-k" id="flag-in-k" style="left: {{ENTRY_K_X}}px;">매수</p>
+        <p class="flag-k" id="flag-out-k" style="left: {{EXIT_K_X}}px; top: {{EXIT_K_TOP}}px;">정리</p>
+        <p class="body" id="k2-note">{{TAPE_NOTE}}</p>
+      </div>
+
+      <!-- 3. what it did to the account ------------------------------------->
+      <div class="clip" id="k3" data-start="{{S3_START}}" data-duration="{{S3_DURATION}}" data-track-index="0">
+        <p class="head pad" style="top: 300px;" id="k3-head">계좌에 남긴 것</p>
+        {{FACTS}}
+        <p class="body pad" style="top: 1150px;" id="k3-note">{{FACTS_NOTE}}</p>
+      </div>
+
+      <!-- 4. the outro ------------------------------------------------------>
+      <div class="clip" id="k4" data-start="{{S4_START}}" data-duration="{{S4_DURATION}}" data-track-index="0">
+        <div class="pad" style="top: 560px;">
+          <p class="head" id="k4-l1">{{OUTRO1}}</p>
+          <p class="head" id="k4-l2">{{OUTRO2}}</p>
+        </div>
+        <div id="k4-rule"></div>
+        <p class="body pad" style="top: 800px;" id="k4-call">{{OUTRO_CALL}}</p>
+        <p class="url pad" style="top: 858px;" id="k4-url">{{URL}}</p>
+        <div id="tg-rule"></div>
+        <div class="pad" style="top: 1090px;" id="k4-tg">
+          <p class="fine" style="color: var(--ink2);">{{TELEGRAM_LINE}}</p>
+          <p class="url" style="font-size: 54px; margin-top: 14px;">{{TELEGRAM}}</p>
+        </div>
+        <p class="fine pad" style="top: 1300px;" id="k4-fine">AI 실험 기록이며 매매 권유가 아닙니다.</p>
+      </div>
+
+      <p class="mark">{{URL}}</p>
+      <div id="swipe"></div>
+      <div id="grain"><div class="g"></div></div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      function cut(at) {
+        tl.fromTo("#swipe", { x: 0 }, { x: 1420, duration: 0.5, ease: "power2.inOut" }, at - 0.22);
+      }
+
+      // --- 1. hook ----------------------------------------------------------
+      tl.fromTo("#k1-kick", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.32 }, 0)
+        .fromTo("#k1-name", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.1)
+        .fromTo("#k1-code", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.34)
+        .fromTo("#k1-fig", { yPercent: 44, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.6, ease: "power3.out" }, 0.56)
+        .fromTo("#k1-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46, ease: "power3.out" }, 1.1)
+        .fromTo("#k1-cap", { opacity: 0 }, { opacity: 1, duration: 0.34 }, 1.24);
+
+      // --- 2. the tape runs -------------------------------------------------
+      // Sessions arrive in the order they happened, fast enough to read as a
+      // tape rather than a slideshow. Then the two levels are laid over them:
+      // both were set on the buy, before any of this was known.
+      const S2 = {{S2_START}}, BARS = {{BAR_COUNT}}, ENTRY_AT = {{ENTRY_INDEX}}, EXIT_AT = {{EXIT_INDEX}};
+      cut(S2);
+      tl.fromTo("#k2-head", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S2);
+
+      const HAS_STOP = {{HAS_STOP}};
+      const STEP = 1.5 / Math.max(BARS, 1);
+      for (let i = 0; i < BARS; i += 1) {
+        tl.fromTo("#bar" + i, { opacity: 0, scaleY: 0 },
+                  { opacity: 1, scaleY: 1, duration: 0.2, ease: "power2.out" }, S2 + 0.4 + i * STEP);
+      }
+
+      const laid = S2 + 0.4 + BARS * STEP;
+      tl.fromTo("#lvl-entry", { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power3.out" }, laid + 0.1)
+        .fromTo("#tag-entry", { opacity: 0, x: 14 }, { opacity: 1, x: 0, duration: 0.3 }, laid + 0.34)
+        .fromTo("#flag-in", { opacity: 0, scaleY: 0 }, { opacity: 1, scaleY: 1, duration: 0.3, ease: "power2.out" }, laid + 0.7)
+        .fromTo("#flag-in-k", { opacity: 0 }, { opacity: 1, duration: 0.26 }, laid + 0.82)
+        .fromTo("#flag-out", { opacity: 0, scaleY: 0 }, { opacity: 1, scaleY: 1, duration: 0.3, ease: "power2.out" }, laid + 0.94)
+        .fromTo("#flag-out-k", { opacity: 0 }, { opacity: 1, duration: 0.26 }, laid + 1.06)
+        .fromTo("#k2-note", { opacity: 0 }, { opacity: 1, duration: 0.36 }, laid + 1.24);
+
+      // A stop line is only drawn when the trade actually carried one; an
+      // absent level used to be drawn at the floor with a blank price on it.
+      if (HAS_STOP) {
+        tl.fromTo("#lvl-stop", { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power3.out" }, laid + 0.34)
+          .fromTo("#tag-stop", { opacity: 0, x: 14 }, { opacity: 1, x: 0, duration: 0.3 }, laid + 0.58);
+      }
+
+      // --- 3. what it did to the account ------------------------------------
+      const S3 = {{S3_START}}, FACTS = {{FACT_VALUES}};
+      cut(S3);
+      tl.fromTo("#k3-head", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S3);
+      FACTS.forEach(function (row, i) {
+        const at = S3 + 0.4 + i * 0.36;
+        const node = "#fact" + i;
+        tl.fromTo(node + " .k", { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.32 }, at)
+          .fromTo(node + " .rule", { scaleX: 0 }, { scaleX: 1, duration: 0.42, ease: "power2.out" }, at)
+          .fromTo(node + " .v", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.3 }, at + 0.06);
+      });
+      tl.fromTo("#k3-note", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S3 + 0.5 + FACTS.length * 0.36);
+
+      // --- 4. outro ----------------------------------------------------------
+      const S4 = {{S4_START}};
+      cut(S4);
+      tl.fromTo("#k4-l1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32 }, S4)
+        .fromTo("#k4-l2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32 }, S4 + 0.16)
+        .fromTo("#k4-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46, ease: "power3.out" }, S4 + 0.38)
+        .fromTo("#k4-call", { opacity: 0 }, { opacity: 1, duration: 0.3 }, S4 + 0.5)
+        .fromTo("#k4-url", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S4 + 0.64)
+        .fromTo("#tg-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46 }, S4 + 1.05)
+        .fromTo("#k4-tg", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S4 + 1.18)
+        .fromTo("#k4-fine", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S4 + 1.55);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

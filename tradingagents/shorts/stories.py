@@ -505,10 +505,179 @@ def build_debate(payload: Mapping[str, Any], *, now: datetime | None = None, the
     )
 
 
+
+MIN_CURVE_DAYS = 5
+
+
+def build_curve(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME) -> Storyboard:
+    """The line the account drew, against the line the index drew.
+
+    A weekly report that lists numbers is a table read aloud. The two lines
+    starting from the same zero and drifting apart is the same information
+    arriving as one picture, and the gap between them is the only claim this
+    channel actually makes.
+    """
+
+    curve = payload.get("curve") or {}
+    summary = curve.get("summary") or {}
+    points = list(curve.get("points") or [])
+    stamp = _today(now).strftime("%Y%m%d")
+
+    account = float(summary.get("account_return") or 0.0)
+    benchmark = float(summary.get("benchmark_return") or 0.0)
+    excess = float(summary.get("excess_return") or (account - benchmark))
+    bench_name = str(summary.get("benchmark_name") or "KOSPI")
+    days = int(summary.get("day_count") or len(points))
+    drawdown = float(summary.get("max_drawdown") or 0.0)
+
+    ahead = excess >= 0
+    lede = f"{bench_name}보다 앞섰습니다." if ahead else f"{bench_name}에 뒤졌습니다."
+
+    scenes: tuple[Scene, ...] = (
+        Hook(
+            eyebrow=f"{korean_date(_today(now).isoformat())} · 최근 {days}거래일",
+            value_to=excess,
+            value_colour=tone(excess),
+            caption=f"{bench_name} 대비 얼마나 앞섰는지, 뒤졌는지",
+            lines=(f"계좌 {percent(account)}, {bench_name} {percent(benchmark)}.", lede),
+            seconds=3.6,
+            narration=(
+                f"최근 {days}거래일 성적입니다. 계좌는 {spoken_percent(account)}, "
+                f"{bench_name}는 {spoken_percent(benchmark)}. 차이는 {spoken_percent(excess)}."
+            ),
+        ),
+        Statement(
+            eyebrow="선으로",
+            lines=(f"계좌 {percent(account)}", f"{bench_name} {percent(benchmark)}"),
+            caption=f"같은 날 0에서 출발해 여기까지 왔습니다",
+            seconds=6.2,
+            narration=(
+                "같은 날 0에서 출발한 두 선입니다. 벌어진 만큼이 이 계좌가 한 일이에요."
+                if ahead
+                else "같은 날 0에서 출발한 두 선입니다. 지수보다 못했습니다. 그것도 그대로 둡니다."
+            ),
+        ),
+        Statement(
+            eyebrow="숫자로",
+            lines=(percent(account), percent(benchmark), percent(excess)),
+            caption=f"최대 낙폭 {percent(drawdown)}. 이 기간에 가장 깊게 빠진 지점입니다.",
+            seconds=5.4,
+            narration=f"가장 깊게 빠졌을 때가 {spoken_percent(drawdown)}였습니다.",
+        ),
+        _outro(
+            headline=("맞힌 날만 올리는 채널은", "이미 많습니다."),
+            call="틀린 주도 그대로 남습니다",
+            narration="맞힌 날만 올리는 채널, 이미 많잖아요. 여긴 틀린 주도 그대로 남습니다. 다음 주 선별도 텔레그램으로 먼저 갑니다.",
+        ),
+    )
+
+    return Storyboard(
+        slug=f"curve-{stamp}",
+        title=f"AI 모의계좌 {days}거래일 | 계좌 {percent(account)} vs {bench_name} {percent(benchmark)}",
+        description=(
+            f"AI가 고른 종목으로 굴린 모의 계좌가 {bench_name}와 얼마나 벌어졌는지, 하루치도 빼지 않고 그린 기록입니다.\n\n"
+            f"자산 곡선 → {_link('/paper', 'curve', stamp=stamp)}\n"
+            f"검증 결과 → {_link('/outcomes', 'curve', stamp=stamp)}\n"
+            f"{_telegram_line()}\n\n"
+            "AI 실험 기록이며 매매 권유가 아닙니다. 모의 계좌 기록이고 실계좌 주문은 없습니다.\n"
+            "#주식 #AI주식 #모의투자 #코스피 #수익률"
+        ),
+        tags=("주식", "AI주식", "모의투자", "코스피", "수익률", "주간성적"),
+        scenes=scenes,
+        theme=theme,
+        comment=_comment(
+            f"이 선을 하루 단위로 쪼갠 기록과, 그 안의 거래 하나하나가 여기 있습니다.",
+            path="/paper", campaign="curve", stamp=stamp,
+        ),
+    )
+
+
+
+def build_candles(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME) -> Storyboard:
+    """One trade, on its own tape, with the two levels that ended it.
+
+    The account cuts show every trade as a bar on a shared scale. This one
+    stops on a single name and lets the sessions run, so the entry and the stop
+    are seen sitting on the chart before the thing that hit them happened -
+    which is the only part of this that is not hindsight.
+    """
+
+    move = payload.get("candles") or {}
+    trade = move.get("trade") or {}
+    stamp = _today(now).strftime("%Y%m%d")
+
+    name = str(trade.get("ticker_name") or trade.get("ticker_code") or "종목")
+    code = str(trade.get("ticker_code") or "")
+    realized = float(trade.get("realized_return") or 0.0)
+    pnl = float(trade.get("realized_pnl") or 0.0)
+    reason = EXIT_LABELS.get(str(trade.get("exit_reason")), "정리")
+    # Older rows carry no stop price, and the cut must not narrate a line it
+    # is not drawing.
+    has_stop = bool(trade.get("stop_price"))
+    levels = "매수선과 손절선" if has_stop else "매수선"
+    share = float(move.get("share") or 0.0)
+    held = int(move.get("held_days") or 0)
+
+    scenes: tuple[Scene, ...] = (
+        Hook(
+            eyebrow=f"{korean_date(_today(now).isoformat())} · 계좌를 가장 크게 흔든 한 종목",
+            value_to=None,
+            caption=f"{held}거래일 들고 있다가 {reason}했습니다",
+            lines=(f"{name} 한 종목이", f"계좌 손익의 {abs(share) * 100:.0f}%를 차지했습니다."),
+            seconds=3.6,
+            narration=f"{name} 하나가 계좌를 제일 크게 흔들었습니다. {spoken_percent(realized)}요.",
+        ),
+        Statement(
+            eyebrow="그 종목의 차트",
+            lines=(f"{name} {percent(realized)}",),
+            caption=f"{levels}은 살 때 이미 그어져 있었습니다.",
+            seconds=7.0,
+            narration=(
+                f"{held}거래일입니다. {levels}은 살 때 정해둔 거예요. "
+                + (f"저기 닿아서 {reason}했습니다." if has_stop else f"그리고 {reason}했습니다.")
+            ),
+        ),
+        Statement(
+            eyebrow="계좌에 남긴 것",
+            lines=(percent(realized), money(pnl), f"{abs(share) * 100:.0f}%"),
+            caption="한 종목이 이만큼 흔들어도 계좌가 버티는 건, 비중과 손절선 때문입니다.",
+            seconds=5.4,
+            narration=f"금액으로는 {spoken_money(pnl)}. 한 종목에 몰아넣지 않으니 이만큼에서 끝났습니다.",
+        ),
+        _outro(
+            headline=("맞힌 날만 올리는 채널은", "이미 많습니다."),
+            call="틀린 종목도 그대로 남습니다",
+            narration="맞힌 날만 올리는 채널, 이미 많잖아요. 여긴 틀린 종목도 그대로 남습니다. 내일 아침 뭘 골랐는지는 텔레그램으로 먼저 갑니다.",
+        ),
+    )
+
+    return Storyboard(
+        slug=f"candles-{stamp}",
+        title=f"{name} 한 종목이 계좌를 이만큼 흔들었습니다 | {percent(realized)}",
+        description=(
+            f"AI 모의 계좌에서 {name}을 {held}거래일 들고 있다가 {reason}한 기록입니다. 매수가와 손절선, 그리고 그 사이에 일어난 일을 그대로 공개합니다.\n\n"
+            f"모의 계좌 → {_link('/paper', 'candles', stamp=stamp)}\n"
+            f"이 종목 → {_link('/stocks/' + code, 'candles', stamp=stamp)}\n"
+            f"{_telegram_line()}\n\n"
+            "AI 실험 기록이며 매매 권유가 아닙니다. 모의 계좌 기록이고 실계좌 주문은 없습니다.\n"
+            "#주식 #AI주식 #모의투자 #코스피 #손절"
+        ),
+        tags=("주식", "AI주식", "모의투자", "코스피", "손절", name),
+        scenes=scenes,
+        theme=theme,
+        comment=_comment(
+            f"{name}을 왜 샀고 왜 정리했는지, 그날의 판단 근거가 그대로 있습니다.",
+            path="/stocks/" + code if code else "/paper", campaign="candles", stamp=stamp,
+        ),
+    )
+
+
 STORIES: dict[str, Callable[..., Storyboard]] = {
     "record": build_record,
     "picks": build_picks,
     "debate": build_debate,
+    "curve": build_curve,
+    "candles": build_candles,
 }
 
 

@@ -29,6 +29,9 @@ KST = ZoneInfo("Asia/Seoul")
 LEDGER_ENV = "TRADINGAGENTS_SHORTS_LEDGER"
 DEFAULT_LEDGER = Path("shorts-out/published.json")
 
+# A weekly curve needs enough days to have a shape.
+MIN_CURVE_DAYS = 5
+
 MILESTONES = (10, 25, 50, 100, 200, 365)
 
 
@@ -58,12 +61,12 @@ STORIES: tuple[Story, ...] = (
     Story("take_profit", "목표가에 닿았다", "event", 1.0, 2, None),
     Story("crossover", "AI와 규칙이 뒤집혔다", "event", 0.9, 7, None),
     Story("equity_extreme", "계좌 신고가·신저가", "event", 0.85, 5, None),
-    Story("big_mover", "한 종목이 계좌를 흔들었다", "event", 0.95, 3, None),
+    Story("big_mover", "한 종목이 계좌를 흔들었다", "event", 0.95, 3, "candles"),
     Story("rejected", "거른 종목의 그 뒤", "event", 1.0, 4, None),
     Story("debate", "강세 AI vs 약세 AI", "event", 1.0, 2, "debate"),
     Story("milestone", "이정표", "event", 1.0, 30, None),
     # --- the calendar ------------------------------------------------------
-    Story("weekly", "주간 성적표", "periodic", 1.0, 6, None),
+    Story("weekly", "주간 성적표", "periodic", 1.0, 6, "curve"),
     Story("monthly", "월간 결산", "periodic", 1.0, 25, None),
     # --- needs no data at all, which is what quiet days are for -------------
     Story("explain_stop", "손절선은 어떻게 정하나", "standby", 1.0, 30, None),
@@ -216,7 +219,9 @@ def evaluate(payload: Mapping[str, Any], *, now: datetime | None = None, ledger:
     if closed:
         deepest = min(closed, key=lambda item: float(item["realized_return"]))
         move = abs(float(deepest["realized_return"]))
-        if move >= 0.10 and str(deepest.get("exit_date"))[:10] == today.isoformat():
+        # and the cut needs the sessions to draw, not only the number
+        drawable = bool((payload.get("candles") or {}).get("bars"))
+        if move >= 0.10 and str(deepest.get("exit_date"))[:10] == today.isoformat() and drawable:
             add("big_mover", min(move * 4, 1.0),
                 f"{deepest.get('ticker_name')} 한 종목이 {move * 100:.1f}% 움직였습니다.",
                 ticker=deepest.get("ticker_name"))
@@ -262,7 +267,11 @@ def evaluate(payload: Mapping[str, Any], *, now: datetime | None = None, ledger:
 
     # --- the calendar ------------------------------------------------------
     if today.weekday() == 4:
-        add("weekly", 0.8, "한 주가 끝났습니다.")
+        # Two points is a line segment, not a curve. The cut waits until there
+        # is enough of it to be worth watching rather than reading.
+        drawn = len((payload.get("curve") or {}).get("points") or [])
+        if drawn >= MIN_CURVE_DAYS:
+            add("weekly", 0.8, f"한 주가 끝났고, {drawn}거래일치 선이 쌓였습니다.", days=drawn)
     if (today + timedelta(days=1)).day == 1:
         add("monthly", 0.95, "한 달이 끝났습니다.")
 

@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Noto Sans KR"; font-weight: 300; src: local("Noto Sans KR Light"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 500; src: local("Noto Sans KR Medium"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 700; src: local("Noto Sans KR Bold"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 900; src: local("Noto Sans KR Black"), local("Noto Sans KR"); }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0b1320; }
+
+      :root {
+        --ink: #eaeff7; --ink2: #94a6bd; --muted: #5f7189;
+        --up: #ff5c60; --down: #4d9bff;
+        --paper: #f3ecdf; --hair: #1f2d44;
+      }
+
+      #root {
+        width: 1080px; height: 1920px; position: relative; overflow: hidden;
+        font-family: "Noto Sans KR", sans-serif; color: var(--ink);
+        font-variant-numeric: tabular-nums;
+        background:
+          radial-gradient(1200px 900px at 8% 4%, rgba(243, 236, 223, 0.07), transparent 62%),
+          radial-gradient(900px 800px at 96% 88%, rgba(12, 22, 38, 0.9), transparent 60%),
+          linear-gradient(178deg, #0d1726 0%, #0b1320 46%, #080f1a 100%);
+      }
+      .clip { position: absolute; inset: 0; z-index: 10; }
+
+      #grain { position: absolute; inset: 0; pointer-events: none; z-index: 90; }
+      #grain .g {
+        position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; opacity: 0.03;
+        background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.68' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        animation: hf-grain 0.75s steps(1) infinite;
+      }
+      @keyframes hf-grain {
+        0%,100% { transform: translate(0,0); } 20% { transform: translate(-8%,4%); }
+        40% { transform: translate(6%,-7%); } 60% { transform: translate(-4%,9%); }
+        80% { transform: translate(9%,2%); }
+      }
+      #swipe { position: absolute; top: 0; left: -320px; width: 300px; height: 1920px; z-index: 2;
+               background: linear-gradient(90deg, transparent, rgba(243,236,223,0.10) 45%, rgba(243,236,223,0.28) 88%, transparent);
+               transform: translateX(0); }
+
+      .pad { position: absolute; left: 116px; right: 84px; }
+      .kicker { font-weight: 300; font-size: 31px; color: var(--muted); letter-spacing: 0.02em; }
+      .head { font-weight: 900; font-size: 66px; letter-spacing: -0.042em; line-height: 1.2; }
+      .body { font-weight: 300; font-size: 34px; color: var(--ink2); line-height: 1.5; word-break: keep-all; }
+      .mark { position: absolute; right: 84px; top: 1498px; font-weight: 300; font-size: 28px;
+              color: var(--muted); z-index: 12; }
+
+      /* ---- 1. the hook --------------------------------------------------- */
+      #c1-mask { position: absolute; left: 104px; top: 470px; width: 900px; height: 300px; overflow: hidden; }
+      #c1-fig { position: absolute; left: 0; top: 0; font-size: 300px; font-weight: 900;
+                letter-spacing: -0.055em; line-height: 0.86; color: {{HOOK_COLOUR}}; }
+      #c1-rule { position: absolute; left: 116px; width: 880px; top: 996px; height: 3px;
+                 background: var(--paper); transform-origin: left center; }
+
+      /* ---- 2. the line it drew ------------------------------------------- */
+      #chart { position: absolute; left: 116px; top: 660px; width: 880px; height: 560px; }
+      #chart svg { width: 880px; height: 560px; display: block; overflow: visible; }
+      .zero { stroke: var(--hair); stroke-width: 2; stroke-dasharray: 6 8; }
+      .line-acct { fill: none; stroke: var(--paper); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+      .line-bench { fill: none; stroke: var(--muted); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+      .cap-dot { r: 11; }
+      #dot-acct { fill: var(--paper); }
+      #dot-bench { fill: var(--muted); }
+      .end-tag { position: absolute; font-weight: 900; font-size: 40px; letter-spacing: -0.035em; }
+      #tag-acct { color: var(--paper); }
+      #tag-bench { color: var(--muted); font-size: 32px; }
+      #c2-legend { position: absolute; left: 116px; top: 1290px; font-weight: 500; font-size: 27px; color: var(--ink2); }
+      #c2-dates { position: absolute; right: 84px; top: 1290px; font-weight: 300; font-size: 27px; color: var(--muted); text-align: right; }
+
+      /* ---- 3. the three numbers ------------------------------------------ */
+      .stat { position: absolute; left: 116px; right: 84px; }
+      .stat .k { font-weight: 500; font-size: 36px; color: var(--ink2); }
+      .stat .v { position: absolute; right: 0; top: -6px; font-weight: 900; font-size: 60px; letter-spacing: -0.04em; }
+      .stat .rule { position: absolute; left: 0; top: 78px; width: 880px; height: 2px; background: var(--hair);
+                    transform-origin: left center; }
+
+      /* ---- 4. the outro --------------------------------------------------- */
+      #c4-rule { position: absolute; left: 116px; width: 880px; top: 760px; height: 3px;
+                 background: var(--paper); transform-origin: left center; }
+      .url { font-weight: 900; font-size: 74px; letter-spacing: -0.04em; color: var(--paper); }
+      #tg-rule { position: absolute; left: 116px; width: 880px; top: 1052px; height: 2px;
+                 background: var(--hair); transform-origin: left center; }
+      .fine { font-weight: 300; font-size: 25px; line-height: 1.5; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="{{DURATION}}"
+         data-width="1080" data-height="1920">
+
+      <!-- 1. the hook ------------------------------------------------------->
+      <div class="clip" id="c1" data-start="0" data-duration="{{S1_DURATION}}" data-track-index="0">
+        <p class="kicker pad" style="top: 300px;" id="c1-kick">{{KICKER}}</p>
+        <div id="c1-mask"><p id="c1-fig">{{HOOK_TEXT}}</p></div>
+        <p class="body pad" style="top: 900px;" id="c1-cap">{{HOOK_CAPTION}}</p>
+        <div id="c1-rule"></div>
+        <div class="pad" style="top: 1052px;">
+          <p class="head" id="c1-l1">{{LINE1}}</p>
+          <p class="head" id="c1-l2">{{LINE2}}</p>
+        </div>
+      </div>
+
+      <!-- 2. the line it drew ----------------------------------------------->
+      <div class="clip" id="c2" data-start="{{S2_START}}" data-duration="{{S2_DURATION}}" data-track-index="0">
+        <p class="head pad" style="top: 300px;" id="c2-head">{{CHART_HEAD}}</p>
+        <div id="chart">
+          <svg viewBox="0 0 880 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="계좌와 지수의 수익률 추이">
+            <line class="zero" x1="0" y1="{{ZERO_Y}}" x2="880" y2="{{ZERO_Y}}" />
+            <path class="line-bench" id="line-bench" d="{{BENCH_PATH}}" />
+            <path class="line-acct" id="line-acct" d="{{ACCT_PATH}}" />
+            <circle class="cap-dot" id="dot-bench" cx="{{END_X}}" cy="{{BENCH_END_Y}}" />
+            <circle class="cap-dot" id="dot-acct" cx="{{END_X}}" cy="{{ACCT_END_Y}}" />
+          </svg>
+        </div>
+        <p class="end-tag" id="tag-acct" style="left: 116px; top: {{ACCT_TAG_TOP}}px;">{{ACCT_END_TEXT}}</p>
+        <p class="end-tag" id="tag-bench" style="left: 116px; top: {{BENCH_TAG_TOP}}px;">{{BENCH_NAME}} {{BENCH_END_TEXT}}</p>
+        <p id="c2-legend">굵은 선이 계좌, 얇은 선이 {{BENCH_NAME}}</p>
+        <p id="c2-dates">{{DATE_RANGE}}</p>
+      </div>
+
+      <!-- 3. the three numbers ---------------------------------------------->
+      <div class="clip" id="c3" data-start="{{S3_START}}" data-duration="{{S3_DURATION}}" data-track-index="0">
+        <p class="head pad" style="top: 300px;" id="c3-head">숫자로</p>
+        {{STATS}}
+        <p class="body pad" style="top: 1180px;" id="c3-note">{{STATS_NOTE}}</p>
+      </div>
+
+      <!-- 4. the outro ------------------------------------------------------>
+      <div class="clip" id="c4" data-start="{{S4_START}}" data-duration="{{S4_DURATION}}" data-track-index="0">
+        <div class="pad" style="top: 560px;">
+          <p class="head" id="c4-l1">{{OUTRO1}}</p>
+          <p class="head" id="c4-l2">{{OUTRO2}}</p>
+        </div>
+        <div id="c4-rule"></div>
+        <p class="body pad" style="top: 800px;" id="c4-call">{{OUTRO_CALL}}</p>
+        <p class="url pad" style="top: 858px;" id="c4-url">{{URL}}</p>
+        <div id="tg-rule"></div>
+        <div class="pad" style="top: 1090px;" id="c4-tg">
+          <p class="fine" style="color: var(--ink2);">{{TELEGRAM_LINE}}</p>
+          <p class="url" style="font-size: 54px; margin-top: 14px;">{{TELEGRAM}}</p>
+        </div>
+        <p class="fine pad" style="top: 1300px;" id="c4-fine">AI 실험 기록이며 매매 권유가 아닙니다.</p>
+      </div>
+
+      <p class="mark">{{URL}}</p>
+      <div id="swipe"></div>
+      <div id="grain"><div class="g"></div></div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      function cut(at) {
+        tl.fromTo("#swipe", { x: 0 }, { x: 1420, duration: 0.5, ease: "power2.inOut" }, at - 0.22);
+      }
+
+      // --- 1. hook ----------------------------------------------------------
+      tl.fromTo("#c1-kick", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.32 }, 0)
+        .fromTo("#c1-fig", { yPercent: 42, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.62, ease: "power3.out" }, 0.1)
+        .fromTo("#c1-cap", { opacity: 0 }, { opacity: 1, duration: 0.32 }, 0.66)
+        .fromTo("#c1-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46, ease: "power3.out" }, 0.78)
+        .fromTo("#c1-l1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.34 }, 0.98)
+        .fromTo("#c1-l2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.34 }, 1.13);
+
+      // --- 2. the line draws itself -----------------------------------------
+      // Both lines are laid down at once, from the same zero, so the gap
+      // between them opens as they go rather than being announced at the end.
+      const S2 = {{S2_START}};
+      cut(S2);
+      // Lengths come from the composer. Measuring them here reads zero before
+      // the SVG is laid out, and a zero dash pattern draws nothing at all.
+      const acct = document.getElementById("line-acct");
+      const bench = document.getElementById("line-bench");
+      const acctLen = {{ACCT_LEN}}, benchLen = {{BENCH_LEN}};
+      gsap.set(acct, { strokeDasharray: acctLen, strokeDashoffset: acctLen });
+      gsap.set(bench, { strokeDasharray: benchLen, strokeDashoffset: benchLen });
+
+      tl.fromTo("#c2-head", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S2)
+        .fromTo(".zero", { opacity: 0 }, { opacity: 1, duration: 0.3 }, S2 + 0.18)
+        .to(bench, { strokeDashoffset: 0, duration: 1.5, ease: "none" }, S2 + 0.34)
+        .to(acct, { strokeDashoffset: 0, duration: 1.5, ease: "none" }, S2 + 0.34)
+        .fromTo("#dot-bench", { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.24, ease: "back.out(2.4)" }, S2 + 1.84)
+        .fromTo("#dot-acct", { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.24, ease: "back.out(2.4)" }, S2 + 1.88)
+        .fromTo("#tag-bench", { opacity: 0, x: -18 }, { opacity: 1, x: 0, duration: 0.3 }, S2 + 1.92)
+        .fromTo("#tag-acct", { opacity: 0, x: -18 }, { opacity: 1, x: 0, duration: 0.3 }, S2 + 2.02)
+        .fromTo("#c2-legend, #c2-dates", { opacity: 0 }, { opacity: 1, duration: 0.3 }, S2 + 2.2);
+
+      // --- 3. the three numbers ---------------------------------------------
+      const S3 = {{S3_START}}, STATS = {{STAT_VALUES}};
+      cut(S3);
+      tl.fromTo("#c3-head", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S3);
+      STATS.forEach(function (row, i) {
+        const at = S3 + 0.4 + i * 0.36;
+        const node = "#stat" + i;
+        const tally = { v: 0 };
+        const valueNode = document.querySelector(node + " .v");
+        tl.fromTo(node + " .k", { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.32 }, at)
+          .fromTo(node + " .rule", { scaleX: 0 }, { scaleX: 1, duration: 0.42, ease: "power2.out" }, at)
+          .fromTo(node + " .v", { opacity: 0 }, { opacity: 1, duration: 0.24 }, at + 0.06)
+          .to(tally, {
+            v: row, duration: 0.56, ease: "power3.out",
+            onUpdate: function () {
+              if (valueNode) valueNode.textContent = (tally.v >= 0 ? "+" : "") + tally.v.toFixed(2) + "%";
+            },
+          }, at + 0.06);
+      });
+      tl.fromTo("#c3-note", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S3 + 0.5 + STATS.length * 0.36);
+
+      // --- 4. outro ----------------------------------------------------------
+      const S4 = {{S4_START}};
+      cut(S4);
+      tl.fromTo("#c4-l1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32 }, S4)
+        .fromTo("#c4-l2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32 }, S4 + 0.16)
+        .fromTo("#c4-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46, ease: "power3.out" }, S4 + 0.38)
+        .fromTo("#c4-call", { opacity: 0 }, { opacity: 1, duration: 0.3 }, S4 + 0.5)
+        .fromTo("#c4-url", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S4 + 0.64)
+        .fromTo("#tg-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46 }, S4 + 1.05)
+        .fromTo("#c4-tg", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S4 + 1.18)
+        .fromTo("#c4-fine", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S4 + 1.55);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

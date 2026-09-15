@@ -264,6 +264,294 @@ def compose_debate(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, 
     return template, running
 
 
+CHART_W, CHART_H, CHART_TOP = 880, 560, 660
+STAT_TOPS = (600, 740, 880)
+
+
+def _polyline(values: Sequence[float], *, low: float, high: float) -> list[tuple[float, float]]:
+    span = (high - low) or 1.0
+    step = CHART_W / max(len(values) - 1, 1)
+    return [
+        (index * step, CHART_H - ((value - low) / span) * CHART_H)
+        for index, value in enumerate(values)
+    ]
+
+
+def _path(values: Sequence[float], *, low: float, high: float) -> str:
+    """One SVG polyline across the chart box, in the box's own coordinates."""
+
+    if len(values) < 2:
+        return ""
+    points = _polyline(values, low=low, high=high)
+    return "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in points)
+
+
+def _path_length(values: Sequence[float], *, low: float, high: float) -> float:
+    """How long that polyline is, worked out here rather than measured there.
+
+    ``getTotalLength()`` reads zero when the browser has not laid the SVG out
+    yet, and a dash pattern of zero draws nothing at all - which is how the
+    first cut came out with two invisible lines. The geometry is known at this
+    end, so the length travels with it.
+    """
+
+    if len(values) < 2:
+        return 0.0
+    points = _polyline(values, low=low, high=high)
+    return sum(
+        ((bx - ax) ** 2 + (by - ay) ** 2) ** 0.5
+        for (ax, ay), (bx, by) in zip(points, points[1:])
+    )
+
+
+def _stat_row(index: int, label: str) -> str:
+    top = STAT_TOPS[min(index, len(STAT_TOPS) - 1)]
+    return (
+        f'<div class="stat" id="stat{index}" style="top: {top}px;">'
+        f'<p class="k">{label}</p><p class="v">+0.00%</p><div class="rule"></div></div>'
+    )
+
+
+def compose_curve(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, float]:
+    """Two lines from the same zero, drawn at the same speed.
+
+    Drawing them together rather than one after the other is the point: the
+    gap opens as they go, so the difference is watched rather than announced.
+    """
+
+    curve = payload.get("curve") or {}
+    summary = curve.get("summary") or {}
+    points = list(curve.get("points") or [])
+
+    account = [float(row.get("total_return") or 0.0) * 100 for row in points]
+    benchmark = [float(row.get("benchmark_return") or 0.0) * 100 for row in points]
+    everything = account + benchmark + [0.0]
+    low, high = min(everything), max(everything)
+    pad = max((high - low) * 0.18, 0.4)
+    low, high = low - pad, high + pad
+
+    def y_of(value: float) -> float:
+        return CHART_H - ((value - low) / ((high - low) or 1.0)) * CHART_H
+
+    bench_name = str(summary.get("benchmark_name") or "KOSPI")
+    account_end = account[-1] if account else 0.0
+    bench_end = benchmark[-1] if benchmark else 0.0
+    excess = float(summary.get("excess_return") or 0.0) * 100
+
+    # the end labels ride at the line's own height, nudged apart when the two
+    # finish close enough that the type would collide
+    acct_top, bench_top = CHART_TOP + y_of(account_end) - 26, CHART_TOP + y_of(bench_end) - 20
+    if abs(acct_top - bench_top) < 56:
+        bench_top = acct_top + (56 if bench_end <= account_end else -56)
+
+    handle = telegram_handle()
+    host = site_url().split("://", 1)[-1]
+    lengths = [scene.seconds for scene in board.scenes]
+    starts, running = [], 0.0
+    for value in lengths:
+        starts.append(running)
+        running += value
+    outro = board.scenes[-1]
+
+    template = (Path(__file__).parent / "composition_curve.html").read_text(encoding="utf-8")
+    replacements = {
+        "{{DURATION}}": f"{running:.2f}",
+        "{{S1_DURATION}}": f"{lengths[0]:.2f}",
+        "{{S2_START}}": f"{starts[1]:.2f}",
+        "{{S2_DURATION}}": f"{lengths[1]:.2f}",
+        "{{S3_START}}": f"{starts[2]:.2f}",
+        "{{S3_DURATION}}": f"{lengths[2]:.2f}",
+        "{{S4_START}}": f"{starts[3]:.2f}",
+        "{{S4_DURATION}}": f"{lengths[3]:.2f}",
+        "{{KICKER}}": board.scenes[0].eyebrow,
+        "{{HOOK_TEXT}}": f"{excess:+.2f}%p",
+        "{{HOOK_COLOUR}}": "var(--up)" if excess >= 0 else "var(--down)",
+        "{{HOOK_CAPTION}}": board.scenes[0].caption,
+        "{{LINE1}}": board.scenes[0].lines[0] if board.scenes[0].lines else "",
+        "{{LINE2}}": board.scenes[0].lines[1] if len(board.scenes[0].lines) > 1 else "",
+        "{{CHART_HEAD}}": f"같은 날 0에서 출발했습니다",
+        "{{ACCT_PATH}}": _path(account, low=low, high=high),
+        "{{BENCH_PATH}}": _path(benchmark, low=low, high=high),
+        "{{ACCT_LEN}}": f"{_path_length(account, low=low, high=high):.1f}",
+        "{{BENCH_LEN}}": f"{_path_length(benchmark, low=low, high=high):.1f}",
+        "{{ZERO_Y}}": f"{y_of(0.0):.1f}",
+        "{{END_X}}": f"{CHART_W}",
+        "{{ACCT_END_Y}}": f"{y_of(account_end):.1f}",
+        "{{BENCH_END_Y}}": f"{y_of(bench_end):.1f}",
+        "{{ACCT_TAG_TOP}}": f"{acct_top:.0f}",
+        "{{BENCH_TAG_TOP}}": f"{bench_top:.0f}",
+        "{{ACCT_END_TEXT}}": f"계좌 {account_end:+.2f}%",
+        "{{BENCH_END_TEXT}}": f"{bench_end:+.2f}%",
+        "{{BENCH_NAME}}": bench_name,
+        "{{DATE_RANGE}}": f"{short_date(summary.get('first_date'))} → {short_date(summary.get('last_date'))}",
+        "{{STATS}}": "\n        ".join(
+            _stat_row(index, label) for index, label in enumerate(("계좌", bench_name, "지수 대비"))
+        ),
+        "{{STAT_VALUES}}": json.dumps([round(account_end, 2), round(bench_end, 2), round(excess, 2)]),
+        "{{STATS_NOTE}}": board.scenes[2].caption if len(board.scenes) > 2 else "",
+        "{{OUTRO1}}": outro.headline[0] if getattr(outro, "headline", ()) else "",
+        "{{OUTRO2}}": outro.headline[1] if len(getattr(outro, "headline", ())) > 1 else "",
+        "{{OUTRO_CALL}}": getattr(outro, "call", ""),
+        "{{URL}}": host,
+        "{{TELEGRAM_LINE}}": getattr(outro, "telegram_line", ""),
+        "{{TELEGRAM}}": handle or f"{host}/start",
+    }
+    for token, value in replacements.items():
+        template = template.replace(token, str(value))
+    return template, running
+
+
+TAPE_W, TAPE_H, TAPE_TOP = 880, 620, 640
+FACT_TOPS = (600, 760, 920)
+
+
+def _candle(index: int, bar: Mapping[str, Any], *, step: float, width: float, low: float, high: float) -> str:
+    """One session, placed from the tape's own top.
+
+    Scale is fixed before any of them are drawn, so a bar revealed by scaleY
+    grows out of its own base rather than moving the ones beside it.
+    """
+
+    span = (high - low) or 1.0
+
+    def y_of(value: float) -> float:
+        return TAPE_H - ((float(value) - low) / span) * TAPE_H
+
+    open_, close = float(bar.get("open") or 0), float(bar.get("close") or 0)
+    top, bottom = y_of(max(open_, close)), y_of(min(open_, close))
+    wick_top, wick_bottom = y_of(float(bar.get("high") or 0)), y_of(float(bar.get("low") or 0))
+    rising = close >= open_
+    return (
+        f'<div class="candle {"up" if rising else "down"}" id="bar{index}" '
+        f'style="left: {index * step:.1f}px; top: {wick_top:.1f}px; height: {max(wick_bottom - wick_top, 3):.1f}px; '
+        f'transform-origin: center {"bottom" if rising else "top"};">'
+        f'<div class="wick" style="top: 0; height: {max(wick_bottom - wick_top, 3):.1f}px;"></div>'
+        f'<div class="body" style="top: {top - wick_top:.1f}px; height: {max(bottom - top, 3):.1f}px;"></div>'
+        "</div>"
+    )
+
+
+def _fact_row(index: int, label: str, value: str, colour: str) -> str:
+    top = FACT_TOPS[min(index, len(FACT_TOPS) - 1)]
+    return (
+        f'<div class="fact" id="fact{index}" style="top: {top}px;">'
+        f'<p class="k">{label}</p><p class="v" style="color: {colour};">{value}</p><div class="rule"></div></div>'
+    )
+
+
+def compose_candles(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, float]:
+    """One name's sessions, with the entry and the stop laid over them."""
+
+    move = payload.get("candles") or {}
+    trade = move.get("trade") or {}
+    bars = [row for row in (move.get("bars") or []) if row.get("high") is not None][:40]
+
+    highs = [float(row["high"]) for row in bars] or [1.0]
+    lows = [float(row["low"]) for row in bars] or [0.0]
+    entry = float(trade.get("entry_price") or 0) or None
+    stop = float(trade.get("stop_price") or 0) or None
+    everything = highs + lows + [value for value in (entry, stop) if value]
+    low, high = min(everything), max(everything)
+    pad = max((high - low) * 0.08, 1.0)
+    low, high = low - pad, high + pad
+
+    def y_of(value: float) -> float:
+        return TAPE_H - ((float(value) - low) / ((high - low) or 1.0)) * TAPE_H
+
+    step = TAPE_W / max(len(bars), 1)
+    width = max(step * 0.62, 4.0)
+
+    dates = [str(row.get("date") or "")[:10] for row in bars]
+
+    def index_of(value: Any) -> int:
+        stamp = str(value or "")[:10]
+        return dates.index(stamp) if stamp in dates else -1
+
+    entry_index, exit_index = index_of(trade.get("entry_date")), index_of(trade.get("exit_date"))
+    entry_x = (entry_index if entry_index >= 0 else 0) * step + width / 2
+    exit_x = (exit_index if exit_index >= 0 else len(bars) - 1) * step + width / 2
+
+    entry_y, stop_y = y_of(entry or low), y_of(stop or low)
+    entry_tag, stop_tag = TAPE_TOP + entry_y - 34, TAPE_TOP + stop_y - 34
+    if abs(entry_tag - stop_tag) < 44:
+        stop_tag = entry_tag + 44
+
+    handle = telegram_handle()
+    host = site_url().split("://", 1)[-1]
+    lengths = [scene.seconds for scene in board.scenes]
+    starts, running = [], 0.0
+    for value in lengths:
+        starts.append(running)
+        running += value
+    outro = board.scenes[-1]
+
+    realized = float(trade.get("realized_return") or 0.0)
+    pnl = float(trade.get("realized_pnl") or 0.0)
+    share = float(move.get("share") or 0.0)
+    colour = "var(--up)" if realized >= 0 else "var(--down)"
+
+    template = (Path(__file__).parent / "composition_candles.html").read_text(encoding="utf-8")
+    replacements = {
+        "{{DURATION}}": f"{running:.2f}",
+        "{{S1_DURATION}}": f"{lengths[0]:.2f}",
+        "{{S2_START}}": f"{starts[1]:.2f}",
+        "{{S2_DURATION}}": f"{lengths[1]:.2f}",
+        "{{S3_START}}": f"{starts[2]:.2f}",
+        "{{S3_DURATION}}": f"{lengths[2]:.2f}",
+        "{{S4_START}}": f"{starts[3]:.2f}",
+        "{{S4_DURATION}}": f"{lengths[3]:.2f}",
+        "{{KICKER}}": board.scenes[0].eyebrow,
+        "{{NAME}}": str(trade.get("ticker_name") or trade.get("ticker_code") or "종목"),
+        "{{CODE}}": str(trade.get("ticker_code") or ""),
+        "{{MOVE_TEXT}}": f"{realized * 100:+.2f}%",
+        "{{MOVE_COLOUR}}": colour,
+        "{{HOOK_CAPTION}}": board.scenes[0].caption,
+        "{{TAPE_HEAD}}": f"{len(bars)}거래일, 그대로",
+        "{{CANDLES}}": "\n          ".join(
+            _candle(index, bar, step=step, width=width, low=low, high=high) for index, bar in enumerate(bars)
+        ),
+        "{{CANDLE_W}}": f"{width:.1f}",
+        "{{WICK_X}}": f"{width / 2 - 1.5:.1f}",
+        "{{BAR_COUNT}}": str(len(bars)),
+        "{{ENTRY_INDEX}}": str(entry_index),
+        "{{EXIT_INDEX}}": str(exit_index),
+        "{{ENTRY_Y}}": f"{entry_y:.1f}",
+        "{{ENTRY_TAG_TOP}}": f"{entry_tag:.0f}",
+        "{{ENTRY_TEXT}}": f"{entry:,.0f}원" if entry else "-",
+        "{{HAS_STOP}}": "true" if stop else "false",
+        "{{STOP_LINE}}": (f'<div class="lvl" id="lvl-stop" style="top: {stop_y:.1f}px;"></div>' if stop else ""),
+        "{{STOP_TAG}}": (
+            f'<p class="lvl-tag" id="tag-stop" style="top: {stop_tag:.0f}px; right: 84px;">손절선 {stop:,.0f}원</p>'
+            if stop
+            else ""
+        ),
+        "{{ENTRY_X}}": f"{116 + entry_x - 116:.1f}",
+        "{{EXIT_X}}": f"{exit_x:.1f}",
+        "{{ENTRY_K_X}}": f"{116 + entry_x - 24:.0f}",
+        "{{EXIT_K_X}}": f"{116 + exit_x - 24:.0f}",
+        "{{EXIT_K_TOP}}": "1282" if abs(exit_x - entry_x) >= 96 else "1326",
+        "{{TAPE_NOTE}}": board.scenes[1].caption if len(board.scenes) > 1 else "",
+        "{{FACTS}}": "\n        ".join(
+            (
+                _fact_row(0, "이 거래의 수익률", f"{realized * 100:+.2f}%", colour),
+                _fact_row(1, "실현 손익", f"{pnl:,.0f}원", colour),
+                _fact_row(2, "계좌 손익에서 차지한 몫", f"{abs(share) * 100:.0f}%", "var(--paper)"),
+            )
+        ),
+        "{{FACT_VALUES}}": json.dumps([round(realized * 100, 2), round(pnl), round(abs(share) * 100)]),
+        "{{FACTS_NOTE}}": board.scenes[2].caption if len(board.scenes) > 2 else "",
+        "{{OUTRO1}}": outro.headline[0] if getattr(outro, "headline", ()) else "",
+        "{{OUTRO2}}": outro.headline[1] if len(getattr(outro, "headline", ())) > 1 else "",
+        "{{OUTRO_CALL}}": getattr(outro, "call", ""),
+        "{{URL}}": host,
+        "{{TELEGRAM_LINE}}": getattr(outro, "telegram_line", ""),
+        "{{TELEGRAM}}": handle or f"{host}/start",
+    }
+    for token, value in replacements.items():
+        template = template.replace(token, str(value))
+    return template, running
+
+
 def write_project(html: str, directory: Path, *, name: str) -> Composition:
     """Lay the composition out as a HyperFrames project the CLI can drive."""
 
