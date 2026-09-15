@@ -1,4 +1,13 @@
-"""Walk the live site and report what works, what costs, and what is exposed."""
+"""Walk the live site and report what works, what costs, and what is exposed.
+
+    python scripts/qa_sweep.py [base-url]      default https://agenttrust.kr
+
+Checks every public route, the feeds, the read-only APIs and the guards that
+should refuse a stranger; then the markup, the security headers, every internal
+link and every sitemap entry; then reads the screener and the account back to
+see whether the numbers mean anything. One pass is cold, the second warm, so a
+serverless cold start is not mistaken for slow code.
+"""
 
 from __future__ import annotations
 
