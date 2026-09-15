@@ -265,3 +265,27 @@ def test_an_empty_list_is_labelled_as_empty_not_as_unknown():
     assert _analysis_feed_status_label("empty") == "아직 없음"
     assert _analysis_outcomes_status_label("empty") == "아직 없음"
     assert _analysis_feed_status_label("available") == "분석 사용 가능"
+
+
+def test_the_curve_says_which_of_the_three_books_it_draws():
+    """The tiles add three books; a chart ending at a third of that must say so."""
+
+    from tradingagents.site.paper_account_page import _curve_card
+
+    curve = {
+        "points": [{"date": "2026-09-10", "equity": 50_000_000, "benchmark": 100.0},
+                   {"date": "2026-09-11", "equity": 49_000_000, "benchmark": 99.0}],
+        "summary": {"day_count": 2, "first_date": "2026-09-10", "account_return": -0.02,
+                    "benchmark_return": -0.01, "excess_return": -0.01, "max_drawdown": -0.02,
+                    "benchmark_name": "KOSPI"},
+    }
+
+    labelled = _curve_card(curve, account_label="AI 확인")
+    assert "수익률 추이 · AI 확인 계좌" in labelled
+    assert "AI 확인 계좌" in labelled
+    assert "위 합계는 세 계좌를 더한 값이고, 이 곡선은 그중 한 계좌입니다." in labelled
+
+    # and with nothing to say it falls back rather than printing an empty label
+    plain = _curve_card(curve)
+    assert "수익률 추이<" in plain.replace("</h2>", "<") or "수익률 추이" in plain
+    assert "모의 계좌" in plain

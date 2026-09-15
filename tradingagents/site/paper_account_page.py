@@ -198,13 +198,19 @@ def _curve_svg(points: list[Mapping[str, Any]], *, width: int = 720, height: int
     )
 
 
-def _curve_card(curve: Mapping[str, Any]) -> str:
+def _curve_card(curve: Mapping[str, Any], *, account_label: str = "") -> str:
+    """The curve for one book.
+
+    The tiles above it add three books together, so a chart ending near 49
+    million under a headline of 147 million needs to say which book it is.
+    """
+
     points = list(curve.get("points") or [])
     summary = curve.get("summary") or {}
     benchmark_name = summary.get("benchmark_name") or "KOSPI"
     if len(points) < 2:
         return f"""<div class="card" style="margin-bottom: 18px;">
-    <div class="card-h"><h2>{icon_tile("trend", "b-blue", small=True)}수익률 추이</h2><span class="badge b-grey">기록 {len(points)}일</span></div>
+    <div class="card-h"><h2>{icon_tile("trend", "b-blue", small=True)}수익률 추이{f" · {h(account_label)} 계좌" if account_label else ""}</h2><span class="badge b-grey">기록 {len(points)}일</span></div>
     <div class="card-b"><p class="small ink2">장 마감 뒤 하루 한 번 계좌를 기록합니다. 이틀치가 쌓이면 {h(benchmark_name)} 지수와 비교한 곡선이 여기에 그려집니다.</p></div>
   </div>"""
 
@@ -220,13 +226,13 @@ def _curve_card(curve: Mapping[str, Any]) -> str:
     if risk.get("annualized_volatility") is not None:
         stats.append(f'<span>변동성 <b>{h(_pct(risk.get("annualized_volatility")))}</b></span>')
     return f"""<div class="card" style="margin-bottom: 18px;">
-    <div class="card-h"><h2>{icon_tile("trend", "b-blue", small=True)}수익률 추이</h2><span class="badge b-grey">{h(summary.get("day_count"))}일 기록</span></div>
+    <div class="card-h"><h2>{icon_tile("trend", "b-blue", small=True)}수익률 추이{f" · {h(account_label)} 계좌" if account_label else ""}</h2><span class="badge b-grey">{h(summary.get("day_count"))}일 기록</span></div>
     <div class="card-b paper-curve">
       <div class="paper-curve-stats">{"".join(stats)}</div>
       {_curve_svg(points)}
-      <div class="paper-curve-legend"><span><i style="background: var(--accent);"></i>모의 계좌</span><span><i style="background: var(--muted);"></i>{h(benchmark_name)} 지수</span></div>
+      <div class="paper-curve-legend"><span><i style="background: var(--accent);"></i>{h(account_label) + " 계좌" if account_label else "모의 계좌"}</span><span><i style="background: var(--muted);"></i>{h(benchmark_name)} 지수</span></div>
     </div>
-    <div class="card-f"><span>{h(summary.get("first_date"))}부터 기록</span><span>지수 대비는 기록을 시작한 날을 0%로 두고 비교합니다.</span></div>
+    <div class="card-f"><span>{h(summary.get("first_date"))}부터 기록</span><span>위 합계는 세 계좌를 더한 값이고, 이 곡선은 그중 한 계좌입니다.</span></div>
   </div>"""
 
 
@@ -515,7 +521,7 @@ def render_paper_account_page(
     site_base_url: str | None = None,
     initial_cash: float | None = None,
 ) -> str:
-    from tradingagents.harness.paper_state import ACCOUNTS, build_combined_account_payload, default_initial_cash
+    from tradingagents.harness.paper_state import ACCOUNT_LABELS, ACCOUNTS, build_combined_account_payload, default_initial_cash
 
     from .billing import gate_paper_account_payload, resolve_plan_access
 
@@ -585,7 +591,7 @@ def render_paper_account_page(
   <div class="grid-5" style="margin-bottom: 18px;">{tiles}</div>
   {ad_unit()}
 
-  {_curve_card(curve)}
+  {_curve_card(curve, account_label=ACCOUNT_LABELS.get("paper", ""))}
 
   {_books_card(books)}
 
