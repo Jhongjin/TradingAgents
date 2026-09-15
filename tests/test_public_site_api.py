@@ -230,7 +230,8 @@ def test_public_stock_payload_exposes_auto_vendor_resolution(monkeypatch):
         include_analysis=False,
     )
 
-    assert payload["chart"]["status"] == "available"
+    # the stub answers with no points, and a vendor that returns nothing is not a chart
+    assert payload["chart"]["status"] == "empty"
     assert payload["chart"]["vendor"] == "pykrx"
     assert payload["chart"]["requested_vendor"] == "auto"
     assert payload["chart"]["resolved_vendor"] == "pykrx"
@@ -280,7 +281,8 @@ def test_public_stock_payload_limits_default_krx_diagnostic_window(monkeypatch):
         "vendor": "krx",
         "interval": "1d",
     }
-    assert payload["chart"]["status"] == "available"
+    # the stub answers with no points, and a vendor that returns nothing is not a chart
+    assert payload["chart"]["status"] == "empty"
     assert payload["chart"]["start_date"] == "2026-05-12"
     assert payload["chart"]["vendor"] == "krx"
 
@@ -326,7 +328,8 @@ def test_public_stock_payload_passes_intraday_interval_to_chart_provider(monkeyp
         "vendor": "yfinance",
         "interval": "60m",
     }
-    assert payload["chart"]["status"] == "available"
+    # the stub answers with no points, and a vendor that returns nothing is not a chart
+    assert payload["chart"]["status"] == "empty"
     assert payload["chart"]["vendor"] == "yfinance"
     assert payload["chart"]["interval"] == "60m"
 

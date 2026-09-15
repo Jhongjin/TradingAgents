@@ -201,7 +201,10 @@ def _chart_payload(ticker_code: str, start: date, end: date, vendor: str, interv
 
     point_count = len(series.points)
     return {
-        "status": "available",
+        # A vendor that answers with nothing is not the same as a chart. Saying
+        # "available" over zero points sends a caller looking for data that is
+        # not there - which is what /api/stocks/999999 was doing.
+        "status": "available" if point_count else "empty",
         "start_date": start.isoformat(),
         "end_date": end.isoformat(),
         "interval": series.interval,

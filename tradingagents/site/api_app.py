@@ -1335,7 +1335,7 @@ def create_app(
     ) -> dict:
         try:
             resolved_ticker = _resolve_public_stock_api_ticker(ticker)
-            return build_public_stock_payload(
+            payload = build_public_stock_payload(
                 resolved_ticker,
                 repo=request.app.state.repository,
                 chart_start=chart_start,
@@ -1349,6 +1349,12 @@ def create_app(
             )
         except (VendorUnavailableError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        from .stock_page import nothing_is_listed_here
+
+        # Same answer the page gives: a code nobody listed is not a resource.
+        if include_chart and include_analysis and nothing_is_listed_here(payload):
+            raise HTTPException(status_code=404, detail=f"{resolved_ticker} is not a listed Korean stock")
+        return payload
 
     @app.get("/api/simulations/preview/{ticker}")
     def simulation_preview(

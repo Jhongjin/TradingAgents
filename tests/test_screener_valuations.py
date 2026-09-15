@@ -210,3 +210,27 @@ def test_the_edge_redirects_a_trailing_slash_instead_of_losing_it():
     config = json.loads(Path("vercel.json").read_text(encoding="utf-8"))
     assert config["trailingSlash"] is False
     assert not any(key.startswith("_") for key in config), "vercel.json 은 추가 속성을 거부합니다"
+
+
+def test_a_chart_with_no_points_does_not_call_itself_available():
+    """/api/stocks/999999 said available over zero points, which sends a caller looking."""
+
+    from tradingagents.site.public_api import build_public_stock_payload
+
+    payload = build_public_stock_payload("005930", include_chart=False, include_analysis=False)
+    assert (payload.get("chart") or {}).get("status") in {"empty", "unavailable", "skipped", None}
+
+
+def test_the_api_refuses_an_unlisted_code_like_the_page_does(monkeypatch):
+    monkeypatch.setattr(
+        "tradingagents.site.api_app.build_public_stock_payload",
+        lambda ticker, **kwargs: {
+            "ticker": {"code": "999999", "name": "999999", "market": "UNKNOWN"},
+            "chart": {"status": "empty", "point_count": 0},
+            "analysis": {"status": "missing"},
+        },
+    )
+    with TestClient(create_app(repo=None, load_repo_from_env=False)) as client:
+        assert client.get("/api/stocks/999999").status_code == 404
+        # asking for only part of the picture is not enough to call it absent
+        assert client.get("/api/stocks/999999", params={"include_chart": "false"}).status_code == 200
