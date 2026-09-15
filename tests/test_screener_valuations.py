@@ -289,3 +289,23 @@ def test_the_curve_says_which_of_the_three_books_it_draws():
     plain = _curve_card(curve)
     assert "수익률 추이<" in plain.replace("</h2>", "<") or "수익률 추이" in plain
     assert "모의 계좌" in plain
+
+
+def test_a_sharpe_from_three_days_is_not_printed():
+    """Annualising a three-day sample produced -105.93 next to -1.68%."""
+
+    from tradingagents.site.paper_account_page import MIN_RISK_DAYS, _curve_card
+
+    summary = {"day_count": 3, "first_date": "2026-09-10", "account_return": -0.0168,
+               "benchmark_return": -0.0497, "excess_return": 0.0329, "max_drawdown": -0.0148,
+               "benchmark_name": "KOSPI",
+               "risk": {"sharpe_ratio": -105.934062, "annualized_volatility": 0.0176}}
+
+    thin = _curve_card({"points": [{"date": "d", "equity": 1, "benchmark": 1}] * 3, "summary": summary})
+    assert "-105.93" not in thin and "105.934062" not in thin
+    assert f"샤프·변동성은 {MIN_RISK_DAYS}일치가 쌓이면 표시합니다" in thin
+
+    thick = _curve_card({"points": [{"date": "d", "equity": 1, "benchmark": 1}] * MIN_RISK_DAYS,
+                         "summary": {**summary, "risk": {"sharpe_ratio": 1.199344, "annualized_volatility": 0.2431}}})
+    assert "샤프 <b>1.20</b>" in thick          # two decimals, like everything beside it
+    assert "변동성 <b>24.3%</b>" in thick       # a percentage, and unsigned

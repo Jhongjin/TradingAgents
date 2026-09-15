@@ -60,6 +60,10 @@ PAPER_CSS = """
 @media (max-width: 900px) { .paper-table { min-width: 820px; } }
 """
 
+# A daily risk figure needs about a month of days behind it before the
+# annualisation stops inventing numbers.
+MIN_RISK_DAYS = 20
+
 PAPER_LOCK_CSS = """
 .paper-locked td { color: var(--muted); }
 .paper-locked .paper-lock-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -221,10 +225,17 @@ def _curve_card(curve: Mapping[str, Any], *, account_label: str = "") -> str:
         f'<span>지수 대비 <b class="{_sign_class(summary.get("excess_return"))}">{h(_pct(summary.get("excess_return")))}</b></span>',
         f'<span>최대 낙폭 <b>{h(_pct(summary.get("max_drawdown")))}</b></span>',
     ]
-    if risk.get("sharpe_ratio") is not None:
-        stats.append(f'<span>샤프 <b>{h(risk.get("sharpe_ratio"))}</b></span>')
-    if risk.get("annualized_volatility") is not None:
-        stats.append(f'<span>변동성 <b>{h(_pct(risk.get("annualized_volatility")))}</b></span>')
+    # A Sharpe worked out from three days is not a statistic, it is noise with
+    # a decimal point: annualising a three-day sample produced -105.93 on a
+    # page whose whole claim is that its numbers mean something. Neither figure
+    # is shown until there are enough days to carry it.
+    if len(points) >= MIN_RISK_DAYS:
+        if risk.get("sharpe_ratio") is not None:
+            stats.append(f'<span>샤프 <b>{h(_num(risk.get("sharpe_ratio"), 2))}</b></span>')
+        if risk.get("annualized_volatility") is not None:
+            stats.append(f'<span>변동성 <b>{h(_num(float(risk["annualized_volatility"]) * 100, 1))}%</b></span>')
+    else:
+        stats.append(f'<span class="muted">샤프·변동성은 {MIN_RISK_DAYS}일치가 쌓이면 표시합니다</span>')
     return f"""<div class="card" style="margin-bottom: 18px;">
     <div class="card-h"><h2>{icon_tile("trend", "b-blue", small=True)}수익률 추이{f" · {h(account_label)} 계좌" if account_label else ""}</h2><span class="badge b-grey">{h(summary.get("day_count"))}일 기록</span></div>
     <div class="card-b paper-curve">
@@ -436,7 +447,7 @@ def _backtest_card(backtest: Mapping[str, Any]) -> str:
             stat_tile("trend", "b-grey", "기간 수익률", _pct(metrics.get("total_return")), f"{h(backtest.get('start_date'))} ~ {h(backtest.get('end_date'))}", value_class=_sign_class(metrics.get("total_return"))),
             stat_tile("shield", "b-grey", "최대 낙폭", _pct(metrics.get("max_drawdown")), "고점 대비 최대 하락"),
             stat_tile("check", "b-grey", "승률", _pct(metrics.get("hit_rate"), 1) if metrics.get("hit_rate") is not None else "-", f"거래 {metrics.get('trade_count') or 0}건"),
-            stat_tile("target", "b-grey", "샤프 지수", h(metrics.get("sharpe_ratio") if metrics.get("sharpe_ratio") is not None else "-"), f"평균 보유 {metrics.get('average_holding_days') or '-'}일"),
+            stat_tile("target", "b-grey", "샤프 지수", h(_num(metrics.get("sharpe_ratio"), 2)), f"평균 보유 {metrics.get('average_holding_days') or '-'}일"),
         ]
     )
     excess = ""
