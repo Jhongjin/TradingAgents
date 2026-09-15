@@ -257,3 +257,11 @@ def test_the_account_says_when_it_was_worked_out():
     assert "generated_at" in payload and payload["generated_at"]
     assert "as_of_date" in payload
     assert payload["generated_at"].endswith("+09:00")     # 한국 시각
+
+
+def test_an_empty_list_is_labelled_as_empty_not_as_unknown():
+    from tradingagents.site.web_pages import _analysis_feed_status_label, _analysis_outcomes_status_label
+
+    assert _analysis_feed_status_label("empty") == "아직 없음"
+    assert _analysis_outcomes_status_label("empty") == "아직 없음"
+    assert _analysis_feed_status_label("available") == "분석 사용 가능"

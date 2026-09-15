@@ -2379,6 +2379,7 @@ def _top_count_label(counts: dict[str, Any], *, formatter: Callable[[Any], str] 
 def _analysis_feed_status_label(status: Any) -> str:
     return {
         "available": "분석 사용 가능",
+        "empty": "아직 없음",
         "not_configured": "AI 리포트 준비 중",
     }.get(str(status), "상태 확인")
 
@@ -2386,6 +2387,7 @@ def _analysis_feed_status_label(status: Any) -> str:
 def _analysis_outcomes_status_label(status: Any) -> str:
     return {
         "available": "검증 결과 사용 가능",
+        "empty": "아직 없음",
         "not_configured": "검증 결과 준비 중",
         "unavailable": "검증 결과 확인 필요",
     }.get(str(status), "상태 확인")
