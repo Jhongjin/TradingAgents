@@ -12,7 +12,10 @@ browser fills current prices from the public price API after load.
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Mapping
+
+from sqlalchemy.pool import StaticPool
 
 from tradingagents.storage import StorageRepository
 
@@ -494,6 +497,18 @@ def _factor_card(study: Mapping[str, Any]) -> str:
   </div>"""
 
 
+def _read_workers(repo: StorageRepository | None) -> int:
+    """How many of the page's reads may be in flight at once.
+
+    A pool that hands out one shared connection - the in-memory SQLite the
+    tests run on - cannot hold overlapping transactions, so there the reads
+    queue up. A real pool gives each thread its own connection.
+    """
+
+    pool = getattr(getattr(repo, "engine", None), "pool", None)
+    return 1 if pool is None or isinstance(pool, StaticPool) else 7
+
+
 def render_paper_account_page(
     *,
     repo: StorageRepository | None = None,
@@ -506,20 +521,32 @@ def render_paper_account_page(
 
     initial_cash = default_initial_cash() if initial_cash is None else initial_cash
 
+    from .paper_snapshot_worker import build_paper_curve_payload
+
+    # Seven independent reads, each its own round trip to a database that is not
+    # in this datacentre. Run in sequence they are most of the page's time; they
+    # do not depend on one another, and the repository takes a fresh connection
+    # per call, so they can go at once.
+    with ThreadPoolExecutor(max_workers=_read_workers(repo)) as pool:
+        pending = {
+            "account": pool.submit(build_combined_account_payload, repo),
+            "rules": pool.submit(_rules_payload, repo),
+            "audit": pool.submit(_audit_payload, repo),
+            "backtest": pool.submit(_backtest_payload, repo),
+            "factors": pool.submit(_factor_payload, repo),
+        }
+        curve_jobs = {key: pool.submit(build_paper_curve_payload, repo, account_key=key) for key, _label in ACCOUNTS}
+        done = {name: job.result() for name, job in pending.items()}
+        curves = {key: job.result() for key, job in curve_jobs.items()}
+
     # Server-rendered pages are public and cacheable, so they always show the
     # free view; a paid session swaps in today's rows from the API after load.
-    payload = gate_paper_account_payload(build_combined_account_payload(repo), resolve_plan_access(None, None)) or {}
+    payload = gate_paper_account_payload(done["account"], resolve_plan_access(None, None)) or {}
     summary = payload.get("summary") or {}
     positions = payload.get("positions") or []
     closed = payload.get("closed") or []
-    from .paper_snapshot_worker import build_paper_curve_payload
-
-    curves = {key: build_paper_curve_payload(repo, account_key=key) for key, _label in ACCOUNTS}
     curve = curves.get("paper") or {}
-    rules = _rules_payload(repo)
-    audit = _audit_payload(repo)
-    backtest = _backtest_payload(repo)
-    factors = _factor_payload(repo)
+    rules, audit, backtest, factors = done["rules"], done["audit"], done["backtest"], done["factors"]
     books = list(payload.get("accounts") or [])
     gate = payload.get("plan_gate") or {}
     locked_positions = int(gate.get("locked_position_count") or 0)
