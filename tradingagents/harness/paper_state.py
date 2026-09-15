@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 from datetime import date, datetime
 from typing import Any, Iterable, Mapping
+from zoneinfo import ZoneInfo
 
 from tradingagents.execution import (
     KoreaTradingRules,
@@ -441,8 +442,18 @@ def build_combined_account_payload(
     closed.sort(key=lambda item: (item.get("exit_date") or "", item["ticker_code"]), reverse=True)
 
     started = totals["initial_cash"]
+    # The site's promise is that every number carries its source and its time.
+    # This payload carried neither, so a reader could not tell whether they
+    # were looking at today's account or a figure cached hours ago.
+    latest_move = max(
+        [str(row.get("exit_date") or "") for row in closed]
+        + [str(row.get("entry_date") or "") for row in positions]
+        + [""],
+    )
     return {
         "status": "available" if (positions or closed) else "empty",
+        "as_of_date": latest_move or None,
+        "generated_at": datetime.now(ZoneInfo("Asia/Seoul")).isoformat(),
         "accounts": [books[key] for key, _label in accounts if key in books],
         "positions": positions,
         "closed": closed,

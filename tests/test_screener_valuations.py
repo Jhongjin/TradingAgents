@@ -234,3 +234,26 @@ def test_the_api_refuses_an_unlisted_code_like_the_page_does(monkeypatch):
         assert client.get("/api/stocks/999999").status_code == 404
         # asking for only part of the picture is not enough to call it absent
         assert client.get("/api/stocks/999999", params={"include_chart": "false"}).status_code == 200
+
+
+def test_a_list_with_nothing_in_it_does_not_call_itself_available():
+    """The 분석 사용 가능 badge sat over "아직 공개된 리포트가 없습니다"."""
+
+    import inspect
+
+    from tradingagents.site import analysis_api
+
+    source = inspect.getsource(analysis_api)
+    assert '"status": "available" if items else "empty"' in source
+    assert '"status": "available" if rows else "empty"' in source
+
+
+def test_the_account_says_when_it_was_worked_out():
+    """The footer promises every number carries its source and its time."""
+
+    from tradingagents.harness.paper_state import build_combined_account_payload
+
+    payload = build_combined_account_payload(None)
+    assert "generated_at" in payload and payload["generated_at"]
+    assert "as_of_date" in payload
+    assert payload["generated_at"].endswith("+09:00")     # 한국 시각

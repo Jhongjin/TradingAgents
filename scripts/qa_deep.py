@@ -72,8 +72,13 @@ print("\n[3] 반사 (XSS)")
 probe = "<script>alert(1)</script>"
 for path in (f"/api/tickers/search?q={probe}", f"/stocks?q={probe}", f"/analyses?ticker={probe}"):
     response = get(path)
-    reflected = probe in response.text
-    print(f"  {path[:60]:<62} {response.status_code}  {'!! 원문 반사' if reflected else 'ok'}")
+    kind = (response.headers.get("Content-Type") or "").split(";")[0]
+    # Echoing the query inside a JSON string is not an injection: the browser
+    # will not parse application/json as markup, and nosniff stops it trying.
+    inert = kind == "application/json" and response.headers.get("X-Content-Type-Options") == "nosniff"
+    reflected = probe in response.text and not inert
+    verdict = "!! 원문 반사" if reflected else ("ok (JSON)" if inert else "ok")
+    print(f"  {path[:60]:<62} {response.status_code}  {verdict}")
 
 print("\n[4] 리다이렉트와 정규 주소")
 for url in ("http://agenttrust.kr/", "https://www.agenttrust.kr/", f"{BASE}/paper/", f"{BASE}/PAPER"):

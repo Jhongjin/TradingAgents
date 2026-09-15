@@ -250,7 +250,9 @@ def build_public_analysis_feed_payload(
         )
     return _json_ready(
         {
-            "status": "available",
+            # A list with nothing in it is not "available": the page put a
+            # 분석 사용 가능 badge over its own "아직 공개된 리포트가 없습니다".
+            "status": "available" if items else "empty",
             "ticker_code": ticker_code,
             "limit": limit,
             "items": items,
@@ -295,7 +297,7 @@ def build_public_analysis_outcomes_payload(
         )
     return _json_ready(
         {
-            "status": "available",
+            "status": "available" if rows else "empty",
             "ticker_code": ticker_code,
             "filter_status": status,
             "limit": limit,
