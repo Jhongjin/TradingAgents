@@ -55,6 +55,55 @@ def _stop_loss_pct() -> float:
         return 0.08
 
 
+# The hero figure sits in a masked box, so anything wider than the box is cut
+# off rather than wrapped: +3.29% fitted and -15.19% lost its last character.
+# The mask is 900px wide. Measuring with PIL and fitting to the last pixel
+# still clipped in the browser, which kerns and tracks its own way, so the
+# figure is fitted to a narrower box than it actually has.
+HERO_BOX = 824.0
+HERO_TRACKING = -0.055          # the CSS letter-spacing the browser will apply
+
+
+UNIT_SCALE = 0.38               # the small unit riding after the figure
+
+
+def _ems(text: str) -> float | None:
+    """How wide that string is in ems of the display face, tracking included.
+
+    Measured against the same font the browser will use rather than guessed
+    from a table of advances: the guess ran a fifth wide and shrank a figure
+    that had been fitting.
+    """
+
+    if not text:
+        return 0.0
+    try:
+        from .design import DISPLAY_BLACK, load_font
+
+        probe = 200
+        font = load_font(DISPLAY_BLACK, probe)
+        return max((font.getlength(text) + HERO_TRACKING * probe * len(text)) / probe, 0.0)
+    except Exception:                                   # noqa: BLE001 - no font on this machine
+        return None
+
+
+def hero(number: str, unit: str, *, cap: int, box: float = HERO_BOX) -> tuple[str, int]:
+    """The hero figure as markup, and the size that keeps it inside its box.
+
+    The unit rides small after the number, which reads better and is what the
+    record cut was already doing; measuring it at its own scale is why this
+    returns both halves together.
+    """
+
+    body = f'{number}<span class="unit">{unit}</span>' if unit else number
+    ems = _ems(number)
+    unit_ems = _ems(unit)
+    if ems is None or unit_ems is None:
+        return body, cap
+    total = ems + UNIT_SCALE * unit_ems
+    return body, int(min(cap, box / max(total, 0.1)))
+
+
 def _fall_scale(returns: Sequence[float]) -> float:
     """The depth the floor represents: the worst fall, with room under it."""
 
@@ -135,6 +184,7 @@ def compose_record(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, 
         "{{KICKER}}": board.scenes[0].eyebrow if board.scenes else "",
         "{{TOTAL}}": f"{total * 100:.2f}",
         "{{TOTAL_TEXT}}": f"{total * 100:+.2f}%",
+        "{{HERO_SIZE}}": str(hero(f"{total * 100:+.2f}", "%", cap=320)[1]),
         "{{CAPTION}}": f"{initial / 100_000_000:.1f}억원으로 시작한 계좌의 지금 성적",
         "{{LINE1}}": f"지금까지 정리한 {int(summary.get('closed_count') or len(closed))}건,",
         "{{LINE2}}": "전부 손실이었습니다." if not int(summary.get("win_count") or 0) else f"{int(summary['win_count'])}건이 이익이었습니다.",
@@ -364,7 +414,8 @@ def compose_curve(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, f
         "{{S4_START}}": f"{starts[3]:.2f}",
         "{{S4_DURATION}}": f"{lengths[3]:.2f}",
         "{{KICKER}}": board.scenes[0].eyebrow,
-        "{{HOOK_TEXT}}": f"{excess:+.2f}%p",
+        "{{HOOK_TEXT}}": hero(f"{excess:+.2f}", "%p", cap=300)[0],
+        "{{HERO_SIZE}}": str(hero(f"{excess:+.2f}", "%p", cap=300)[1]),
         "{{HOOK_COLOUR}}": "var(--up)" if excess >= 0 else "var(--down)",
         "{{HOOK_CAPTION}}": board.scenes[0].caption,
         "{{LINE1}}": board.scenes[0].lines[0] if board.scenes[0].lines else "",
@@ -503,7 +554,8 @@ def compose_candles(payload: Mapping[str, Any], board: Storyboard) -> tuple[str,
         "{{KICKER}}": board.scenes[0].eyebrow,
         "{{NAME}}": str(trade.get("ticker_name") or trade.get("ticker_code") or "종목"),
         "{{CODE}}": str(trade.get("ticker_code") or ""),
-        "{{MOVE_TEXT}}": f"{realized * 100:+.2f}%",
+        "{{MOVE_TEXT}}": hero(f"{realized * 100:+.2f}", "%", cap=250)[0],
+        "{{HERO_SIZE}}": str(hero(f"{realized * 100:+.2f}", "%", cap=250)[1]),
         "{{MOVE_COLOUR}}": colour,
         "{{HOOK_CAPTION}}": board.scenes[0].caption,
         "{{TAPE_HEAD}}": f"{len(bars)}거래일, 그대로",

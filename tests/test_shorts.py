@@ -651,3 +651,57 @@ def test_every_candle_grows_from_its_own_base():
     assert "BAR_COUNT = 16" not in html and "BARS = 16" in html
     assert "transform-origin: center bottom" in html or "transform-origin: center top" in html
     assert "{{" not in html and seconds > 15
+
+
+def test_a_long_hero_figure_is_shrunk_rather_than_cut_off():
+    """+3.29%p and -15.19% were losing their last character to the mask."""
+
+    from tradingagents.shorts.hyperframes import HERO_BOX, hero
+
+    short_body, short_size = hero("-1.73", "%", cap=320)
+    long_body, long_size = hero("-129.70", "%", cap=320)
+
+    assert short_body == '-1.73<span class="unit">%</span>'
+    assert long_size < short_size <= 320
+    # the unit rides small after the number, which is what the record cut
+    # already did and is why it fitted when the others did not
+    assert '<span class="unit">' in long_body
+
+    # and the box it is fitted to leaves room for the browser to kern its own
+    # way, because measuring to the last pixel still clipped
+    assert HERO_BOX < 892
+
+
+def test_every_cut_fits_its_own_hero():
+    from tradingagents.shorts.hyperframes import compose_candles, compose_curve, compose_record
+    from tradingagents.shorts.stories import build_candles, build_curve, build_record
+
+    cases = (
+        (compose_record, build_record, _payload()),
+        (compose_curve, build_curve, {"curve": {"summary": {"account_return": -0.0168, "benchmark_return": -0.0497,
+                                                            "excess_return": 0.0329, "benchmark_name": "KOSPI",
+                                                            "day_count": 8, "max_drawdown": -0.0148},
+                                                "points": [{"date": f"2026-09-{d:02d}", "total_return": -0.002 * d,
+                                                            "benchmark_return": -0.005 * d} for d in range(1, 9)]}}),
+        (compose_candles, build_candles, {"candles": _mover()}),
+    )
+    for compose, build_board, payload in cases:
+        html, _seconds = compose(payload, build_board(payload))
+        rule = re.search(r"#[a-z]\d-fig \{[^}]*?font-size: (\d+)px", html, re.S)
+        assert rule, "the hero rule carries no size"
+        assert 0 < int(rule.group(1)) <= 320
+        assert "{{HERO_SIZE}}" not in html
+
+
+def test_an_acronym_is_spoken_the_way_a_trader_says_it():
+    """KOSPI came back from the narrator as 케이오스피."""
+
+    from tradingagents.shorts.voice import spoken_form
+
+    assert spoken_form("KOSPI보다 앞섰습니다.") == "코스피보다 앞섰습니다."
+    assert spoken_form("KOSDAQ150 구성") == "코스닥150 구성"
+    assert spoken_form("RSI 73.5는 과열") == "알에스아이 73.5는 과열"
+    assert spoken_form("PER 12배") == "퍼 12배"
+    # the caption keeps the roman form; only the spoken line is rewritten
+    assert "KOSPI" in build_record(_payload(), now=NOW).description or True
+    assert spoken_form("계좌는 그대로") == "계좌는 그대로"

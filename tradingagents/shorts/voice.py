@@ -204,11 +204,38 @@ def mix_track(placed: Sequence[dict], total: float, target: Path, *, music: Path
     return target
 
 
+# The narrator spells an acronym out letter by letter - KOSPI came back as
+# 케이오스피 - so the handful that actually turn up in these scripts are written
+# the way a Korean trader says them before the line is handed over. The caption
+# on screen keeps the roman form, which is how it is written.
+SPOKEN_FORMS: tuple[tuple[str, str], ...] = (
+    ("KOSPI200", "코스피200"),
+    ("KOSDAQ150", "코스닥150"),
+    ("KOSPI", "코스피"),
+    ("KOSDAQ", "코스닥"),
+    ("RSI", "알에스아이"),
+    ("PBR", "피비알"),
+    ("PER", "퍼"),
+    ("ETF", "이티에프"),
+    ("KRX", "케이알엑스"),
+    ("KIS", "한투"),
+)
+
+
+def spoken_form(text: str) -> str:
+    """One line of narration, with the acronyms written as they are said."""
+
+    said = text
+    for roman, korean in SPOKEN_FORMS:
+        said = said.replace(roman, korean)
+    return said
+
+
 def narrate(board: Storyboard, *, work_dir: Path | None = None, music: Path | None = None, device: str = "cuda", speed: float = SPEED) -> Narration:
     """Speak the board, fit it to the speech, and hand back a track to mux."""
 
     lines = [
-        {"id": f"s{index}", "text": scene.narration.strip()}
+        {"id": f"s{index}", "text": spoken_form(scene.narration.strip())}
         for index, scene in enumerate(board.scenes)
         if (scene.narration or "").strip()
     ]

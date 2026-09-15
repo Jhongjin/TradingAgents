@@ -49,12 +49,13 @@
       .kicker { font-weight: 300; font-size: 31px; color: var(--muted); letter-spacing: 0.02em; }
       .head { font-weight: 900; font-size: 66px; letter-spacing: -0.042em; line-height: 1.2; }
       .body { font-weight: 300; font-size: 34px; color: var(--ink2); line-height: 1.5; word-break: keep-all; }
+      .unit { font-size: 0.38em; font-weight: 700; letter-spacing: -0.02em; }
       .mark { position: absolute; right: 84px; top: 1498px; font-weight: 300; font-size: 28px;
               color: var(--muted); z-index: 12; }
 
       /* ---- 1. the hook --------------------------------------------------- */
       #c1-mask { position: absolute; left: 104px; top: 470px; width: 900px; height: 300px; overflow: hidden; }
-      #c1-fig { position: absolute; left: 0; top: 0; font-size: 300px; font-weight: 900;
+      #c1-fig { position: absolute; left: 0; top: 0; font-size: {{HERO_SIZE}}px; font-weight: 900;
                 letter-spacing: -0.055em; line-height: 0.86; color: {{HOOK_COLOUR}}; }
       #c1-rule { position: absolute; left: 116px; width: 880px; top: 996px; height: 3px;
                  background: var(--paper); transform-origin: left center; }
