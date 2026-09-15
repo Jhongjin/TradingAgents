@@ -355,6 +355,22 @@ def load_naver_market_snapshot(
     if max_rows_per_market <= 0:
         raise ValueError("max_rows_per_market must be positive")
     selected = tuple(_normalize_market(market) for market in markets)
+
+    # Naver Finance became a client-rendered app, so the ranking table the
+    # walk below reads is no longer in the HTML the server sends. The app's own
+    # JSON endpoint carries the same ranking, so that is asked first; the page
+    # walk stays as a fallback and as the path tests inject into.
+    if page_fetcher is None:
+        try:
+            return load_naver_mobile_snapshot(
+                as_of_date,
+                markets=selected,
+                max_rows_per_market=max_rows_per_market,
+                include_non_equity=include_non_equity,
+            )
+        except VendorUnavailableError:
+            pass
+
     fetch = page_fetcher or _fetch_naver_market_sum_page
     rows: list[MarketSnapshotRow] = []
     errors: list[str] = []
@@ -384,6 +400,126 @@ def load_naver_market_snapshot(
         raise VendorUnavailableError("Naver market-cap ranking returned no rows" + (f" ({'; '.join(errors)[:200]})" if errors else ""))
     resolved = _coerce_date(as_of_date).isoformat()
     return MarketSnapshot(as_of_date=resolved, markets=selected, rows=rows, vendor="naver")
+
+
+NAVER_MOBILE_URL = "https://m.stock.naver.com/api/stocks/marketValue/{market}"
+_NAVER_MOBILE_PAGE_SIZE = 100
+
+RowsFetcher = Callable[[str, int, int], Mapping[str, Any]]
+
+
+def _raw_number(value: Any) -> float | None:
+    """The JSON's unformatted fields, which arrive as strings of digits."""
+
+    if value is None:
+        return None
+    try:
+        return float(str(value).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _fetch_naver_mobile_page(market: str, page: int, page_size: int) -> Mapping[str, Any]:
+    import requests
+
+    apply_system_truststore_if_available()
+    response = requests.get(
+        NAVER_MOBILE_URL.format(market=_normalize_market(market)),
+        params={"page": page, "pageSize": page_size},
+        headers={**_NAVER_HEADERS, "Accept": "application/json"},
+        timeout=15,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def parse_naver_mobile_stock(row: Mapping[str, Any], market: str, *, include_non_equity: bool = False) -> MarketSnapshotRow | None:
+    """One entry of the ranking JSON, or None when it is not a tradable share."""
+
+    code = str(row.get("itemCode") or "").strip()
+    if not code.isdigit() or len(code) != 6:
+        return None
+    if not include_non_equity and str(row.get("stockEndType") or "").lower() != "stock":
+        return None
+    close = _raw_number(row.get("closePriceRaw"))
+    if close is None:                                   # a zero here is an answer, not a gap
+        close = _naver_number(row.get("closePrice"))
+    if not close or close <= 0:
+        return None
+    name = str(row.get("stockName") or code).strip()
+    # stockEndType already separates shares from ETFs and ETNs, so the name
+    # check is only here to catch SPACs and the like.
+    if not include_non_equity and _is_non_equity_name(name, par_value=None):
+        return None
+    volume = _raw_number(row.get("accumulatedTradingVolumeRaw")) or 0.0
+    change = _raw_number(row.get("fluctuationsRatio"))
+    return MarketSnapshotRow(
+        code=code,
+        name=name,
+        market=_normalize_market(market),
+        close=close,
+        volume=volume,
+        trading_value=_raw_number(row.get("accumulatedTradingValueRaw")) or (close * volume if volume else None),
+        market_cap=_raw_number(row.get("marketValueRaw")),
+        change_rate=change / 100 if change is not None else None,
+        # The ranking JSON carries no valuation ratios; a missing PER simply
+        # means the PER filter has nothing to say about this row.
+        per=None,
+    )
+
+
+def load_naver_mobile_snapshot(
+    as_of_date: str | date | None = None,
+    *,
+    markets: tuple[str, ...] | list[str] = SUPPORTED_MARKETS,
+    max_rows_per_market: int = 150,
+    rows_fetcher: RowsFetcher | None = None,
+    include_non_equity: bool = False,
+) -> MarketSnapshot:
+    """Top names per market by market cap, from the JSON the Naver app reads."""
+
+    if max_rows_per_market <= 0:
+        raise ValueError("max_rows_per_market must be positive")
+    selected = tuple(_normalize_market(market) for market in markets)
+    fetch = rows_fetcher or _fetch_naver_mobile_page
+    page_size = min(_NAVER_MOBILE_PAGE_SIZE, max_rows_per_market)
+    rows: list[MarketSnapshotRow] = []
+    errors: list[str] = []
+
+    for market in selected:
+        collected = 0
+        page = 1
+        while collected < max_rows_per_market:
+            try:
+                body = fetch(market, page, page_size)
+            except Exception as exc:
+                errors.append(f"{market} page {page}: {exc.__class__.__name__}: {exc}")
+                break
+            listed = list((body or {}).get("stocks") or [])
+            if not listed:
+                break
+            for entry in listed:
+                if collected >= max_rows_per_market:
+                    break
+                parsed = parse_naver_mobile_stock(entry, market, include_non_equity=include_non_equity)
+                if parsed is None:
+                    continue
+                rows.append(parsed)
+                collected += 1
+            if len(listed) < page_size:
+                break
+            page += 1
+
+    if not rows:
+        raise VendorUnavailableError(
+            "Naver market-cap ranking returned no rows" + (f" ({'; '.join(errors)[:200]})" if errors else "")
+        )
+    return MarketSnapshot(
+        as_of_date=_coerce_date(as_of_date).isoformat(),
+        markets=selected,
+        rows=rows,
+        vendor="naver_mobile",
+    )
 
 
 def parse_naver_market_sum(html: str, market: str, *, include_non_equity: bool = False) -> list[MarketSnapshotRow]:
