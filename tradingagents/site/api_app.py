@@ -2476,6 +2476,10 @@ def _stock_html_response(
             max_analysis_age_days=max_analysis_age_days,
             site_base_url=_request_site_base_url(request),
         )
+    except LookupError as exc:
+        # Not a listed company. Answering 200 here makes an unbounded set of
+        # indexable pages out of anything anyone types after /stocks/.
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (VendorUnavailableError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return HTMLResponse(html)

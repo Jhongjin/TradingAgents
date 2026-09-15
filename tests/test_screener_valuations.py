@@ -1,6 +1,9 @@
 """PER and PBR: either the limits can see something, or the page says they cannot."""
 
 import pytest
+from fastapi.testclient import TestClient
+
+from tradingagents.site.api_app import create_app
 
 from tradingagents.screener.screener import ScreenerConfig, _attach_valuations, screen_korean_market
 from tradingagents.screener.universe import MarketSnapshot, MarketSnapshotRow
@@ -155,3 +158,49 @@ def test_the_harness_page_does_not_ship_transcripts_nobody_reads():
     assert trimmed["decisions"][1]["detail"]["confirmation"] == {"rating": "Neutral"}
     # and the original is not mutated
     assert "raw" in payload["decisions"][0]["detail"]["confirmation"]
+
+
+def _stock_payload(code: str, *, name: str | None = None, market: str = "KOSPI",
+                   points: int = 2, analysis: str = "available") -> dict:
+    return {
+        "ticker": {"code": code, "name": name if name is not None else f"종목{code}", "market": market},
+        "chart": {"point_count": points},
+        "analysis": {"status": analysis},
+        "notices": [],
+    }
+
+
+def test_a_code_that_belongs_to_nobody_is_not_a_page():
+    from tradingagents.site.stock_page import nothing_is_listed_here
+
+    # unresolvable: the code is its own name, no market, no prices, no report
+    assert nothing_is_listed_here(_stock_payload("999999", name="999999", market="UNKNOWN",
+                                                 points=0, analysis="missing"))
+
+    # a real name always renders
+    assert not nothing_is_listed_here(_stock_payload("005930", name="삼성전자"))
+
+    # and so does an obscure one whose directory lookup failed but whose chart works
+    assert not nothing_is_listed_here(_stock_payload("123456", name="123456", market="UNKNOWN",
+                                                     points=180, analysis="missing"))
+    # or one with no prices today but a stored report
+    assert not nothing_is_listed_here(_stock_payload("123456", name="123456", market="UNKNOWN",
+                                                     points=0, analysis="available"))
+
+
+def test_the_route_turns_that_into_a_404(monkeypatch):
+    monkeypatch.setattr(
+        "tradingagents.site.api_app.render_public_stock_page",
+        lambda ticker, **kwargs: (_ for _ in ()).throw(LookupError(f"{ticker} is not listed")),
+    )
+    with TestClient(create_app(repo=None, load_repo_from_env=False)) as client:
+        response = client.get("/stocks/999999")
+    assert response.status_code == 404
+
+
+def test_the_edge_redirects_a_trailing_slash_instead_of_losing_it():
+    import json
+    from pathlib import Path
+
+    config = json.loads(Path("vercel.json").read_text(encoding="utf-8"))
+    assert config["trailingSlash"] is False

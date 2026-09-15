@@ -1,6 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
+  "_comment_trailingSlash": "/paper/ answered 404 at the edge because the rewrites match /paper exactly; this redirects the slashed form instead of losing the visitor.",
+  "trailingSlash": false,
   "functions": {
     "api/index.py": {
       "maxDuration": 60

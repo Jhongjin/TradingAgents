@@ -18,7 +18,7 @@ attribute is preserved:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Mapping
 
 from tradingagents.storage import StorageRepository
 
@@ -165,6 +165,28 @@ _CHANGE_TONE = {"positive": ("up", "b-gain"), "negative": ("down", "b-loss"), "n
 _CHART_STATUS_TONE = {"차트 연결": "b-teal", "차트 대기": "b-amber", "차트 제외": "b-grey"}
 
 
+def nothing_is_listed_here(payload: Mapping[str, Any]) -> bool:
+    """Is this a code that simply does not belong to a listed company?
+
+    ``/stocks/999999`` used to answer 200 with an indexable page titled after
+    the code, which is a soft 404: a crawler can invent an unbounded number of
+    them. An unresolvable code comes back with the code as its own name and
+    UNKNOWN as its market, so that plus no prices and no report means there is
+    nothing here. A real but obscure name whose directory lookup failed still
+    has a chart, and still renders.
+    """
+
+    ticker_info = payload.get("ticker") or {}
+    code = str(ticker_info.get("code") or "")
+    if str(ticker_info.get("market") or "").upper() != "UNKNOWN":
+        return False
+    if str(ticker_info.get("name") or "") != code:
+        return False
+    if int((payload.get("chart") or {}).get("point_count") or 0) > 0:
+        return False
+    return str((payload.get("analysis") or {}).get("status") or "") != "available"
+
+
 def render_public_stock_page(
     ticker: str,
     *,
@@ -197,6 +219,8 @@ def render_public_stock_page(
         chart_vendor=chart_vendor,
         chart_interval=chart_interval,
     )
+    if nothing_is_listed_here(payload):
+        raise LookupError(f"{ticker} is not a listed Korean stock")
     notice_items = legacy._stock_notice_items(payload.get("notices", []))
     page_payload = {**payload, "notices": notice_items}
     model = legacy._view_model(page_payload, site_base_url=site_base_url)
