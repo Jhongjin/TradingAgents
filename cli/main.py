@@ -2109,6 +2109,7 @@ def _render_hyperframes(board, payload, output: Path, *, voice: bool, music: Opt
 
     import shutil
     import subprocess
+    import time
 
     from tradingagents.shorts import voice as narration
     from tradingagents.shorts.hyperframes import (
@@ -2117,10 +2118,24 @@ def _render_hyperframes(board, payload, output: Path, *, voice: bool, music: Opt
 
     spoken = None
     if voice and narration.available():
-        console.print("[dim]내레이션 생성 중… (한 줄에 10초 안팎)[/dim]")
-        spoken = narration.narrate(board, work_dir=output / "voice" / story, music=music)
-        board = spoken.board
-        console.print(f"[dim]내레이션 {len(spoken.lines)}줄 · 장면을 말 길이에 맞춤[/dim]")
+        # VoxCPM runs on the same GPU the renderer just finished with and can
+        # come back with an access violation when it is asked too soon. That is
+        # transient, so it gets a second go; and if it still will not speak, a
+        # silent cut goes out rather than nothing at all, said plainly.
+        for attempt in (1, 2):
+            console.print("[dim]내레이션 생성 중… (한 줄에 10초 안팎)[/dim]")
+            try:
+                spoken = narration.narrate(board, work_dir=output / "voice" / story, music=music)
+                break
+            except narration.VoiceUnavailableError as exc:
+                if attempt == 1:
+                    console.print(f"[yellow]내레이션 실패, 30초 뒤 한 번 더 시도합니다.[/yellow] {str(exc)[:120]}")
+                    time.sleep(30)
+                    continue
+                console.print(f"[red]내레이션을 만들지 못했습니다. 무음으로 내보냅니다.[/red] {str(exc)[:200]}")
+        if spoken is not None:
+            board = spoken.board
+            console.print(f"[dim]내레이션 {len(spoken.lines)}줄 · 장면을 말 길이에 맞춤[/dim]")
     elif voice:
         console.print("[yellow]로컬 VoxCPM 을 찾지 못해 무음으로 만듭니다.[/yellow]")
 

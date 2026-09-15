@@ -705,3 +705,32 @@ def test_an_acronym_is_spoken_the_way_a_trader_says_it():
     # the caption keeps the roman form; only the spoken line is rewritten
     assert "KOSPI" in build_record(_payload(), now=NOW).description or True
     assert spoken_form("계좌는 그대로") == "계좌는 그대로"
+
+
+def test_a_voice_that_crashes_once_gets_a_second_go_and_never_loses_the_video(monkeypatch, tmp_path):
+    """VoxCPM came back with an access violation; the whole run died with it."""
+
+    import cli.main as cli
+    from tradingagents.shorts.voice import VoiceUnavailableError
+
+    calls = []
+    monkeypatch.setattr("tradingagents.shorts.voice.available", lambda: True)
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    monkeypatch.setattr(cli, "write_project", None, raising=False)
+
+    def flaky(board, **kwargs):
+        calls.append(1)
+        raise VoiceUnavailableError("VoxCPM 실패 (3221225477)")
+
+    monkeypatch.setattr("tradingagents.shorts.voice.narrate", flaky)
+    # the render is the part we are not exercising here
+    monkeypatch.setattr(
+        "tradingagents.shorts.hyperframes.run",
+        lambda command, directory, **kwargs: (_ for _ in ()).throw(RuntimeError("stop after narration")),
+    )
+
+    board = build_record(_payload(), now=NOW)
+    with pytest.raises(RuntimeError, match="stop after narration"):
+        cli._render_hyperframes(board, _payload(), tmp_path, voice=True, music=None, story="record")
+
+    assert len(calls) == 2, "a transient crash must be retried once"
