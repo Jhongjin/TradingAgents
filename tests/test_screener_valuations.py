@@ -336,3 +336,29 @@ def test_a_reader_is_not_shown_the_field_name_and_the_raw_ratio():
     assert _lens_metric_bits({"volume_ratio": 0.235}) == "거래량 배수 0.23배"
     assert _lens_metric_bits({"live_trading": "disabled"}) == "실거래 disabled"
     assert _lens_metric_bits({}) == ""
+
+
+def test_a_run_with_no_ai_says_so_instead_of_printing_a_dash():
+    """The alert read "DL이앤씨 — - · 모의 1주", which looks like a bug, not a fact."""
+
+    from tradingagents.site.notifications import compose_issue_messages
+
+    rules_only = {
+        "run": {"id": "abc", "as_of_date": "2026-09-16", "confirmer": "none"},
+        "decisions": [{"ticker_code": "375500", "ticker_name": "DL이앤씨", "stage": "ordered", "quantity": 1}],
+    }
+    body = compose_issue_messages(rules_only, issue_number=43, site_base_url="https://agenttrust.kr")["paid"]
+
+    assert "DL이앤씨 — 규칙 통과 · 모의 1주" in body
+    assert "— -" not in body
+    assert "선별 기록: https://agenttrust.kr/harness/abc" in body
+    assert "토론 전문" not in body               # there was no argument to read
+
+    argued = {
+        "run": {"id": "abc", "as_of_date": "2026-09-16", "confirmer": "debate"},
+        "decisions": [{"ticker_code": "375500", "ticker_name": "DL이앤씨", "stage": "ordered", "quantity": 1,
+                       "confirmation_rating": "Overweight", "confirmation_confidence": 0.76}],
+    }
+    debated = compose_issue_messages(argued, issue_number=44, site_base_url="https://agenttrust.kr")["paid"]
+    assert "DL이앤씨 — Overweight 0.76 · 모의 1주" in debated
+    assert "토론 전문: https://agenttrust.kr/harness/abc" in debated

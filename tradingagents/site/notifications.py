@@ -234,14 +234,19 @@ def compose_issue_messages(run_payload: Mapping[str, Any], *, issue_number: int,
         head = f"<b>제 {issue_number}호 · {date_text}</b>\n{total}개 후보 중 {len(ordered)}개 통과: {names}"
     else:
         head = f"<b>제 {issue_number}호 · {date_text}</b>\n{total}개 후보를 살폈지만 통과한 종목이 없습니다."
+    # A run with no confirmer has no rating to report. A dash where the verdict
+    # goes reads as a missing value rather than as what actually happened,
+    # which is that the rules passed it and no AI was asked.
+    argued = str(run.get("confirmer") or "none").strip().lower() not in {"", "none"}
     lines = []
     for item in ordered[:5]:
-        rating = item.get("confirmation_rating") or "-"
+        rating = item.get("confirmation_rating")
         conf = item.get("confirmation_confidence")
-        conf_text = f" {float(conf):.2f}" if conf is not None else ""
+        verdict = f" — {rating}{f' {float(conf):.2f}' if conf is not None else ''}" if rating else " — 규칙 통과"
         qty = item.get("quantity")
-        lines.append(f"• {item.get('ticker_name') or item.get('ticker_code')} — {rating}{conf_text}{f' · 모의 {qty}주' if qty else ''}")
-    paid = head + ("\n" + "\n".join(lines) if lines else "") + f"\n토론 전문: {link}\n\nAI 분석 자료이며 매매 권유가 아닙니다."
+        lines.append(f"• {item.get('ticker_name') or item.get('ticker_code')}{verdict}{f' · 모의 {qty}주' if qty else ''}")
+    record = f"\n{'토론 전문' if argued else '선별 기록'}: {link}"
+    paid = head + ("\n" + "\n".join(lines) if lines else "") + record + "\n\nAI 분석 자료이며 매매 권유가 아닙니다."
     free = (
         f"<b>제 {issue_number}호 · {date_text}</b>\n{total}개 후보 중 {len(ordered)}개가 통과했습니다. "
         f"종목과 토론 전문은 데일리 패스에서 실행 즉시 열리고, 무료 플랜은 다음 거래일에 공개됩니다.\n{base or ''}/pricing"
