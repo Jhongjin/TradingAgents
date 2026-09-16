@@ -2168,6 +2168,17 @@ def _render_hyperframes(board, payload, output: Path, *, voice: bool, music: Opt
     console.print(f"[bold]{board.title}[/bold]")
 
 
+def _debate_in(run: dict) -> dict | None:
+    """The first decision in this run that came with both sides of an argument."""
+
+    for decision in (run or {}).get("decisions") or []:
+        raw = ((decision.get("detail") or {}).get("confirmation") or {}).get("raw") or {}
+        turns = ((raw.get("debate") or {}).get("turns")) or {}
+        if turns.get("bull") and turns.get("bear"):
+            return {"decision": decision, "turns": turns, "as_of_date": (run.get("run") or {}).get("as_of_date")}
+    return None
+
+
 def _latest_debate(source: Optional[str]) -> dict | None:
     """The newest bought pick that came with a bull/bear transcript.
 
@@ -2194,16 +2205,20 @@ def _latest_debate(source: Optional[str]) -> dict | None:
             from tradingagents.site.harness_api import build_harness_run_payload
             from tradingagents.storage import StorageRepository, create_storage_engine
 
-            run = build_harness_run_payload(StorageRepository(create_storage_engine())) or {}
+            # A day has several runs and only the screening one carries an
+            # argument - the exit sweeps that follow it confirm nothing. So the
+            # recent runs are walked newest first until one has a transcript.
+            repo = StorageRepository(create_storage_engine())
+            for row in repo.list_harness_runs(limit=8):
+                run = build_harness_run_payload(repo, harness_run_id=str(row["id"])) or {}
+                found = _debate_in(run)
+                if found:
+                    return found
+            return None
     except Exception:                                   # noqa: BLE001 - the other stories still work
         return None
 
-    for decision in run.get("decisions") or []:
-        raw = ((decision.get("detail") or {}).get("confirmation") or {}).get("raw") or {}
-        turns = ((raw.get("debate") or {}).get("turns")) or {}
-        if turns.get("bull") and turns.get("bear"):
-            return {"decision": decision, "turns": turns, "as_of_date": (run.get("run") or {}).get("as_of_date")}
-    return None
+    return _debate_in(run)
 
 
 def _account_curve(source: Optional[str]) -> dict | None:
@@ -2262,15 +2277,27 @@ def _biggest_mover(payload: dict, source: Optional[str]) -> dict | None:
             response.raise_for_status()
             bars = ((response.json() or {}).get("chart") or {}).get("points") or []
         else:
+            from datetime import date as _date
+            from datetime import timedelta as _timedelta
+
             from tradingagents.dataflows.chart_data import get_ohlcv_chart_series
 
-            series = get_ohlcv_chart_series(code, str(trade.get("entry_date"))[:10], str(trade.get("exit_date"))[:10])
-            bars = [row for row in series.points]
+            # a run-up before the buy, so the entry line is seen sitting on a
+            # chart that already existed rather than starting at it
+            opened = _date.fromisoformat(str(trade.get("entry_date"))[:10])
+            series = get_ohlcv_chart_series(
+                code,
+                (opened - _timedelta(days=40)).isoformat(),
+                str(trade.get("exit_date"))[:10],
+            )
+            # the API answers with dicts and the vendor with OhlcvPoint rows;
+            # the rest of this reads one shape
+            bars = [row.as_dict() if hasattr(row, "as_dict") else row for row in series.points]
     except Exception:                                   # noqa: BLE001 - the other stories still work
         return None
 
     entry, exit_ = str(trade.get("entry_date") or "")[:10], str(trade.get("exit_date") or "")[:10]
-    dates = [str(row.get("date") or "")[:10] for row in bars]
+    dates = [str((row or {}).get("date") or "")[:10] for row in bars]
     if entry not in dates or exit_ not in dates:
         return None
     first, last = dates.index(entry), dates.index(exit_)
@@ -2309,15 +2336,21 @@ def _shorts_payload(source: Optional[str]) -> dict:
 
         payload = build_combined_account_payload(StorageRepository(create_storage_engine()))
 
-    debate = _latest_debate(source)
-    if debate:
-        payload = {**payload, "debate": debate}
-    curve = _account_curve(source)
-    if curve:
-        payload = {**payload, "curve": curve}
-    mover = _biggest_mover(payload, source)
-    if mover:
-        payload = {**payload, "candles": mover}
+    # Each of these only adds a story to the shelf. None of them is worth the
+    # day's video: a cut that cannot be drawn should drop off the list, not
+    # take the run down with it.
+    for key, build in (
+        ("debate", lambda: _latest_debate(source)),
+        ("curve", lambda: _account_curve(source)),
+        ("candles", lambda: _biggest_mover(payload, source)),
+    ):
+        try:
+            extra = build()
+        except Exception as exc:                        # noqa: BLE001
+            console.print(f"[yellow]{key} 자료를 붙이지 못했습니다. 이 이야기만 빼고 진행합니다.[/yellow] {exc}")
+            continue
+        if extra:
+            payload = {**payload, key: extra}
     return payload
 
 

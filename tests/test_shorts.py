@@ -734,3 +734,53 @@ def test_a_voice_that_crashes_once_gets_a_second_go_and_never_loses_the_video(mo
         cli._render_hyperframes(board, _payload(), tmp_path, voice=True, music=None, story="record")
 
     assert len(calls) == 2, "a transient crash must be retried once"
+
+
+def test_the_tape_reads_the_vendor_rows_as_well_as_the_api_ones(monkeypatch):
+    """The scheduled run reads the database, which answers with OhlcvPoint."""
+
+    import cli.main as cli
+    from tradingagents.dataflows.chart_data import OhlcvPoint
+
+    points = [
+        OhlcvPoint(date=f"2026-08-{day:02d}", open=100.0 + day, high=104.0 + day,
+                   low=96.0 + day, close=101.0 + day, volume=1000 + day)
+        for day in range(1, 29)
+    ]
+    monkeypatch.setattr(
+        "tradingagents.dataflows.chart_data.get_ohlcv_chart_series",
+        lambda code, start, end, **kwargs: type("S", (), {"points": points})(),
+    )
+
+    payload = {"closed": [{"ticker_code": "131290", "ticker_name": "티에스이",
+                           "entry_date": "2026-08-20", "exit_date": "2026-08-25",
+                           "realized_return": -0.156, "realized_pnl": -1_200_000.0}]}
+    mover = cli._biggest_mover(payload, None)
+
+    assert mover is not None, "the vendor's own row shape must not be a miss"
+    assert all(isinstance(bar, dict) for bar in mover["bars"])
+    # the stub has every calendar day, so 8/20 to 8/25 is five rows apart
+    assert mover["held_days"] == 5 and mover["share"] == 1.0
+
+
+def test_an_extra_that_cannot_be_built_does_not_take_the_run_down(monkeypatch, capsys):
+    """One story's data failed and the whole morning's video was lost."""
+
+    import cli.main as cli
+
+    monkeypatch.setenv("DATABASE_URL", "sqlite://")
+    monkeypatch.setattr(
+        "tradingagents.harness.paper_state.build_combined_account_payload",
+        lambda repo: {"summary": {}, "closed": [], "positions": [], "accounts": []},
+    )
+    monkeypatch.setattr("tradingagents.storage.StorageRepository", lambda engine: object())
+    monkeypatch.setattr("tradingagents.storage.create_storage_engine", lambda *a, **k: object())
+    monkeypatch.setattr(cli, "_latest_debate", lambda source: {"turns": {"bull": {}, "bear": {}}})
+    monkeypatch.setattr(cli, "_account_curve", lambda source: (_ for _ in ()).throw(AttributeError("boom")))
+    monkeypatch.setattr(cli, "_biggest_mover", lambda payload, source: None)
+
+    payload = cli._shorts_payload(None)
+
+    assert "debate" in payload            # the one that worked is still attached
+    assert "curve" not in payload         # the one that broke is simply absent
+    assert "자료를 붙이지 못했습니다" in capsys.readouterr().out
