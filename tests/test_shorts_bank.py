@@ -285,3 +285,63 @@ def test_a_200_with_no_video_id_is_a_failure_not_a_footnote():
     assert source.index("업로드되지 않았습니다.") < source.index("record_published(")
     # and nothing is written to the ledger, so tomorrow does not skip the story
     assert source.count("record_published(") == 1
+
+
+def test_each_cut_has_its_own_ground_so_the_grid_is_not_one_video_five_times():
+    """Four cuts on one navy read as the same upload posted again."""
+
+    import re
+    from pathlib import Path
+
+    grounds = {}
+    for path in sorted(Path("tradingagents/shorts").glob("composition*.html")):
+        found = re.search(r"html, body \{[^}]*background: (#[0-9a-f]{6})", path.read_text(encoding="utf-8"))
+        assert found, path.name
+        grounds[path.name] = found.group(1)
+
+    assert len(grounds) >= 4
+    assert len(set(grounds.values())) == len(grounds), grounds
+
+
+def test_the_daily_path_draws_the_cut_the_story_named():
+    """It drew compose_record whatever won, so a picks day looked like a loss day."""
+
+    import inspect
+
+    from cli import main as cli
+
+    source = inspect.getsource(cli._shorts_build)
+    assert '"debate": compose_debate' in source and '"curve": compose_curve' in source
+    assert '"candles": compose_candles' in source
+    assert "compose(payload, board)" in source
+    # and the story, not just the cut, reaches the words under the video
+    assert "build(renderer, payload, story=story_key)" in source
+
+
+def test_three_stories_that_share_the_record_cut_do_not_share_its_title():
+    """They went out as one title, so the channel read as a repost."""
+
+    from datetime import datetime
+
+    from tradingagents.shorts import build
+    from tradingagents.shorts.bank import KST
+
+    now = datetime(2026, 9, 16, 11, 0, tzinfo=KST)
+    payload = {
+        "summary": {"initial_cash": 1.5e8, "total_return": -0.0173, "closed_count": 8, "win_count": 0},
+        "accounts": [],
+        "positions": [],
+        "closed": [
+            {"ticker_name": "티에스이", "realized_return": -0.156, "exit_reason": "stop_loss",
+             "exit_date": "2026-09-16", "entry_date": "2026-09-10"},
+            {"ticker_name": "한올바이오", "realized_return": -0.081, "exit_reason": "stop_loss",
+             "exit_date": "2026-09-16", "entry_date": "2026-09-11"},
+        ],
+    }
+    titles = {key: build("record", payload, now=now, story=key).title
+              for key in ("record", "exits", "stop_worked")}
+    assert len(set(titles.values())) == 3, titles
+    assert "티에스이" in titles["stop_worked"] and "-15.6%" in titles["stop_worked"]
+    assert "2종목" in titles["exits"]
+    # and the slug follows the story too, so renders do not overwrite each other
+    assert build("record", payload, now=now, story="exits").slug.startswith("exits-")

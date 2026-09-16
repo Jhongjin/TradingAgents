@@ -2382,23 +2382,29 @@ def shorts_plan_command(
         console.print(f"  {mark} {item['score']:.3f} {item['label']:<20} {item['reason']}")
 
 
-def _shorts_build(renderer: str, payload: dict, output: Path):
+def _shorts_build(renderer: str, payload: dict, output: Path, *, story_key: str | None = None):
     """Render one story here and hand back the board and the files it wrote."""
 
     from tradingagents.shorts import build, voice as narration
-    from tradingagents.shorts.hyperframes import compose_record, run, write_project
+    from tradingagents.shorts.hyperframes import (
+        compose_candles, compose_curve, compose_debate, compose_record, run, write_project,
+    )
 
-    board = build(renderer, payload)
+    board = build(renderer, payload, story=story_key)
     if narration.available():
         console.print("[dim]내레이션 생성 중…[/dim]")
-        spoken = narration.narrate(board, work_dir=output / "voice" / renderer)
+        spoken = narration.narrate(board, work_dir=output / "voice" / (story_key or renderer))
         board = spoken.board
     else:
         spoken = None
         console.print("[yellow]로컬 VoxCPM 을 찾지 못해 무음으로 만듭니다.[/yellow]")
 
-    html, seconds = compose_record(payload, board)
-    project = write_project(html, output / "hf" / renderer, name=renderer)
+    # The daily path used to draw compose_record whatever the story was, so a
+    # debate day and a curve day came out as the same video with the same
+    # numbers on it. The cut a story names is the cut it gets.
+    compose = {"debate": compose_debate, "curve": compose_curve, "candles": compose_candles}.get(renderer, compose_record)
+    html, seconds = compose(payload, board)
+    project = write_project(html, output / "hf" / (story_key or renderer), name=story_key or renderer)
     run("check", project.directory)
     console.print("[dim]렌더 중…[/dim]")
     run("render", project.directory)
@@ -2466,7 +2472,7 @@ def shorts_daily_command(
     story = BY_KEY[decision["story"]]
     console.print(f"[bold]{decision['date']}[/bold] · {story.label} · {decision['chosen']['reason']}")
 
-    board, video, caption = _shorts_build(story.renderer, payload, output)
+    board, video, caption = _shorts_build(story.renderer, payload, output, story_key=story.key)
     title, description = _shorts_caption(caption, board)
     console.print(f"[green]{video}[/green] {video.stat().st_size / 1048576:,.1f}MB")
 

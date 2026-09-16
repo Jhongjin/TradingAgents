@@ -171,7 +171,7 @@ def _outro(*, headline: tuple[str, ...], call: str, narration: str) -> Outro:
     )
 
 
-def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME) -> Storyboard:
+def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME, story: str | None = None) -> Storyboard:
     """The whole record so far: what was closed, and what it did to the account.
 
     This is the cut for a channel nobody knows yet. It has a beginning and an
@@ -194,6 +194,26 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
 
     verdict = "전부 손실이었습니다." if closed and win_count == 0 else f"{win_count}건이 이익이었습니다."
     stopped = [item for item in closed if str(item.get("exit_reason")) == "stop_loss"]
+
+    # Three stories are drawn by this cut, and for a while all three went out
+    # under one title, so the channel read as the same video posted again. The
+    # title leads with whatever the day actually chose.
+    today_iso = _today(now).isoformat()
+    today_exits = [item for item in closed if str(item.get("exit_date") or "")[:10] == today_iso]
+    lead = today_exits[0] if today_exits else None
+    lead_name = str((lead or {}).get("ticker_name") or (lead or {}).get("ticker_code") or "")
+    lead_pct = percent(float(lead["realized_return"]), digits=1) if lead else ""
+
+    if story == "stop_worked" and lead is not None:
+        title = f"{lead_name} {lead_pct}에서 잘랐습니다 | 손절선이 일한 날"
+    elif story == "exits" and lead is not None:
+        title = (
+            f"오늘 정리한 {len(today_exits)}종목 | {lead_name} {lead_pct}"
+            if len(today_exits) > 1
+            else f"오늘 {lead_name} 정리했습니다 | {lead_pct}"
+        )
+    else:
+        title = f"AI 모의계좌 성적 전부 공개 | 정리한 {closed_count}건과 {percent(total_return)}"
 
     rows = tuple(
         {
@@ -274,8 +294,8 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
     ))
 
     return Storyboard(
-        slug=f"record-{stamp}",
-        title=f"AI 모의계좌 성적 전부 공개 | 정리한 {closed_count}건과 {percent(total_return)}",
+        slug=f"{story or 'record'}-{stamp}",
+        title=title,
         description=(
             f"AI가 고른 종목을 모의 계좌가 담고, 정리한 결과를 하나도 빼지 않고 공개합니다.\n\n"
             f"전체 기록 → {_link('/paper', 'record', stamp=stamp)}\n"
@@ -294,7 +314,7 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
     )
 
 
-def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME) -> Storyboard:
+def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME, story: str | None = None) -> Storyboard:
     """What the AI book is holding right now, with the levels it set on entry."""
 
     positions = [item for item in payload.get("positions") or [] if str(item.get("account")) == "paper"]
@@ -404,7 +424,7 @@ def _conviction(turn: Mapping[str, Any]) -> float:
         return 0.0
 
 
-def build_debate(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME) -> Storyboard:
+def build_debate(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME, story: str | None = None) -> Storyboard:
     """One pick, and the argument the two sides had over it.
 
     The account pages show what was bought. This shows what was said before it
@@ -509,7 +529,7 @@ def build_debate(payload: Mapping[str, Any], *, now: datetime | None = None, the
 MIN_CURVE_DAYS = 5
 
 
-def build_curve(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME) -> Storyboard:
+def build_curve(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME, story: str | None = None) -> Storyboard:
     """The line the account drew, against the line the index drew.
 
     A weekly report that lists numbers is a table read aloud. The two lines
@@ -593,7 +613,7 @@ def build_curve(payload: Mapping[str, Any], *, now: datetime | None = None, them
 
 
 
-def build_candles(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME) -> Storyboard:
+def build_candles(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME, story: str | None = None) -> Storyboard:
     """One trade, on its own tape, with the two levels that ended it.
 
     The account cuts show every trade as a bar on a shared scale. This one
@@ -681,10 +701,25 @@ STORIES: dict[str, Callable[..., Storyboard]] = {
 }
 
 
-def build(name: str, payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME) -> Storyboard:
+def build(
+    name: str,
+    payload: Mapping[str, Any],
+    *,
+    now: datetime | None = None,
+    theme: str = DEFAULT_THEME,
+    story: str | None = None,
+) -> Storyboard:
+    """Draw `name`, told from the angle of `story`.
+
+    Several stories share a cut — 오늘 정리된 종목, 손절이 작동한 날 and 지금까지의
+    성적 are all drawn by the record cut. They are not the same video, though,
+    and for a while they went out under one title because only the cut's name
+    reached here. The story key is what the day actually chose, so it comes too.
+    """
+
     if name not in STORIES:
         raise ValueError(f"알 수 없는 스토리 {name!r}. 가능한 값: {', '.join(sorted(STORIES))}")
-    return STORIES[name](payload, now=now, theme=theme)
+    return STORIES[name](payload, now=now, theme=theme, story=story or name)
 
 
 __all__ = ["STORIES", "Storyboard", "build", "build_picks", "build_record", "short_date", "site_url"]
