@@ -548,3 +548,54 @@ def test_a_month_of_choices_uses_the_whole_shelf():
     # the loss-record cut is no longer the majority of the month
     record_days = len([key for key in chosen if BY_KEY[key].renderer == "record"])
     assert record_days < len(chosen) / 3, f"{record_days}/{len(chosen)}"
+
+
+def test_a_funnel_bar_is_never_narrower_than_the_count_written_inside_it():
+    """The live run drew 3종목 as "3종": the label is in the ground colour."""
+
+    import json as _json
+    import re
+
+    from tradingagents.shorts import build
+    from tradingagents.shorts.hyperframes import FUNNEL_BAR, compose_funnel
+
+    payload = {"funnel": {
+        "universe": 349, "picks": [{"name": "JB금융지주", "sub": "규칙 통과", "value": "3.09점"}],
+        "stages": [{"label": "거래대금·밸류·변동성", "from": 349, "to": 20},
+                   {"label": "점수 상위만 추림", "from": 20, "to": 3}],
+    }}
+    board = build("funnel", payload, now=MONDAY, story="funnel")
+    html, _ = compose_funnel(payload, board)
+
+    values = _json.loads(re.search(r"STAGES = (\[.*?\]);", html, re.S).group(1))
+    for row in values:
+        label = f"{int(row['to'])}종목"
+        # padding, a digit-width each, and room for 종목 — measured the same way
+        # the composer floors it, so the bar always contains its own text
+        assert row["scale"] * FUNNEL_BAR >= 34 + len(str(int(row["to"]))) * 26 + 58, label
+
+
+def test_the_funnel_caption_says_what_the_number_beside_a_name_actually_is():
+    """A rules-only run shows a screener score, and calling it AI confidence is a lie."""
+
+    from tradingagents.shorts import build
+
+    stages = [{"label": "거래대금·밸류·변동성", "from": 349, "to": 20},
+              {"label": "점수 상위만 추림", "from": 20, "to": 3}]
+    rules_only = build("funnel", {"funnel": {
+        "universe": 349, "stages": stages, "scored_by": "screener",
+        "picks": [{"name": "JB금융지주", "sub": "규칙 통과", "value": "3.09점"}]}},
+        now=MONDAY, story="funnel")
+    with_ai = build("funnel", {"funnel": {
+        "universe": 349, "stages": stages, "scored_by": "confidence",
+        "picks": [{"name": "JB금융지주", "sub": "비중 확대", "value": "0.62"}]}},
+        now=MONDAY, story="funnel")
+
+    assert "선별 점수" in rules_only.scenes[2].note
+    assert "AI 토론 없이 규칙만으로" in rules_only.scenes[2].note
+    assert "확신도" not in rules_only.scenes[2].note
+    assert "확신도" in with_ai.scenes[2].note
+
+    # and the narration follows it, because that is the half people hear
+    assert "선별 점수" in rules_only.scenes[2].narration
+    assert "AI가 얼마나 확신했는지" in with_ai.scenes[2].narration

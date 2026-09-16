@@ -2296,7 +2296,15 @@ def _funnel_in(run: dict) -> dict | None:
                      else (f"{float(score):.2f}점" if score is not None else "규칙"),
         })
 
-    return {"as_of_date": header.get("as_of_date"), "universe": universe, "stages": stages, "picks": picks}
+    # What the right-hand column actually is, so the caption under it can say
+    # so. A rules-only run shows the screener's composite score, and calling
+    # that "AI 토론이 매긴 확신도" on screen would simply be untrue.
+    scored_by = "confidence" if any(
+        row.get("confirmation_confidence") is not None for row in decisions
+    ) else "screener"
+
+    return {"as_of_date": header.get("as_of_date"), "universe": universe,
+            "stages": stages, "picks": picks, "scored_by": scored_by}
 
 
 def _latest_funnel(source: Optional[str]) -> dict | None:

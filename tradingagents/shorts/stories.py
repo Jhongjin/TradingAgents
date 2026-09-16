@@ -732,6 +732,9 @@ def build_funnel(payload: Mapping[str, Any], *, now: datetime | None = None, the
     picks = list(funnel.get("picks") or [])[:4]
     universe = int(funnel.get("universe") or 0)
     survived = int(stages[-1].get("to") or 0) if stages else len(picks)
+    # Whether an AI actually weighed in on these names. A rules-only run
+    # shows the screener's own score, and the caption has to say which.
+    by_ai = str(funnel.get("scored_by") or "confidence") == "confidence"
     stamp = _today(now).strftime("%Y%m%d")
 
     dropped = universe - survived
@@ -783,11 +786,19 @@ def build_funnel(payload: Mapping[str, Any], *, now: datetime | None = None, the
             eyebrow="살아남은 이름",
             heading="그래서 오늘 이걸 샀습니다",
             rows=pick_rows,
-            note="옆의 값은 AI 토론이 매긴 확신도입니다. 맞는다는 뜻이 아니라, 얼마나 확신했는지입니다.",
+            note=(
+                "옆의 값은 AI 토론이 매긴 확신도입니다. 맞는다는 뜻이 아니라, 얼마나 확신했는지입니다."
+                if by_ai
+                else "옆의 값은 선별 점수입니다. 이 실행은 AI 토론 없이 규칙만으로 골랐습니다."
+            ),
             seconds=2.4 + len(pick_rows) * 0.9,
             narration=(
-                "그래서 오늘 산 게 이겁니다. 옆에 붙은 건 AI가 얼마나 확신했는지고요. "
-                "맞는다는 뜻은 아닙니다. 며칠 뒤 결과도 똑같이 올라옵니다."
+                (
+                    "그래서 오늘 산 게 이겁니다. 옆에 붙은 건 AI가 얼마나 확신했는지고요. 맞는다는 뜻은 아닙니다."
+                    if by_ai
+                    else "그래서 오늘 산 게 이겁니다. 옆에 붙은 건 선별 점수예요. 이번 실행은 AI 토론 없이 규칙만으로 골랐습니다."
+                )
+                + " 며칠 뒤 결과도 똑같이 올라옵니다."
             ),
         ),
         _outro(

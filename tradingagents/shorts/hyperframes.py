@@ -704,8 +704,12 @@ def compose_funnel(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, 
     widest = max((float(row.get("from") or 0) for row in stages), default=1.0) or 1.0
 
     def scale(count: float) -> float:
-        # a floor, so a single survivor is still a bar somebody can read
-        return round(max((max(count, 0.0) / widest) ** 0.5, 0.055), 4)
+        # The count is written inside the bar in the ground colour, so a bar
+        # narrower than its own label does not overflow — it disappears. The
+        # live run drew 3종목 as "3종". The floor is whatever that row's text
+        # needs: padding, one digit-width each, and room for 종목.
+        floor = (34 + len(f"{int(count)}") * 26 + 58) / FUNNEL_BAR
+        return round(max((max(count, 0.0) / widest) ** 0.5, floor), 4)
 
     values = []
     for row in stages:
