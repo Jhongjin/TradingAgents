@@ -2509,15 +2509,20 @@ def shorts_daily_command(
         answer = response.json() or {}
     except ValueError:
         answer = {}
-    video_id = answer.get("videoId")
+    video_id = str(answer.get("videoId") or "").strip()
+    if not video_id:
+        # A 200 with no id means the file reached n8n and YouTube never saw it:
+        # the upload node was skipped or swallowed its own error. Calling that
+        # "업로드됨" is how a morning went by with nothing published and nothing
+        # saying so. It is a failure, and the ledger does not get a row.
+        console.print("[red]업로드되지 않았습니다.[/red] n8n 이 videoId 를 돌려주지 않았습니다 — "
+                      "유튜브 노드가 건너뛰어졌거나 오류를 삼켰습니다.")
+        console.print(f"[dim]n8n 응답: {response.status_code} {response.text[:200]}[/dim]")
+        console.print(f"[dim]영상은 {video} 에 그대로 있습니다.[/dim]")
+        raise typer.Exit(code=1)
+
     record_published(story.key, video_id=video_id, path=ledger, title=title)
-    if video_id:
-        console.print(f"[green]발행 완료[/green] https://youtu.be/{video_id}")
-    else:
-        # the upload itself went through; it is the answer that came back thin,
-        # so say what n8n actually sent rather than writing a silent null
-        console.print("[green]업로드됨[/green] [yellow]videoId 회신 없음[/yellow] "
-                      f"{response.status_code} {response.text[:200]!r}")
+    console.print(f"[green]발행 완료[/green] https://youtu.be/{video_id}")
 
 
 @app.command("shorts-record")

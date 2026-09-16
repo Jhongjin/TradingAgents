@@ -246,3 +246,19 @@ def test_the_comment_leads_with_the_receipts_and_lands_a_newcomer():
     assert "utm_source=youtube" in lines[1]
     assert any("/start?" in line for line in lines)        # for whoever arrived cold
     assert len(comment) < 500                              # nobody reads past this
+
+
+def test_a_200_with_no_video_id_is_a_failure_not_a_footnote():
+    """A morning went by with nothing published and the run said 업로드됨."""
+
+    import inspect
+
+    from cli import main as cli
+
+    source = inspect.getsource(cli.shorts_daily_command)
+    # the id is what proves YouTube saw the file; without it the run stops
+    assert 'video_id = str(answer.get("videoId") or "").strip()' in source
+    assert "업로드되지 않았습니다." in source
+    assert source.index("업로드되지 않았습니다.") < source.index("record_published(")
+    # and nothing is written to the ledger, so tomorrow does not skip the story
+    assert source.count("record_published(") == 1
