@@ -73,12 +73,27 @@ def test_a_story_told_yesterday_is_no_longer_new():
 
 
 def test_standby_material_is_always_in_the_running_and_never_wins_a_loud_day():
-    rows = {item.story.key: item for item in evaluate(_payload(), now=MONDAY, ledger=[])}
+    rows = {item.story.key: item for item in evaluate(_payload(closed_before=4), now=MONDAY, ledger=[])}
     assert {"explain_stop", "explain_debate", "explain_open"} <= set(rows)
     assert all(rows[key].story.tier == "standby" for key in ("explain_stop", "explain_debate", "explain_open"))
+    assert all(rows[key].story.renderable for key in ("explain_stop", "explain_debate", "explain_open"))
 
     loud = evaluate(_payload(closed_before=4, exits=(("가", -0.16, "stop_loss"),)), now=MONDAY, ledger=[])
     assert loud[0].story.tier != "standby"
+
+
+def test_an_explainer_waits_until_its_evidence_beat_has_something_in_it():
+    """Explaining the method and then showing an empty table is worse than a quiet day."""
+
+    # nothing closed yet, so "we publish the losing ones too" has nothing to show
+    fresh = {key: item for item in evaluate(_payload(), now=MONDAY, ledger=[]) for key in [item.story.key]}
+    assert "explain_open" not in fresh
+    assert "explain_stop" in fresh          # its proof is a dated backtest, always there
+
+    # and one book on its own cannot show what the second book is for
+    one_book = {**_payload(closed_before=4), "accounts": [
+        {"key": "paper", "label": "AI 확인", "summary": {"total_return": -0.01, "open_count": 2, "closed_count": 1}}]}
+    assert "explain_debate" not in {item.story.key for item in evaluate(one_book, now=MONDAY, ledger=[])}
 
 
 def test_friday_puts_the_weekly_report_in_the_running_once_there_is_a_line_to_draw():
@@ -109,11 +124,15 @@ def test_only_a_story_that_can_actually_be_drawn_is_chosen():
     assert "take_profit" in decision["waiting"]
 
 
-def test_an_empty_account_still_yields_a_decision():
+def test_an_empty_account_still_yields_a_video():
+    """The first week has no trades, and the channel still has to post."""
+
     decision = plan({"summary": {}, "accounts": [], "closed": [], "positions": []}, now=MONDAY, ledger=[])
     assert decision["candidates"]                        # the shelf is never empty
-    assert decision["story"] is None                     # but nothing renderable fired
-    assert "만들 수 있는 것이 없습니다" in decision["reason"]
+    # and now something on it can actually be drawn: the explainers do not need
+    # an account at all, which is the whole point of holding a daily slot
+    assert decision["story"] == "explain_stop"
+    assert decision["renderer"] == "explain"
 
 
 def test_the_ledger_remembers_what_went_out(tmp_path):
@@ -137,7 +156,7 @@ def test_every_story_declares_what_it_needs():
     for story in STORIES:
         assert story.tier in {"daily", "event", "periodic", "standby"}
         assert 0 < story.completeness <= 1 and story.cooldown_days >= 1
-        assert story.renderer in {None, "record", "picks", "debate", "curve", "candles", "funnel"}
+        assert story.renderer in {None, "record", "picks", "debate", "curve", "candles", "funnel", "explain"}
     from tradingagents.shorts.stories import STORIES as BUILDERS
     # every renderer a story names must have something that draws it
     assert {story.renderer for story in STORIES if story.renderer} <= set(BUILDERS)
@@ -394,3 +413,62 @@ def test_the_funnel_is_read_off_the_run_s_own_stages_not_measured_again():
 
     # a run with no universe behind it draws nothing rather than a wrong funnel
     assert _funnel_in({"run": {"universe_size": 0}, "decisions": [{"stage": "ordered"}]}) is None
+
+
+def test_every_topic_says_something_different_and_names_its_evidence():
+    """Six cuts on one subject is the problem these were written to fix."""
+
+    from datetime import datetime
+
+    from tradingagents.shorts import build
+    from tradingagents.shorts.bank import KST
+    from tradingagents.shorts.topics import BACKTEST_LABEL, TOPICS
+
+    now = datetime(2026, 9, 16, 8, 40, tzinfo=KST)
+    payload = {
+        "summary": {"initial_cash": 1.5e8, "total_return": -0.0173, "closed_count": 8, "win_count": 1},
+        "accounts": [
+            {"key": "paper", "label": "AI 확인", "summary": {"total_return": -0.0147, "open_count": 7, "closed_count": 4}},
+            {"key": "rules", "label": "규칙 전용", "summary": {"total_return": -0.0205, "open_count": 6, "closed_count": 4}},
+        ],
+        "closed": [{"ticker_name": f"정리{i}", "realized_return": -0.05, "exit_date": "2026-09-10"} for i in range(8)],
+        "positions": [],
+    }
+
+    boards = {topic.key: build("explain", payload, now=now, story=topic.key) for topic in TOPICS}
+    assert len({board.title for board in boards.values()}) == len(TOPICS)
+    assert len({board.slug for board in boards.values()}) == len(TOPICS)
+    for topic in TOPICS:
+        board = boards[topic.key]
+        assert len(board.scenes) == 4 and board.seconds > 15
+        # the evidence beat is never empty for a topic that reached the shelf
+        assert board.scenes[2].rows, topic.key
+        assert board.comment and topic.path in board.description
+
+    # the one topic whose proof is a backtest says so, with its date
+    assert "2026년 9월" in BACKTEST_LABEL
+    assert BACKTEST_LABEL in boards["explain_stop"].scenes[2].note
+
+    # and the two that read the live account did read it
+    assert any("−2.05%" in str(row.get("sub")) or "-2.05%" in str(row.get("sub"))
+               for row in boards["explain_debate"].scenes[2].rows)
+    assert any("8건 전부" == row.get("value") for row in boards["explain_open"].scenes[2].rows)
+
+
+def test_every_renderer_a_story_names_has_a_composer_behind_it():
+    """A story whose cut does not exist falls through to the record cut and lies."""
+
+    import inspect
+
+    from cli import main as cli
+    from tradingagents.shorts.bank import STORIES
+    from tradingagents.shorts.stories import STORIES as BUILDERS
+
+    named = {story.renderer for story in STORIES if story.renderer}
+    assert named <= set(BUILDERS)
+
+    source = inspect.getsource(cli._shorts_build)
+    # every renderer except the record cut has to be in the dispatch by name,
+    # or it silently draws compose_record
+    for renderer in sorted(named - {"record", "picks"}):
+        assert f'"{renderer}": compose_{renderer}' in source, renderer

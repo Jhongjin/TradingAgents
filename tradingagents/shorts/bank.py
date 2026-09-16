@@ -73,9 +73,9 @@ STORIES: tuple[Story, ...] = (
     Story("weekly", "주간 성적표", "periodic", 1.0, 6, "curve"),
     Story("monthly", "월간 결산", "periodic", 1.0, 25, None),
     # --- needs no data at all, which is what quiet days are for -------------
-    Story("explain_stop", "손절선은 어떻게 정하나", "standby", 1.0, 30, None),
-    Story("explain_debate", "AI 토론은 뭘 보고 판단하나", "standby", 1.0, 30, None),
-    Story("explain_open", "왜 틀린 것까지 올리나", "standby", 1.0, 30, None),
+    Story("explain_stop", "손절선은 어떻게 정하나", "standby", 1.0, 14, "explain"),
+    Story("explain_debate", "AI 토론은 뭘 보고 판단하나", "standby", 1.0, 14, "explain"),
+    Story("explain_open", "왜 틀린 것까지 올리나", "standby", 1.0, 14, "explain"),
 )
 BY_KEY = {story.key: story for story in STORIES}
 
@@ -292,7 +292,16 @@ def evaluate(payload: Mapping[str, Any], *, now: datetime | None = None, ledger:
         add("monthly", 0.95, "한 달이 끝났습니다.")
 
     # --- and the shelf, which is what a quiet day is for --------------------
+    # An explainer only goes on the shelf once its evidence beat has something
+    # in it. explain_debate needs both books, explain_open needs closed trades;
+    # a cut that explains the method and then shows an empty table is worse
+    # than the quiet day it was meant to fill.
+    from .topics import BY_TOPIC
+
     for key in ("explain_stop", "explain_debate", "explain_open"):
+        topic = BY_TOPIC.get(key)
+        if topic is not None and not topic.ready(payload):
+            continue
         add(key, 0.3, "조용한 날을 위한 상비 콘텐츠입니다.")
 
     found.sort(key=lambda item: (-item.score, item.story.key))

@@ -652,7 +652,7 @@ def run(command: str, directory: Path, *, extra: Sequence[str] = (), timeout: in
 
 
 __all__ = ["Composition", "CLI_VERSION", "HyperFramesMissingError", "compose_candles", "compose_curve",
-           "compose_debate", "compose_funnel", "compose_record", "run", "write_project"]
+           "compose_debate", "compose_explain", "compose_funnel", "compose_record", "run", "write_project"]
 
 
 # ---------------------------------------------------------------- the funnel
@@ -750,6 +750,99 @@ def compose_funnel(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, 
         "{{PICK_COUNT}}": str(len(picks)),
         "{{PICKS_NOTE}}": board.scenes[2].note,
         "{{PICKS_NOTE_TOP}}": f"{PICK_TOP + len(picks) * PICK_STEP + 40}",
+        "{{OUTRO1}}": outro.headline[0] if getattr(outro, "headline", ()) else "",
+        "{{OUTRO2}}": outro.headline[1] if len(getattr(outro, "headline", ())) > 1 else "",
+        "{{OUTRO_CALL}}": getattr(outro, "call", ""),
+        "{{URL}}": host,
+        "{{TELEGRAM_LINE}}": getattr(outro, "telegram_line", ""),
+        "{{TELEGRAM}}": handle or f"{host}/start",
+    }
+    for token, value in replacements.items():
+        template = template.replace(token, str(value))
+    return template, running
+
+
+# --------------------------------------------------------------- the explainer
+STEP_TOP, STEP_STEP = 440, 240
+PROOF_TOP, PROOF_STEP = 460, 136
+
+
+def _step_row(index: int, step: Mapping[str, Any]) -> str:
+    top = STEP_TOP + index * STEP_STEP
+    return (
+        f'<div class="step" id="step{index}" style="top: {top}px;">'
+        f'<div class="rl"></div><p class="no">{index + 1}</p>'
+        f'<p class="lb">{step.get("label")}</p><p class="bd">{step.get("sub")}</p></div>'
+    )
+
+
+def _proof_row(index: int, row: Mapping[str, Any]) -> str:
+    top = PROOF_TOP + index * PROOF_STEP
+    before = str(row.get("sub") or "")
+    # A dash is not a "before", it is the absence of one, and striking it
+    # through reads as a value that was taken away.
+    was = f'<p class="a">{before}</p><p class="ar">→</p>' if before and before != "—" else ""
+    return (
+        f'<div class="proof" id="proof{index}" style="top: {top}px;">'
+        f'<p class="k">{row.get("label")}</p>{was}'
+        f'<p class="b">{row.get("value")}</p><div class="rl"></div></div>'
+    )
+
+
+def compose_explain(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, float]:
+    """A principle, the three steps that make it true, and what changed.
+
+    The evidence beat is the reason this is not a slogan: every row is either
+    read off the live account or comes from a backtest the storyboard names and
+    dates. A cut that explains the method and then invents its proof is worse
+    than not making the cut.
+    """
+
+    steps = list(getattr(board.scenes[1], "rows", ()) or ())
+    proof = list(getattr(board.scenes[2], "rows", ()) or ())
+
+    handle = telegram_handle()
+    host = site_url().split("://", 1)[-1]
+    lengths = [scene.seconds for scene in board.scenes]
+    starts, running = [], 0.0
+    for value in lengths:
+        starts.append(running)
+        running += value
+    outro = board.scenes[-1]
+
+    hero_text, hero_size = hero(
+        str(getattr(board.scenes[0], "value", "") or "").rstrip("%단계"),
+        "%" if str(getattr(board.scenes[0], "value", "")).endswith("%") else
+        ("단계" if str(getattr(board.scenes[0], "value", "")).endswith("단계") else ""),
+        cap=300,
+    )
+
+    template = (Path(__file__).parent / "composition_explain.html").read_text(encoding="utf-8")
+    replacements = {
+        "{{DURATION}}": f"{running:.2f}",
+        "{{S1_DURATION}}": f"{lengths[0]:.2f}",
+        "{{S2_START}}": f"{starts[1]:.2f}",
+        "{{S2_DURATION}}": f"{lengths[1]:.2f}",
+        "{{S3_START}}": f"{starts[2]:.2f}",
+        "{{S3_DURATION}}": f"{lengths[2]:.2f}",
+        "{{S4_START}}": f"{starts[3]:.2f}",
+        "{{S4_DURATION}}": f"{lengths[3]:.2f}",
+        "{{KICKER}}": board.scenes[0].eyebrow,
+        "{{HERO_TEXT}}": hero_text,
+        "{{HERO_SIZE}}": str(hero_size),
+        "{{HOOK_CAPTION}}": board.scenes[0].caption,
+        "{{LINE1}}": board.scenes[0].lines[0] if board.scenes[0].lines else "",
+        "{{LINE2}}": board.scenes[0].lines[1] if len(board.scenes[0].lines) > 1 else "",
+        "{{STEPS_HEAD}}": board.scenes[1].heading,
+        "{{STEPS}}": "\n        ".join(_step_row(index, row) for index, row in enumerate(steps)),
+        "{{STEP_COUNT}}": str(len(steps)),
+        "{{STEPS_NOTE}}": board.scenes[1].note,
+        "{{STEPS_NOTE_TOP}}": f"{STEP_TOP + len(steps) * STEP_STEP + 20}",
+        "{{PROOF_HEAD}}": board.scenes[2].heading,
+        "{{PROOF}}": "\n        ".join(_proof_row(index, row) for index, row in enumerate(proof)),
+        "{{PROOF_COUNT}}": str(len(proof)),
+        "{{PROOF_NOTE}}": board.scenes[2].note,
+        "{{PROOF_NOTE_TOP}}": f"{PROOF_TOP + len(proof) * PROOF_STEP + 40}",
         "{{OUTRO1}}": outro.headline[0] if getattr(outro, "headline", ()) else "",
         "{{OUTRO2}}": outro.headline[1] if len(getattr(outro, "headline", ())) > 1 else "",
         "{{OUTRO_CALL}}": getattr(outro, "call", ""),

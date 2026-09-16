@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Noto Sans KR"; font-weight: 300; src: local("Noto Sans KR Light"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 500; src: local("Noto Sans KR Medium"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 700; src: local("Noto Sans KR Bold"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 900; src: local("Noto Sans KR Black"), local("Noto Sans KR"); }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      /* Near-black with one amber. The explainer cut is the only one with no
+         market colour in it, because nothing here is up or down. */
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0e0e10; }
+
+      :root {
+        --ink: #f2f1ee; --ink2: #a8a59e; --muted: #7d7a73;
+        --accent: #f0b429; --hair: #2a2a2d; --ground: #0e0e10;
+      }
+
+      #root {
+        width: 1080px; height: 1920px; position: relative; overflow: hidden;
+        font-family: "Noto Sans KR", sans-serif; color: var(--ink);
+        font-variant-numeric: tabular-nums;
+        background:
+          radial-gradient(1100px 900px at 10% 2%, rgba(240, 180, 41, 0.10), transparent 58%),
+          radial-gradient(900px 800px at 94% 94%, rgba(6, 6, 7, 0.9), transparent 60%),
+          linear-gradient(177deg, #141416 0%, #0e0e10 48%, #08080a 100%);
+      }
+      .clip { position: absolute; inset: 0; z-index: 10; }
+
+      #grain { position: absolute; inset: 0; pointer-events: none; z-index: 90; }
+      #grain .g {
+        position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; opacity: 0.03;
+        background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.68' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        animation: hf-grain 0.75s steps(1) infinite;
+      }
+      @keyframes hf-grain {
+        0%,100% { transform: translate(0,0); } 20% { transform: translate(-8%,4%); }
+        40% { transform: translate(6%,-7%); } 60% { transform: translate(-4%,9%); }
+        80% { transform: translate(9%,2%); }
+      }
+      #swipe { position: absolute; top: 0; left: -320px; width: 300px; height: 1920px; z-index: 2;
+               background: linear-gradient(90deg, transparent, rgba(240,180,41,0.08) 45%, rgba(240,180,41,0.20) 88%, transparent);
+               transform: translateX(0); }
+
+      .pad { position: absolute; left: 116px; right: 84px; }
+      .kicker { font-weight: 500; font-size: 30px; color: var(--accent); letter-spacing: 0.06em; }
+      .head { font-weight: 900; font-size: 66px; letter-spacing: -0.042em; line-height: 1.2; }
+      .body { font-weight: 300; font-size: 34px; color: var(--ink2); line-height: 1.5; word-break: keep-all; }
+      .unit { font-size: 0.38em; font-weight: 700; letter-spacing: -0.02em; }
+      .mark { position: absolute; right: 84px; top: 1498px; font-weight: 300; font-size: 28px;
+              color: var(--muted); z-index: 12; }
+
+      /* ---- 1. the question ------------------------------------------------ */
+      #e1-mask { position: absolute; left: 104px; top: 460px; width: 900px; height: 300px; overflow: hidden; }
+      #e1-fig { position: absolute; left: 0; top: 0; font-size: {{HERO_SIZE}}px; font-weight: 900;
+                letter-spacing: -0.055em; line-height: 0.86; color: var(--accent); }
+      #e1-rule { position: absolute; left: 116px; width: 880px; top: 996px; height: 4px;
+                 background: var(--accent); transform-origin: left center; }
+
+      /* ---- 2. how it works ------------------------------------------------ */
+      .step { position: absolute; left: 116px; width: 880px; }
+      .step .no { position: absolute; left: 0; top: 2px; width: 74px; font-weight: 900; font-size: 46px;
+                  letter-spacing: -0.04em; color: var(--accent); }
+      .step .lb { position: absolute; left: 96px; top: 0; font-weight: 700; font-size: 44px; letter-spacing: -0.035em; }
+      .step .bd { position: absolute; left: 96px; top: 62px; right: 0; font-weight: 300; font-size: 30px;
+                  color: var(--ink2); line-height: 1.45; word-break: keep-all; }
+      .step .rl { position: absolute; left: 0; top: -26px; width: 880px; height: 2px;
+                  background: var(--hair); transform-origin: left center; }
+
+      /* ---- 3. what it did -------------------------------------------------- */
+      .proof { position: absolute; left: 116px; width: 880px; height: 116px; }
+      .proof .k { position: absolute; left: 0; top: 18px; font-weight: 500; font-size: 32px; color: var(--ink2); }
+      .proof .a { position: absolute; right: 300px; top: 8px; font-weight: 500; font-size: 40px;
+                  letter-spacing: -0.03em; color: var(--muted); text-decoration: line-through; }
+      .proof .ar { position: absolute; right: 246px; top: 12px; font-weight: 500; font-size: 34px; color: var(--muted); }
+      .proof .b { position: absolute; right: 0; top: 4px; font-weight: 900; font-size: 46px;
+                  letter-spacing: -0.035em; color: var(--accent); }
+      .proof .rl { position: absolute; left: 0; top: 96px; width: 880px; height: 2px;
+                   background: var(--hair); transform-origin: left center; }
+
+      /* ---- 4. the outro ---------------------------------------------------- */
+      #e4-rule { position: absolute; left: 116px; width: 880px; top: 760px; height: 4px;
+                 background: var(--accent); transform-origin: left center; }
+      .url { font-weight: 900; font-size: 74px; letter-spacing: -0.04em; color: var(--ink); }
+      #tg-rule { position: absolute; left: 116px; width: 880px; top: 1052px; height: 2px;
+                 background: var(--hair); transform-origin: left center; }
+      .fine { font-weight: 300; font-size: 25px; line-height: 1.5; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="{{DURATION}}"
+         data-width="1080" data-height="1920">
+
+      <!-- 1. the question --------------------------------------------------->
+      <div class="clip" id="e1" data-start="0" data-duration="{{S1_DURATION}}" data-track-index="0">
+        <p class="kicker pad" style="top: 300px;" id="e1-kick">{{KICKER}}</p>
+        <div id="e1-mask"><p id="e1-fig">{{HERO_TEXT}}</p></div>
+        <p class="body pad" style="top: 900px;" id="e1-cap">{{HOOK_CAPTION}}</p>
+        <div id="e1-rule"></div>
+        <div class="pad" style="top: 1052px;">
+          <p class="head" id="e1-l1">{{LINE1}}</p>
+          <p class="head" id="e1-l2">{{LINE2}}</p>
+        </div>
+      </div>
+
+      <!-- 2. how it works --------------------------------------------------->
+      <div class="clip" id="e2" data-start="{{S2_START}}" data-duration="{{S2_DURATION}}" data-track-index="0">
+        <p class="head pad" style="top: 280px;" id="e2-head">{{STEPS_HEAD}}</p>
+        {{STEPS}}
+        <p class="body pad" style="top: {{STEPS_NOTE_TOP}}px;" id="e2-note">{{STEPS_NOTE}}</p>
+      </div>
+
+      <!-- 3. what it did ---------------------------------------------------->
+      <div class="clip" id="e3" data-start="{{S3_START}}" data-duration="{{S3_DURATION}}" data-track-index="0">
+        <p class="head pad" style="top: 300px;" id="e3-head">{{PROOF_HEAD}}</p>
+        {{PROOF}}
+        <p class="body pad" style="top: {{PROOF_NOTE_TOP}}px;" id="e3-note">{{PROOF_NOTE}}</p>
+      </div>
+
+      <!-- 4. the outro ------------------------------------------------------>
+      <div class="clip" id="e4" data-start="{{S4_START}}" data-duration="{{S4_DURATION}}" data-track-index="0">
+        <div class="pad" style="top: 560px;">
+          <p class="head" id="e4-l1">{{OUTRO1}}</p>
+          <p class="head" id="e4-l2">{{OUTRO2}}</p>
+        </div>
+        <div id="e4-rule"></div>
+        <p class="body pad" style="top: 800px;" id="e4-call">{{OUTRO_CALL}}</p>
+        <p class="url pad" style="top: 858px;" id="e4-url">{{URL}}</p>
+        <div id="tg-rule"></div>
+        <div class="pad" style="top: 1090px;" id="e4-tg">
+          <p class="fine" style="color: var(--ink2);">{{TELEGRAM_LINE}}</p>
+          <p class="url" style="font-size: 54px; margin-top: 14px;">{{TELEGRAM}}</p>
+        </div>
+        <p class="fine pad" style="top: 1300px;" id="e4-fine">AI 실험 기록이며 매매 권유가 아닙니다.</p>
+      </div>
+
+      <p class="mark">{{URL}}</p>
+      <div id="swipe"></div>
+      <div id="grain"><div class="g"></div></div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      function cut(at) {
+        tl.fromTo("#swipe", { x: 0 }, { x: 1420, duration: 0.5, ease: "power2.inOut" }, at - 0.22);
+      }
+
+      // --- 1. the question ---------------------------------------------------
+      tl.fromTo("#e1-kick", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.32 }, 0)
+        .fromTo("#e1-fig", { yPercent: 42, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.62, ease: "power3.out" }, 0.1)
+        .fromTo("#e1-cap", { opacity: 0 }, { opacity: 1, duration: 0.32 }, 0.66)
+        .fromTo("#e1-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46, ease: "power3.out" }, 0.78)
+        .fromTo("#e1-l1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.34 }, 0.98)
+        .fromTo("#e1-l2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.34 }, 1.13);
+
+      // --- 2. how it works ---------------------------------------------------
+      const S2 = {{S2_START}}, STEPS = {{STEP_COUNT}};
+      cut(S2);
+      tl.fromTo("#e2-head", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S2);
+      for (let i = 0; i < STEPS; i += 1) {
+        const at = S2 + 0.42 + i * 0.62;
+        const node = "#step" + i;
+        tl.fromTo(node + " .rl", { scaleX: 0 }, { scaleX: 1, duration: 0.42, ease: "power2.out" }, at)
+          .fromTo(node + " .no", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.3 }, at + 0.06)
+          .fromTo(node + " .lb", { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.32 }, at + 0.1)
+          .fromTo(node + " .bd", { opacity: 0 }, { opacity: 1, duration: 0.3 }, at + 0.24);
+      }
+      tl.fromTo("#e2-note", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S2 + 0.5 + STEPS * 0.62);
+
+      // --- 3. what it did ------------------------------------------------------
+      // Before is struck through and after lands on top of it, so the change is
+      // seen rather than claimed.
+      const S3 = {{S3_START}}, PROOF = {{PROOF_COUNT}};
+      cut(S3);
+      tl.fromTo("#e3-head", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S3);
+      for (let i = 0; i < PROOF; i += 1) {
+        const at = S3 + 0.4 + i * 0.46;
+        const node = "#proof" + i;
+        tl.fromTo(node + " .k", { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.3 }, at)
+          .fromTo(node + " .rl", { scaleX: 0 }, { scaleX: 1, duration: 0.42, ease: "power2.out" }, at)
+          .fromTo(node + " .a", { opacity: 0 }, { opacity: 1, duration: 0.26 }, at + 0.08)
+          .fromTo(node + " .ar", { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.26 }, at + 0.18)
+          .fromTo(node + " .b", { opacity: 0, x: 18 }, { opacity: 1, x: 0, duration: 0.32, ease: "back.out(2)" }, at + 0.24);
+      }
+      tl.fromTo("#e3-note", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S3 + 0.5 + PROOF * 0.46);
+
+      // --- 4. outro --------------------------------------------------------------
+      const S4 = {{S4_START}};
+      cut(S4);
+      tl.fromTo("#e4-l1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32 }, S4)
+        .fromTo("#e4-l2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32 }, S4 + 0.16)
+        .fromTo("#e4-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46, ease: "power3.out" }, S4 + 0.38)
+        .fromTo("#e4-call", { opacity: 0 }, { opacity: 1, duration: 0.3 }, S4 + 0.5)
+        .fromTo("#e4-url", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S4 + 0.64)
+        .fromTo("#tg-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46 }, S4 + 1.05)
+        .fromTo("#e4-tg", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S4 + 1.18)
+        .fromTo("#e4-fine", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S4 + 1.55);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

@@ -796,6 +796,76 @@ def build_funnel(payload: Mapping[str, Any], *, now: datetime | None = None, the
     )
 
 
+def build_explain(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME, story: str | None = None) -> Storyboard:
+    """One of the explainers: how a piece of this works, and what it did.
+
+    These are the cuts for a quiet day, and they are the only ones that give a
+    first-time viewer a reason to stay. The words live in topics.py so adding
+    another subject is data rather than another builder.
+    """
+
+    from .topics import BY_TOPIC, TOPICS
+
+    topic = BY_TOPIC.get(str(story or ""), TOPICS[0])
+    stamp = _today(now).strftime("%Y%m%d")
+    proof = topic.proof(payload)
+
+    step_rows = tuple(
+        {"label": label, "sub": body, "value": str(index + 1), "colour": "accent"}
+        for index, (label, body) in enumerate(topic.steps)
+    )
+    proof_rows = tuple(
+        {"label": label, "sub": before, "value": after, "colour": "accent"}
+        for label, before, after in proof
+    )
+
+    scenes: tuple[Scene, ...] = (
+        Hook(
+            eyebrow=topic.kicker,
+            value=topic.hero + topic.hero_unit,
+            value_colour="accent",
+            caption=topic.caption,
+            lines=topic.lines,
+            seconds=3.6,
+            narration=topic.narration[0],
+        ),
+        Rows(
+            eyebrow=topic.kicker,
+            heading=topic.steps_head,
+            rows=step_rows,
+            note=topic.steps_note,
+            seconds=3.0 + len(step_rows) * 1.5,
+            narration=topic.narration[1],
+        ),
+        Rows(
+            eyebrow="확인",
+            heading=topic.proof_head,
+            rows=proof_rows,
+            note=topic.proof_note,
+            seconds=2.6 + len(proof_rows) * 0.9,
+            narration=topic.narration[2],
+        ),
+        _outro(headline=topic.outro, call=topic.call, narration=topic.narration[3]),
+    )
+
+    return Storyboard(
+        slug=f"{topic.key}-{stamp}",
+        title=topic.title,
+        description=(
+            topic.lead + chr(10) + chr(10)
+            + f"기록 전문 -> {_link(topic.path, topic.key, stamp=stamp)}" + chr(10)
+            + f"선별 규칙 -> {_link('/rules', topic.key, stamp=stamp)}" + chr(10)
+            + _telegram_line() + chr(10) + chr(10)
+            + "AI 실험 기록이며 매매 권유가 아닙니다. 모의 계좌 기록이고 실계좌 주문은 없습니다." + chr(10)
+            + " ".join(f"#{tag}" for tag in topic.tags[:5])
+        ),
+        tags=topic.tags,
+        scenes=scenes,
+        theme=theme,
+        comment=_comment(topic.comment, path=topic.path, campaign=topic.key, stamp=stamp),
+    )
+
+
 STORIES: dict[str, Callable[..., Storyboard]] = {
     "record": build_record,
     "picks": build_picks,
@@ -803,6 +873,7 @@ STORIES: dict[str, Callable[..., Storyboard]] = {
     "curve": build_curve,
     "candles": build_candles,
     "funnel": build_funnel,
+    "explain": build_explain,
 }
 
 
@@ -827,4 +898,4 @@ def build(
     return STORIES[name](payload, now=now, theme=theme, story=story or name)
 
 
-__all__ = ["STORIES", "Storyboard", "build", "build_funnel", "build_picks", "build_record", "short_date", "site_url"]
+__all__ = ["STORIES", "Storyboard", "build", "build_explain", "build_funnel", "build_picks", "build_record", "short_date", "site_url"]
