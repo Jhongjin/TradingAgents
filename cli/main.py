@@ -2221,6 +2221,96 @@ def _latest_debate(source: Optional[str]) -> dict | None:
     return _debate_in(run)
 
 
+FUNNEL_STAGES = (
+    ("screened", "거래대금·유동성"),
+    ("forecast_rejected", "예측 기준 미달"),
+    ("confirmation_rejected", "AI 토론 탈락"),
+    ("gate_rejected", "한도 초과"),
+)
+
+
+def _funnel_in(run: dict) -> dict | None:
+    """The screen this run ran, stage by stage, with what survived each one.
+
+    The harness already writes a stage on every decision it made, so the
+    funnel is not a new measurement: it is the run's own audit trail read in
+    the order it happened.
+    """
+
+    header = (run or {}).get("run") or {}
+    decisions = list((run or {}).get("decisions") or [])
+    universe = int(header.get("universe_size") or 0)
+    if not decisions or universe < len(decisions):
+        return None
+
+    counts: dict[str, int] = {}
+    for item in decisions:
+        key = str(item.get("stage") or "")
+        counts[key] = counts.get(key, 0) + 1
+
+    # Everything that reached a decision came through the screen; each later
+    # stage drops whatever it rejected.
+    stages: list[dict] = [{"label": "1차 선별", "from": universe, "to": len(decisions)}]
+    left = len(decisions)
+    for stage, label in FUNNEL_STAGES[1:]:
+        dropped = counts.get(stage, 0)
+        if not dropped:
+            continue
+        stages.append({"label": label, "from": left, "to": left - dropped})
+        left -= dropped
+    if left <= 0 or len(stages) < 2:
+        return None
+
+    bought = [item for item in decisions if str(item.get("stage")) in {"ordered", "exit"}]
+    picks = []
+    for item in bought[:4]:
+        confidence = item.get("confirmation_confidence")
+        rating = str(item.get("confirmation_rating") or "").strip().lower()
+        label = {"overweight": "비중 확대", "underweight": "비중 축소", "neutral": "중립"}.get(rating, rating or "규칙 통과")
+        expected = item.get("forecast_expected_return")
+        picks.append({
+            "name": str(item.get("ticker_name") or item.get("ticker_code") or ""),
+            "code": str(item.get("ticker_code") or ""),
+            "sub": f"{label}" + (f"   기대 {float(expected) * 100:+.1f}%" if expected is not None else ""),
+            "value": f"{float(confidence):.2f}" if confidence is not None else "규칙",
+        })
+
+    return {"as_of_date": header.get("as_of_date"), "universe": universe, "stages": stages, "picks": picks}
+
+
+def _latest_funnel(source: Optional[str]) -> dict | None:
+    """The newest run that actually screened something, as a funnel."""
+
+    import os
+
+    try:
+        if source:
+            import requests
+
+            from tradingagents.dataflows.http_trust import apply_system_truststore_if_available
+
+            apply_system_truststore_if_available()
+            response = requests.get(f"{source.rstrip('/')}/api/harness/runs/latest", timeout=60)
+            response.raise_for_status()
+            return _funnel_in(response.json())
+        if not os.getenv("DATABASE_URL"):
+            return None
+        from tradingagents.site.harness_api import build_harness_run_payload
+        from tradingagents.storage import StorageRepository, create_storage_engine
+
+        # Same reason as the debate: a day has several runs and only the
+        # screening one has a universe behind it.
+        repo = StorageRepository(create_storage_engine())
+        for row in repo.list_harness_runs(limit=8):
+            run = build_harness_run_payload(repo, harness_run_id=str(row["id"])) or {}
+            found = _funnel_in(run)
+            if found:
+                return found
+        return None
+    except Exception:                                   # noqa: BLE001 - the other stories still work
+        return None
+
+
 def _account_curve(source: Optional[str]) -> dict | None:
     """The account's day-by-day line against the index, for the weekly cut."""
 
@@ -2341,6 +2431,7 @@ def _shorts_payload(source: Optional[str]) -> dict:
     # take the run down with it.
     for key, build in (
         ("debate", lambda: _latest_debate(source)),
+        ("funnel", lambda: _latest_funnel(source)),
         ("curve", lambda: _account_curve(source)),
         ("candles", lambda: _biggest_mover(payload, source)),
     ):
@@ -2387,7 +2478,7 @@ def _shorts_build(renderer: str, payload: dict, output: Path, *, story_key: str 
 
     from tradingagents.shorts import build, voice as narration
     from tradingagents.shorts.hyperframes import (
-        compose_candles, compose_curve, compose_debate, compose_record, run, write_project,
+        compose_candles, compose_curve, compose_debate, compose_funnel, compose_record, run, write_project,
     )
 
     board = build(renderer, payload, story=story_key)
@@ -2402,7 +2493,8 @@ def _shorts_build(renderer: str, payload: dict, output: Path, *, story_key: str 
     # The daily path used to draw compose_record whatever the story was, so a
     # debate day and a curve day came out as the same video with the same
     # numbers on it. The cut a story names is the cut it gets.
-    compose = {"debate": compose_debate, "curve": compose_curve, "candles": compose_candles}.get(renderer, compose_record)
+    compose = {"debate": compose_debate, "curve": compose_curve, "candles": compose_candles,
+               "funnel": compose_funnel}.get(renderer, compose_record)
     html, seconds = compose(payload, board)
     project = write_project(html, output / "hf" / (story_key or renderer), name=story_key or renderer)
     run("check", project.directory)

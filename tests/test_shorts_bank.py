@@ -137,7 +137,7 @@ def test_every_story_declares_what_it_needs():
     for story in STORIES:
         assert story.tier in {"daily", "event", "periodic", "standby"}
         assert 0 < story.completeness <= 1 and story.cooldown_days >= 1
-        assert story.renderer in {None, "record", "picks", "debate", "curve", "candles"}
+        assert story.renderer in {None, "record", "picks", "debate", "curve", "candles", "funnel"}
     from tradingagents.shorts.stories import STORIES as BUILDERS
     # every renderer a story names must have something that draws it
     assert {story.renderer for story in STORIES if story.renderer} <= set(BUILDERS)
@@ -345,3 +345,52 @@ def test_three_stories_that_share_the_record_cut_do_not_share_its_title():
     assert "2종목" in titles["exits"]
     # and the slug follows the story too, so renders do not overwrite each other
     assert build("record", payload, now=now, story="exits").slug.startswith("exits-")
+
+
+def test_the_screen_itself_is_a_story_and_it_beats_another_loss_report():
+    """A channel that only reports its own losses gives nobody a reason to stay."""
+
+    funnel = {
+        "universe": 349,
+        "stages": [
+            {"label": "1차 선별", "from": 349, "to": 34},
+            {"label": "예측 기준 미달", "from": 34, "to": 19},
+            {"label": "AI 토론 탈락", "from": 19, "to": 7},
+        ],
+        "picks": [{"name": "티에스이", "sub": "비중 확대", "value": "0.62"}],
+    }
+    quiet = _payload(closed_before=6)
+    rows = {item.story.key: item for item in evaluate({**quiet, "funnel": funnel}, now=MONDAY, ledger=[])}
+    assert "funnel" in rows
+    assert rows["funnel"].score > rows["record"].score      # the screen outranks the scoreboard
+    assert plan({**quiet, "funnel": funnel}, now=MONDAY, ledger=[])["story"] == "funnel"
+
+    # a run that threw almost nothing away is a formality, not a story
+    thin = {**funnel, "universe": 40, "stages": [{"label": "1차 선별", "from": 40, "to": 38}]}
+    assert "funnel" not in {item.story.key for item in evaluate({**quiet, "funnel": thin}, now=MONDAY, ledger=[])}
+
+
+def test_the_funnel_is_read_off_the_run_s_own_stages_not_measured_again():
+    from cli.main import _funnel_in
+
+    run = {
+        "run": {"as_of_date": "2026-09-16", "universe_size": 349},
+        "decisions": (
+            [{"stage": "forecast_rejected", "ticker_name": f"탈락{i}"} for i in range(15)]
+            + [{"stage": "confirmation_rejected", "ticker_name": f"토론탈락{i}"} for i in range(10)]
+            + [{"stage": "gate_rejected", "ticker_name": f"한도{i}"} for i in range(2)]
+            + [{"stage": "ordered", "ticker_name": "티에스이", "ticker_code": "131290",
+                "confirmation_rating": "overweight", "confirmation_confidence": 0.62,
+                "forecast_expected_return": 0.042}]
+        ),
+    }
+    found = _funnel_in(run)
+    assert found["universe"] == 349
+    assert [row["label"] for row in found["stages"]][0] == "1차 선별"
+    assert found["stages"][0]["from"] == 349 and found["stages"][0]["to"] == 28
+    assert found["stages"][-1]["to"] == 1                    # what actually got bought
+    assert found["picks"][0]["name"] == "티에스이"
+    assert "비중 확대" in found["picks"][0]["sub"] and "+4.2%" in found["picks"][0]["sub"]
+
+    # a run with no universe behind it draws nothing rather than a wrong funnel
+    assert _funnel_in({"run": {"universe_size": 0}, "decisions": [{"stage": "ordered"}]}) is None

@@ -55,6 +55,10 @@ STORIES: tuple[Story, ...] = (
     # --- always available on a trading day ---------------------------------
     Story("picks", "오늘의 픽", "daily", 0.55, 1, "picks"),
     Story("record", "지금까지의 성적", "daily", 1.0, 5, "record"),
+    # Why a name was chosen, which is the only question a new viewer has. It
+    # outranks the record cut on purpose: a channel that only ever reports its
+    # own losses gives nobody a reason to subscribe.
+    Story("funnel", "349종목에서 오늘의 종목까지", "daily", 1.0, 3, "funnel"),
     # --- fired by something that actually happened -------------------------
     Story("exits", "오늘 정리된 종목", "event", 0.95, 1, "record"),
     Story("stop_worked", "손절이 작동한 날", "event", 1.0, 3, "record"),
@@ -199,6 +203,18 @@ def evaluate(payload: Mapping[str, Any], *, now: datetime | None = None, ledger:
     if closed_count >= 3:
         add("record", min(0.4 + closed_count * 0.03, 0.8),
             f"정리된 거래가 {closed_count}건 쌓였습니다.", closed=closed_count)
+
+    # The screen itself, which needs a run that actually threw something away.
+    funnel = payload.get("funnel") or {}
+    universe = int(funnel.get("universe") or 0)
+    stages = list(funnel.get("stages") or [])
+    survived = int(stages[-1].get("to") or 0) if stages else 0
+    if universe >= 50 and len(stages) >= 3 and survived:
+        # the harder the cut, the better the story: 349 → 7 is worth watching,
+        # 60 → 55 is a formality
+        severity = 1.0 - (survived / universe)
+        add("funnel", min(0.6 + severity * 0.4, 1.0),
+            f"{universe:,}종목에서 {survived}종목이 남았습니다.", universe=universe, survived=survived)
 
     # --- events ------------------------------------------------------------
     today_exits = [item for item in closed if str(item.get("exit_date"))[:10] == today.isoformat()]

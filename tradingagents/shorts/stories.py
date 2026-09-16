@@ -692,12 +692,117 @@ def build_candles(payload: Mapping[str, Any], *, now: datetime | None = None, th
     )
 
 
+def build_funnel(payload: Mapping[str, Any], *, now: datetime | None = None, theme: str = DEFAULT_THEME, story: str | None = None) -> Storyboard:
+    """The screen itself: how many names went in, and how few came out.
+
+    Every other cut reports the account after the fact, which is why the
+    channel read as one long apology for losses. This one shows the working:
+    the universe, each filter, what it threw away, and the names that survived
+    with the argument that got them through. It is the only cut that answers
+    the question a new viewer actually has, which is why any of this is trusted.
+    """
+
+    funnel = payload.get("funnel") or {}
+    stages = list(funnel.get("stages") or [])
+    picks = list(funnel.get("picks") or [])[:4]
+    universe = int(funnel.get("universe") or 0)
+    survived = int(stages[-1].get("to") or 0) if stages else len(picks)
+    stamp = _today(now).strftime("%Y%m%d")
+
+    dropped = universe - survived
+    biggest = max(stages, key=lambda row: int(row.get("from") or 0) - int(row.get("to") or 0)) if stages else None
+    biggest_label = str((biggest or {}).get("label") or "")
+    biggest_cut = int((biggest or {}).get("from") or 0) - int((biggest or {}).get("to") or 0)
+
+    rows = tuple(
+        {"label": str(row.get("label")), "value": f"{int(row.get('to') or 0)}종목",
+         "sub": f"{int(row.get('from') or 0)} → {int(row.get('to') or 0)}", "colour": "ink2"}
+        for row in stages
+    )
+    pick_rows = tuple(
+        {"label": str(item.get("name")), "value": str(item.get("value") or ""),
+         "sub": str(item.get("sub") or ""), "colour": "accent"}
+        for item in picks
+    )
+
+    scenes: tuple[Scene, ...] = (
+        Hook(
+            eyebrow=f"{korean_date(_today(now).isoformat())} 장 시작 전",
+            value=f"{universe:,}종목",
+            value_colour="ink",
+            caption="오늘 아침 기계가 훑은 코스피·코스닥 종목 수입니다",
+            lines=(f"여기서 {survived}종목만", "남았습니다."),
+            seconds=3.6,
+            narration=(
+                f"오늘 아침 기계가 훑은 종목, {universe}개입니다. "
+                f"여기서 {survived}개만 남았어요. 뭘 걸렀는지 그대로 보여드릴게요."
+            ),
+        ),
+        Rows(
+            eyebrow="거르는 순서",
+            heading="한 단계씩 떨어집니다",
+            rows=rows,
+            note=(
+                f"가장 많이 걸러낸 단계는 {biggest_label}, {biggest_cut}종목입니다."
+                if biggest_cut > 0
+                else "오늘은 단계별로 고르게 걸러졌습니다."
+            ),
+            seconds=2.6 + len(rows) * 0.9,
+            narration=(
+                "순서대로 떨어집니다. 거래가 얇으면 빠지고, 밸류가 기준을 넘으면 빠지고, "
+                "변동성 상위는 아예 뺍니다. "
+                + (f"제일 많이 걸러낸 건 {biggest_label}, {biggest_cut}개였어요." if biggest_cut > 0 else "")
+            ),
+        ),
+        Rows(
+            eyebrow="살아남은 이름",
+            heading="그래서 오늘 이걸 샀습니다",
+            rows=pick_rows,
+            note="옆의 값은 AI 토론이 매긴 확신도입니다. 맞는다는 뜻이 아니라, 얼마나 확신했는지입니다.",
+            seconds=2.4 + len(pick_rows) * 0.9,
+            narration=(
+                "그래서 오늘 산 게 이겁니다. 옆에 붙은 건 AI가 얼마나 확신했는지고요. "
+                "맞는다는 뜻은 아닙니다. 며칠 뒤 결과도 똑같이 올라옵니다."
+            ),
+        ),
+        _outro(
+            headline=("고른 이유까지", "전부 남겨둡니다."),
+            call="단계별 기록 전문",
+            narration=(
+                f"{dropped}개를 왜 걸렀는지도 사이트에 그대로 있습니다. "
+                "내일 아침 선별 결과는 텔레그램으로 먼저 갑니다."
+            ),
+        ),
+    )
+
+    return Storyboard(
+        slug=f"funnel-{stamp}",
+        title=f"{universe:,}종목에서 {survived}종목 | AI가 거른 과정 전부 공개",
+        description=(
+            f"오늘 아침 {universe:,}종목을 훑어 {survived}종목이 남기까지, 각 단계에서 무엇이 걸러졌는지 그대로 공개합니다.\n\n"
+            f"오늘의 선별 → {_link('/harness', 'funnel', stamp=stamp)}\n"
+            f"선별 규칙 → {_link('/rules', 'funnel', stamp=stamp)}\n"
+            f"{_telegram_line()}\n\n"
+            "AI 실험 기록이며 매매 권유가 아닙니다. 모의 계좌 기록이고 실계좌 주문은 없습니다.\n"
+            "#주식 #AI주식 #종목선정 #코스피 #코스닥"
+        ),
+        tags=("주식", "AI주식", "종목선정", "코스피", "코스닥", "퀀트"),
+        scenes=scenes,
+        theme=theme,
+        comment=_comment(
+            f"걸러진 {dropped}종목이 그 뒤 어떻게 됐는지까지 같은 자리에 남습니다.",
+            path="/harness", campaign="funnel", stamp=stamp,
+        ),
+    )
+
+
 STORIES: dict[str, Callable[..., Storyboard]] = {
     "record": build_record,
     "picks": build_picks,
     "debate": build_debate,
     "curve": build_curve,
     "candles": build_candles,
+    "funnel": build_funnel,
 }
 
 
@@ -722,4 +827,4 @@ def build(
     return STORIES[name](payload, now=now, theme=theme, story=story or name)
 
 
-__all__ = ["STORIES", "Storyboard", "build", "build_picks", "build_record", "short_date", "site_url"]
+__all__ = ["STORIES", "Storyboard", "build", "build_funnel", "build_picks", "build_record", "short_date", "site_url"]

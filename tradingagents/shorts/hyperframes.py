@@ -651,4 +651,112 @@ def run(command: str, directory: Path, *, extra: Sequence[str] = (), timeout: in
     return output
 
 
-__all__ = ["Composition", "CLI_VERSION", "HyperFramesMissingError", "compose_record", "run", "write_project"]
+__all__ = ["Composition", "CLI_VERSION", "HyperFramesMissingError", "compose_candles", "compose_curve",
+           "compose_debate", "compose_funnel", "compose_record", "run", "write_project"]
+
+
+# ---------------------------------------------------------------- the funnel
+FUNNEL_TOP, FUNNEL_STEP, FUNNEL_BAR = 420, 148, 880
+PICK_TOP, PICK_STEP = 440, 142
+
+
+def _funnel_row(index: int, stage: Mapping[str, Any]) -> str:
+    """One stage of the screen: what it was called, and what it threw away."""
+
+    top = FUNNEL_TOP + index * FUNNEL_STEP
+    # The drop is the whole point of the row, and it has to be in the markup:
+    # the timeline animates ".cut" by selector, and for a while the count was
+    # only computed for the script, so every tag was missing and GSAP was
+    # quietly animating nothing.
+    cut = int(stage.get("cut") or (int(stage.get("from") or 0) - int(stage.get("to") or 0)))
+    tag = f'<p class="cut">−{cut}종목</p>' if cut > 0 else ""
+    return (
+        f'<div class="stage" id="stage{index}" style="top: {top}px;">'
+        f'<p class="k">{stage.get("label")}</p>'
+        f'<div class="bar"></div><p class="n">{int(stage.get("from") or 0)}종목</p>{tag}</div>'
+    )
+
+
+def _pick_row(index: int, pick: Mapping[str, Any]) -> str:
+    top = PICK_TOP + index * PICK_STEP
+    return (
+        f'<div class="pick" id="pick{index}" style="top: {top}px;">'
+        f'<p class="nm">{pick.get("name")}</p>'
+        f'<p class="sb">{pick.get("sub")}</p>'
+        f'<p class="vv">{pick.get("value")}</p><div class="rl"></div></div>'
+    )
+
+
+def compose_funnel(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, float]:
+    """How many names went in, and how few came out.
+
+    Every other cut shows the account after the fact. This one shows the part
+    nobody sees: the screen itself, stage by stage, with the count falling. The
+    bar widths are square-rooted because 349 next to 7 on a linear scale draws
+    a full bar and a sliver, and the middle stages are the interesting ones.
+    """
+
+    funnel = payload.get("funnel") or {}
+    stages = list(funnel.get("stages") or [])
+    picks = list(funnel.get("picks") or [])[:4]
+    start = int(funnel.get("universe") or (stages[0].get("from") if stages else 0) or 0)
+
+    widest = max((float(row.get("from") or 0) for row in stages), default=1.0) or 1.0
+
+    def scale(count: float) -> float:
+        # a floor, so a single survivor is still a bar somebody can read
+        return round(max((max(count, 0.0) / widest) ** 0.5, 0.055), 4)
+
+    values = []
+    for row in stages:
+        came, left = float(row.get("from") or 0), float(row.get("to") or 0)
+        values.append({
+            "from": came, "to": left, "cut": int(round(came - left)),
+            "fromScale": scale(came), "scale": scale(left),
+        })
+
+    handle = telegram_handle()
+    host = site_url().split("://", 1)[-1]
+    lengths = [scene.seconds for scene in board.scenes]
+    starts, running = [], 0.0
+    for value in lengths:
+        starts.append(running)
+        running += value
+    outro = board.scenes[-1]
+
+    template = (Path(__file__).parent / "composition_funnel.html").read_text(encoding="utf-8")
+    replacements = {
+        "{{DURATION}}": f"{running:.2f}",
+        "{{S1_DURATION}}": f"{lengths[0]:.2f}",
+        "{{S2_START}}": f"{starts[1]:.2f}",
+        "{{S2_DURATION}}": f"{lengths[1]:.2f}",
+        "{{S3_START}}": f"{starts[2]:.2f}",
+        "{{S3_DURATION}}": f"{lengths[2]:.2f}",
+        "{{S4_START}}": f"{starts[3]:.2f}",
+        "{{S4_DURATION}}": f"{lengths[3]:.2f}",
+        "{{KICKER}}": board.scenes[0].eyebrow,
+        "{{HERO_TEXT}}": hero(f"{start:,}", "종목", cap=300)[0],
+        "{{HERO_SIZE}}": str(hero(f"{start:,}", "종목", cap=300)[1]),
+        "{{HOOK_CAPTION}}": board.scenes[0].caption,
+        "{{LINE1}}": board.scenes[0].lines[0] if board.scenes[0].lines else "",
+        "{{LINE2}}": board.scenes[0].lines[1] if len(board.scenes[0].lines) > 1 else "",
+        "{{FUNNEL_HEAD}}": board.scenes[1].heading,
+        "{{STAGES}}": "\n        ".join(_funnel_row(index, row) for index, row in enumerate(stages)),
+        "{{STAGE_VALUES}}": json.dumps(values),
+        "{{FUNNEL_NOTE}}": board.scenes[1].note,
+        "{{FUNNEL_NOTE_TOP}}": f"{FUNNEL_TOP + len(stages) * FUNNEL_STEP + 40}",
+        "{{PICKS_HEAD}}": board.scenes[2].heading,
+        "{{PICKS}}": "\n        ".join(_pick_row(index, row) for index, row in enumerate(picks)),
+        "{{PICK_COUNT}}": str(len(picks)),
+        "{{PICKS_NOTE}}": board.scenes[2].note,
+        "{{PICKS_NOTE_TOP}}": f"{PICK_TOP + len(picks) * PICK_STEP + 40}",
+        "{{OUTRO1}}": outro.headline[0] if getattr(outro, "headline", ()) else "",
+        "{{OUTRO2}}": outro.headline[1] if len(getattr(outro, "headline", ())) > 1 else "",
+        "{{OUTRO_CALL}}": getattr(outro, "call", ""),
+        "{{URL}}": host,
+        "{{TELEGRAM_LINE}}": getattr(outro, "telegram_line", ""),
+        "{{TELEGRAM}}": handle or f"{host}/start",
+    }
+    for token, value in replacements.items():
+        template = template.replace(token, str(value))
+    return template, running
