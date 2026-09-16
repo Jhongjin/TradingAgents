@@ -43,7 +43,9 @@ def test_a_day_where_stops_fired_beats_a_day_where_nothing_did():
     quiet = plan(_payload(closed_before=4, entered_today=3), now=MONDAY, ledger=[])
     loud = plan(_payload(closed_before=4, entered_today=3, exits=(("티에스이", -0.156, "stop_loss"),)), now=MONDAY, ledger=[])
 
-    assert quiet["story"] in {"record", "picks"}
+    # a quiet day now goes to an explainer or an account cut, never to
+    # "nothing happened today"
+    assert quiet["story"] in {"record", "picks", "funnel", "explain_stop", "explain_debate", "explain_open"}
     assert loud["story"] == "stop_worked"
     # the same account, one event, and the whole running order changes
     assert loud["candidates"][0]["score"] > quiet["candidates"][0]["score"]
@@ -67,9 +69,12 @@ def test_a_story_told_yesterday_is_no_longer_new():
     scores = {item["key"]: item["novelty"] for item in repeated["candidates"]}
     assert scores["stop_worked"] < 1.0
 
-    # and once the cooldown has passed it is new again
+    # and once the cooldown has passed it climbs back — but not all the way to
+    # a story that has never run, which is what stops one cut owning the week
     rested = plan(payload, now=MONDAY, ledger=[{"story": "stop_worked", "date": "2026-09-01"}])
-    assert rested["story"] == "stop_worked"
+    by_key = {item["key"]: item["novelty"] for item in rested["candidates"]}
+    assert 0.75 <= by_key["stop_worked"] < 1.0
+    assert by_key["exits"] == 1.0                        # never told, so it goes first
 
 
 def test_standby_material_is_always_in_the_running_and_never_wins_a_loud_day():
@@ -118,7 +123,7 @@ def test_a_milestone_fires_only_on_the_round_number():
 def test_only_a_story_that_can_actually_be_drawn_is_chosen():
     decision = plan(_payload(closed_before=4, exits=(("가", -0.02, "take_profit"),)), now=MONDAY, ledger=[])
     chosen = BY_KEY[decision["story"]]
-    assert chosen.renderable and decision["renderer"] in {"record", "picks", "debate"}
+    assert chosen.renderable and decision["renderer"] in {"record", "picks", "debate", "explain", "funnel"}
     # take_profit fired and scored well, but nothing draws it yet, so it waits
     assert "take_profit" in {item["key"] for item in decision["candidates"]}
     assert "take_profit" in decision["waiting"]
@@ -472,3 +477,57 @@ def test_every_renderer_a_story_names_has_a_composer_behind_it():
     # or it silently draws compose_record
     for renderer in sorted(named - {"record", "picks"}):
         assert f'"{renderer}": compose_{renderer}' in source, renderer
+
+
+def test_a_month_of_choices_uses_the_whole_shelf():
+    """The complaint that started this: every day was the same video."""
+
+    from datetime import timedelta
+
+    from tradingagents.shorts.bank import KST
+
+    start = datetime(2026, 9, 17, 8, 40, tzinfo=KST)
+    days = [(start + timedelta(days=d)).date() for d in range(40)]
+
+    def payload(day: int) -> dict:
+        exits = []
+        if day in (2, 6, 9, 15, 21, 27):
+            exits = [{"ticker_name": f"정리{day}", "realized_return": -0.09 if day % 2 else -0.16,
+                      "exit_reason": "stop_loss", "exit_date": days[day].isoformat(), "entry_date": "2026-09-10"}]
+        return {
+            "summary": {"initial_cash": 1.5e8, "total_return": -0.0173, "closed_count": 8 + day, "win_count": 2},
+            "accounts": [
+                {"key": "paper", "label": "AI 확인", "summary": {"total_return": -0.0147, "open_count": 7, "closed_count": 4}},
+                {"key": "rules", "label": "규칙 전용", "summary": {"total_return": -0.0205, "open_count": 6, "closed_count": 4}},
+            ],
+            "positions": [{"ticker_name": f"보유{i}", "account": "paper", "entry_date": days[day].isoformat(),
+                           "average_price": 10000, "target_price": 11500, "stop_price": 9200} for i in range(4)],
+            "closed": exits + [{"ticker_name": f"과거{i}", "realized_return": -0.03, "exit_reason": "stop_loss",
+                                "exit_date": "2026-09-01", "entry_date": "2026-08-25"} for i in range(8)],
+            "funnel": {"universe": 349, "picks": [{"name": "티에스이", "sub": "비중 확대", "value": "0.62"}],
+                       "stages": [{"label": "1차 선별", "from": 349, "to": 34},
+                                  {"label": "예측 기준 미달", "from": 34, "to": 19},
+                                  {"label": "AI 토론 탈락", "from": 19, "to": 7}]},
+            "curve": {"points": [{"date": f"d{i}"} for i in range(11)]},
+        }
+
+    ledger: list[dict] = []
+    chosen: list[str] = []
+    for day in range(40):
+        when = start + timedelta(days=day)
+        if when.weekday() >= 5:
+            continue
+        decision = plan(payload(day), now=when, ledger=ledger)
+        chosen.append(decision["story"])
+        ledger.append({"story": decision["story"], "date": days[day].isoformat()})
+
+    assert len(chosen) >= 25
+    # no two days running are the same story
+    assert all(a != b for a, b in zip(chosen, chosen[1:]))
+    # and the month reaches for most of what is built, not one or two cuts
+    renderers = {BY_KEY[key].renderer for key in chosen}
+    assert len(renderers) >= 5, renderers
+    assert len(set(chosen)) >= 7, sorted(set(chosen))
+    # the loss-record cut is no longer the majority of the month
+    record_days = len([key for key in chosen if BY_KEY[key].renderer == "record"])
+    assert record_days < len(chosen) / 3, f"{record_days}/{len(chosen)}"

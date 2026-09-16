@@ -101,15 +101,32 @@ def test_an_empty_account_still_produces_a_cut():
     assert board.seconds > 0
 
 
-def test_the_picks_cut_shows_the_ai_book_with_both_levels():
+def test_the_picks_cut_puts_each_holding_on_its_own_ladder():
+    """Stop, price paid and target on one scale: what was risked against what is played for."""
+
     board = build_picks(_payload(), now=NOW)
-    hook, targets, stops, outro = board.scenes
+    hook, rungs, totals, outro = board.scenes
     assert hook.value == "2종목"                             # only the AI book, not the rules one
-    assert [row["label"] for row in targets.rows] == ["신한지주", "삼성SDI"]   # newest entry first
-    assert targets.rows[0]["value"] == "122,472원" and targets.rows[0]["badge"] == "비중 확대"
-    assert stops.rows[0]["value"] == "108,297원" and stops.rows[0]["colour"] == "down"
-    assert "-4.5%" in stops.rows[0]["sub"]
+    assert [row["name"] for row in rungs.rows] == ["신한지주", "삼성SDI"]   # newest entry first
+
+    first = rungs.rows[0]
+    assert (first["stop"], first["average"], first["target"]) == (108297.0, 113400.0, 122472.0)
+    assert first["stop"] < first["average"] < first["target"]      # the cut draws them in this order
+    assert first["rating"] == "비중 확대"
+
+    # and the three levels add up to the thing worth saying out loud
+    figures = {row["label"]: row["value"] for row in totals.rows}
+    assert figures["평균 목표 수익률"] == "+9.5%"
+    assert figures["평균 손절 폭"] == "-6.0%"
+    assert figures["노리는 폭 ÷ 거는 폭"] == "1.6배"
     assert isinstance(outro, Outro)
+
+
+def test_a_holding_missing_a_level_is_left_off_the_ladder_rather_than_guessed():
+    payload = _payload()
+    payload["positions"][0] = {**payload["positions"][0], "stop_price": None}
+    rungs = build_picks(payload, now=NOW).scenes[1]
+    assert [row["name"] for row in rungs.rows] == ["삼성SDI"]
 
 
 def test_every_cut_carries_the_disclaimer_and_a_tagged_link():

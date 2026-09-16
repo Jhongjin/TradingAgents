@@ -322,25 +322,42 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, them
     stamp = _today(now).strftime("%Y%m%d")
     names = "·".join(str(item.get("ticker_name") or "") for item in positions[:3]) or "보유 종목"
 
+    # Only a holding with all three levels can be drawn on a ladder, and a cut
+    # that guesses one of them is not showing what was decided on entry.
+    laddered = [
+        item for item in positions
+        if float(item.get("stop_price") or 0) > 0
+        and float(item.get("average_price") or 0) > 0
+        and float(item.get("target_price") or 0) > float(item.get("stop_price") or 0)
+    ]
     rows = tuple(
         {
             "label": str(item.get("ticker_name") or item.get("ticker_code")),
-            "sub": f"{short_date(item.get('entry_date'))} 매수   평단 {float(item.get('average_price') or 0):,.0f}원",
+            "name": str(item.get("ticker_name") or item.get("ticker_code")),
+            "rating": _rating(item.get("decision_rating")) or "규칙 통과",
+            "stop": float(item.get("stop_price") or 0),
+            "average": float(item.get("average_price") or 0),
+            "target": float(item.get("target_price") or 0),
+            "sub": f"{short_date(item.get('entry_date'))} 매수",
             "value": f"{float(item.get('target_price') or 0):,.0f}원",
             "colour": "up",
-            "badge": _rating(item.get("decision_rating")) or "판정 없음",
-            "badge_colour": "accent",
         }
-        for item in positions[:5]
+        for item in laddered[:4]
     )
-    stops = tuple(
-        {
-            "label": str(item.get("ticker_name") or item.get("ticker_code")),
-            "value": f"{float(item.get('stop_price') or 0):,.0f}원",
-            "colour": "down",
-            "sub": f"평단 대비 {percent((float(item.get('stop_price') or 0) / float(item.get('average_price') or 1)) - 1, digits=1)}",
-        }
-        for item in positions[:5]
+
+    def _mean(pick) -> float:
+        values = [pick(item) for item in laddered]
+        return sum(values) / len(values) if values else 0.0
+
+    upside = _mean(lambda item: float(item["target_price"]) / float(item["average_price"]) - 1)
+    downside = _mean(lambda item: 1 - float(item["stop_price"]) / float(item["average_price"]))
+    totals = tuple(
+        row for row in (
+            {"label": "평균 목표 수익률", "value": percent(upside, digits=1), "colour": "reward"},
+            {"label": "평균 손절 폭", "value": percent(-downside, digits=1), "colour": "risk"},
+            {"label": "노리는 폭 ÷ 거는 폭", "value": f"{upside / downside:.1f}배" if downside else "—",
+             "colour": "reward"},
+        ) if laddered
     )
 
     scenes: tuple[Scene, ...] = (
@@ -354,20 +371,28 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, them
             narration=f"AI 계좌가 지금 들고 있는 종목, {len(positions)}개예요. 사기 전에 나갈 가격부터 정해뒀습니다.",
         ),
         Rows(
-            eyebrow="보유 종목과 목표가",
-            heading=names if len(names) <= 22 else "지금 담고 있는 종목",
+            eyebrow="보유 종목과 두 개의 선",
+            # not the names: three Korean tickers set at 66px wrap into the
+            # first row, which is what the layout checker caught
+            heading="각각 이 폭 안에 있습니다",
             rows=rows,
-            note="목표가는 AI 토론이 정한 값이며 도달을 보장하지 않습니다.",
-            seconds=3.0 + len(rows) * 0.9,
-            narration="종목이랑 목표가입니다. 닿는다는 보장은 없어요. 어디까지 보고 샀는지를 적어두는 거죠.",
+            note="빨간 쪽이 틀렸을 때 잘라내는 폭, 초록 쪽이 맞았을 때 노리는 폭입니다. 둘 다 살 때 정했습니다.",
+            seconds=3.0 + len(rows) * 1.3,
+            narration=(
+                "종목마다 선이 두 개 그어져 있어요. 왼쪽은 틀렸을 때 자르는 자리, 오른쪽은 맞았을 때 파는 자리. "
+                "둘 다 살 때 정해둔 겁니다."
+            ),
         ),
         Rows(
-            eyebrow="그리고 손절가",
-            heading="틀렸을 때 나갈 선",
-            rows=stops,
-            note="이 선에 닿으면 다음 실행에서 자동으로 정리됩니다.",
-            seconds=2.6 + len(stops) * 0.7,
-            narration="그리고 이건 틀렸을 때 나갈 선. 여기 닿으면 다음 실행에서 알아서 정리합니다.",
+            eyebrow="합쳐놓고 보면",
+            heading="얼마 걸고 얼마를 노리나",
+            rows=totals,
+            note="목표가는 AI 토론이 정한 값이며 도달을 보장하지 않습니다. 손절가에 닿으면 다음 실행에서 자동으로 정리됩니다.",
+            seconds=2.6 + len(totals) * 0.8,
+            narration=(
+                "합쳐놓고 보면 이렇습니다. 거는 폭보다 노리는 폭이 커야 몇 번 틀려도 버티죠. "
+                "목표가는 닿는다는 보장이 없고, 손절가는 닿으면 기계가 그냥 팝니다."
+            ),
         ),
         _outro(
             headline=("결과는 며칠 뒤", "이 채널에 그대로 올라옵니다."),

@@ -652,7 +652,7 @@ def run(command: str, directory: Path, *, extra: Sequence[str] = (), timeout: in
 
 
 __all__ = ["Composition", "CLI_VERSION", "HyperFramesMissingError", "compose_candles", "compose_curve",
-           "compose_debate", "compose_explain", "compose_funnel", "compose_record", "run", "write_project"]
+           "compose_debate", "compose_explain", "compose_funnel", "compose_picks", "compose_record", "run", "write_project"]
 
 
 # ---------------------------------------------------------------- the funnel
@@ -843,6 +843,111 @@ def compose_explain(payload: Mapping[str, Any], board: Storyboard) -> tuple[str,
         "{{PROOF_COUNT}}": str(len(proof)),
         "{{PROOF_NOTE}}": board.scenes[2].note,
         "{{PROOF_NOTE_TOP}}": f"{PROOF_TOP + len(proof) * PROOF_STEP + 40}",
+        "{{OUTRO1}}": outro.headline[0] if getattr(outro, "headline", ()) else "",
+        "{{OUTRO2}}": outro.headline[1] if len(getattr(outro, "headline", ())) > 1 else "",
+        "{{OUTRO_CALL}}": getattr(outro, "call", ""),
+        "{{URL}}": host,
+        "{{TELEGRAM_LINE}}": getattr(outro, "telegram_line", ""),
+        "{{TELEGRAM}}": handle or f"{host}/start",
+    }
+    for token, value in replacements.items():
+        template = template.replace(token, str(value))
+    return template, running
+
+
+# ------------------------------------------------------------------ the picks
+RUNG_TOP, RUNG_STEP, RUNG_W = 442, 226, 880
+TOTAL_TOP, TOTAL_STEP = 480, 150
+
+
+def _rung(index: int, item: Mapping[str, Any]) -> str:
+    """One holding on its own price scale: stop, average paid, target.
+
+    The two lengths leave the same pin, so which is longer — what was risked
+    or what is being played for — is read off the picture rather than worked
+    out from a pair of numbers.
+    """
+
+    top = RUNG_TOP + index * RUNG_STEP
+    stop = float(item.get("stop") or 0.0)
+    average = float(item.get("average") or 0.0)
+    target = float(item.get("target") or 0.0)
+    span = max(target - stop, 1e-9)
+    pin = max(min((average - stop) / span, 0.96), 0.04) * RUNG_W
+
+    name = str(item.get("name") or "")
+    rating = str(item.get("rating") or "")
+    return (
+        f'<div class="rung" id="rung{index}" style="top: {top}px;">'
+        f'<p class="nm">{name}</p><p class="rt">{rating}</p><div class="track"></div>'
+        f'<div class="risk" style="left: 0; width: {pin:.0f}px;"></div>'
+        f'<div class="reward" style="left: {pin:.0f}px; width: {RUNG_W - pin:.0f}px;"></div>'
+        f'<div class="pin" style="left: {pin - 2:.0f}px;"></div>'
+        f'<p class="lo" style="left: 0;">손절 {stop:,.0f}원</p>'
+        f'<p class="av" style="left: {max(pin - 90, 120):.0f}px;">평단 {average:,.0f}원</p>'
+        f'<p class="hi" style="right: 0;">목표 {target:,.0f}원</p></div>'
+    )
+
+
+def _total_row(index: int, row: Mapping[str, Any]) -> str:
+    top = TOTAL_TOP + index * TOTAL_STEP
+    return (
+        f'<div class="tot" id="tot{index}" style="top: {top}px;">'
+        f'<p class="k">{row.get("label")}</p>'
+        f'<p class="v" style="color: var(--{row.get("colour") or "ink"});">{row.get("value")}</p>'
+        '<div class="rl"></div></div>'
+    )
+
+
+def compose_picks(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, float]:
+    """What the book is holding, and the two levels set on the way in.
+
+    For a while there was no composer here at all, so a picks day fell through
+    to compose_record and went out as the loss-record video under a picks
+    title. The cut and the words have to be about the same thing.
+    """
+
+    rungs = list(getattr(board.scenes[1], "rows", ()) or ())[:4]
+    totals = list(getattr(board.scenes[2], "rows", ()) or ())
+
+    handle = telegram_handle()
+    host = site_url().split("://", 1)[-1]
+    lengths = [scene.seconds for scene in board.scenes]
+    starts, running = [], 0.0
+    for value in lengths:
+        starts.append(running)
+        running += value
+    outro = board.scenes[-1]
+
+    count = str(getattr(board.scenes[0], "value", "") or "")
+    hero_text, hero_size = hero(count.rstrip("종목"), "종목" if count.endswith("종목") else "", cap=300)
+
+    template = (Path(__file__).parent / "composition_picks.html").read_text(encoding="utf-8")
+    replacements = {
+        "{{DURATION}}": f"{running:.2f}",
+        "{{S1_DURATION}}": f"{lengths[0]:.2f}",
+        "{{S2_START}}": f"{starts[1]:.2f}",
+        "{{S2_DURATION}}": f"{lengths[1]:.2f}",
+        "{{S3_START}}": f"{starts[2]:.2f}",
+        "{{S3_DURATION}}": f"{lengths[2]:.2f}",
+        "{{S4_START}}": f"{starts[3]:.2f}",
+        "{{S4_DURATION}}": f"{lengths[3]:.2f}",
+        "{{KICKER}}": board.scenes[0].eyebrow,
+        "{{HERO_TEXT}}": hero_text,
+        "{{HERO_SIZE}}": str(hero_size),
+        "{{HOOK_CAPTION}}": board.scenes[0].caption,
+        "{{LINE1}}": board.scenes[0].lines[0] if board.scenes[0].lines else "",
+        "{{LINE2}}": board.scenes[0].lines[1] if len(board.scenes[0].lines) > 1 else "",
+        "{{RUNGS_HEAD}}": board.scenes[1].heading,
+        "{{RUNGS}}": "\n        ".join(_rung(index, row) for index, row in enumerate(rungs)),
+        "{{RUNG_COUNT}}": str(len(rungs)),
+        "{{RUNGS_NOTE}}": board.scenes[1].note,
+        "{{RUNGS_NOTE_TOP}}": f"{RUNG_TOP + len(rungs) * RUNG_STEP + 20}",
+        "{{TOTALS_HEAD}}": board.scenes[2].heading,
+        "{{TOTALS}}": "\n        ".join(_total_row(index, row) for index, row in enumerate(totals)),
+        "{{TOTALS_COUNT}}": str(len(totals)),
+        "{{TOTALS_NOTE}}": board.scenes[2].note,
+        "{{TOTALS_NOTE_TOP}}": f"{TOTAL_TOP + len(totals) * TOTAL_STEP + 40}",
         "{{OUTRO1}}": outro.headline[0] if getattr(outro, "headline", ()) else "",
         "{{OUTRO2}}": outro.headline[1] if len(getattr(outro, "headline", ())) > 1 else "",
         "{{OUTRO_CALL}}": getattr(outro, "call", ""),

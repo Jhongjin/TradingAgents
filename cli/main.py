@@ -2478,7 +2478,8 @@ def _shorts_build(renderer: str, payload: dict, output: Path, *, story_key: str 
 
     from tradingagents.shorts import build, voice as narration
     from tradingagents.shorts.hyperframes import (
-        compose_candles, compose_curve, compose_debate, compose_explain, compose_funnel, compose_record,
+        compose_candles, compose_curve, compose_debate, compose_explain, compose_funnel, compose_picks,
+        compose_record,
         run, write_project,
     )
 
@@ -2495,7 +2496,8 @@ def _shorts_build(renderer: str, payload: dict, output: Path, *, story_key: str 
     # debate day and a curve day came out as the same video with the same
     # numbers on it. The cut a story names is the cut it gets.
     compose = {"debate": compose_debate, "curve": compose_curve, "candles": compose_candles,
-               "funnel": compose_funnel, "explain": compose_explain}.get(renderer, compose_record)
+               "funnel": compose_funnel, "explain": compose_explain,
+               "picks": compose_picks}.get(renderer, compose_record)
     html, seconds = compose(payload, board)
     project = write_project(html, output / "hf" / (story_key or renderer), name=story_key or renderer)
     run("check", project.directory)

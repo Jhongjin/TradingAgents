@@ -53,15 +53,16 @@ class Story:
 
 STORIES: tuple[Story, ...] = (
     # --- always available on a trading day ---------------------------------
-    Story("picks", "오늘의 픽", "daily", 0.55, 1, "picks"),
-    Story("record", "지금까지의 성적", "daily", 1.0, 5, "record"),
+    # it has its own cut now, not the record cut with a picks title on it
+    Story("picks", "오늘의 픽", "daily", 0.85, 2, "picks"),
+    Story("record", "지금까지의 성적", "daily", 1.0, 7, "record"),
     # Why a name was chosen, which is the only question a new viewer has. It
     # outranks the record cut on purpose: a channel that only ever reports its
     # own losses gives nobody a reason to subscribe.
-    Story("funnel", "349종목에서 오늘의 종목까지", "daily", 1.0, 3, "funnel"),
+    Story("funnel", "349종목에서 오늘의 종목까지", "daily", 1.0, 4, "funnel"),
     # --- fired by something that actually happened -------------------------
     Story("exits", "오늘 정리된 종목", "event", 0.95, 1, "record"),
-    Story("stop_worked", "손절이 작동한 날", "event", 1.0, 3, "record"),
+    Story("stop_worked", "손절이 작동한 날", "event", 1.0, 5, "record"),
     Story("take_profit", "목표가에 닿았다", "event", 1.0, 2, None),
     Story("crossover", "AI와 규칙이 뒤집혔다", "event", 0.9, 7, None),
     Story("equity_extreme", "계좌 신고가·신저가", "event", 0.85, 5, None),
@@ -143,7 +144,14 @@ def _today(now: datetime | None = None) -> date:
 
 
 def _novelty(story: Story, ledger: Sequence[Mapping[str, Any]], today: date) -> float:
-    """One if it has not run inside its cooldown, tapering back up after."""
+    """How new this is: full for something never told, climbing back after.
+
+    Snapping straight back to 1.0 the day a cooldown lapses is what made the
+    channel repetitive even with the shelf full — the single strongest story
+    simply alternated with itself every other slot. Past the cooldown novelty
+    keeps climbing, so a story that ran a week ago still loses to one that has
+    not run in three, and the whole shelf gets used.
+    """
 
     last: date | None = None
     for row in ledger:
@@ -156,11 +164,13 @@ def _novelty(story: Story, ledger: Sequence[Mapping[str, Any]], today: date) -> 
         if last is None or when > last:
             last = when
     if last is None:
-        return 1.0
+        return 1.0                                      # never told: it goes first
     days = (today - last).days
-    if days >= story.cooldown_days:
-        return 1.0
-    return round(max(0.0, days / max(story.cooldown_days, 1)) * 0.6, 3)
+    cooldown = max(story.cooldown_days, 1)
+    if days < cooldown:
+        return round(max(0.0, days / cooldown) * 0.6, 3)
+    rested = min((days - cooldown) / (cooldown * 2), 1.0)
+    return round(0.75 + 0.25 * rested, 3)
 
 
 # -------------------------------------------------------------- triggers
@@ -201,7 +211,7 @@ def evaluate(payload: Mapping[str, Any], *, now: datetime | None = None, ledger:
 
     closed_count = int(summary.get("closed_count") or len(closed))
     if closed_count >= 3:
-        add("record", min(0.4 + closed_count * 0.03, 0.8),
+        add("record", min(0.4 + closed_count * 0.03, 0.7),
             f"정리된 거래가 {closed_count}건 쌓였습니다.", closed=closed_count)
 
     # The screen itself, which needs a run that actually threw something away.
@@ -302,7 +312,10 @@ def evaluate(payload: Mapping[str, Any], *, now: datetime | None = None, ledger:
         topic = BY_TOPIC.get(key)
         if topic is not None and not topic.ready(payload):
             continue
-        add(key, 0.3, "조용한 날을 위한 상비 콘텐츠입니다.")
+        # 0.3 kept these off the air for a month at a time. They are the only
+        # cuts that explain the thing rather than report on it, so they are
+        # worth roughly a quiet day's account cut.
+        add(key, 0.62, "조용한 날을 위한 상비 콘텐츠입니다.")
 
     found.sort(key=lambda item: (-item.score, item.story.key))
     return found
