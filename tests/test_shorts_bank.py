@@ -197,6 +197,29 @@ def test_both_workflows_are_importable_and_ship_no_secrets():
         assert "binaryProperty" not in _json.dumps(upload["parameters"])   # the default is left alone
 
 
+def test_an_upload_that_returns_no_id_stops_the_flow_instead_of_announcing_it():
+    """The morning the chain ran to the end and the channel stayed empty."""
+
+    import json as _json
+    from pathlib import Path
+
+    flow = _json.loads(Path("automation/n8n/daily-short-hosted.json").read_text(encoding="utf-8"))
+    nodes = {node["name"]: node for node in flow["nodes"]}
+    check = nodes["업로드 확인"]
+
+    # it throws, so 실패 감지 picks it up and the alert carries what YouTube said
+    assert "throw new Error" in check["parameters"]["jsCode"]
+    assert "JSON.stringify(up)" in check["parameters"]["jsCode"]
+    assert check.get("onError") is None                  # continuing would defeat the point
+
+    # and it sits between the upload and everything that announces a success
+    assert flow["connections"]["유튜브 업로드"]["main"][0][0]["node"] == "업로드 확인"
+    for name in ("채널 댓글", "텔레그램 알림", "업로드 결과 회신"):
+        blob = _json.dumps(nodes[name]["parameters"], ensure_ascii=False)
+        assert "$('업로드 확인').first().json.videoId" in blob, name
+        assert "$('유튜브 업로드')" not in blob, name     # the unchecked id is gone
+
+
 def test_the_upload_flow_posts_a_comment_and_says_what_it_cannot_do():
     """A pinned comment is half automatable: the API posts, Studio pins."""
 
@@ -215,8 +238,8 @@ def test_the_upload_flow_posts_a_comment_and_says_what_it_cannot_do():
     assert comment["onError"] == "continueRegularOutput"
     assert "고정" in comment["notes"] and "Studio" in comment["notes"]
 
-    # and it sits between the upload and the notification
-    assert flow["connections"]["유튜브 업로드"]["main"][0][0]["node"] == "채널 댓글"
+    # and it sits between the checked upload and the notification
+    assert flow["connections"]["업로드 확인"]["main"][0][0]["node"] == "채널 댓글"
     assert flow["connections"]["채널 댓글"]["main"][0][0]["node"] == "텔레그램 알림"
 
     # the text comes from the PC, which is where the story's own words are

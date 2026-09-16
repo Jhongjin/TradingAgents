@@ -74,6 +74,20 @@
     },
     {
       "parameters": {
+        "jsCode": "// 2026-09-16: 유튜브 노드가 오류 없이 빈 항목을 돌려준 날이 있었습니다. 체인은\n// 그대로 흘러 텔레그램은 링크 없는 '발행' 알림을 보냈고, PC 는 발행 기록에 적었고,\n// 채널에는 아무것도 올라오지 않았습니다. id 가 없으면 그것은 업로드가 아닙니다.\n// 여기서 멈추면 실패 감지가 받아 텔레그램으로 이 메시지를 그대로 보냅니다.\nconst up = $input.first().json || {};\nconst id = (up.id && up.id.videoId) || (typeof up.id === 'string' ? up.id : '') || up.videoId || '';\nif (!id) {\n  throw new Error('유튜브가 영상 id 를 돌려주지 않았습니다. 업로드 노드가 내놓은 것: ' + JSON.stringify(up).slice(0, 500));\n}\nreturn [{ json: { ...$('받은 것 확인').first().json, videoId: id } }];"
+      },
+      "id": "b2000000-0000-4000-8000-000000000009",
+      "name": "업로드 확인",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        100,
+        320
+      ],
+      "notes": "업로드가 정말 되었는지 확인합니다. id 가 없으면 여기서 실패로 처리해 실패 알림이 유튜브 노드의 응답을 그대로 보내줍니다. 이 노드를 지우면 조용한 실패가 다시 '발행 완료'로 보고됩니다."
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "https://www.googleapis.com/youtube/v3/commentThreads",
         "authentication": "predefinedCredentialType",
@@ -89,7 +103,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ snippet: { videoId: (($('유튜브 업로드').first().json.id && $('유튜브 업로드').first().json.id.videoId) || $('유튜브 업로드').first().json.id || $('유튜브 업로드').first().json.videoId || ''), topLevelComment: { snippet: { textOriginal: $('받은 것 확인').first().json.comment } } } }) }}",
+        "jsonBody": "={{ JSON.stringify({ snippet: { videoId: $('업로드 확인').first().json.videoId, topLevelComment: { snippet: { textOriginal: $('받은 것 확인').first().json.comment } } } }) }}",
         "options": {}
       },
       "id": "b2000000-0000-4000-8000-000000000008",
@@ -97,7 +111,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        100,
+        340,
         180
       ],
       "credentials": {
@@ -112,7 +126,7 @@
     {
       "parameters": {
         "chatId": "",
-        "text": "=✅ 쇼츠 발행\n\n{{ $('받은 것 확인').first().json.title }}\n\n스토리: {{ $('받은 것 확인').first().json.label }}\n사유: {{ $('받은 것 확인').first().json.reason }}\n공개: {{ $('받은 것 확인').first().json.privacyStatus }}\n댓글: {{ $json.id ? '달림 · Studio 에서 고정해 주세요' : '실패 (수동 작성 필요)' }}\nhttps://youtu.be/{{ (($json.id && $json.id.videoId) || $json.id || $json.videoId || '') }}",
+        "text": "=✅ 쇼츠 발행\n\n{{ $('받은 것 확인').first().json.title }}\n\n스토리: {{ $('받은 것 확인').first().json.label }}\n사유: {{ $('받은 것 확인').first().json.reason }}\n공개: {{ $('받은 것 확인').first().json.privacyStatus }}\n댓글: {{ $json.id ? '달림 · Studio 에서 고정해 주세요' : '실패 (수동 작성 필요)' }}\nhttps://youtu.be/{{ $('업로드 확인').first().json.videoId }}",
         "additionalFields": {}
       },
       "id": "b2000000-0000-4000-8000-000000000004",
@@ -120,7 +134,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        100,
+        340,
         320
       ],
       "credentials": {
@@ -134,7 +148,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: true, videoId: (($('유튜브 업로드').first().json.id && $('유튜브 업로드').first().json.id.videoId) || $('유튜브 업로드').first().json.id || $('유튜브 업로드').first().json.videoId || ''), story: $('받은 것 확인').first().json.story }) }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, videoId: $('업로드 확인').first().json.videoId, story: $('받은 것 확인').first().json.story }) }}",
         "options": {}
       },
       "id": "b2000000-0000-4000-8000-000000000005",
@@ -142,7 +156,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        340,
+        580,
         320
       ],
       "notes": "PC 가 이 응답의 videoId 를 받아 발행 기록에 적습니다. 그래야 내일의 선택기가 같은 이야기를 피합니다."
@@ -207,7 +221,7 @@
       "main": [
         [
           {
-            "node": "채널 댓글",
+            "node": "업로드 확인",
             "type": "main",
             "index": 0
           }
@@ -241,6 +255,17 @@
         [
           {
             "node": "텔레그램 알림",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "업로드 확인": {
+      "main": [
+        [
+          {
+            "node": "채널 댓글",
             "type": "main",
             "index": 0
           }
