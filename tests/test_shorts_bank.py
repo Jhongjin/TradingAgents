@@ -398,7 +398,7 @@ def test_the_funnel_is_read_off_the_run_s_own_stages_not_measured_again():
     from cli.main import _funnel_in
 
     run = {
-        "run": {"as_of_date": "2026-09-16", "universe_size": 349},
+        "run": {"as_of_date": "2026-09-16", "universe_size": 349, "candidate_count": 28},
         "decisions": (
             [{"stage": "forecast_rejected", "ticker_name": f"탈락{i}"} for i in range(15)]
             + [{"stage": "confirmation_rejected", "ticker_name": f"토론탈락{i}"} for i in range(10)]
@@ -410,14 +410,31 @@ def test_the_funnel_is_read_off_the_run_s_own_stages_not_measured_again():
     }
     found = _funnel_in(run)
     assert found["universe"] == 349
-    assert [row["label"] for row in found["stages"]][0] == "1차 선별"
-    assert found["stages"][0]["from"] == 349 and found["stages"][0]["to"] == 28
+    # the screener's own work happens before any decision row exists, so it is
+    # read off the header rather than counted from the decisions
+    assert found["stages"][0] == {"label": "거래대금·밸류·변동성", "from": 349, "to": 28}
+    assert [row["label"] for row in found["stages"][1:]] == ["예측 기준 미달", "AI 토론 탈락", "보유 한도 초과"]
     assert found["stages"][-1]["to"] == 1                    # what actually got bought
     assert found["picks"][0]["name"] == "티에스이"
     assert "비중 확대" in found["picks"][0]["sub"] and "+4.2%" in found["picks"][0]["sub"]
+    assert found["picks"][0]["value"] == "0.62"
+
+    # a rules-only run has no AI confidence, and the column shows the screener's
+    # own score rather than sitting blank
+    rules_only = _funnel_in({
+        "run": {"universe_size": 349, "candidate_count": 20},
+        "decisions": [{"stage": "ordered", "ticker_name": "JB금융지주", "composite_score": 3.0852,
+                       "screener_rank": 1}] * 3,
+    })
+    assert [row["to"] for row in rules_only["stages"]] == [20, 3]
+    assert rules_only["picks"][0]["value"] == "3.09점"
+    assert "선별 1위" in rules_only["picks"][0]["sub"]
 
     # a run with no universe behind it draws nothing rather than a wrong funnel
     assert _funnel_in({"run": {"universe_size": 0}, "decisions": [{"stage": "ordered"}]}) is None
+    # and neither does one where the screen threw nothing away
+    assert _funnel_in({"run": {"universe_size": 20, "candidate_count": 20},
+                       "decisions": [{"stage": "ordered"}] * 20}) is None
 
 
 def test_every_topic_says_something_different_and_names_its_evidence():

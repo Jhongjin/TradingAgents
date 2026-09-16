@@ -219,7 +219,10 @@ def evaluate(payload: Mapping[str, Any], *, now: datetime | None = None, ledger:
     universe = int(funnel.get("universe") or 0)
     stages = list(funnel.get("stages") or [])
     survived = int(stages[-1].get("to") or 0) if stages else 0
-    if universe >= 50 and len(stages) >= 3 and survived:
+    # Two stages is a funnel: on a rules-only run the screen does its work in
+    # one pass (349 → 20) and the ranking does the rest (20 → 3). Asking for
+    # three kept it off the air on every day the harness actually ran.
+    if universe >= 50 and len(stages) >= 2 and survived:
         # the harder the cut, the better the story: 349 → 7 is worth watching,
         # 60 → 55 is a formality
         severity = 1.0 - (survived / universe)

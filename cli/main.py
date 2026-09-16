@@ -2221,58 +2221,79 @@ def _latest_debate(source: Optional[str]) -> dict | None:
     return _debate_in(run)
 
 
-FUNNEL_STAGES = (
-    ("screened", "거래대금·유동성"),
+# The stages that throw a name away, in the order the pipeline applies them.
+# Anything that reaches ordered or exit survived the lot.
+FUNNEL_DROPS = (
     ("forecast_rejected", "예측 기준 미달"),
     ("confirmation_rejected", "AI 토론 탈락"),
-    ("gate_rejected", "한도 초과"),
+    ("sized", "수량이 1주도 안 됨"),
+    ("gate_rejected", "보유 한도 초과"),
+    ("screened", "그 외 제외"),
 )
+SURVIVING_STAGES = {"ordered", "exit"}
+RATING_WORDS = {"overweight": "비중 확대", "underweight": "비중 축소", "neutral": "중립"}
 
 
 def _funnel_in(run: dict) -> dict | None:
     """The screen this run ran, stage by stage, with what survived each one.
 
-    The harness already writes a stage on every decision it made, so the
-    funnel is not a new measurement: it is the run's own audit trail read in
-    the order it happened.
+    Nothing here is measured a second time: universe_size and candidate_count
+    are the run's own header, and every later drop is counted off the stage
+    the pipeline already wrote on each decision.
+
+    The screener's own work — turnover, liquidity, PER/PBR, the volatility
+    exclusion — happens before any decision row exists, so it shows up as
+    universe_size → candidate_count rather than as decisions. Reading only the
+    decisions made the funnel a single 349 → 3 step and it never fired.
     """
 
     header = (run or {}).get("run") or {}
     decisions = list((run or {}).get("decisions") or [])
     universe = int(header.get("universe_size") or 0)
-    if not decisions or universe < len(decisions):
+    candidates = int(header.get("candidate_count") or len(decisions))
+    if not decisions or not universe or universe < candidates:
         return None
 
     counts: dict[str, int] = {}
     for item in decisions:
-        key = str(item.get("stage") or "")
-        counts[key] = counts.get(key, 0) + 1
+        counts[str(item.get("stage") or "")] = counts.get(str(item.get("stage") or ""), 0) + 1
 
-    # Everything that reached a decision came through the screen; each later
-    # stage drops whatever it rejected.
-    stages: list[dict] = [{"label": "1차 선별", "from": universe, "to": len(decisions)}]
+    stages: list[dict] = []
+    if candidates and universe > candidates:
+        stages.append({"label": "거래대금·밸류·변동성", "from": universe, "to": candidates})
+    if candidates > len(decisions):
+        stages.append({"label": "점수 상위만 추림", "from": candidates, "to": len(decisions)})
+
     left = len(decisions)
-    for stage, label in FUNNEL_STAGES[1:]:
+    for stage, label in FUNNEL_DROPS:
         dropped = counts.get(stage, 0)
         if not dropped:
             continue
         stages.append({"label": label, "from": left, "to": left - dropped})
         left -= dropped
+
     if left <= 0 or len(stages) < 2:
         return None
 
-    bought = [item for item in decisions if str(item.get("stage")) in {"ordered", "exit"}]
     picks = []
-    for item in bought[:4]:
+    for item in [row for row in decisions if str(row.get("stage")) in SURVIVING_STAGES][:4]:
         confidence = item.get("confirmation_confidence")
-        rating = str(item.get("confirmation_rating") or "").strip().lower()
-        label = {"overweight": "비중 확대", "underweight": "비중 축소", "neutral": "중립"}.get(rating, rating or "규칙 통과")
+        rating = RATING_WORDS.get(str(item.get("confirmation_rating") or "").strip().lower(), "")
         expected = item.get("forecast_expected_return")
+        score = item.get("composite_score")
+        bits = [rating or "규칙 통과"]
+        if expected is not None:
+            bits.append(f"기대 {float(expected) * 100:+.1f}%")
+        elif item.get("screener_rank") is not None:
+            bits.append(f"선별 {int(item['screener_rank'])}위")
         picks.append({
             "name": str(item.get("ticker_name") or item.get("ticker_code") or ""),
             "code": str(item.get("ticker_code") or ""),
-            "sub": f"{label}" + (f"   기대 {float(expected) * 100:+.1f}%" if expected is not None else ""),
-            "value": f"{float(confidence):.2f}" if confidence is not None else "규칙",
+            "sub": "   ".join(bits),
+            # confidence when an AI weighed in, the screener's own score when
+            # the run was rules-only — never a blank column
+            "value": f"{float(confidence):.2f}" if confidence is not None
+                     else (f"{float(score):.2f}점" if score is not None else "규칙"),
         })
 
     return {"as_of_date": header.get("as_of_date"), "universe": universe, "stages": stages, "picks": picks}
