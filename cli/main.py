@@ -2390,6 +2390,141 @@ def _latest_funnel(source: Optional[str]) -> dict | None:
         return None
 
 
+REJECTED_HORIZON = 5
+REJECTED_MIN_ROWS = 8
+
+
+def _rejected_in(run: dict, bought: set[str], returns_fetcher) -> dict | None:
+    """The whole shortlist scored, with the ones that were bought marked.
+
+    The screener narrows the market to twenty and the book takes a handful of
+    them. Nobody ever looks at the other fifteen again, which means the one
+    number that would say whether the picking works — did the names we passed
+    on do better? — is the number nobody has. It is already in the run: the
+    shortlist is stored with its ranks, and the returns come from the same
+    fetcher the outcome worker uses.
+    """
+
+    header = (run or {}).get("run") or {}
+    shortlist = list((header.get("metadata") or {}).get("screener_candidates") or [])
+    as_of = str(header.get("as_of_date") or "")[:10]
+    if len(shortlist) < REJECTED_MIN_ROWS or not as_of:
+        return None
+
+    def score(code: str, horizon: int):
+        try:
+            raw, alpha, days = returns_fetcher(code, as_of, horizon)
+        except Exception:                               # noqa: BLE001 - one missing name is not fatal
+            return None
+        if raw is None or alpha is None or days is None or days < 1:
+            return None
+        return float(raw), float(alpha), int(days)
+
+    scored: dict[str, tuple[float, float, int]] = {}
+    for item in shortlist:
+        code = str(item.get("code") or "")
+        result = score(code, REJECTED_HORIZON) if code else None
+        if result:
+            scored[code] = result
+    if not scored:
+        return None
+
+    # KOSDAQ's index publishes a day behind KOSPI's here, so those names came
+    # back with four aligned closes where KOSPI names had five. Keeping only
+    # the five-day names quietly dropped every KOSDAQ holding and put a
+    # KOSPI-only average on screen as though it were the shortlist's. Every
+    # name is measured over the same number of days or the cut does not run.
+    common = min(days for _raw, _alpha, days in scored.values())
+    if common < 3:
+        return None
+    for code, (_raw, _alpha, days) in list(scored.items()):
+        if days > common:
+            result = score(code, common)
+            if result is None or result[2] != common:
+                scored.pop(code, None)
+            else:
+                scored[code] = result
+
+    rows = []
+    for item in shortlist:
+        code = str(item.get("code") or "")
+        if code not in scored:
+            continue
+        raw, alpha, _days = scored[code]
+        rows.append({
+            "rank": int(item.get("rank") or 0),
+            "name": str(item.get("name") or code),
+            "code": code,
+            "bought": code in bought,
+            "raw": raw,
+            "alpha": alpha,
+        })
+
+    taken = [row for row in rows if row["bought"]]
+    passed = [row for row in rows if not row["bought"]]
+    # One name on either side is an anecdote, not a comparison, and the cut
+    # puts the two averages on screen as though they meant something.
+    if len(rows) < REJECTED_MIN_ROWS or len(taken) < 2 or len(passed) < 4:
+        return None
+
+    rows.sort(key=lambda row: -row["alpha"])
+    mean = lambda group: sum(row["alpha"] for row in group) / len(group)
+    return {
+        "as_of_date": as_of,
+        # the horizon actually measured, not the one asked for
+        "horizon_days": common,
+        "universe": int(header.get("universe_size") or 0),
+        "rows": rows,
+        "bought_alpha": mean(taken),
+        "passed_alpha": mean(passed),
+        "bought_count": len(taken),
+        "passed_count": len(passed),
+        "best": rows[0],
+    }
+
+
+def _rejected_after(source: Optional[str]) -> dict | None:
+    """How the shortlist did, five trading days after it was drawn up."""
+
+    import os
+
+    if source:
+        # Scoring twenty names needs the vendor directly; a remote site does
+        # not expose it, and guessing would put made-up returns on screen.
+        return None
+    try:
+        if not os.getenv("DATABASE_URL"):
+            return None
+        from tradingagents.dataflows.kr_returns import fetch_korean_returns
+        from tradingagents.site.harness_api import build_harness_run_payload
+        from tradingagents.storage import StorageRepository, create_storage_engine
+
+        repo = StorageRepository(create_storage_engine())
+        found: list[dict] = []
+        for row in repo.list_harness_runs(limit=RECENT_RUNS):
+            if not int(row.get("universe_size") or 0):
+                continue
+            run = build_harness_run_payload(repo, harness_run_id=str(row["id"])) or {}
+            bought = {
+                str(item.get("ticker_code"))
+                for item in run.get("decisions") or []
+                if str(item.get("stage")) in SURVIVING_STAGES
+            }
+            item = _rejected_in(run, bought, fetch_korean_returns)
+            if item:
+                found.append(item)
+            # Scoring a shortlist is twenty vendor calls, so this stops once
+            # there is enough to choose between rather than pricing the month.
+            if len(found) >= 3:
+                break
+        # The newest qualifying run sits right on the edge of its window and
+        # half its names have no fifth close yet. The fullest comparison wins,
+        # and a recent one breaks the tie.
+        return max(found, key=lambda item: (len(item["rows"]), item["as_of_date"])) if found else None
+    except Exception:                                   # noqa: BLE001 - the other stories still work
+        return None
+
+
 def _account_curve(source: Optional[str]) -> dict | None:
     """The account's day-by-day line against the index, for the weekly cut."""
 
@@ -2511,6 +2646,7 @@ def _shorts_payload(source: Optional[str]) -> dict:
     for key, build in (
         ("debate", lambda: _latest_debate(source)),
         ("funnel", lambda: _latest_funnel(source)),
+        ("rejected", lambda: _rejected_after(source)),
         ("curve", lambda: _account_curve(source)),
         ("candles", lambda: _biggest_mover(payload, source)),
     ):
@@ -2558,7 +2694,7 @@ def _shorts_build(renderer: str, payload: dict, output: Path, *, story_key: str 
     from tradingagents.shorts import build, voice as narration
     from tradingagents.shorts.hyperframes import (
         compose_candles, compose_curve, compose_debate, compose_explain, compose_funnel, compose_picks,
-        compose_record,
+        compose_record, compose_rejected,
         run, write_project,
     )
 
@@ -2576,7 +2712,8 @@ def _shorts_build(renderer: str, payload: dict, output: Path, *, story_key: str 
     # numbers on it. The cut a story names is the cut it gets.
     compose = {"debate": compose_debate, "curve": compose_curve, "candles": compose_candles,
                "funnel": compose_funnel, "explain": compose_explain,
-               "picks": compose_picks}.get(renderer, compose_record)
+               "picks": compose_picks,
+               "rejected": compose_rejected}.get(renderer, compose_record)
     html, seconds = compose(payload, board)
     project = write_project(html, output / "hf" / (story_key or renderer), name=story_key or renderer)
     run("check", project.directory)

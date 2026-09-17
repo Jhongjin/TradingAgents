@@ -161,7 +161,8 @@ def test_every_story_declares_what_it_needs():
     for story in STORIES:
         assert story.tier in {"daily", "event", "periodic", "standby"}
         assert 0 < story.completeness <= 1 and story.cooldown_days >= 1
-        assert story.renderer in {None, "record", "picks", "debate", "curve", "candles", "funnel", "explain"}
+        # not a hand-kept list of names — the invariant is that whatever a
+        # story names can actually be built, which is asserted below
     from tradingagents.shorts.stories import STORIES as BUILDERS
     # every renderer a story names must have something that draws it
     assert {story.renderer for story in STORIES if story.renderer} <= set(BUILDERS)
@@ -663,3 +664,89 @@ def test_the_funnel_names_the_day_it_is_actually_showing():
     assert "오늘 아침" in fresh.scenes[0].caption
     assert "오늘 아침" not in stale.scenes[0].caption and "9월 11일" in stale.scenes[0].caption
     assert "오늘 아침" not in stale.scenes[0].narration
+
+
+def _shortlist_run(names, universe=300, as_of="2026-09-10"):
+    return {"run": {"as_of_date": as_of, "universe_size": universe,
+                    "metadata": {"screener_candidates": [
+                        {"code": code, "name": name, "rank": index + 1, "composite": 3.0 - index * 0.1}
+                        for index, (code, name) in enumerate(names)]}}}
+
+
+def test_every_shortlisted_name_is_measured_over_the_same_number_of_days():
+    """KOSDAQ's index lags KOSPI's here, so those names came back a day short."""
+
+    from cli.main import _rejected_in
+
+    names = [(f"00{i:04}", f"종목{i}") for i in range(12)]
+    kosdaq = {names[i][0] for i in (0, 1, 2)}          # these only have four closes
+
+    calls = []
+
+    def fetcher(code, as_of, horizon):
+        calls.append((code, horizon))
+        days = min(horizon, 4) if code in kosdaq else horizon
+        return 0.02 * (int(code) + 1), 0.01 * (int(code) + 1), days
+
+    found = _rejected_in(_shortlist_run(names), {names[0][0], names[5][0]}, fetcher)
+    assert found is not None
+    # the horizon actually measured, and every row is on it
+    assert found["horizon_days"] == 4
+    assert len(found["rows"]) == 12                     # nothing silently dropped
+    # the nine that came back long were re-asked at the common horizon
+    assert len([call for call in calls if call[1] == 4]) == 9
+    assert found["bought_count"] == 2 and found["passed_count"] == 10
+
+
+def test_a_shortlist_with_nothing_to_compare_does_not_become_a_video():
+    from cli.main import _rejected_in
+
+    names = [(f"00{i:04}", f"종목{i}") for i in range(12)]
+    fetcher = lambda code, as_of, horizon: (0.01, 0.01, horizon)
+
+    # one name on either side is an anecdote, and the cut puts two averages up
+    assert _rejected_in(_shortlist_run(names), {names[0][0]}, fetcher) is None
+    assert _rejected_in(_shortlist_run(names), {n[0] for n in names[:9]}, fetcher) is None
+    # and a shortlist too short to be a shortlist
+    assert _rejected_in(_shortlist_run(names[:4]), {names[0][0], names[1][0]}, fetcher) is None
+    # a vendor that answers for nobody
+    assert _rejected_in(_shortlist_run(names), {names[0][0], names[1][0]},
+                        lambda *a: (None, None, None)) is None
+
+
+def test_the_shortlist_cut_says_which_side_won_either_way():
+    """It has to read the same when the picking worked and when it did not."""
+
+    from tradingagents.shorts import build
+
+    def board(bought_alpha, passed_alpha):
+        rows = [{"rank": 1, "name": "가", "code": "1", "bought": True, "raw": 0.0, "alpha": bought_alpha},
+                {"rank": 2, "name": "나", "code": "2", "bought": False, "raw": 0.0, "alpha": passed_alpha}]
+        return build("rejected", {"rejected": {
+            "as_of_date": "2026-09-10", "horizon_days": 5, "universe": 300, "rows": rows,
+            "bought_alpha": bought_alpha, "passed_alpha": passed_alpha,
+            "bought_count": 5, "passed_count": 15, "best": rows[1] if passed_alpha > bought_alpha else rows[0],
+        }}, now=MONDAY, story="rejected")
+
+    lost = board(-0.0246, 0.0246)
+    won = board(0.0246, -0.0246)
+
+    assert "넘긴 15종목이 나았습니다." in lost.scenes[0].lines[1]
+    assert "고른 5종목이 나았습니다." in won.scenes[0].lines[1]
+    assert lost.title != won.title
+    assert "넘긴 15종목이 더 올랐습니다" in lost.title
+    # and neither version pretends one week settles it
+    for item in (lost, won):
+        assert "한 번의 결과" in item.scenes[2].note
+        assert item.scenes[1].rows and len(item.scenes) == 4
+
+
+def test_the_shortlist_story_is_on_the_shelf_once_it_has_both_sides():
+    payload = _payload(closed_before=4)
+    rejected = {"rows": [{"alpha": 0.01}], "bought_count": 5, "passed_count": 15,
+                "bought_alpha": -0.0246, "passed_alpha": 0.0246}
+    keys = {item.story.key for item in evaluate({**payload, "rejected": rejected}, now=MONDAY, ledger=[])}
+    assert "rejected" in keys
+    assert BY_KEY["rejected"].renderer == "rejected"
+    # nothing to compare, nothing on the shelf
+    assert "rejected" not in {item.story.key for item in evaluate(payload, now=MONDAY, ledger=[])}

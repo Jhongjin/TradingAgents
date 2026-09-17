@@ -67,7 +67,7 @@ STORIES: tuple[Story, ...] = (
     Story("crossover", "AI와 규칙이 뒤집혔다", "event", 0.9, 7, None),
     Story("equity_extreme", "계좌 신고가·신저가", "event", 0.85, 5, None),
     Story("big_mover", "한 종목이 계좌를 흔들었다", "event", 0.95, 3, "candles"),
-    Story("rejected", "거른 종목의 그 뒤", "event", 1.0, 4, None),
+    Story("rejected", "거른 종목의 그 뒤", "event", 1.0, 5, "rejected"),
     Story("debate", "강세 AI vs 약세 AI", "event", 1.0, 2, "debate"),
     Story("milestone", "이정표", "event", 1.0, 30, None),
     # --- the calendar ------------------------------------------------------
@@ -222,6 +222,16 @@ def evaluate(payload: Mapping[str, Any], *, now: datetime | None = None, ledger:
     # Two stages is a funnel: on a rules-only run the screen does its work in
     # one pass (349 → 20) and the ranking does the rest (20 → 3). Asking for
     # three kept it off the air on every day the harness actually ran.
+    # The shortlist scored against itself: the only cut that can say the
+    # picking did not work. It scores high either way, because a day the
+    # book was right is worth the same airtime as a day it was not.
+    shortlist = payload.get("rejected") or {}
+    if shortlist.get("rows") and shortlist.get("bought_count") and shortlist.get("passed_count"):
+        gap = abs(float(shortlist.get("passed_alpha") or 0.0) - float(shortlist.get("bought_alpha") or 0.0))
+        add("rejected", min(0.7 + gap * 8, 1.0),
+            f"넘긴 {int(shortlist['passed_count'])}종목과 산 {int(shortlist['bought_count'])}종목을 견줬습니다.",
+            gap=round(gap, 5))
+
     if universe >= 50 and len(stages) >= 2 and survived:
         # the harder the cut, the better the story: 349 → 7 is worth watching,
         # 60 → 55 is a formality

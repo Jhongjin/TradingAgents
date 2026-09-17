@@ -954,6 +954,124 @@ def build_explain(payload: Mapping[str, Any], *, now: datetime | None = None, th
     )
 
 
+def build_rejected(payload, *, now=None, theme=DEFAULT_THEME, story=None):
+    """The shortlist scored, with our own picks marked against the rest.
+
+    This is the only cut that can say the picking did not work, and it says it
+    with the same numbers on the same scale either way. A channel that only
+    ever shows the trades it took has no way of telling anyone — including
+    itself — whether choosing five out of twenty was worth doing.
+    """
+
+    data = payload.get("rejected") or {}
+    rows = list(data.get("rows") or [])
+    took_n = int(data.get("bought_count") or 0)
+    passed_n = int(data.get("passed_count") or 0)
+    took = float(data.get("bought_alpha") or 0.0)
+    passed = float(data.get("passed_alpha") or 0.0)
+    horizon = int(data.get("horizon_days") or 5)
+    ran_on = str(data.get("as_of_date") or "")[:10]
+    best = data.get("best") or {}
+    stamp = _today(now).strftime("%Y%m%d")
+
+    gap = passed - took
+    ours_won = gap < 0
+    best_name = str(best.get("name") or "")
+    best_alpha = float(best.get("alpha") or 0.0)
+    best_ours = bool(best.get("bought"))
+
+    scenes = (
+        Hook(
+            eyebrow=f"{korean_date(ran_on)} 선별 · {horizon}거래일 뒤",
+            value=f"{abs(gap) * 100:.1f}%p",
+            value_colour="ink",
+            caption=f"{took_n + passed_n}종목까지 좁힌 뒤, {took_n}종목만 샀습니다",
+            lines=(
+                (f"넘긴 {passed_n}종목보다", f"고른 {took_n}종목이 나았습니다.")
+                if ours_won
+                else (f"고른 {took_n}종목보다", f"넘긴 {passed_n}종목이 나았습니다.")
+            ),
+            seconds=3.8,
+            narration=(
+                f"{korean_date(ran_on)} 아침에 {took_n + passed_n}종목까지 좁혀놓고 {took_n}종목만 샀습니다. "
+                + (
+                    f"{horizon}거래일 뒤에 보니 고른 쪽이 {spoken_percent(abs(gap), digits=1)} 나았어요."
+                    if ours_won
+                    else f"{horizon}거래일 뒤에 보니 넘긴 쪽이 {spoken_percent(abs(gap), digits=1)} 나았습니다."
+                )
+            ),
+        ),
+        Rows(
+            eyebrow="후보 전부",
+            heading="스무 개를 한 줄에 놓고 봅니다",
+            rows=tuple(
+                {"label": str(row.get("name")), "value": percent(float(row.get("alpha") or 0.0), digits=1),
+                 "sub": f"{row.get('rank')}위", "colour": "accent"}
+                for row in rows
+            ),
+            note="가로축은 같은 기간 지수 대비 성적입니다. 오른쪽일수록 지수를 많이 이겼습니다.",
+            seconds=4.0 + min(len(rows), 20) * 0.16,
+            narration=(
+                "후보 전부를 한 줄에 놓고 봅니다. 채운 점이 산 종목, 빈 점이 넘긴 종목이에요. "
+                "오른쪽일수록 지수를 많이 이긴 겁니다."
+            ),
+        ),
+        Rows(
+            eyebrow="평균으로",
+            heading="고른 쪽과 넘긴 쪽",
+            rows=(
+                {"label": f"산 {took_n}종목", "value": percent(took, digits=2), "colour": "took"},
+                {"label": f"넘긴 {passed_n}종목", "value": percent(passed, digits=2), "colour": "passed"},
+            ),
+            note=(
+                f"{horizon}거래일치 한 번의 결과입니다. 이걸로 실력을 말할 수는 없고, "
+                "쌓이는 걸 계속 올리는 게 이 채널이 하는 일입니다."
+            ),
+            seconds=5.0,
+            narration=(
+                (f"평균으로 보면 산 쪽이 {spoken_percent(took, digits=1)}, 넘긴 쪽이 {spoken_percent(passed, digits=1)}입니다. ")
+                + (
+                    f"가장 많이 오른 {best_name}도 우리가 산 종목이었고요."
+                    if best_ours
+                    else f"가장 많이 오른 {best_name}, 이건 우리가 넘겼습니다."
+                )
+                + " 한 번의 결과라 실력을 말할 수는 없어요. 쌓이는 걸 계속 올리겠습니다."
+            ),
+        ),
+        _outro(
+            headline=("고른 것만 보여주면", "확인할 방법이 없습니다."),
+            call="선별 전체 기록",
+            narration=(
+                "고른 것만 보여주면 잘 골랐는지 확인할 방법이 없죠. 넘긴 것까지 같이 올리는 이유입니다. "
+                "내일 아침 선별 결과는 텔레그램으로 먼저 갑니다."
+            ),
+        ),
+    )
+
+    verdict = "고른 쪽이 나았습니다" if ours_won else "넘긴 쪽이 나았습니다"
+    return Storyboard(
+        slug=f"rejected-{stamp}",
+        title=f"AI가 넘긴 {passed_n}종목이 더 올랐습니다 | 고른 {took_n}종목과 비교" if not ours_won
+              else f"AI가 고른 {took_n}종목 vs 넘긴 {passed_n}종목 | {horizon}거래일 뒤 성적",
+        description=(
+            f"{korean_date(ran_on)} 선별에서 {took_n + passed_n}종목까지 좁힌 뒤 {took_n}종목을 샀습니다. "
+            f"{horizon}거래일 뒤, 산 종목과 넘긴 종목을 같은 기준으로 비교했습니다. {verdict}." + chr(10) + chr(10)
+            + f"선별 기록 -> {_link('/harness', 'rejected', stamp=stamp)}" + chr(10)
+            + f"검증 결과 -> {_link('/outcomes', 'rejected', stamp=stamp)}" + chr(10)
+            + _telegram_line() + chr(10) + chr(10)
+            + "AI 실험 기록이며 매매 권유가 아닙니다. 모의 계좌 기록이고 실계좌 주문은 없습니다." + chr(10)
+            + "#주식 #AI주식 #종목선정 #코스피 #코스닥"
+        ),
+        tags=("주식", "AI주식", "종목선정", "코스피", "코스닥", "검증"),
+        scenes=scenes,
+        theme=theme,
+        comment=_comment(
+            f"넘긴 {passed_n}종목이 그 뒤 어떻게 됐는지, 종목별로 여기 있습니다.",
+            path="/harness", campaign="rejected", stamp=stamp,
+        ),
+    )
+
+
 STORIES: dict[str, Callable[..., Storyboard]] = {
     "record": build_record,
     "picks": build_picks,
@@ -962,6 +1080,7 @@ STORIES: dict[str, Callable[..., Storyboard]] = {
     "candles": build_candles,
     "funnel": build_funnel,
     "explain": build_explain,
+    "rejected": build_rejected,
 }
 
 
@@ -986,4 +1105,4 @@ def build(
     return STORIES[name](payload, now=now, theme=theme, story=story or name)
 
 
-__all__ = ["STORIES", "Storyboard", "build", "build_explain", "build_funnel", "build_picks", "build_record", "short_date", "site_url"]
+__all__ = ["STORIES", "Storyboard", "build", "build_explain", "build_funnel", "build_rejected", "build_picks", "build_record", "short_date", "site_url"]

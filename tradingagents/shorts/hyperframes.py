@@ -671,7 +671,7 @@ def run(command: str, directory: Path, *, extra: Sequence[str] = (), timeout: in
 
 
 __all__ = ["Composition", "CLI_VERSION", "HyperFramesMissingError", "compose_candles", "compose_curve",
-           "compose_debate", "compose_explain", "compose_funnel", "compose_picks", "compose_record", "run", "write_project"]
+           "compose_debate", "compose_explain", "compose_funnel", "compose_picks", "compose_record", "compose_rejected", "run", "write_project"]
 
 
 # ---------------------------------------------------------------- the funnel
@@ -971,6 +971,115 @@ def compose_picks(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, f
         "{{TOTALS_COUNT}}": str(len(totals)),
         "{{TOTALS_NOTE}}": board.scenes[2].note,
         "{{TOTALS_NOTE_TOP}}": f"{TOTAL_TOP + len(totals) * TOTAL_STEP + 40}",
+        "{{OUTRO1}}": outro.headline[0] if getattr(outro, "headline", ()) else "",
+        "{{OUTRO2}}": outro.headline[1] if len(getattr(outro, "headline", ())) > 1 else "",
+        "{{OUTRO_CALL}}": getattr(outro, "call", ""),
+        "{{URL}}": host,
+        "{{TELEGRAM_LINE}}": getattr(outro, "telegram_line", ""),
+        "{{TELEGRAM}}": handle or f"{host}/start",
+    }
+    for token, value in replacements.items():
+        template = template.replace(token, str(value))
+    return template, running
+
+
+# --------------------------------------------------------------- the passed-on
+PLOT_W, PLOT_MID = 880.0, 235.0
+DOT_ROWS = (0, -44, 44, -88, 88, -110, 110)     # stacked off the axis, alternating
+
+
+def _dot(index: int, row: Mapping[str, Any], *, x: float, lane: int) -> str:
+    top = PLOT_MID + DOT_ROWS[lane % len(DOT_ROWS)]
+    kind = "took" if row.get("bought") else "passed"
+    return f'<div class="dot {kind}" id="dot{index}" style="left: {x:.0f}px; top: {top:.0f}px;"></div>'
+
+
+def compose_rejected(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, float]:
+    """The whole shortlist on one axis, with the ones we bought filled in.
+
+    The screener narrows the market to twenty and the book takes a handful.
+    Nobody looks at the other fifteen again, so the one number that says
+    whether the picking works — did the names we passed on do better? — is the
+    number nobody has. This is that number, drawn so it cannot be softened:
+    every name is a dot, ours are solid, and the two group averages cut
+    vertically through the lot of them.
+    """
+
+    data = payload.get("rejected") or {}
+    rows = list(data.get("rows") or [])
+    took_alpha = float(data.get("bought_alpha") or 0.0) * 100
+    passed_alpha = float(data.get("passed_alpha") or 0.0) * 100
+
+    values = [float(row["alpha"]) * 100 for row in rows] + [took_alpha, passed_alpha, 0.0]
+    low, high = min(values), max(values)
+    pad = max((high - low) * 0.10, 0.6)
+    low, high = low - pad, high + pad
+
+    def x_of(value: float) -> float:
+        return (value - low) / ((high - low) or 1.0) * PLOT_W
+
+    # Names close together would sit on top of each other, so each dot drops to
+    # the next lane whenever it would collide with the one before it.
+    placed: list[str] = []
+    last_x, lane = -999.0, 0
+    for index, row in enumerate(sorted(rows, key=lambda item: float(item["alpha"]))):
+        x = x_of(float(row["alpha"]) * 100)
+        lane = lane + 1 if x - last_x < 30 else 0
+        placed.append(_dot(index, row, x=x, lane=lane))
+        last_x = x
+
+    took_x, passed_x = x_of(took_alpha), x_of(passed_alpha)
+    took_text, passed_text = f"{took_alpha:+.2f}%p", f"{passed_alpha:+.2f}%p"
+    best = data.get("best") or {}
+
+    handle = telegram_handle()
+    host = site_url().split("://", 1)[-1]
+    lengths = [scene.seconds for scene in board.scenes]
+    starts, running = [], 0.0
+    for value in lengths:
+        starts.append(running)
+        running += value
+    outro = board.scenes[-1]
+
+    gap = passed_alpha - took_alpha
+    hero_text, hero_size = hero(f"{abs(gap):.1f}", "%p", cap=300)
+
+    template = (Path(__file__).parent / "composition_rejected.html").read_text(encoding="utf-8")
+    replacements = {
+        "{{DURATION}}": f"{running:.2f}",
+        "{{S1_DURATION}}": f"{lengths[0]:.2f}",
+        "{{S2_START}}": f"{starts[1]:.2f}",
+        "{{S2_DURATION}}": f"{lengths[1]:.2f}",
+        "{{S3_START}}": f"{starts[2]:.2f}",
+        "{{S3_DURATION}}": f"{lengths[2]:.2f}",
+        "{{S4_START}}": f"{starts[3]:.2f}",
+        "{{S4_DURATION}}": f"{lengths[3]:.2f}",
+        "{{KICKER}}": board.scenes[0].eyebrow,
+        "{{HERO_TEXT}}": hero_text,
+        "{{HERO_SIZE}}": str(hero_size),
+        "{{HERO_COLOUR}}": "var(--passed)" if gap >= 0 else "var(--took)",
+        "{{HOOK_CAPTION}}": board.scenes[0].caption,
+        "{{LINE1}}": board.scenes[0].lines[0] if board.scenes[0].lines else "",
+        "{{LINE2}}": board.scenes[0].lines[1] if len(board.scenes[0].lines) > 1 else "",
+        "{{PLOT_HEAD}}": board.scenes[1].heading,
+        "{{DOTS}}": "\n          ".join(placed),
+        "{{DOT_COUNT}}": str(len(placed)),
+        "{{ZERO_X}}": f"{x_of(0.0):.0f}",
+        "{{ZERO_TAG_X}}": f"{max(x_of(0.0) - 60, 0):.0f}",
+        "{{TOOK_X}}": f"{took_x:.0f}",
+        "{{PASSED_X}}": f"{passed_x:.0f}",
+        "{{TOOK_TAG_X}}": f"{max(min(took_x - 110, PLOT_W - 250), 0):.0f}",
+        "{{PASSED_TAG_X}}": f"{max(min(passed_x - 120, PLOT_W - 270), 0):.0f}",
+        "{{TOOK_TEXT}}": took_text,
+        "{{PASSED_TEXT}}": passed_text,
+        "{{TOOK_COUNT}}": str(int(data.get("bought_count") or 0)),
+        "{{PASSED_COUNT}}": str(int(data.get("passed_count") or 0)),
+        "{{PLOT_NOTE}}": board.scenes[1].note,
+        "{{TOTALS_HEAD}}": board.scenes[2].heading,
+        "{{MISS_LABEL}}": f"가장 많이 오른 {best.get('name', '')}" + ("" if best.get("bought") else ", 우리는 넘겼습니다"),
+        "{{MISS_TEXT}}": f"{float(best.get('alpha') or 0.0) * 100:+.2f}%p",
+        "{{MISS_COLOUR}}": "var(--took)" if best.get("bought") else "var(--passed)",
+        "{{TOTALS_NOTE}}": board.scenes[2].note,
         "{{OUTRO1}}": outro.headline[0] if getattr(outro, "headline", ()) else "",
         "{{OUTRO2}}": outro.headline[1] if len(getattr(outro, "headline", ())) > 1 else "",
         "{{OUTRO_CALL}}": getattr(outro, "call", ""),

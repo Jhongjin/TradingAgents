@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Noto Sans KR"; font-weight: 300; src: local("Noto Sans KR Light"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 500; src: local("Noto Sans KR Medium"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 700; src: local("Noto Sans KR Bold"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 900; src: local("Noto Sans KR Black"), local("Noto Sans KR"); }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      /* The second light ground, cool where the funnel's is bone. This is the
+         cut that marks our own picks against the ones we passed on, and it
+         should not look like the cut that congratulates the screen. */
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #e7ecef; }
+
+      :root {
+        --ink: #0f1720; --ink2: #3b4753; --muted: #56626e;
+        --took: #a8301f; --passed: #0f6b60; --hair: #c2ccd4; --ground: #e7ecef;
+      }
+
+      #root {
+        width: 1080px; height: 1920px; position: relative; overflow: hidden;
+        font-family: "Noto Sans KR", sans-serif; color: var(--ink);
+        font-variant-numeric: tabular-nums;
+        background:
+          radial-gradient(1200px 900px at 6% 2%, rgba(255, 255, 255, 0.9), transparent 58%),
+          radial-gradient(900px 800px at 96% 94%, rgba(150, 170, 186, 0.45), transparent 62%),
+          linear-gradient(176deg, #eef2f5 0%, #e7ecef 48%, #dde4e9 100%);
+      }
+      .clip { position: absolute; inset: 0; z-index: 10; }
+
+      #grain { position: absolute; inset: 0; pointer-events: none; z-index: 90; }
+      #grain .g {
+        position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; opacity: 0.04;
+        background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.68' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        animation: hf-grain 0.75s steps(1) infinite;
+      }
+      @keyframes hf-grain {
+        0%,100% { transform: translate(0,0); } 20% { transform: translate(-8%,4%); }
+        40% { transform: translate(6%,-7%); } 60% { transform: translate(-4%,9%); }
+        80% { transform: translate(9%,2%); }
+      }
+      #swipe { position: absolute; top: 0; left: -320px; width: 300px; height: 1920px; z-index: 2;
+               background: linear-gradient(90deg, transparent, rgba(15,23,32,0.05) 45%, rgba(15,23,32,0.14) 88%, transparent);
+               transform: translateX(0); }
+
+      .pad { position: absolute; left: 116px; right: 84px; }
+      .kicker { font-weight: 500; font-size: 30px; color: var(--muted); letter-spacing: 0.06em; }
+      .head { font-weight: 900; font-size: 64px; letter-spacing: -0.042em; line-height: 1.2; }
+      .body { font-weight: 300; font-size: 34px; color: var(--ink2); line-height: 1.5; word-break: keep-all; }
+      .unit { font-size: 0.38em; font-weight: 700; letter-spacing: -0.02em; }
+      .mark { position: absolute; right: 84px; top: 1498px; font-weight: 500; font-size: 28px;
+              color: var(--muted); z-index: 12; }
+
+      /* ---- 1. the gap ------------------------------------------------------ */
+      #r1-mask { position: absolute; left: 104px; top: 470px; width: 900px; height: 300px; overflow: hidden; }
+      #r1-fig { position: absolute; left: 0; top: 0; font-size: {{HERO_SIZE}}px; font-weight: 900;
+                letter-spacing: -0.055em; line-height: 0.86; color: {{HERO_COLOUR}}; }
+      #r1-rule { position: absolute; left: 116px; width: 880px; top: 996px; height: 4px;
+                 background: var(--ink); transform-origin: left center; }
+
+      /* ---- 2. every name on one scale -------------------------------------- */
+      /* One dot per shortlisted name, placed by how it did against its index.
+         Filled means the book bought it. The two vertical marks are the group
+         averages, which is the only comparison that means anything. */
+      #plot { position: absolute; left: 116px; top: 520px; width: 880px; height: 470px; }
+      #axis { position: absolute; left: 0; top: 235px; width: 880px; height: 2px; background: var(--hair); }
+      #zero { position: absolute; top: 140px; width: 2px; height: 195px; background: var(--muted); }
+      #zero-tag { position: absolute; top: 430px; font-weight: 500; font-size: 24px; color: var(--muted); }
+      .dot { position: absolute; width: 26px; height: 26px; margin-left: -13px; margin-top: -13px;
+             border-radius: 50%; }
+      .dot.took { background: var(--took); }
+      .dot.passed { background: transparent; border: 4px solid var(--passed); }
+      .mean { position: absolute; top: 110px; width: 4px; height: 250px; }
+      .mean.took { background: var(--took); }
+      .mean.passed { background: var(--passed); }
+      .mean-tag { position: absolute; font-weight: 900; font-size: 30px; letter-spacing: -0.03em; white-space: nowrap; }
+      #tag-took { color: var(--took); top: 48px; }
+      #tag-passed { color: var(--passed); top: 378px; }
+      #legend { position: absolute; left: 116px; top: 1040px; font-weight: 500; font-size: 27px; color: var(--ink2); }
+
+      /* ---- 3. the two numbers ----------------------------------------------- */
+      .side { position: absolute; width: 400px; top: 470px; }
+      .side .k { font-weight: 500; font-size: 32px; color: var(--muted); }
+      .side .v { font-weight: 900; font-size: 92px; letter-spacing: -0.045em; margin-top: 8px; }
+      .side .s { font-weight: 300; font-size: 27px; color: var(--ink2); margin-top: 6px; line-height: 1.4; }
+      #side-took { left: 116px; }
+      #side-passed { left: 596px; }
+      #side-rule { position: absolute; left: 540px; top: 470px; width: 3px; height: 300px;
+                   background: var(--hair); transform-origin: top center; }
+      #miss { position: absolute; left: 116px; right: 84px; top: 840px; }
+      #miss .k { font-weight: 500; font-size: 30px; color: var(--muted); }
+      #miss .v { font-weight: 900; font-size: 52px; letter-spacing: -0.04em; margin-top: 10px; }
+
+      /* ---- 4. the outro ----------------------------------------------------- */
+      #r4-rule { position: absolute; left: 116px; width: 880px; top: 760px; height: 4px;
+                 background: var(--ink); transform-origin: left center; }
+      .url { font-weight: 900; font-size: 74px; letter-spacing: -0.04em; color: var(--ink); }
+      #tg-rule { position: absolute; left: 116px; width: 880px; top: 1052px; height: 2px;
+                 background: var(--hair); transform-origin: left center; }
+      .fine { font-weight: 300; font-size: 25px; line-height: 1.5; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="{{DURATION}}"
+         data-width="1080" data-height="1920">
+
+      <!-- 1. the gap -------------------------------------------------------->
+      <div class="clip" id="r1" data-start="0" data-duration="{{S1_DURATION}}" data-track-index="0">
+        <p class="kicker pad" style="top: 300px;" id="r1-kick">{{KICKER}}</p>
+        <div id="r1-mask"><p id="r1-fig">{{HERO_TEXT}}</p></div>
+        <p class="body pad" style="top: 900px;" id="r1-cap">{{HOOK_CAPTION}}</p>
+        <div id="r1-rule"></div>
+        <div class="pad" style="top: 1052px;">
+          <p class="head" id="r1-l1">{{LINE1}}</p>
+          <p class="head" id="r1-l2">{{LINE2}}</p>
+        </div>
+      </div>
+
+      <!-- 2. every name on one scale ---------------------------------------->
+      <div class="clip" id="r2" data-start="{{S2_START}}" data-duration="{{S2_DURATION}}" data-track-index="0">
+        <p class="head pad" style="top: 300px;" id="r2-head">{{PLOT_HEAD}}</p>
+        <div id="plot">
+          <div id="axis"></div>
+          <div id="zero" style="left: {{ZERO_X}}px;"></div>
+          <p id="zero-tag" style="left: {{ZERO_TAG_X}}px;">지수와 같음</p>
+          {{DOTS}}
+          <div class="mean took" id="mean-took" style="left: {{TOOK_X}}px;"></div>
+          <div class="mean passed" id="mean-passed" style="left: {{PASSED_X}}px;"></div>
+          <p class="mean-tag" id="tag-took" style="left: {{TOOK_TAG_X}}px;">산 것 평균 {{TOOK_TEXT}}</p>
+          <p class="mean-tag" id="tag-passed" style="left: {{PASSED_TAG_X}}px;">안 산 것 평균 {{PASSED_TEXT}}</p>
+        </div>
+        <p id="legend">채운 점이 실제로 산 종목, 빈 점이 넘긴 종목입니다</p>
+        <p class="body pad" style="top: 1110px;" id="r2-note">{{PLOT_NOTE}}</p>
+      </div>
+
+      <!-- 3. the two numbers ------------------------------------------------->
+      <div class="clip" id="r3" data-start="{{S3_START}}" data-duration="{{S3_DURATION}}" data-track-index="0">
+        <p class="head pad" style="top: 300px;" id="r3-head">{{TOTALS_HEAD}}</p>
+        <div class="side" id="side-took">
+          <p class="k">산 {{TOOK_COUNT}}종목</p>
+          <p class="v" style="color: var(--took);">{{TOOK_TEXT}}</p>
+          <p class="s">지수 대비 평균</p>
+        </div>
+        <div id="side-rule"></div>
+        <div class="side" id="side-passed">
+          <p class="k">넘긴 {{PASSED_COUNT}}종목</p>
+          <p class="v" style="color: var(--passed);">{{PASSED_TEXT}}</p>
+          <p class="s">지수 대비 평균</p>
+        </div>
+        <div id="miss">
+          <p class="k">{{MISS_LABEL}}</p>
+          <p class="v" style="color: {{MISS_COLOUR}};">{{MISS_TEXT}}</p>
+        </div>
+        <p class="body pad" style="top: 1010px;" id="r3-note">{{TOTALS_NOTE}}</p>
+      </div>
+
+      <!-- 4. the outro ------------------------------------------------------>
+      <div class="clip" id="r4" data-start="{{S4_START}}" data-duration="{{S4_DURATION}}" data-track-index="0">
+        <div class="pad" style="top: 560px;">
+          <p class="head" id="r4-l1">{{OUTRO1}}</p>
+          <p class="head" id="r4-l2">{{OUTRO2}}</p>
+        </div>
+        <div id="r4-rule"></div>
+        <p class="body pad" style="top: 800px;" id="r4-call">{{OUTRO_CALL}}</p>
+        <p class="url pad" style="top: 858px;" id="r4-url">{{URL}}</p>
+        <div id="tg-rule"></div>
+        <div class="pad" style="top: 1090px;" id="r4-tg">
+          <p class="fine" style="color: var(--ink2);">{{TELEGRAM_LINE}}</p>
+          <p class="url" style="font-size: 54px; margin-top: 14px;">{{TELEGRAM}}</p>
+        </div>
+        <p class="fine pad" style="top: 1300px;" id="r4-fine">AI 실험 기록이며 매매 권유가 아닙니다.</p>
+      </div>
+
+      <p class="mark">{{URL}}</p>
+      <div id="swipe"></div>
+      <div id="grain"><div class="g"></div></div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      function cut(at) {
+        tl.fromTo("#swipe", { x: 0 }, { x: 1420, duration: 0.5, ease: "power2.inOut" }, at - 0.22);
+      }
+
+      // --- 1. the gap --------------------------------------------------------
+      tl.fromTo("#r1-kick", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.32 }, 0)
+        .fromTo("#r1-fig", { yPercent: 42, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.62, ease: "power3.out" }, 0.1)
+        .fromTo("#r1-cap", { opacity: 0 }, { opacity: 1, duration: 0.32 }, 0.66)
+        .fromTo("#r1-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46, ease: "power3.out" }, 0.78)
+        .fromTo("#r1-l1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.34 }, 0.98)
+        .fromTo("#r1-l2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.34 }, 1.13);
+
+      // --- 2. the dots land, then the two averages cut through them ----------
+      const S2 = {{S2_START}}, DOTS = {{DOT_COUNT}};
+      cut(S2);
+      tl.fromTo("#r2-head", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S2)
+        .fromTo("#axis", { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power3.out" }, S2 + 0.2)
+        .fromTo("#zero, #zero-tag", { opacity: 0 }, { opacity: 1, duration: 0.3 }, S2 + 0.5);
+      for (let i = 0; i < DOTS; i += 1) {
+        tl.fromTo("#dot" + i, { opacity: 0, scale: 0 },
+          { opacity: 1, scale: 1, duration: 0.34, ease: "back.out(2.2)" }, S2 + 0.7 + i * 0.06);
+      }
+      const after = S2 + 0.9 + DOTS * 0.06;
+      tl.fromTo("#mean-took", { opacity: 0, scaleY: 0 }, { opacity: 1, scaleY: 1, duration: 0.4, ease: "power3.out" }, after)
+        .fromTo("#tag-took", { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.32 }, after + 0.1)
+        .fromTo("#mean-passed", { opacity: 0, scaleY: 0 }, { opacity: 1, scaleY: 1, duration: 0.4, ease: "power3.out" }, after + 0.26)
+        .fromTo("#tag-passed", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.32 }, after + 0.36)
+        .fromTo("#legend", { opacity: 0 }, { opacity: 1, duration: 0.3 }, after + 0.5)
+        .fromTo("#r2-note", { opacity: 0 }, { opacity: 1, duration: 0.36 }, after + 0.7);
+
+      // --- 3. the two numbers -------------------------------------------------
+      const S3 = {{S3_START}};
+      cut(S3);
+      tl.fromTo("#r3-head", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S3)
+        .fromTo("#side-took", { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.4, ease: "power3.out" }, S3 + 0.36)
+        .fromTo("#side-rule", { scaleY: 0 }, { scaleY: 1, duration: 0.42 }, S3 + 0.5)
+        .fromTo("#side-passed", { opacity: 0, x: 20 }, { opacity: 1, x: 0, duration: 0.4, ease: "power3.out" }, S3 + 0.62)
+        .fromTo("#miss", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.36 }, S3 + 1.05)
+        .fromTo("#r3-note", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S3 + 1.4);
+
+      // --- 4. outro -------------------------------------------------------------
+      const S4 = {{S4_START}};
+      cut(S4);
+      tl.fromTo("#r4-l1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32 }, S4)
+        .fromTo("#r4-l2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32 }, S4 + 0.16)
+        .fromTo("#r4-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46, ease: "power3.out" }, S4 + 0.38)
+        .fromTo("#r4-call", { opacity: 0 }, { opacity: 1, duration: 0.3 }, S4 + 0.5)
+        .fromTo("#r4-url", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S4 + 0.64)
+        .fromTo("#tg-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46 }, S4 + 1.05)
+        .fromTo("#r4-tg", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S4 + 1.18)
+        .fromTo("#r4-fine", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S4 + 1.55);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>
