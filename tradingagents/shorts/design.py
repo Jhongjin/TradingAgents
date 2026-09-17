@@ -554,6 +554,26 @@ def money(value: float | None, *, unit: str = "원") -> str:
     return f"{value:+,.0f}{unit}" if value else f"0{unit}"
 
 
+def money_short(value: float | None) -> str:
+    """The unit a person would say: -210만원, not -2,100,000원.
+
+    Nine digits on screen for a third of a second is a number nobody reads.
+    The narration already rounds this way; the caption should match it.
+    """
+
+    if value is None:
+        return "–"
+    if not value:
+        return "0원"
+    sign = "-" if value < 0 else "+"
+    amount = abs(float(value))
+    if amount >= 100_000_000:
+        return f"{sign}{amount / 100_000_000:,.1f}억원"
+    if amount >= 10_000:
+        return f"{sign}{amount / 10_000:,.0f}만원"
+    return f"{sign}{amount:,.0f}원"
+
+
 def percent(value: float | None, *, digits: int = 2) -> str:
     if value is None:
         return "–"

@@ -14,7 +14,7 @@ from datetime import date, datetime
 from typing import Any, Callable, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
-from .design import DEFAULT_THEME, korean_date, money, percent, tone
+from .design import DEFAULT_THEME, korean_date, money, money_short, percent, tone
 from .scenes import Bars, Hook, Outro, Rows, Scene, Statement
 
 KST = ZoneInfo("Asia/Seoul")
@@ -230,25 +230,49 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
         for item in closed[:5]
     )
 
+    # The hook is where the three stories part company. For a while only the
+    # title differed, so a stop-loss day and a running-total day opened with
+    # word-for-word the same screen.
+    if story == "stop_worked" and lead is not None:
+        kicker = f"{lead_name} 손절 · {korean_date(_today(now).isoformat())}"
+        caption = f"{lead_name}를 {lead_pct}에서 잘랐습니다"
+        lines = ("그런데 계좌 전체는", "이만큼 버텼습니다.")
+        opening = (
+            f"오늘 {lead_name}, {spoken_percent(float(lead['realized_return']), digits=1)}에서 잘랐습니다. "
+            f"그런데 계좌 전체는 {spoken_percent(total_return)}이에요. 왜 그런지 보여드릴게요."
+        )
+    elif story == "exits" and lead is not None:
+        kicker = f"오늘 정리 {len(today_exits)}건 · {korean_date(_today(now).isoformat())}"
+        caption = f"오늘 {lead_name} 포함 {len(today_exits)}종목을 정리했습니다" if len(today_exits) > 1 else f"오늘 {lead_name}를 정리했습니다"
+        lines = ("정리하고 난 계좌는", "이렇습니다.")
+        opening = (
+            f"오늘 {len(today_exits)}종목을 정리했습니다. 정리하고 난 계좌, {spoken_percent(total_return)}입니다."
+        )
+    else:
+        kicker = f"AI 모의 계좌 {korean_date(_today(now).isoformat())} 기준"
+        caption = f"{initial / 100_000_000:.1f}억원으로 시작한 계좌의 지금 성적"
+        lines = (f"지금까지 정리한 {closed_count}건,", verdict)
+        opening = f"AI한테 종목을 고르게 하고, 모의 계좌로 진짜 담아봤습니다. 지금 성적, {spoken_percent(total_return)}."
+
     scenes: list[Scene] = [
         Hook(
-            eyebrow=f"AI 모의 계좌 {korean_date(_today(now).isoformat())} 기준",
+            eyebrow=kicker,
             value_to=total_return,
             value_colour=tone(total_return),
-            caption=f"{initial / 100_000_000:.1f}억원으로 시작한 계좌의 지금 성적",
-            lines=(f"지금까지 정리한 {closed_count}건,", verdict),
+            caption=caption,
+            lines=lines,
             seconds=3.4,
-            narration=f"AI한테 종목을 고르게 하고, 모의 계좌로 진짜 담아봤습니다. 지금 성적, {spoken_percent(total_return)}.",
+            narration=opening,
         ),
         Rows(
             eyebrow="정리한 거래 전부",
             heading="하나도 빼지 않았습니다",
             rows=rows,
-            note=f"실현 손익 {money(realized)}",
+            note=f"실현 손익 {money_short(realized)}",
             seconds=3.0 + len(rows) * 0.9,
             narration=(
                 f"정리한 {closed_count}건입니다. 좋은 것만 골라 보여드리는 게 아니라, 전부요."
-                + (f" 제일 크게 물린 건 {spoken_percent(float(worst['realized_return']), digits=1)}. 하루 만에 그렇게 됐어요." if worst else "")
+                + (f" 가장 크게 떨어진 건 {spoken_percent(float(worst['realized_return']), digits=1)}였습니다." if worst else "")
             ),
         ),
     ]
@@ -262,7 +286,17 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
                 highlight_colour=tone(total_return),
                 stamp="손절" if stopped else "정리",
                 inverted=True,
-                caption=f"{len(stopped)}건 모두 손절선에서 정리됐습니다.\n종목은 틀렸지만 손실은 정해둔 선에서 멈췄습니다.",
+                # "1건 모두" is not a sentence, and when nothing was stopped
+                # the line claimed a stop that never fired.
+                caption=(
+                    (
+                        f"정리한 {len(closed)}건이 모두 손절선에서 나왔습니다."
+                        if len(stopped) == len(closed)
+                        else f"이 가운데 {len(stopped)}건이 손절선에서 정리됐습니다."
+                    )
+                    if stopped
+                    else "손절선에 닿은 건은 없었습니다."
+                ) + "\n종목은 틀렸지만 손실은 정해둔 선에서 멈췄습니다.",
                 seconds=4.6,
                 narration=(
                     f"그런데 계좌 전체는 {spoken_percent(total_return)}에서 멈췄죠. "
@@ -275,7 +309,9 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
     if accounts:
         scenes.append(
             Bars(
-                eyebrow="세 계좌를 나란히",
+                # not "세 계좌": the KIS book has no return yet on most days,
+                # so the cut was announcing a third bar it was not drawing
+                eyebrow=f"{'두' if len(accounts) == 2 else '세' if len(accounts) == 3 else len(accounts)} 계좌를 나란히",
                 heading="AI가 보탠 몫을 봅니다",
                 items=accounts,
                 note="같은 날 같은 후보로, 확인 방식만 다르게 굴립니다.",
@@ -345,6 +381,9 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, them
         for item in laddered[:4]
     )
 
+    # Whether the levels came from a debate or straight from the rule.
+    rated = any(str(item.get("decision_rating") or "").strip() for item in laddered)
+
     def _mean(pick) -> float:
         values = [pick(item) for item in laddered]
         return sum(values) / len(values) if values else 0.0
@@ -387,11 +426,15 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, them
             eyebrow="합쳐놓고 보면",
             heading="얼마 걸고 얼마를 노리나",
             rows=totals,
-            note="목표가는 AI 토론이 정한 값이며 도달을 보장하지 않습니다. 손절가에 닿으면 다음 실행에서 자동으로 정리됩니다.",
+            note=(
+                ("목표가는 AI 토론이 정한 값이며 도달을 보장하지 않습니다."
+                 if rated else "목표가와 손절가는 규칙이 정한 값이며 도달을 보장하지 않습니다.")
+                + " 손절가에 닿으면 다음 실행에서 자동으로 정리됩니다."
+            ),
             seconds=2.6 + len(totals) * 0.8,
             narration=(
                 "합쳐놓고 보면 이렇습니다. 거는 폭보다 노리는 폭이 커야 몇 번 틀려도 버티죠. "
-                "목표가는 닿는다는 보장이 없고, 손절가는 닿으면 기계가 그냥 팝니다."
+                "목표가는 닿는다는 보장이 없고, 손절가는 닿는 순간 자동으로 정리됩니다."
             ),
         ),
         _outro(
@@ -758,11 +801,11 @@ def build_funnel(payload: Mapping[str, Any], *, now: datetime | None = None, the
             eyebrow=f"{korean_date(_today(now).isoformat())} 장 시작 전",
             value=f"{universe:,}종목",
             value_colour="ink",
-            caption="오늘 아침 기계가 훑은 코스피·코스닥 종목 수입니다",
+            caption="오늘 아침 코스피·코스닥에서 살펴본 전체 종목 수입니다",
             lines=(f"여기서 {survived}종목만", "남았습니다."),
             seconds=3.6,
             narration=(
-                f"오늘 아침 기계가 훑은 종목, {universe}개입니다. "
+                f"오늘 아침 코스피 코스닥에서 살펴본 종목, {universe}개입니다. "
                 f"여기서 {survived}개만 남았어요. 뭘 걸렀는지 그대로 보여드릴게요."
             ),
         ),
@@ -805,7 +848,7 @@ def build_funnel(payload: Mapping[str, Any], *, now: datetime | None = None, the
             headline=("고른 이유까지", "전부 남겨둡니다."),
             call="단계별 기록 전문",
             narration=(
-                f"{dropped}개를 왜 걸렀는지도 사이트에 그대로 있습니다. "
+                "무엇을 기준으로 걸렀는지는 사이트에 그대로 적어뒀습니다. "
                 "내일 아침 선별 결과는 텔레그램으로 먼저 갑니다."
             ),
         ),
@@ -826,7 +869,7 @@ def build_funnel(payload: Mapping[str, Any], *, now: datetime | None = None, the
         scenes=scenes,
         theme=theme,
         comment=_comment(
-            f"걸러진 {dropped}종목이 그 뒤 어떻게 됐는지까지 같은 자리에 남습니다.",
+            f"{universe:,}종목에서 {survived}종목까지, 단계별 기준과 오늘 남은 이름이 여기 있습니다.",
             path="/harness", campaign="funnel", stamp=stamp,
         ),
     )

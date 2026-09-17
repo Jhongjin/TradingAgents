@@ -136,6 +136,19 @@ def _book(index: int, item: Mapping[str, Any], top: int) -> str:
     )
 
 
+def _falls_note(closed: Sequence[Mapping[str, Any]]) -> str:
+    """What the lanes on screen actually show, counted rather than asserted."""
+
+    if not closed:
+        return ""
+    stopped = len([item for item in closed if str(item.get("exit_reason")) == "stop_loss"])
+    if not stopped:
+        return f"{len(closed)}건 모두 손절선에 닿기 전에 정리됐습니다."
+    if stopped == len(closed):
+        return f"{len(closed)}건 모두 살 때 정해둔 손절선에서 정리됐습니다."
+    return f"{len(closed)}건 가운데 {stopped}건이 살 때 정해둔 손절선에서 정리됐습니다."
+
+
 def compose_record(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, float]:
     """Build the falls composition from the account's own closed trades."""
 
@@ -185,9 +198,13 @@ def compose_record(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, 
         "{{TOTAL}}": f"{total * 100:.2f}",
         "{{TOTAL_TEXT}}": f"{total * 100:+.2f}%",
         "{{HERO_SIZE}}": str(hero(f"{total * 100:+.2f}", "%", cap=320)[1]),
-        "{{CAPTION}}": f"{initial / 100_000_000:.1f}억원으로 시작한 계좌의 지금 성적",
-        "{{LINE1}}": f"지금까지 정리한 {int(summary.get('closed_count') or len(closed))}건,",
-        "{{LINE2}}": "전부 손실이었습니다." if not int(summary.get("win_count") or 0) else f"{int(summary['win_count'])}건이 이익이었습니다.",
+        # From the storyboard, not recomputed here. Three stories share this
+        # cut and the storyboard is where they differ; while these were built
+        # from the payload, a stop-loss day and a running-total day opened with
+        # word-for-word the same screen and only the title changed.
+        "{{CAPTION}}": board.scenes[0].caption if board.scenes else "",
+        "{{LINE1}}": board.scenes[0].lines[0] if board.scenes and board.scenes[0].lines else "",
+        "{{LINE2}}": board.scenes[0].lines[1] if board.scenes and len(board.scenes[0].lines) > 1 else "",
         "{{FALLS_HEAD}}": f"{len(closed)}건이 이만큼 떨어졌습니다",
         "{{LANES}}": "\n        ".join(_lane(index, item) for index, item in enumerate(closed)),
         "{{ACCOUNT_TOP}}": f"{FALL_TOP + (abs(total) * 100 / span) * (FALL_FLOOR - FALL_TOP):.0f}",
@@ -195,7 +212,9 @@ def compose_record(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, 
         "{{STOP_TOP}}": f"{stop_top:.0f}",
         "{{STOP_TAG_TOP}}": f"{stop_top - 40:.0f}",
         "{{STOP_LABEL}}": f"손절선 −{stop_pct * 100:.0f}%",
-        "{{FALLS_NOTE}}": "다섯 건 모두 살 때 정해둔 손절선에서 정리됐습니다." if closed else "",
+        # It said "다섯 건 모두" whatever was drawn, and claimed a stop on days
+        # when none fired. Counted off the rows that are actually on screen.
+        "{{FALLS_NOTE}}": _falls_note(closed),
         "{{BOOKS}}": "\n        ".join(_book(index, item, 560 + index * 200) for index, item in enumerate(books)),
         "{{BOOKS_NOTE}}": "같은 날 같은 후보로, 확인 방식만 다르게 굴립니다.",
         "{{OUTRO1}}": "맞힌 날만 올리는 채널은",

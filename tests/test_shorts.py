@@ -74,9 +74,12 @@ def test_the_record_cut_opens_with_the_loss_and_lists_every_trade():
     assert rows.rows[-1]["colour"] == "up"
     assert rows.rows[0]["sub"] == "9/10 매수   9/11 정리   AI 확인"   # spaced columns, not a dotted meta string
     assert "·" not in rows.rows[0]["sub"] and "→" not in rows.rows[0]["sub"]
-    assert "-1,750,034원" in rows.note
+    # rounded to a unit somebody can read in a third of a second, not nine digits
+    assert rows.note == "실현 손익 -175만원"
 
-    assert statement.highlight == "-1.17%" and "2건 모두 손절선" in statement.caption
+    assert statement.highlight == "-1.17%"
+    # 3 closed and 2 of them stopped: the caption used to say "2건 모두"
+    assert "이 가운데 2건이 손절선에서" in statement.caption
     # an account with nothing measured yet is left out rather than drawn as zero
     assert [item["label"] for item in bars.items] == ["AI 확인", "규칙 전용"]
     assert bars.signed is True
@@ -801,3 +804,45 @@ def test_an_extra_that_cannot_be_built_does_not_take_the_run_down(monkeypatch, c
     assert "debate" in payload            # the one that worked is still attached
     assert "curve" not in payload         # the one that broke is simply absent
     assert "자료를 붙이지 못했습니다" in capsys.readouterr().out
+
+
+def test_the_three_stories_that_share_the_record_cut_open_on_different_words():
+    """Only the title used to differ; the screen was word-for-word the same."""
+
+    from tradingagents.shorts.hyperframes import compose_record
+
+    payload = _payload()
+    hooks = {}
+    for key in ("record", "exits", "stop_worked"):
+        board = build("record", payload, now=NOW, story=key)
+        html, _ = compose_record(payload, board)
+        hook = board.scenes[0]
+        hooks[key] = (hook.eyebrow, hook.caption, hook.lines, hook.narration)
+        # and the composer takes them from the storyboard rather than rebuilding
+        assert hook.caption in html and hook.lines[0] in html
+
+    assert len({value[1] for value in hooks.values()}) == 3      # three captions
+    assert len({value[3] for value in hooks.values()}) == 3      # three narrations
+    assert "SK이노베이션" in hooks["stop_worked"][1]
+    assert "정리" in hooks["exits"][0]
+
+
+def test_the_falls_note_counts_what_is_on_screen_instead_of_saying_다섯():
+    from tradingagents.shorts.hyperframes import _falls_note
+
+    stop = {"exit_reason": "stop_loss"}
+    profit = {"exit_reason": "take_profit"}
+    assert _falls_note([stop, stop]) == "2건 모두 살 때 정해둔 손절선에서 정리됐습니다."
+    assert _falls_note([stop, profit, profit]) == "3건 가운데 1건이 살 때 정해둔 손절선에서 정리됐습니다."
+    assert _falls_note([profit]) == "1건 모두 손절선에 닿기 전에 정리됐습니다."
+    assert _falls_note([]) == ""
+
+
+def test_the_picks_note_does_not_credit_an_ai_that_did_not_rate_anything():
+    payload = _payload()
+    rated = build_picks(payload, now=NOW).scenes[2]
+    assert "AI 토론이 정한 값" in rated.note
+
+    payload["positions"] = [{**item, "decision_rating": None} for item in payload["positions"]]
+    plain = build_picks(payload, now=NOW).scenes[2]
+    assert "규칙이 정한 값" in plain.note and "AI 토론" not in plain.note
