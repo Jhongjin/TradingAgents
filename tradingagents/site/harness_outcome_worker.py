@@ -173,8 +173,17 @@ def _evaluate_one(
             else:
                 error = "return_data_unavailable"
         elif actual_days < horizon_days:
+            # Both look the same from here — fewer aligned closes than asked
+            # for — but they are different things to a reader. A 20-day
+            # forecast entered last week has not run out of data, it has not
+            # run out of days yet, and the site was labelling that "확인 기간
+            # 부족" as though something were missing.
             status = "pending"
-            error = "insufficient_holding_days"
+            error = (
+                "horizon_not_elapsed"
+                if _horizon_may_still_elapse(entry_date, evaluated_at, horizon_days)
+                else "insufficient_holding_days"
+            )
         else:
             raw_return, alpha_return = raw, alpha
             benchmark_return = raw - alpha

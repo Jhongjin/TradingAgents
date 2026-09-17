@@ -155,3 +155,42 @@ def test_cli_process_harness_outcomes(monkeypatch):
     result = runner.invoke(app, ["process-harness-outcomes", "--dry-run"])
     assert result.exit_code != 0
     assert "DATABASE_URL is required" in result.output
+
+
+def test_the_benchmark_comes_from_a_client_the_proxy_does_not_break():
+    """Every forecast sat pending because ^KS11 could not be fetched at all."""
+
+    import inspect
+
+    from tradingagents.dataflows import kr_returns
+
+    source = inspect.getsource(kr_returns._yahoo_chart_close)
+    # requests, because truststore patches Python's ssl and curl_cffi ignores it
+    assert "import requests" in source
+    assert "query1.finance.yahoo.com/v8/finance/chart" in source
+    assert "apply_system_truststore_if_available()" in source
+    # yfinance stays as a fallback rather than being the only way in
+    assert "_yahoo_chart_close(" in inspect.getsource(kr_returns._yfinance_benchmark_close)
+
+
+def test_a_forecast_waiting_for_days_is_not_reported_as_missing_data():
+    """20-day forecasts entered last week were labelled 확인 기간 부족."""
+
+    from datetime import date as _date
+
+    from tradingagents.site.harness_outcome_worker import _horizon_may_still_elapse
+
+    entered = _date(2026, 9, 10)
+    # a week later a 20-day horizon simply has not arrived
+    assert _horizon_may_still_elapse(entered, _date(2026, 9, 17), 20) is True
+    # and months later it never will, which is a different thing to say
+    assert _horizon_may_still_elapse(entered, _date(2026, 12, 1), 20) is False
+
+    import inspect
+
+    from tradingagents.site import harness_outcome_worker
+
+    source = inspect.getsource(harness_outcome_worker._evaluate_one)
+    branch = source.split("elif actual_days < horizon_days:", 1)[1]
+    assert "_horizon_may_still_elapse" in branch
+    assert "horizon_not_elapsed" in branch and "insufficient_holding_days" in branch

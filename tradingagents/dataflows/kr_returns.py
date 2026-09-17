@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
+from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -11,6 +13,9 @@ from .errors import VendorUnavailableError
 from .kr_tickers import is_kr_ticker, resolve_kr_ticker
 from .pykrx_vendor import _compact_date, _normalize_ohlcv
 
+
+KST = ZoneInfo("Asia/Seoul")
+_YAHOO_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
 
 _INDEX_CODE_BY_MARKET = {
     "KOSPI": "1001",
@@ -109,18 +114,70 @@ def _close_series(frame: pd.DataFrame | None, name: str) -> pd.Series:
     return close
 
 
-def _yfinance_benchmark_close(symbol: str, start_date: str, end_date: str) -> pd.Series:
-    """Benchmark closes from Yahoo Finance (^KS11 / ^KQ11); empty series on failure."""
+def _empty_benchmark() -> pd.Series:
+    return pd.Series(dtype="float64", name="benchmark")
 
+
+def _yahoo_chart_close(symbol: str, start_date: str, end_date: str) -> pd.Series:
+    """Benchmark closes straight from Yahoo's chart endpoint, over requests.
+
+    yfinance downloads through curl_cffi, which does not go through Python's
+    ssl module, so truststore's patch never reaches it and it ignores
+    CURL_CA_BUNDLE too. On this network every ^KS11 fetch died with "self
+    signed certificate in certificate chain"; the benchmark series came back
+    empty, the stock/benchmark join collapsed, and all 113 forecasts sat
+    pending. The verification page was empty for that reason alone.
+
+    The chart endpoint is the same data yfinance wraps, and requests honours
+    the system truststore, so it works where the wrapper does not.
+    """
+
+    from .http_trust import apply_system_truststore_if_available
+
+    apply_system_truststore_if_available()
+    try:
+        import requests
+
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
+        response = requests.get(
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{quote(symbol, safe='')}",
+            params={"period1": int(start.timestamp()), "period2": int(end.timestamp()), "interval": "1d"},
+            headers={"User-Agent": _YAHOO_UA},
+            timeout=30,
+        )
+        response.raise_for_status()
+        result = ((response.json() or {}).get("chart") or {}).get("result") or []
+        if not result:
+            return _empty_benchmark()
+        stamps = result[0].get("timestamp") or []
+        quotes = (result[0].get("indicators") or {}).get("quote") or [{}]
+        closes = quotes[0].get("close") or []
+    except Exception:                                   # noqa: BLE001 - a missing benchmark is not fatal
+        return _empty_benchmark()
+    if not stamps or not closes:
+        return _empty_benchmark()
+
+    close = pd.Series(closes[: len(stamps)], dtype="float64", name="benchmark")
+    close.index = pd.to_datetime(stamps[: len(closes)], unit="s", utc=True).tz_convert(KST).tz_localize(None).normalize()
+    return close.dropna()
+
+
+def _yfinance_benchmark_close(symbol: str, start_date: str, end_date: str) -> pd.Series:
+    """Benchmark closes for ^KS11 / ^KQ11; empty series on failure."""
+
+    close = _yahoo_chart_close(symbol, start_date, end_date)
+    if not close.empty:
+        return close
     try:
         import yfinance as yf
 
         end_exclusive = (datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
         frame = yf.download(symbol, start=start_date, end=end_exclusive, progress=False, auto_adjust=False, multi_level_index=False)
     except Exception:
-        return pd.Series(dtype="float64", name="benchmark")
+        return _empty_benchmark()
     if frame is None or frame.empty or "Close" not in frame.columns:
-        return pd.Series(dtype="float64", name="benchmark")
+        return _empty_benchmark()
     close = pd.to_numeric(frame["Close"], errors="coerce")
     close.index = pd.to_datetime(close.index).tz_localize(None).normalize()
     close.name = "benchmark"
