@@ -305,10 +305,8 @@ def test_a_200_with_no_video_id_is_a_failure_not_a_footnote():
     source = inspect.getsource(cli.shorts_daily_command)
     # the id is what proves YouTube saw the file; without it the run stops
     assert 'video_id = str(answer.get("videoId") or "").strip()' in source
-    assert "업로드되지 않았습니다." in source
-    assert source.index("업로드되지 않았습니다.") < source.index("record_published(")
-    # and nothing is written to the ledger, so tomorrow does not skip the story
-    assert source.count("record_published(") == 1
+    assert "videoId 를 받지 못했습니다." in source
+    assert "raise typer.Exit(code=1)" in source.split("videoId 를 받지 못했습니다.", 1)[1]
 
 
 def test_each_cut_has_its_own_ground_so_the_grid_is_not_one_video_five_times():
@@ -599,3 +597,69 @@ def test_the_funnel_caption_says_what_the_number_beside_a_name_actually_is():
     # and the narration follows it, because that is the half people hear
     assert "선별 점수" in rules_only.scenes[2].narration
     assert "AI가 얼마나 확신했는지" in with_ai.scenes[2].narration
+
+
+def test_the_failure_path_cannot_be_killed_by_a_character_it_cannot_print():
+    """An em dash in the failure message took the whole 08:40 run down."""
+
+    import inspect
+
+    from cli import main as cli
+
+    source = inspect.getsource(cli._make_console)
+    assert 'encoding="utf-8"' in source and 'errors="replace"' in source
+    assert "sys.stdout" in source and "sys.stderr" in source
+    # and the console the commands print through is the one that was fixed
+    assert "console = _make_console()" in inspect.getsource(cli).split("def _make_console")[0] \
+        or "_make_console()" in inspect.getsource(cli)
+
+
+def test_an_upload_with_no_id_still_burns_the_story():
+    """It went live on the channel anyway; skipping the ledger publishes twice."""
+
+    import inspect
+
+    from cli import main as cli
+
+    source = inspect.getsource(cli.shorts_daily_command)
+    head, tail = source.split('video_id = str(answer.get("videoId") or "").strip()', 1)
+    failure, success = tail.split("[green]발행 완료", 1)
+    # the no-id branch records the story and still exits non-zero
+    assert "record_published(story.key, video_id=None" in failure
+    assert "confirmed=False" in failure and "raise typer.Exit(code=1)" in failure
+    assert "confirmed=True" in success or "confirmed=True" in failure.rsplit("Exit(code=1)", 1)[-1]
+
+
+def test_the_funnel_prefers_todays_run_and_one_an_ai_weighed_in_on():
+    from cli.main import _best_funnel
+
+    today, yesterday = "2026-09-17", "2026-09-16"
+    rules_today = {"as_of_date": today, "scored_by": "screener"}
+    debate_today = {"as_of_date": today, "scored_by": "confidence"}
+    debate_yesterday = {"as_of_date": yesterday, "scored_by": "confidence"}
+
+    # a rules-only run arriving first used to win, and the cut then said
+    # "AI 토론 없이 규칙만으로" on a day the debate had in fact run
+    assert _best_funnel([rules_today, debate_today], today) is debate_today
+    # and yesterday's run never beats today's, however complete it is
+    assert _best_funnel([debate_yesterday, rules_today], today) is rules_today
+    assert _best_funnel([], today) is None
+
+
+def test_the_funnel_names_the_day_it_is_actually_showing():
+    """It said "오늘 아침 349종목" about yesterday's 349."""
+
+    from tradingagents.shorts import build
+
+    stages = [{"label": "거래대금·밸류·변동성", "from": 349, "to": 20},
+              {"label": "점수 상위만 추림", "from": 20, "to": 3}]
+    today = MONDAY.astimezone(__import__("zoneinfo").ZoneInfo("Asia/Seoul")).date().isoformat()
+
+    fresh = build("funnel", {"funnel": {"universe": 349, "stages": stages, "picks": [],
+                                        "as_of_date": today}}, now=MONDAY, story="funnel")
+    stale = build("funnel", {"funnel": {"universe": 349, "stages": stages, "picks": [],
+                                        "as_of_date": "2026-09-11"}}, now=MONDAY, story="funnel")
+
+    assert "오늘 아침" in fresh.scenes[0].caption
+    assert "오늘 아침" not in stale.scenes[0].caption and "9월 11일" in stale.scenes[0].caption
+    assert "오늘 아침" not in stale.scenes[0].narration

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Mapping, Optional, Sequence
 import datetime
 import typer
 from pathlib import Path
@@ -31,7 +31,30 @@ from cli.utils import *
 from cli.announcements import fetch_announcements, display_announcements
 from cli.stats_handler import StatsCallbackHandler
 
-console = Console()
+def _make_console() -> Console:
+    """A console that cannot be killed by a character it cannot encode.
+
+    The scheduled run redirects into a log file, and on a Korean Windows that
+    file is cp949. An em dash in a message was enough to raise
+    UnicodeEncodeError inside rich and take the whole run down — in the one
+    branch whose entire job was to report a failure, so the morning's upload
+    went unrecorded and the story would have gone out twice.
+
+    UTF-8 where the stream allows it, and errors="replace" so the worst case
+    is one wrong glyph rather than a dead process.
+    """
+
+    import sys
+
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")   # type: ignore[union-attr]
+        except Exception:                                   # noqa: BLE001 - not every stream can
+            pass
+    return Console()
+
+
+console = _make_console()
 
 app = typer.Typer(
     name="TradingAgents",
@@ -2168,6 +2191,10 @@ def _render_hyperframes(board, payload, output: Path, *, voice: bool, music: Opt
     console.print(f"[bold]{board.title}[/bold]")
 
 
+# How far back to look for a run that carries what a cut needs.
+RECENT_RUNS = 40
+
+
 def _debate_in(run: dict) -> dict | None:
     """The first decision in this run that came with both sides of an argument."""
 
@@ -2209,7 +2236,10 @@ def _latest_debate(source: Optional[str]) -> dict | None:
             # argument - the exit sweeps that follow it confirm nothing. So the
             # recent runs are walked newest first until one has a transcript.
             repo = StorageRepository(create_storage_engine())
-            for row in repo.list_harness_runs(limit=8):
+            # 8 was not enough: a day runs the screener, the exit sweep and a
+            # retry, so the one run that carries an argument slides off the end
+            # and the channel concluded there was no material.
+            for row in repo.list_harness_runs(limit=RECENT_RUNS):
                 run = build_harness_run_payload(repo, harness_run_id=str(row["id"])) or {}
                 found = _debate_in(run)
                 if found:
@@ -2307,6 +2337,22 @@ def _funnel_in(run: dict) -> dict | None:
             "stages": stages, "picks": picks, "scored_by": scored_by}
 
 
+def _best_funnel(found: Sequence[dict], today: str) -> dict | None:
+    """Of the runs that can be drawn, the one worth drawing.
+
+    A morning runs the screener with the debate and then again without it, and
+    taking whichever came back first meant the rules-only run usually won — so
+    the cut said "AI 토론 없이 규칙만으로" on a day the debate had in fact run.
+    Today beats yesterday, and a run an AI weighed in on beats one it did not.
+    """
+
+    def rank(item: Mapping[str, Any]) -> tuple:
+        ran_on = str(item.get("as_of_date") or "")[:10]
+        return (ran_on == today, item.get("scored_by") == "confidence", ran_on)
+
+    return max(found, key=rank) if found else None
+
+
 def _latest_funnel(source: Optional[str]) -> dict | None:
     """The newest run that actually screened something, as a funnel."""
 
@@ -2324,18 +2370,22 @@ def _latest_funnel(source: Optional[str]) -> dict | None:
             return _funnel_in(response.json())
         if not os.getenv("DATABASE_URL"):
             return None
+        from tradingagents.shorts.bank import KST
         from tradingagents.site.harness_api import build_harness_run_payload
         from tradingagents.storage import StorageRepository, create_storage_engine
 
         # Same reason as the debate: a day has several runs and only the
         # screening one has a universe behind it.
         repo = StorageRepository(create_storage_engine())
-        for row in repo.list_harness_runs(limit=8):
+        found: list[dict] = []
+        for row in repo.list_harness_runs(limit=RECENT_RUNS):
             run = build_harness_run_payload(repo, harness_run_id=str(row["id"])) or {}
-            found = _funnel_in(run)
-            if found:
-                return found
-        return None
+            item = _funnel_in(run)
+            if item:
+                found.append(item)
+            if len(found) >= 6:
+                break
+        return _best_funnel(found, datetime.datetime.now(KST).date().isoformat())
     except Exception:                                   # noqa: BLE001 - the other stories still work
         return None
 
@@ -2641,17 +2691,22 @@ def shorts_daily_command(
         answer = {}
     video_id = str(answer.get("videoId") or "").strip()
     if not video_id:
-        # A 200 with no id means the file reached n8n and YouTube never saw it:
-        # the upload node was skipped or swallowed its own error. Calling that
-        # "업로드됨" is how a morning went by with nothing published and nothing
-        # saying so. It is a failure, and the ledger does not get a row.
-        console.print("[red]업로드되지 않았습니다.[/red] n8n 이 videoId 를 돌려주지 않았습니다 — "
-                      "유튜브 노드가 건너뛰어졌거나 오류를 삼켰습니다.")
+        # A 200 with no id used to be treated as "nothing was published", and
+        # the ledger got no row. Then 09-17 went up on the channel anyway: the
+        # upload works, n8n just does not hand the id back. Skipping the ledger
+        # on a video that is live means tomorrow picks the same story and
+        # publishes it twice, which viewers see. So the story is recorded as
+        # told, with no id, and the run still exits non-zero so nobody reads
+        # this as a clean morning.
+        console.print("[red]videoId 를 받지 못했습니다.[/red] n8n 이 id 없이 응답했습니다. "
+                      "유튜브에는 올라갔을 수 있으니 채널을 확인해 주세요.")
         console.print(f"[dim]n8n 응답: {response.status_code} {response.text[:200]}[/dim]")
-        console.print(f"[dim]영상은 {video} 에 그대로 있습니다.[/dim]")
+        console.print(f"[dim]영상 파일: {video}[/dim]")
+        record_published(story.key, video_id=None, path=ledger, title=title, confirmed=False)
+        console.print("[yellow]같은 이야기가 내일 또 나가지 않도록 발행 기록에는 남겼습니다.[/yellow]")
         raise typer.Exit(code=1)
 
-    record_published(story.key, video_id=video_id, path=ledger, title=title)
+    record_published(story.key, video_id=video_id, path=ledger, title=title, confirmed=True)
     console.print(f"[green]발행 완료[/green] https://youtu.be/{video_id}")
 
 

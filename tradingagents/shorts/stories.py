@@ -780,6 +780,15 @@ def build_funnel(payload: Mapping[str, Any], *, now: datetime | None = None, the
     by_ai = str(funnel.get("scored_by") or "confidence") == "confidence"
     stamp = _today(now).strftime("%Y%m%d")
 
+    # The run this describes is not always today's. A morning where the
+    # screener has not run yet falls back to the last one that did, and the
+    # cut went out saying "오늘 아침 349종목" about yesterday's 349. It names
+    # the day it is actually showing.
+    ran_on = str(funnel.get("as_of_date") or "")[:10] or _today(now).isoformat()
+    is_today = ran_on == _today(now).isoformat()
+    when_screen = "오늘 아침" if is_today else f"{korean_date(ran_on)} 아침"
+    when_spoken = "오늘 아침" if is_today else f"{korean_date(ran_on)} 아침"
+
     dropped = universe - survived
     biggest = max(stages, key=lambda row: int(row.get("from") or 0) - int(row.get("to") or 0)) if stages else None
     biggest_label = str((biggest or {}).get("label") or "")
@@ -798,14 +807,14 @@ def build_funnel(payload: Mapping[str, Any], *, now: datetime | None = None, the
 
     scenes: tuple[Scene, ...] = (
         Hook(
-            eyebrow=f"{korean_date(_today(now).isoformat())} 장 시작 전",
+            eyebrow=f"{korean_date(ran_on)} 장 시작 전",
             value=f"{universe:,}종목",
             value_colour="ink",
-            caption="오늘 아침 코스피·코스닥에서 살펴본 전체 종목 수입니다",
+            caption=f"{when_screen} 코스피·코스닥에서 살펴본 전체 종목 수입니다",
             lines=(f"여기서 {survived}종목만", "남았습니다."),
             seconds=3.6,
             narration=(
-                f"오늘 아침 코스피 코스닥에서 살펴본 종목, {universe}개입니다. "
+                f"{when_spoken} 코스피 코스닥에서 살펴본 종목, {universe}개입니다. "
                 f"여기서 {survived}개만 남았어요. 뭘 걸렀는지 그대로 보여드릴게요."
             ),
         ),
