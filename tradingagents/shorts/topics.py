@@ -15,17 +15,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Sequence
 
-# The rule change that is actually in force, measured on the same universe over
-# the same window. Stated with its date so it ages visibly instead of quietly.
-BACKTEST_LABEL = "2026년 9월 백테스트 · 손절 5%→8%, 변동성 상위 20% 제외"
-BACKTEST_ROWS = (
-    ("누적 수익률", "+52.2%", "+129.7%"),
-    ("최대 낙폭", "−28.7%", "−24.2%"),
-    ("샤프 지수", "0.64", "1.20"),
-    ("승률", "39.3%", "47.9%"),
-)
-
 Proof = tuple[tuple[str, str, str], ...]
+
+# The two runs the stop-loss claim rests on. Naming them here rather than
+# typing their numbers in is the whole point: the figures that went out on a
+# public video were copied from a sweep that was never persisted, so nothing
+# could be checked against anything. These labels are what `backtest --sweep
+# --persist` writes, and the cut reads the metrics off those rows.
+BASELINE_LABEL = "rules:현행 5%/10%"
+CHANGED_LABEL = "rules:변동성 제외 + 손절 8%"
+BACKTEST_CAPTION = "손절 5%→8%, 변동성 상위 20% 제외"
 
 
 @dataclass(frozen=True)
@@ -43,7 +42,9 @@ class Topic:
     steps_note: str
     proof_head: str
     proof: Callable[[Mapping[str, Any]], Proof]
-    proof_note: str
+    # a string when the caption is fixed, a callable when it has to name
+    # the window and the date the run it quotes was actually made
+    proof_note: str | Callable[[Mapping[str, Any]], str]
     outro: tuple[str, str]
     call: str
     title: str
@@ -57,6 +58,10 @@ class Topic:
         """Whether the evidence beat has anything to put in it."""
 
         return bool(self.proof(payload))
+
+    def note_for(self, payload: Mapping[str, Any]) -> str:
+        note = self.proof_note(payload) if callable(self.proof_note) else self.proof_note
+        return f"{note}. 과거 성과이며 앞으로를 보장하지 않습니다." if callable(self.proof_note) else note
 
 
 def _books(payload: Mapping[str, Any]) -> dict[str, dict]:
@@ -82,8 +87,47 @@ def stop_loss_pct() -> float:
         return 0.08
 
 
+def _pct1(value: Any) -> str:
+    return "–" if value is None else f"{float(value) * 100:+.1f}%"
+
+
+def backtest_proof(runs: Mapping[str, Mapping[str, Any]]) -> Proof:
+    """The before/after rows, read off two stored runs rather than typed in."""
+
+    before, after = runs.get(BASELINE_LABEL), runs.get(CHANGED_LABEL)
+    if not before or not after:
+        return ()
+    rows = [
+        ("누적 수익률", _pct1(before.get("total_return")), _pct1(after.get("total_return"))),
+        ("최대 낙폭", _pct1(before.get("max_drawdown")), _pct1(after.get("max_drawdown"))),
+        ("승률", _pct1(before.get("hit_rate")).lstrip("+"), _pct1(after.get("hit_rate")).lstrip("+")),
+    ]
+    sharpe = (before.get("sharpe_ratio"), after.get("sharpe_ratio"))
+    if all(value is not None for value in sharpe):
+        rows.insert(2, ("샤프 지수", f"{float(sharpe[0]):.2f}", f"{float(sharpe[1]):.2f}"))
+    return tuple(rows)
+
+
+def backtest_caption(runs: Mapping[str, Mapping[str, Any]]) -> str:
+    """What the rows are, the window, and what the index did over the same one.
+
+    The index is the part that was missing. Over these three years the best
+    variant made +126% and KOSPI made +168%, and a cut that shows the first
+    without the second is selling the rule change rather than reporting it.
+    """
+
+    after = runs.get(CHANGED_LABEL) or {}
+    window = f"{str(after.get('start_date') or '')[:10]}~{str(after.get('end_date') or '')[:10]}".strip("~")
+    parts = [part for part in (window and f"{window} 백테스트", BACKTEST_CAPTION) if part]
+    caption = " · ".join(parts)
+    bench = after.get("benchmark_return")
+    if bench is not None:
+        caption += f". 같은 기간 코스피는 {float(bench) * 100:+.1f}%로, 바꾼 뒤에도 지수에는 못 미칩니다"
+    return caption
+
+
 def _stop_proof(payload: Mapping[str, Any]) -> Proof:
-    return BACKTEST_ROWS
+    return backtest_proof(payload.get("backtests") or {})
 
 
 def _books_proof(payload: Mapping[str, Any]) -> Proof:
@@ -136,7 +180,7 @@ TOPICS: tuple[Topic, ...] = (
         steps_note="정해둔 선을 지키는 것과 잘 고르는 것은 다른 문제입니다. 여기서 지키는 건 앞쪽입니다.",
         proof_head="선을 바꿔봤더니",
         proof=_stop_proof,
-        proof_note=BACKTEST_LABEL + ". 과거 성과이며 앞으로를 보장하지 않습니다.",
+        proof_note=lambda payload: backtest_caption(payload.get("backtests") or {}),
         outro=("규칙을 바꾸면", "바꾼 날짜까지 적습니다."),
         call="현재 적용 중인 규칙 전문",
         title="손절선 8%는 어디서 나온 숫자인가 | 바꿔보고 남긴 기록",
@@ -217,4 +261,5 @@ TOPICS: tuple[Topic, ...] = (
 
 BY_TOPIC = {topic.key: topic for topic in TOPICS}
 
-__all__ = ["BACKTEST_LABEL", "BACKTEST_ROWS", "BY_TOPIC", "TOPICS", "Topic", "stop_loss_pct"]
+__all__ = ["BASELINE_LABEL", "BACKTEST_CAPTION", "CHANGED_LABEL", "BY_TOPIC", "TOPICS", "Topic",
+           "backtest_caption", "backtest_proof", "stop_loss_pct"]

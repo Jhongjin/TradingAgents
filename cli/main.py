@@ -1899,6 +1899,18 @@ def backtest_command(
         for column in ("설정", "수익률", "최대낙폭", "샤프", "거래", "승률", "평균보유"):
             table.add_column(column)
         rows_for_json = []
+        repo = None
+        if persist:
+            # A sweep is where rule changes actually get decided, and this path
+            # used to return before the persist block below — so --sweep
+            # --persist stored nothing at all. The 8% stop went live, and the
+            # figures behind it went into a code comment and a public video
+            # with no run on record to check them against.
+            if not os.getenv("DATABASE_URL"):
+                raise typer.BadParameter("--persist requires DATABASE_URL")
+            from tradingagents.storage import StorageRepository, create_storage_engine
+
+            repo = StorageRepository(create_storage_engine())
         for name, overrides in variants:
             variant = run_rule_backtest(
                 history=history,
@@ -1907,6 +1919,7 @@ def backtest_command(
                 end=end,
                 config=BacktestConfig(top_n=top_n, initial_cash=cash, **overrides),
                 sector_lookup=_sector,
+                benchmark=benchmark or None,
             )
             m = variant.metrics
             table.add_row(
@@ -1920,6 +1933,11 @@ def backtest_command(
             )
             rows_for_json.append({"variant": name, "overrides": overrides, "metrics": m})
             console.print(f"[dim]  {name}: {(m.get('total_return') or 0) * 100:+.2f}%[/dim]")
+            if repo is not None:
+                # the variant's own name is the label, so a claim about one
+                # setting can be traced back to the run that produced it
+                run_id = repo.save_backtest_run(variant.as_dict(), label=f"{label}:{name}")
+                console.print(f"[dim]    저장됨 backtest_run_id={run_id}[/dim]")
         console.print(table)
         if output is not None:
             output.write_text(json.dumps(rows_for_json, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
@@ -2564,6 +2582,45 @@ def _rejected_after(source: Optional[str]) -> dict | None:
         return None
 
 
+def _stored_backtests(source: Optional[str]) -> dict | None:
+    """The two runs the stop-loss explainer quotes, newest of each label.
+
+    The figures used to be constants in topics.py copied out of a sweep that
+    was never persisted, so nothing on screen could be checked against
+    anything. Reading them here means the cut cannot drift from the run, and
+    cannot be made at all when the run is missing.
+    """
+
+    import os
+
+    if source:
+        return None
+    try:
+        if not os.getenv("DATABASE_URL"):
+            return None
+        from sqlalchemy import text
+
+        from tradingagents.shorts.topics import BASELINE_LABEL, CHANGED_LABEL
+        from tradingagents.storage import create_storage_engine
+
+        found: dict[str, dict] = {}
+        with create_storage_engine().connect() as connection:
+            rows = connection.execute(
+                text(
+                    "select label, start_date, end_date, total_return, benchmark_return, "
+                    "max_drawdown, sharpe_ratio, hit_rate, trade_count, created_at "
+                    "from backtest_runs where label in (:baseline, :changed) "
+                    "order by created_at desc"
+                ),
+                {"baseline": BASELINE_LABEL, "changed": CHANGED_LABEL},
+            ).mappings()
+            for row in rows:
+                found.setdefault(str(row["label"]), dict(row))
+        return found or None
+    except Exception:                                   # noqa: BLE001 - the other stories still work
+        return None
+
+
 def _account_curve(source: Optional[str]) -> dict | None:
     """The account's day-by-day line against the index, for the weekly cut."""
 
@@ -2686,6 +2743,7 @@ def _shorts_payload(source: Optional[str]) -> dict:
         ("debate", lambda: _latest_debate(source)),
         ("funnel", lambda: _latest_funnel(source)),
         ("rejected", lambda: _rejected_after(source)),
+        ("backtests", lambda: _stored_backtests(source)),
         ("curve", lambda: _account_curve(source)),
         ("candles", lambda: _biggest_mover(payload, source)),
     ):

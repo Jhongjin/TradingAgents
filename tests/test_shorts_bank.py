@@ -14,6 +14,18 @@ from tradingagents.shorts.bank import (
     record_published,
 )
 
+# What the stop-loss explainer quotes. Production loads these from
+# backtest_runs; a topic whose evidence is missing stays off the shelf, which
+# is asserted on its own below.
+_BACKTESTS = {
+    "rules:현행 5%/10%": {"total_return": 0.5033, "max_drawdown": -0.2887,
+                          "sharpe_ratio": 0.620116, "hit_rate": 0.3915},
+    "rules:변동성 제외 + 손절 8%": {"total_return": 1.2646, "max_drawdown": -0.2402,
+                                   "sharpe_ratio": 1.156081, "hit_rate": 0.4912,
+                                   "benchmark_return": 1.684, "start_date": "2023-09-19",
+                                   "end_date": "2026-09-18"},
+}
+
 FRIDAY = datetime(2026, 9, 11, 2, 0, tzinfo=timezone.utc)     # 11:00 KST, a Friday
 MONDAY = datetime(2026, 9, 14, 2, 0, tzinfo=timezone.utc)     # and the Monday after
 
@@ -28,6 +40,7 @@ def _payload(*, exits: tuple = (), closed_before: int = 0, entered_today: int = 
         closed.append({"ticker_name": name, "realized_return": value, "exit_reason": reason,
                        "exit_date": today, "entry_date": "2026-09-10"})
     return {
+        "backtests": _BACKTESTS,
         "summary": {"initial_cash": 1.5e8, "total_return": -0.0117, "closed_count": len(closed), "win_count": 0},
         "accounts": [
             {"key": "paper", "label": "AI 확인", "summary": {"total_return": -0.0147, "open_count": 3, "closed_count": 3}},
@@ -93,7 +106,12 @@ def test_an_explainer_waits_until_its_evidence_beat_has_something_in_it():
     # nothing closed yet, so "we publish the losing ones too" has nothing to show
     fresh = {key: item for item in evaluate(_payload(), now=MONDAY, ledger=[]) for key in [item.story.key]}
     assert "explain_open" not in fresh
-    assert "explain_stop" in fresh          # its proof is a dated backtest, always there
+    assert "explain_stop" in fresh          # its proof is the stored backtest pair
+
+    # and with no run stored, the stop explainer has nothing to show either —
+    # its figures used to be constants, so it could always be drawn
+    without = {**_payload(closed_before=4), "backtests": {}}
+    assert "explain_stop" not in {item.story.key for item in evaluate(without, now=MONDAY, ledger=[])}
 
     # and one book on its own cannot show what the second book is for
     one_book = {**_payload(closed_before=4), "accounts": [
@@ -132,7 +150,8 @@ def test_only_a_story_that_can_actually_be_drawn_is_chosen():
 def test_an_empty_account_still_yields_a_video():
     """The first week has no trades, and the channel still has to post."""
 
-    decision = plan({"summary": {}, "accounts": [], "closed": [], "positions": []}, now=MONDAY, ledger=[])
+    decision = plan({"summary": {}, "accounts": [], "closed": [], "positions": [],
+                     "backtests": _BACKTESTS}, now=MONDAY, ledger=[])
     assert decision["candidates"]                        # the shelf is never empty
     # and now something on it can actually be drawn: the explainers do not need
     # an account at all, which is the whole point of holding a daily slot
@@ -450,7 +469,7 @@ def test_every_topic_says_something_different_and_names_its_evidence():
 
     from tradingagents.shorts import build
     from tradingagents.shorts.bank import KST
-    from tradingagents.shorts.topics import BACKTEST_LABEL, TOPICS
+    from tradingagents.shorts.topics import BASELINE_LABEL, CHANGED_LABEL, TOPICS
 
     now = datetime(2026, 9, 16, 8, 40, tzinfo=KST)
     payload = {
@@ -461,6 +480,14 @@ def test_every_topic_says_something_different_and_names_its_evidence():
         ],
         "closed": [{"ticker_name": f"정리{i}", "realized_return": -0.05, "exit_date": "2026-09-10"} for i in range(8)],
         "positions": [],
+        "backtests": {
+            BASELINE_LABEL: {"total_return": 0.5033, "max_drawdown": -0.2887,
+                             "sharpe_ratio": 0.620116, "hit_rate": 0.3915},
+            CHANGED_LABEL: {"total_return": 1.2646, "max_drawdown": -0.2402,
+                            "sharpe_ratio": 1.156081, "hit_rate": 0.4912,
+                            "benchmark_return": 1.684, "start_date": "2023-09-19",
+                            "end_date": "2026-09-18"},
+        },
     }
 
     boards = {topic.key: build("explain", payload, now=now, story=topic.key) for topic in TOPICS}
@@ -473,9 +500,10 @@ def test_every_topic_says_something_different_and_names_its_evidence():
         assert board.scenes[2].rows, topic.key
         assert board.comment and topic.path in board.description
 
-    # the one topic whose proof is a backtest says so, with its date
-    assert "2026년 9월" in BACKTEST_LABEL
-    assert BACKTEST_LABEL in boards["explain_stop"].scenes[2].note
+    # the one topic whose proof is a backtest reads it off the stored runs
+    note = boards["explain_stop"].scenes[2].note
+    assert "2023-09-19~2026-09-18 백테스트" in note
+    assert "손절 5%→8%, 변동성 상위 20% 제외" in note
 
     # and the two that read the live account did read it
     assert any("−2.05%" in str(row.get("sub")) or "-2.05%" in str(row.get("sub"))
@@ -778,3 +806,48 @@ def test_the_video_id_is_found_wherever_n8n_put_it():
     assert _video_id_in(None) == "" and _video_id_in("") == ""
     # a self-referencing structure cannot spin it forever
     assert _video_id_in({"a": {"b": {"c": {"d": {"e": {"f": {"videoId": "dQw4w9WgXcQ"}}}}}}}) == ""
+
+
+def test_the_stop_loss_claim_is_read_off_stored_runs_and_names_the_index():
+    """The figures lived in a constant, copied from a sweep that was never saved."""
+
+    from tradingagents.shorts.topics import (
+        BASELINE_LABEL, CHANGED_LABEL, backtest_caption, backtest_proof,
+    )
+
+    runs = {
+        BASELINE_LABEL: {"total_return": 0.5033, "max_drawdown": -0.2887,
+                         "sharpe_ratio": 0.620116, "hit_rate": 0.3915},
+        CHANGED_LABEL: {"total_return": 1.2646, "max_drawdown": -0.2402,
+                        "sharpe_ratio": 1.156081, "hit_rate": 0.4912,
+                        "benchmark_return": 1.684, "start_date": "2023-09-19",
+                        "end_date": "2026-09-18"},
+    }
+    rows = backtest_proof(runs)
+    assert ("누적 수익률", "+50.3%", "+126.5%") in rows
+    assert ("샤프 지수", "0.62", "1.16") in rows
+    assert ("승률", "39.1%", "49.1%") in rows
+
+    # and the index, which the first version of this cut never showed at all:
+    # the change beat the old rules and still lost to simply holding KOSPI
+    caption = backtest_caption(runs)
+    assert "2023-09-19~2026-09-18" in caption
+    assert "+168.4%" in caption and "지수에는 못 미칩니다" in caption
+
+    # no run, no claim — the beat cannot be drawn from a constant any more
+    assert backtest_proof({}) == ()
+    assert backtest_proof({BASELINE_LABEL: runs[BASELINE_LABEL]}) == ()
+
+
+def test_a_sweep_can_actually_be_persisted():
+    """--sweep returned before the persist block, so rule changes left no record."""
+
+    import inspect
+
+    from cli import main as cli
+
+    source = inspect.getsource(cli.backtest_command)
+    sweep = source.split("if sweep:", 1)[1].split("result = run_rule_backtest", 1)[0]
+    assert "repo.save_backtest_run(variant.as_dict()" in sweep
+    assert 'label=f"{label}:{name}"' in sweep          # one label per variant, so a claim is traceable
+    assert "benchmark=benchmark or None" in sweep      # or the index column comes back empty

@@ -929,7 +929,7 @@ def build_explain(payload: Mapping[str, Any], *, now: datetime | None = None, th
             eyebrow="확인",
             heading=topic.proof_head,
             rows=proof_rows,
-            note=topic.proof_note,
+            note=topic.note_for(payload),
             seconds=2.6 + len(proof_rows) * 0.9,
             narration=topic.narration[2],
         ),

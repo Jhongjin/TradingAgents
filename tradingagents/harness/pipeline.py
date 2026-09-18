@@ -83,10 +83,19 @@ class PipelineConfig:
     max_position_weight: float = 0.2
     # Widened from 5% on 2026-09-15. A 5% stop sits inside the daily range of
     # the names this screen picks, so it was being hit by noise rather than by
-    # the trade going wrong: over the three years to that date, 8% turned
-    # +52.2% into +129.7% alongside the variability filter below, with the
-    # drawdown falling from -28.7% to -24.2% and the hit rate rising from
-    # 39.3% to 47.9%.
+    # the trade going wrong.
+    #
+    # Re-run and persisted 2026-09-18 over 2023-09-19~2026-09-18, universe 180,
+    # as backtest_runs labelled "rules:현행 5%/10%" and
+    # "rules:변동성 제외 + 손절 8%" — the sweep that first produced these
+    # figures could not be persisted at all, so for three days the only record
+    # of them was this comment. Alongside the variability filter below:
+    # +50.3% → +126.5%, drawdown -28.9% → -24.0%, Sharpe 0.62 → 1.16, hit rate
+    # 39.1% → 49.1%.
+    #
+    # And the part the first version of this comment left out: KOSPI returned
+    # +168.4% over the same window. The change is an improvement on the old
+    # rules and still behind simply holding the index.
     stop_loss_pct: float = 0.08
     take_profit_pct: float = 0.10
     max_holding_days: int = 20
