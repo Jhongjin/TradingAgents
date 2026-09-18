@@ -1854,6 +1854,7 @@ def backtest_command(
     sweep: bool = typer.Option(False, "--sweep", help="Try several stop/target and variability settings and compare them."),
     start_on: Optional[str] = typer.Option(None, "--start", help="Replay from this date instead of --years ago."),
     end_on: Optional[str] = typer.Option(None, "--end", help="Replay up to this date instead of today."),
+    pool_source: str = typer.Option("index", "--pool", help="Where the candidates come from: 'index' (KOSPI200+KOSDAQ150, as the live run screens) or 'cap' (most liquid by market cap)."),
     walk_forward: bool = typer.Option(False, "--walk-forward", help="Sweep twice: pick on the first stretch, score on a stretch never seen."),
     persist: bool = typer.Option(False, "--persist", help="Store the result for the site."),
     output: Optional[Path] = typer.Option(None, "--output", help="Write the full result JSON here."),
@@ -1881,10 +1882,42 @@ def backtest_command(
     console.print(f"[bold]Backtest[/bold] {start} → {end} · universe {universe} · top {top_n}")
     from tradingagents.dataflows.kr_ticker_directory import load_directory, top_by_market_cap
 
-    # Liquidity is measured from the price history this run fetches anyway, so
-    # the universe does not depend on a ranking vendor answering right now.
-    ranked = top_by_market_cap(max(universe * 3, universe))
-    pool = [(entry.code, entry.name) for entry in ranked]
+    # The live run screens the index. A backtest over a market-cap pool is
+    # replaying different rules than the ones that get run, so 'index' is the
+    # default and 'cap' is there for comparing against the older numbers.
+    pool: list[tuple[str, str]] = []
+    index_pool_note = ""
+    if str(pool_source).strip().lower() == "index":
+        from tradingagents.dataflows.kr_index_members import INDEX_ETFS, load_index_members
+
+        seen: set[str] = set()
+        for index_name in INDEX_ETFS:
+            members = load_index_members(index_name)
+            if not members:
+                continue
+            for code in members.codes:
+                if code not in seen:
+                    seen.add(code)
+                    pool.append((code, members.names.get(code, code)))
+        if pool:
+            console.print(f"[dim]pool: {len(pool)} index members (membership as of today)[/dim]")
+            # Worth saying plainly, because the number this produces is much
+            # larger than the market-cap pool's and the difference is not skill.
+            # Membership is today's, and a company is in KOSPI200 today partly
+            # because it grew over the window being replayed. That is a stronger
+            # forward-looking bias than the old pool had, not a weaker one.
+            index_pool_note = (
+                "지수 구성종목은 오늘 기준입니다. 오늘 지수에 있다는 사실 자체가 "
+                "이 기간에 살아남고 커졌다는 뜻이라, 수익률이 실제보다 높게 나옵니다."
+            )
+        else:
+            console.print("[yellow]no stored index membership; falling back to market cap[/yellow]")
+
+    if not pool:
+        # Liquidity is measured from the price history this run fetches anyway,
+        # so the universe does not depend on a ranking vendor answering now.
+        ranked = top_by_market_cap(max(universe * 3, universe))
+        pool = [(entry.code, entry.name) for entry in ranked]
     if not pool:
         pool = [
             (entry.code, entry.name)
@@ -2075,6 +2108,8 @@ def backtest_command(
     )
     for row in result.metrics.get("yearly_returns") or []:
         console.print(f"[dim]  {row['year']}: {(row.get('return') or 0) * 100:+.2f}% ({row['days']}일)[/dim]")
+    if index_pool_note and index_pool_note not in result.notes:
+        result.notes.append(index_pool_note)
     for note in result.notes:
         console.print(f"[yellow]{note}[/yellow]")
 

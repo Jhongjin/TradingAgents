@@ -111,6 +111,42 @@ def create_desk_app(*, token: str, client_factory=None) -> FastAPI:
         wanted = tuple(part.strip() for part in intervals.split(",") if part.strip()) or DEFAULT_INTERVALS
         return HTMLResponse(render_gold_chart_page(repo=None, intervals=wanted, bars=bars, data_url="/gold/data"))
 
+    @app.get("/krxgold", response_class=HTMLResponse)
+    def krx_gold(
+        request: Request,
+        intervals: str = Query("", max_length=64),
+        bars: int = Query(400, ge=120, le=1200),
+    ) -> HTMLResponse:
+        """The same chart over KRX 금현물 — won per gram, and actually buyable here.
+
+        A different instrument from the COMEX future on /gold, not a currency
+        conversion of it: a separate market with its own hours, its own supply
+        and its own premium.
+        """
+
+        from tradingagents.site.gold_page import render_gold_chart_page
+        from goldlab.data import KRX_GOLD_INTERVALS
+
+        wanted = tuple(part.strip() for part in intervals.split(",") if part.strip()) or KRX_GOLD_INTERVALS
+        return HTMLResponse(render_gold_chart_page(
+            repo=None, symbol="KRXGOLD", intervals=wanted, bars=bars,
+            default_interval="1d", data_url="/krxgold/data",
+        ))
+
+    @app.get("/krxgold/data")
+    def krx_gold_data(
+        request: Request,
+        interval: str = Query("1d", max_length=8),
+        bars: int = Query(400, ge=120, le=1200),
+    ) -> JSONResponse:
+        from tradingagents.site.gold_page import build_gold_frame
+
+        try:
+            frame = build_gold_frame(repo=None, symbol="KRXGOLD", interval=interval, bars=bars)
+        except Exception as exc:                        # noqa: BLE001 - one timeframe, not the page
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
+        return JSONResponse(frame)
+
     @app.get("/gold/data")
     def gold_data(
         request: Request,

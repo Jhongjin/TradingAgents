@@ -541,6 +541,7 @@ def render_desk(*, mode: str) -> str:
   <h1>데스크</h1>
   <button type="button" class="badge {mode}" id="mode-btn" title="클릭해서 전환">{label}</button>
   <a class="tab" href="/gold">골드 차트</a>
+  <a class="tab" href="/krxgold">금현물 (원/g)</a>
   <span class="local">이 페이지는 이 컴퓨터에서만 열립니다 · 127.0.0.1</span>
 </header>
 

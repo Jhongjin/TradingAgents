@@ -34,6 +34,73 @@ INTERVAL_MAX_DAYS = {
 }
 RESAMPLED_FROM = {"4h": ("1h", 4)}
 
+# --------------------------------------------------------------------------
+# KRX 금현물 (KRX gold spot), a different instrument from the COMEX future the
+# rest of this module fetches: 99.99% bars priced in won per gram rather than
+# dollars per ounce, traded on the Korean exchange, and buyable through the
+# same account the harness trades stocks with.
+#
+# Daily is all this API serves. Its documented gubun switch is supposed to
+# select daily, weekly or monthly, but all three values were checked and all
+# three answer with daily bars, so the weekly view is grouped here instead of
+# being asked for and quietly not delivered.
+# --------------------------------------------------------------------------
+KRX_GOLD_SYMBOLS = {"KRXGOLD", "KRX-GOLD", "M04020000"}
+KRX_GOLD_RESAMPLED = {"1wk": 5}          # five sessions is a week on this market
+KRX_GOLD_INTERVALS = ("1d", *KRX_GOLD_RESAMPLED)
+KRX_GOLD_DEFAULT_DAYS = 600
+
+
+def fetch_krx_gold_bars(*, interval: str = "1d", days: int | None = None) -> BarSeries:
+    """Won-per-gram bars for KRX gold, through the NH client."""
+
+    if interval not in KRX_GOLD_INTERVALS:
+        raise ValueError(
+            f"KRX gold has no {interval!r} bars; the exchange serves daily only, "
+            f"so this offers {', '.join(KRX_GOLD_INTERVALS)}"
+        )
+    factor = KRX_GOLD_RESAMPLED.get(interval, 1)
+
+    from tradingagents.execution.nh_client import NHClient, NHConfig
+
+    # Quotes live on the live host whichever account is configured, and this
+    # asks for prices only — it never touches an account or places an order.
+    client = NHClient(config=NHConfig.from_env(paper=False))
+    end = datetime.now(timezone.utc).date()
+    start = end - timedelta(days=days or KRX_GOLD_DEFAULT_DAYS)
+    raw = client.gold_candles(start=start.isoformat(), end=end.isoformat())
+
+    rows = []
+    for row in raw.get("Output_0") or []:
+        stamp = _parse_krx_gold_date(str(row.get("bsop_date") or ""))
+        if stamp is None:
+            continue
+        rows.append({
+            "timestamp": stamp,
+            "open": row.get("stck_oprc"),
+            "high": row.get("stck_hgpr"),
+            "low": row.get("stck_lwpr"),
+            "close": row.get("stck_prpr"),
+            "volume": row.get("acml_vol") or 0.0,
+        })
+    if not rows:
+        raise RuntimeError(f"no KRX gold bars for {interval}")
+    series = bars_from_rows(rows, symbol="KRXGOLD", interval="1d")
+    return resample(series, factor=factor, interval=interval) if factor > 1 else series
+
+
+def _parse_krx_gold_date(value: str) -> datetime | None:
+    """NH dates these bars 26/09/18, which no general parser should have to guess."""
+
+    parts = value.split("/")
+    if len(parts) != 3:
+        return None
+    try:
+        year, month, day = (int(part) for part in parts)
+    except ValueError:
+        return None
+    return datetime(2000 + year, month, day, tzinfo=timezone.utc)
+
 
 @dataclass(frozen=True)
 class Bar:
@@ -287,6 +354,9 @@ def _fetch_from_yahoo(symbol: str, interval: str, span_days: int) -> list[dict]:
 
 def fetch_bars(symbol: str = "GC=F", *, interval: str = "1h", days: int | None = None) -> BarSeries:
     """Download bars, honouring the vendor's window for the interval."""
+
+    if symbol.upper() in KRX_GOLD_SYMBOLS:
+        return fetch_krx_gold_bars(interval=interval, days=days)
 
     source_interval, factor = RESAMPLED_FROM.get(interval, (interval, 1))
     limit = INTERVAL_MAX_DAYS.get(source_interval)

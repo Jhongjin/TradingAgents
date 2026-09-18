@@ -441,6 +441,27 @@ class NHClient:
             "view_main_yn": "N",
         }, live_only=True)
 
+    # KRX 금시장's one liquid contract: 1kg bars of 99.99% gold, priced in won
+    # per gram. Not the same instrument as COMEX gold, which is dollars an ounce.
+    GOLD_99_99_1KG = "M04020000"
+
+    def gold_price(self, code: str = GOLD_99_99_1KG) -> Mapping[str, Any]:
+        """Spot gold on KRX right now, in won per gram."""
+
+        return self._call("/krgold/quote/v1/goldCurrent", "IVOGLDMST01",
+                          {"code": str(code).strip()}, live_only=True)
+
+    def gold_candles(self, *, start: str, end: str, code: str = GOLD_99_99_1KG,
+                     period: str = "1") -> Mapping[str, Any]:
+        """Daily bars for KRX gold. period is 1 daily, 2 weekly, 3 monthly."""
+
+        return self._call("/krgold/quote/v1/goldDailyTrend", "IVOGLDDAY01", {
+            "iem_cd": str(code).strip(),
+            "sdate": _day(start),
+            "edate": _day(end),
+            "gubun": str(period),
+        }, live_only=True)
+
     def daily_pnl(self, *, start: str, end: str, account_no: str | None = None) -> Mapping[str, Any]:
         """Realised profit day by day between two dates (YYYYMMDD)."""
 
