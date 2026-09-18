@@ -201,3 +201,87 @@ def test_there_is_no_market_order_because_the_code_is_undocumented():
     # set once, with no branch that swaps the type code for another value
     # (the docstring names it too, so only assignments are counted)
     assert source.count('"nmn_pr_tp_cd":') == 1
+
+
+EXECUTIONS = {"rsp_cd": "XA102", "rsp_msg": "정상적으로 조회가 완료되었습니다", "Output_0": [
+    {"itg_orr_no": 29, "iem_cd": "005930", "iem_nm": "삼성전자", "sby_dit_cd_nm": "현금매수",
+     "orr_qty": 10, "orr_pr": 260000.0, "tot_cns_qty": 4, "cns_avg_uit_pr": 259500.0,
+     "can_qty": 6, "orr_rjt_rsn_cd_nm": "정상"},
+]}
+
+
+class _Book(_Broker):
+    def executions(self, *, on=None, account_no=None):
+        if self.fail:
+            raise RuntimeError(self.fail)
+        return EXECUTIONS
+
+    def cancel_order(self, *, order_no, code, quantity=None, account_no=None):
+        self.sent.append({"cancel": order_no, "code": code, "quantity": quantity})
+        if self.fail:
+            raise RuntimeError(self.fail)
+        return {"rsp_cd": "00192", "rsp_msg": "취소주문이 완료되었습니다."}
+
+
+def test_todays_orders_show_what_filled_and_what_can_still_be_cancelled(tmp_path, monkeypatch):
+    with _desk(_Book(), tmp_path, monkeypatch) as http:
+        row = http.get("/api/orders?t=T").json()["orders"][0]
+
+    assert row["order_no"] == 29 and row["name"] == "삼성전자"
+    assert row["quantity"] == 10 and row["filled"] == 4
+    assert row["filled_price"] == 259_500
+    # from the broker's own can_qty, not ordered-minus-filled: a partly
+    # cancelled order would make that subtraction wrong
+    assert row["cancellable"] == 6
+    assert row["status"] == "정상"
+
+
+def test_cancelling_needs_no_cap_and_no_typed_confirmation(tmp_path, monkeypatch):
+    """Every other guard slows down committing money; this is the way out."""
+
+    broker = _Book()
+    with _desk(broker, tmp_path, monkeypatch) as http:
+        result = http.post("/api/cancel?t=T", json={"order_no": 29, "code": "005930"}).json()
+
+    assert result["ok"] is True
+    assert broker.sent == [{"cancel": 29, "code": "005930", "quantity": None}]
+
+    lines = [json.loads(line) for line in (tmp_path / "orders.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [line["payload"]["stage"] for line in lines] == ["sent", "accepted"]
+    assert lines[0]["payload"]["side"] == "cancel"
+    # a cancel commits nothing, so it must not eat the day's budget
+    assert today_spent(AuditLedger(tmp_path / "orders.jsonl")) == (0, 0)
+
+
+def test_a_cancel_takes_a_name_and_refuses_an_ambiguous_one(tmp_path, monkeypatch):
+    broker = _Book()
+    with _desk(broker, tmp_path, monkeypatch) as http:
+        assert http.post("/api/cancel?t=T", json={"order_no": 29, "code": "가온전선"}).json()["ok"]
+        assert broker.sent[-1]["code"] == "000500"
+
+        ambiguous = http.post("/api/cancel?t=T", json={"order_no": 29, "code": "삼성"})
+        assert ambiguous.status_code == 404
+        missing = http.post("/api/cancel?t=T", json={"code": "005930"})
+        assert missing.status_code == 400 and "주문번호" in missing.json()["error"]
+
+
+def test_a_failed_cancel_is_recorded_with_its_reason(tmp_path, monkeypatch):
+    with _desk(_Book(fail="이미 체결된 주문입니다"), tmp_path, monkeypatch) as http:
+        response = http.post("/api/cancel?t=T", json={"order_no": 29, "code": "005930"})
+    assert response.status_code == 502
+    lines = [json.loads(line) for line in (tmp_path / "orders.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [line["payload"]["stage"] for line in lines] == ["sent", "failed"]
+
+
+def test_a_success_code_that_is_not_zero_prefixed_is_still_a_success():
+    """XA102 means 정상적으로 조회가 완료되었습니다, and read as an error it broke the page."""
+
+    from tradingagents.execution.nh_client import SUCCESS_PREFIXES
+
+    assert "XA102".startswith(SUCCESS_PREFIXES)
+    assert "00192".startswith(SUCCESS_PREFIXES)         # 취소완료
+    assert "00164".startswith(SUCCESS_PREFIXES)         # 정정완료
+    # and the shapes that are not: an unknown code stays a failure on purpose
+    assert not "IGW40011".startswith(SUCCESS_PREFIXES)
+    assert not "14580".startswith(SUCCESS_PREFIXES)
+    assert not "11165".startswith(SUCCESS_PREFIXES)

@@ -158,6 +158,57 @@ def create_desk_app(*, token: str, client_factory=None) -> FastAPI:
             return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
         return JSONResponse({"quote": _quote_row(raw)})
 
+    @app.get("/api/orders")
+    def orders(request: Request, on: str = Query("", max_length=10)) -> JSONResponse:
+        client = request.app.state.client_factory()
+        if client is None:
+            return JSONResponse({"error": _unconfigured()}, status_code=503)
+        try:
+            raw = client.executions(on=on or None)
+        except Exception as exc:                        # noqa: BLE001 - shown to one person
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
+        rows = raw.get("Output_0") or []
+        return JSONResponse({"orders": [_execution(row) for row in rows if isinstance(row, Mapping)]})
+
+    @app.post("/api/cancel")
+    def cancel(request: Request, body: dict = Body(...)) -> JSONResponse:
+        """Take an order back. No cap and no typed confirmation.
+
+        Every other guard here exists to slow down committing money. Cancelling
+        is the other direction, and a limit that keeps you in a position you are
+        trying to leave is worse than no limit at all.
+        """
+
+        from .orders import ledger, new_attempt, record
+
+        client = request.app.state.client_factory()
+        if client is None:
+            return JSONResponse({"error": _unconfigured()}, status_code=503)
+        try:
+            order_no = int(body.get("order_no"))
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "주문번호가 필요합니다."}, status_code=400)
+
+        resolved, matches = _resolve(str(body.get("code") or ""))
+        if resolved is None:
+            return JSONResponse({"error": "종목을 찾지 못했습니다.", "suggestions": matches}, status_code=404)
+
+        quantity = body.get("quantity")
+        book, mode = ledger(), _mode(request)
+        common = dict(attempt=new_attempt(), side="cancel", code=resolved,
+                      quantity=int(quantity or 0), price=0, amount=0, mode=mode)
+        record(book, stage="sent", **common)
+        try:
+            result = client.cancel_order(
+                order_no=order_no, code=resolved,
+                quantity=int(quantity) if quantity else None,
+            )
+        except Exception as exc:                        # noqa: BLE001
+            record(book, stage="failed", **common, error=f"{type(exc).__name__}: {exc}")
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
+        record(book, stage="accepted", **common, result=result)
+        return JSONResponse({"ok": True, "message": result.get("rsp_msg")})
+
     @app.get("/api/limits")
     def limits(request: Request) -> JSONResponse:
         from .orders import Limits, ledger, today_spent
@@ -350,6 +401,27 @@ def _holding(row: Mapping[str, Any]) -> dict[str, Any]:
         "unrealised": _num(row.get("eal_pls_amt")),
         "return_pct": _num(row.get("pft_rt")),
         "kind": str(row.get("tp_cd_nm") or "").strip(),
+    }
+
+
+def _execution(row: Mapping[str, Any]) -> dict[str, Any]:
+    """One of today's orders: what was asked, what filled, what can still go."""
+
+    ordered = _num(row.get("orr_qty")) or 0
+    filled = _num(row.get("tot_cns_qty")) or 0
+    return {
+        "order_no": row.get("itg_orr_no"),
+        "code": str(row.get("iem_cd") or "").strip(),
+        "name": str(row.get("iem_nm") or "").strip().lstrip("*"),
+        "side": str(row.get("sby_dit_cd_nm") or "").strip(),
+        "quantity": ordered,
+        "price": _num(row.get("orr_pr")),
+        "filled": filled,
+        "filled_price": _num(row.get("cns_avg_uit_pr")),
+        # what the broker says is still cancellable, not ordered-minus-filled:
+        # a partly cancelled order would make that subtraction wrong
+        "cancellable": _num(row.get("can_qty")) or 0,
+        "status": str(row.get("orr_rjt_rsn_cd_nm") or "").strip(),
     }
 
 

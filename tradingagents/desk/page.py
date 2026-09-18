@@ -78,6 +78,12 @@ footer { color: var(--muted); font-size: 12px; margin-top: 26px; line-height: 1.
 .order button { background: var(--warn); color: #1a1205; }
 .order button[disabled] { opacity: .4; cursor: not-allowed; }
 .amount { font-size: 15px; font-weight: 700; margin-top: 12px; }
+.cancel {
+  background: transparent; border: 1px solid var(--line); color: var(--ink2);
+  font-size: 12px; font-weight: 500; padding: 5px 12px; border-radius: 7px;
+}
+.cancel:hover { color: var(--up); border-color: var(--up); }
+.cancel[disabled] { opacity: .3; cursor: not-allowed; }
 """
 
 _JS = """
@@ -162,6 +168,41 @@ function refreshOrderUi() {
   el('o-send').disabled = !ready;
 }
 
+async function loadOrders() {
+  const data = await ask('/api/orders');
+  if (data.error) { el('orders-msg').textContent = data.error; return; }
+  el('orders-msg').textContent = '';
+  const rows = data.orders || [];
+  el('orders').innerHTML = rows.length ? rows.map((o) => `
+    <tr>
+      <td><span class="name">${o.name || o.code}</span><span class="code">${o.code}</span></td>
+      <td>${o.side || ''}</td>
+      <td>${(o.quantity || 0).toLocaleString('ko-KR')}</td>
+      <td>${won(o.price)}</td>
+      <td>${(o.filled || 0).toLocaleString('ko-KR')}</td>
+      <td>${won(o.filled_price)}</td>
+      <td>${o.status || ''}</td>
+      <td><button class="cancel" data-order="${o.order_no}" data-code="${o.code}"
+            data-qty="${o.cancellable}" ${o.cancellable > 0 ? '' : 'disabled'}>취소</button></td>
+    </tr>`).join('') : '<tr><td colspan="8" class="empty">오늘 주문이 없습니다.</td></tr>';
+
+  for (const button of el('orders').querySelectorAll('.cancel:not([disabled])')) {
+    button.onclick = () => cancelOrder(button.dataset);
+  }
+}
+
+async function cancelOrder(row) {
+  if (!confirm(`주문번호 ${row.order} · ${row.code}
+취소 가능 수량 ${row.qty}주를 취소합니다.`)) return;
+  const data = await ask('/api/cancel', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order_no: Number(row.order), code: row.code }),
+  });
+  el('orders-msg').textContent = data.error || (data.message || '취소 요청을 보냈습니다.');
+  loadOrders();
+  loadAccount();
+}
+
 async function loadLimits() {
   const d = await ask('/api/limits');
   if (d.error) return;
@@ -197,6 +238,7 @@ async function sendOrder(event) {
     el('order-msg').textContent = `보냈습니다. 주문번호 ${data.order_no ?? '-'} · ${data.message ?? ''}`;
     el('o-qty').value = el('o-confirm').value = '';
     loadAccount();
+    loadOrders();
   }
   loadLimits();
   refreshOrderUi();
@@ -225,7 +267,8 @@ loadLimits();
 refreshOrderUi();
 document.getElementById('quote-form').addEventListener('submit', lookUp);
 loadAccount();
-setInterval(loadAccount, 60000);
+loadOrders();
+setInterval(() => { loadAccount(); loadOrders(); }, 60000);
 """
 
 
@@ -274,6 +317,17 @@ def render_desk(*, mode: str) -> str:
   <div class="suggest" id="suggest"></div>
   <div class="stats" id="quote" style="margin-top:16px"></div>
   <p class="msg" id="quote-msg"></p>
+</section>
+
+<section class="panel">
+  <h2>오늘 주문 <span class="hint">체결·미체결·취소 가능 수량</span></h2>
+  <table>
+    <thead><tr>
+      <th>종목</th><th>구분</th><th>수량</th><th>지정가</th><th>체결</th><th>체결가</th><th>상태</th><th></th>
+    </tr></thead>
+    <tbody id="orders"></tbody>
+  </table>
+  <p class="msg" id="orders-msg"></p>
 </section>
 
 <section class="panel">

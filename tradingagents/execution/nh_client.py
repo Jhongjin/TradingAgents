@@ -41,6 +41,8 @@ REVOKE_PATH = "/oauth2/revoke"
 
 # 현금 매수/매도 only. Credit and reserved orders exist in the catalogue and are
 # not wired: they are a different risk conversation, not a missing branch.
+SUCCESS_PREFIXES = ("0", "XA1")
+
 ORDER_PATHS = {
     "buy": ("/krstock/order/v1/cashBuy", "SCSOS61803A"),
     "sell": ("/krstock/order/v1/cashSell", "SCSOS61801A"),
@@ -252,9 +254,15 @@ class NHClient:
         base = self.config.quote_url if live_only else self.config.account_url
         response = self._request("POST", path, headers=headers, json_body={"Input_0": dict(payload)}, base_url=base)
         code = str(response.get("rsp_cd") or "")
-        # NH answers 200 with a business code; only some of them mean success,
-        # so a failure here must not look like an empty result upstream.
-        if code and not code.startswith("0"):
+        # NH answers HTTP 200 with a business code, and only some mean success,
+        # so a failure must not arrive upstream looking like an empty result.
+        #
+        # Observed successes: 00000, 00047 매수완료, 00164 정정완료, 00166 잔고,
+        # 00192 취소완료, XA102 조회완료. Observed failures: IGW40011/40018/
+        # 40023/40058/42903, 11165 계좌번호, 14580 장운영일. An unknown code is
+        # treated as a failure on purpose — reporting an order as placed when it
+        # was not is the expensive direction to be wrong in.
+        if code and not code.startswith(SUCCESS_PREFIXES):
             raise NHError(f"NH {path} -> {code}: {response.get('rsp_msg') or ''}")
         return response
 
@@ -316,6 +324,75 @@ class NHClient:
             "ssl_nmn_pr_dit_cd": "00",
             "rmt_mkt_cd": "SOR",
             "sor_mkt_sli_yn": "N",
+        })
+
+    def cancel_order(
+        self,
+        *,
+        order_no: int,
+        code: str,
+        quantity: int | None = None,
+        account_no: str | None = None,
+    ) -> Mapping[str, Any]:
+        """Cancel an order, all of it or part.
+
+        all_pat_dit_cd is 1 for the whole thing and 2 for a quantity, which is
+        how NH's own examples use it — 2 always arrives with cor_qty. Cancelling
+        never needs the live-trading gate: taking an order back is the safe
+        direction, and a gate that blocks it is a gate that traps you in a
+        position.
+        """
+
+        payload: dict[str, Any] = {
+            "act_no": account_no or self.config.account_no,
+            "org_mkt_orr_no": int(order_no),
+            "all_pat_dit_cd": "1" if quantity is None else "2",
+            "iem_cd": _code(code),
+        }
+        if quantity is not None:
+            if int(quantity) <= 0:
+                raise ValueError("quantity must be positive")
+            payload["cor_qty"] = int(quantity)
+        return self._call("/krstock/order/v1/cancel", "SCSOS61809A", payload)
+
+    def modify_order(
+        self,
+        *,
+        order_no: int,
+        code: str,
+        price: int,
+        account_no: str | None = None,
+    ) -> Mapping[str, Any]:
+        """Move an order to a new limit price, in full."""
+
+        if int(price) <= 0:
+            raise ValueError("price must be positive")
+        if not self.config.is_paper and not live_trading_enabled():
+            raise LiveTradingDisabledError(
+                "TRADINGAGENTS_ENABLE_LIVE_TRADING is not set; no live order will be changed"
+            )
+        return self._call("/krstock/order/v1/modify", "SCSOS61808A", {
+            "act_no": account_no or self.config.account_no,
+            "org_mkt_orr_no": int(order_no),
+            "all_pat_dit_cd": "1",
+            "iem_cd": _code(code),
+            "cor_pr": int(price),
+            "rmt_mkt_cd": "SOR",
+            "sor_mkt_sli_yn": "N",
+        })
+
+    def executions(self, *, on: str | None = None, account_no: str | None = None) -> Mapping[str, Any]:
+        """Today's orders and what became of them. `on` is YYYYMMDD."""
+
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        day = on or datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y%m%d")
+        return self._call("/krstock/inquiry/v1/dailyOrderExecution", "SCSOS630261", {
+            "orr_dt": "".join(ch for ch in str(day) if ch.isdigit())[:8],
+            "act_no": account_no or self.config.account_no,
+            "orr_mkt_cd": "00",
+            "ost_cns_dit": "0",
         })
 
     def buyable_quantity(self, code: str, price: int, account_no: str | None = None) -> Mapping[str, Any]:
