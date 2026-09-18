@@ -938,3 +938,27 @@ def test_the_sweep_reader_marks_the_live_rule_from_the_stored_config():
 
     # too few variants is a single replay, not a comparison
     assert _sweep_in(rows[:3]) is None
+
+
+def test_the_stop_loss_caption_admits_the_setting_was_picked_on_its_own_window():
+    """It came first where it was chosen and last on the year it never saw."""
+
+    from tradingagents.shorts.topics import BASELINE_LABEL, CHANGED_LABEL, backtest_caption
+
+    runs = {
+        BASELINE_LABEL: {"total_return": 0.5033},
+        CHANGED_LABEL: {"total_return": 1.2646, "benchmark_return": 1.684,
+                        "start_date": "2023-09-19", "end_date": "2026-09-18"},
+        "walkforward": {"count": 7, "place": 7, "return": 0.2643, "benchmark": 0.9812},
+    }
+    caption = backtest_caption(runs)
+    assert "7가지 중 꼴찌였습니다" in caption and "+26.4%" in caption
+    assert "고른 구간에서 1위였을 뿐" in caption
+
+    # a middling out-of-sample place is stated as a place, not as last
+    runs["walkforward"] = {"count": 7, "place": 3, "return": 0.49}
+    assert "7가지 중 3위였습니다" in backtest_caption(runs)
+
+    # and with no walk-forward run the caption simply does not claim one
+    runs.pop("walkforward")
+    assert "남겨둔" not in backtest_caption(runs)

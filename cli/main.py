@@ -1799,6 +1799,8 @@ def backtest_command(
     cash: float = typer.Option(50_000_000.0, "--cash", help="Starting capital."),
     label: str = typer.Option("rules", "--label", help="Which replay this is."),
     sweep: bool = typer.Option(False, "--sweep", help="Try several stop/target and variability settings and compare them."),
+    start_on: Optional[str] = typer.Option(None, "--start", help="Replay from this date instead of --years ago."),
+    end_on: Optional[str] = typer.Option(None, "--end", help="Replay up to this date instead of today."),
     persist: bool = typer.Option(False, "--persist", help="Store the result for the site."),
     output: Optional[Path] = typer.Option(None, "--output", help="Write the full result JSON here."),
 ):
@@ -1812,8 +1814,14 @@ def backtest_command(
     from tradingagents.harness.backtest import BacktestConfig, run_rule_backtest
     from tradingagents.screener.universe import load_naver_market_snapshot
 
-    end = date.today()
-    start = end - timedelta(days=int(years * 365))
+    # An explicit window is what a walk-forward needs: choose the setting on
+    # one stretch, then measure it on a stretch it has never seen. Picking the
+    # best of seven variants on the same three years they are then reported
+    # over is how a backtest flatters a rule that will not hold up.
+    end = date.fromisoformat(end_on) if end_on else date.today()
+    start = date.fromisoformat(start_on) if start_on else end - timedelta(days=int(years * 365))
+    if start >= end:
+        raise typer.BadParameter("--start must be before --end")
     fetch_start = (start - timedelta(days=260)).isoformat()  # the score needs history before day one
 
     console.print(f"[bold]Backtest[/bold] {start} → {end} · universe {universe} · top {top_n}")
@@ -2616,6 +2624,36 @@ def _stored_backtests(source: Optional[str]) -> dict | None:
             ).mappings()
             for row in rows:
                 found.setdefault(str(row["label"]), dict(row))
+
+            # The walk-forward check, if it has been run. The rule in force was
+            # chosen on the same window the before/after rows above measure, so
+            # those rows on their own are the flattering half of the story.
+            held_out = connection.execute(
+                text(
+                    "select label, total_return, benchmark_return from backtest_runs "
+                    "where label like 'walk-out:%' order by created_at desc"
+                )
+            ).mappings()
+            variants, seen = [], set()
+            for row in held_out:
+                name = str(row["label"]).split(":", 1)[-1]
+                if name in seen:
+                    continue
+                seen.add(name)
+                variants.append({"name": name, "total_return": float(row["total_return"] or 0.0),
+                                 "benchmark": row["benchmark_return"]})
+        if variants:
+            variants.sort(key=lambda item: -item["total_return"])
+            changed_name = CHANGED_LABEL.split(":", 1)[-1]
+            place = next((index + 1 for index, item in enumerate(variants)
+                          if item["name"] == changed_name), None)
+            if place is not None:
+                found["walkforward"] = {
+                    "count": len(variants),
+                    "place": place,
+                    "return": variants[place - 1]["total_return"],
+                    "benchmark": variants[0].get("benchmark"),
+                }
         return found or None
     except Exception:                                   # noqa: BLE001 - the other stories still work
         return None

@@ -96,6 +96,19 @@ class PipelineConfig:
     # And the part the first version of this comment left out: KOSPI returned
     # +168.4% over the same window. The change is an improvement on the old
     # rules and still behind simply holding the index.
+    #
+    # 2026-09-18, and this is the part that matters: the walk-forward says
+    # this setting is overfitted. Re-picked on 2023-09~2025-09 it still comes
+    # first (+88.9%), but on the held-out year 2025-09~2026-09 it comes LAST
+    # of the seven (+26.6%, Sharpe 0.85) — while the 5%/10% rule it replaced,
+    # which was last in training (+11.9%), returns +60.7% there. KOSPI did
+    # +98.0% over that year and every variant lost to it.
+    # Persisted as backtest_runs labelled "walk-in:*" and "walk-out:*".
+    #
+    # So the figures above are the flattering half: the window that chose the
+    # rule is the window that reports it. This value has NOT been reverted —
+    # that is an operator decision, not a code cleanup — but nothing should
+    # cite the three-year numbers as support without the held-out year.
     stop_loss_pct: float = 0.08
     take_profit_pct: float = 0.10
     max_holding_days: int = 20

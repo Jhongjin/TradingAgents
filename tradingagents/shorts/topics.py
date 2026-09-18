@@ -123,6 +123,19 @@ def backtest_caption(runs: Mapping[str, Mapping[str, Any]]) -> str:
     bench = after.get("benchmark_return")
     if bench is not None:
         caption += f". 같은 기간 코스피는 {float(bench) * 100:+.1f}%로, 바꾼 뒤에도 지수에는 못 미칩니다"
+
+    # The rule in force was picked on the very window the rows above measure,
+    # so those rows are the flattering half. The walk-forward re-picks on the
+    # first stretch and scores on a year it never saw: this setting came last
+    # of seven there. Publishing the improvement without that is selling it.
+    walk = runs.get("walkforward") or {}
+    place, count = walk.get("place"), walk.get("count")
+    if place and count:
+        where = "꼴찌였습니다" if place == count else f"{place}위였습니다"
+        caption += (
+            f". 다만 이 설정은 고른 구간에서 1위였을 뿐이고, 남겨둔 1년에서는 {count}가지 중 {where}"
+            f" ({float(walk.get('return') or 0.0) * 100:+.1f}%)"
+        )
     return caption
 
 
