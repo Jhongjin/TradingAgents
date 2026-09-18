@@ -127,13 +127,33 @@ def create_desk_app(*, token: str, client_factory=None) -> FastAPI:
     def account(request: Request) -> JSONResponse:
         return JSONResponse(_account_payload(request))
 
+    @app.get("/api/search")
+    def search(request: Request, q: str = Query(min_length=1, max_length=40)) -> JSONResponse:
+        """Name to code, locally. NH's quote call only speaks in codes."""
+
+        from tradingagents.dataflows.kr_ticker_directory import search_directory
+
+        found = search_directory(q, limit=8)
+        return JSONResponse({"results": [
+            {"code": entry.code, "name": entry.name, "market": entry.market} for entry in found
+        ]})
+
     @app.get("/api/quote")
-    def quote(request: Request, code: str = Query(min_length=1, max_length=12)) -> JSONResponse:
+    def quote(request: Request, code: str = Query(min_length=1, max_length=40)) -> JSONResponse:
         client = request.app.state.client_factory()
         if client is None:
             return JSONResponse({"error": _unconfigured()}, status_code=503)
+
+        # Typing 가온전선 and getting IGW40011 back is the API's answer, not a
+        # useful one. A name is resolved here so the broker only ever sees a code.
+        resolved, matches = _resolve(code)
+        if resolved is None:
+            return JSONResponse(
+                {"error": f"'{code}' 종목을 찾지 못했습니다.", "suggestions": matches},
+                status_code=404,
+            )
         try:
-            raw = client.current_price(code)
+            raw = client.current_price(resolved)
         except Exception as exc:                        # noqa: BLE001 - shown to one person
             return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
         return JSONResponse({"quote": _quote_row(raw)})
@@ -167,6 +187,16 @@ def create_desk_app(*, token: str, client_factory=None) -> FastAPI:
             price = int(body.get("price") or 0)
         except (TypeError, ValueError):
             return JSONResponse({"error": "수량과 가격은 숫자여야 합니다."}, status_code=400)
+
+        # A name in the order box has to become a code before anything is
+        # checked against it, and an ambiguous one must not become an order.
+        resolved, matches = _resolve(code)
+        if resolved is None:
+            return JSONResponse(
+                {"error": f"'{code}' 종목을 찾지 못했습니다. 코드로 입력해 주세요.", "suggestions": matches},
+                status_code=404,
+            )
+        code = resolved
 
         book = ledger()
         spent, count = today_spent(book)
@@ -203,7 +233,46 @@ def create_desk_app(*, token: str, client_factory=None) -> FastAPI:
             "amount": amount,
         })
 
+    @app.post("/api/mode")
+    def switch(request: Request, body: dict = Body(...)) -> JSONResponse:
+        """Swap between the paper and live account for this process.
+
+        Reading the live account is harmless; ordering into it still needs
+        TRADINGAGENTS_ENABLE_LIVE_TRADING, which is not something a page can
+        set. Switching is off unless TRADINGAGENTS_DESK_ALLOW_LIVE says so, so
+        the default desk cannot be pointed at real money by a mis-click.
+        """
+
+        import os
+
+        want = "paper" if str(body.get("mode") or "").strip().lower() != "live" else "live"
+        if want == "live" and (os.getenv("TRADINGAGENTS_DESK_ALLOW_LIVE") or "").strip().lower() not in {"1", "true", "yes", "on"}:
+            return JSONResponse(
+                {"error": "실계좌 전환이 꺼져 있습니다. .env 에 TRADINGAGENTS_DESK_ALLOW_LIVE=true 를 넣으세요."},
+                status_code=403,
+            )
+        os.environ["NH_IS_PAPER"] = "false" if want == "live" else "true"
+        return JSONResponse({"mode": want})
+
     return app
+
+
+def _resolve(value: str) -> tuple[str | None, list[dict[str, Any]]]:
+    """A six-digit code, or the names that might have been meant."""
+
+    from tradingagents.dataflows.kr_ticker_directory import lookup_directory, search_directory
+
+    text = str(value).strip()
+    digits = "".join(character for character in text if character.isdigit())
+    if digits and len(digits) <= 6 and not any(character.isalpha() for character in text):
+        return digits.zfill(6), []
+
+    found = search_directory(text, limit=8)
+    if len(found) == 1:
+        return found[0].code, []
+    if found:
+        return None, [{"code": e.code, "name": e.name, "market": e.market} for e in found]
+    return None, []
 
 
 # ------------------------------------------------------------------ reading

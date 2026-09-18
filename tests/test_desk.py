@@ -248,3 +248,47 @@ def test_the_desk_links_to_the_chart():
     with _client(_app()) as http:
         page = http.get("/?t=T0KEN")
     assert 'href="/gold"' in page.text and "골드 차트" in page.text
+
+
+def test_a_name_is_turned_into_a_code_before_the_broker_sees_it():
+    """Typing 가온전선 got IGW40011 back, which is the API's answer not a useful one."""
+
+    from tradingagents.desk.app import _resolve
+
+    assert _resolve("가온전선")[0] == "000500"
+    assert _resolve("005930")[0] == "005930"
+    assert _resolve("5930")[0] == "005930"              # padded, as NH wants six
+
+    # several matches is not a pick: the caller is offered the names instead
+    code, suggestions = _resolve("삼성")
+    assert code is None and len(suggestions) > 1
+    assert all({"code", "name", "market"} <= set(item) for item in suggestions)
+
+    assert _resolve("존재하지않는종목")[0] is None
+
+
+def test_an_unknown_name_is_a_404_with_the_near_misses():
+    with _client(_app()) as http:
+        response = http.get("/api/quote?code=삼성&t=T0KEN")
+    assert response.status_code == 404
+    body = response.json()
+    assert "찾지 못했습니다" in body["error"]
+    assert len(body["suggestions"]) > 1
+
+
+def test_switching_to_the_live_account_is_off_unless_it_is_turned_on(monkeypatch):
+    monkeypatch.delenv("TRADINGAGENTS_DESK_ALLOW_LIVE", raising=False)
+    monkeypatch.setenv("NH_IS_PAPER", "true")
+    with _client(_app()) as http:
+        blocked = http.post("/api/mode?t=T0KEN", json={"mode": "live"})
+        assert blocked.status_code == 403
+        assert "TRADINGAGENTS_DESK_ALLOW_LIVE" in blocked.json()["error"]
+        # and the desk is still looking at paper afterwards
+        assert http.get("/api/limits?t=T0KEN").json()["mode"] == "paper"
+
+    monkeypatch.setenv("TRADINGAGENTS_DESK_ALLOW_LIVE", "true")
+    with _client(_app()) as http:
+        assert http.post("/api/mode?t=T0KEN", json={"mode": "live"}).json()["mode"] == "live"
+        assert http.get("/api/limits?t=T0KEN").json()["mode"] == "live"
+        # going back needs no permission at all
+        assert http.post("/api/mode?t=T0KEN", json={"mode": "paper"}).json()["mode"] == "paper"

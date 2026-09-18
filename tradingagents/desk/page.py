@@ -25,7 +25,14 @@ h1 { font-size: 22px; letter-spacing: -0.02em; }
 .badge {
   font-size: 12px; font-weight: 700; letter-spacing: 0.06em; padding: 3px 9px;
   border-radius: 999px; border: 1px solid currentColor;
+  background: transparent; cursor: pointer; font-family: inherit;
 }
+.suggest { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 7px; }
+.suggest button {
+  background: transparent; border: 1px solid var(--line); color: var(--ink2);
+  font-size: 13px; font-weight: 400; padding: 5px 11px; border-radius: 999px;
+}
+.suggest button:hover { color: var(--ink); border-color: var(--accent); }
 .badge.paper { color: var(--accent); }
 .badge.live { color: var(--warn); }
 .local { margin-left: auto; font-size: 12px; color: var(--muted); }
@@ -113,11 +120,23 @@ async function loadAccount() {
 }
 
 async function lookUp(event) {
-  event.preventDefault();
+  if (event) event.preventDefault();
   const code = el('code').value.trim();
   if (!code) return;
   const data = await ask('/api/quote?code=' + encodeURIComponent(code));
-  if (data.error) { el('quote-msg').textContent = data.error; el('quote').innerHTML = ''; return; }
+  el('suggest').innerHTML = '';
+  if (data.error) {
+    el('quote-msg').textContent = data.error;
+    el('quote').innerHTML = '';
+    // several names matched: offer them rather than making them guess again
+    for (const s of (data.suggestions || [])) {
+      const b = document.createElement('button');
+      b.textContent = `${s.name} ${s.code}`;
+      b.onclick = () => { el('code').value = s.code; lookUp(); };
+      el('suggest').appendChild(b);
+    }
+    return;
+  }
   el('quote-msg').textContent = '';
   const q = data.quote || {};
   el('quote').innerHTML = `
@@ -187,6 +206,21 @@ for (const id of ['o-qty', 'o-price', 'o-confirm']) {
   el(id).addEventListener('input', refreshOrderUi);
 }
 document.getElementById('order-form').addEventListener('submit', sendOrder);
+async function switchMode() {
+  const now = el('mode-btn').textContent.trim();
+  const want = now === '모의투자' ? 'live' : 'paper';
+  if (want === 'live' && !confirm('실계좌로 전환합니다.
+
+조회는 실제 계좌를 봅니다. 주문은 별도 설정이 없으면 여전히 막혀 있습니다.')) return;
+  const data = await ask('/api/mode', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode: want }),
+  });
+  if (data.error) { el('account-msg').textContent = data.error; return; }
+  location.reload();
+}
+
+el('mode-btn').addEventListener('click', switchMode);
 loadLimits();
 refreshOrderUi();
 document.getElementById('quote-form').addEventListener('submit', lookUp);
@@ -210,7 +244,7 @@ def render_desk(*, mode: str) -> str:
 
 <header>
   <h1>데스크</h1>
-  <span class="badge {mode}">{label}</span>
+  <button type="button" class="badge {mode}" id="mode-btn" title="클릭해서 전환">{label}</button>
   <a class="tab" href="/gold">골드 차트</a>
   <span class="local">이 페이지는 이 컴퓨터에서만 열립니다 · 127.0.0.1</span>
 </header>
@@ -234,9 +268,10 @@ def render_desk(*, mode: str) -> str:
 <section class="panel">
   <h2>현재가 조회</h2>
   <form id="quote-form">
-    <input id="code" placeholder="종목코드 예: 005930" autocomplete="off" />
+    <input id="code" placeholder="종목명 또는 코드 · 삼성전자 / 005930" autocomplete="off" />
     <button type="submit">조회</button>
   </form>
+  <div class="suggest" id="suggest"></div>
   <div class="stats" id="quote" style="margin-top:16px"></div>
   <p class="msg" id="quote-msg"></p>
 </section>
@@ -245,7 +280,7 @@ def render_desk(*, mode: str) -> str:
   <h2>주문 <span class="hint">지정가만 · 모의투자 계좌</span></h2>
   <form id="order-form" class="order">
     <label>구분<select id="side"><option value="buy">매수</option><option value="sell">매도</option></select></label>
-    <label>종목코드<input id="o-code" placeholder="005930" autocomplete="off" /></label>
+    <label>종목<input id="o-code" placeholder="종목명 또는 코드" autocomplete="off" /></label>
     <label>수량<input id="o-qty" inputmode="numeric" autocomplete="off" /></label>
     <label>지정가<input id="o-price" inputmode="numeric" autocomplete="off" /></label>
     <label>수량 다시 입력<input id="o-confirm" inputmode="numeric" autocomplete="off" placeholder="확인" /></label>
