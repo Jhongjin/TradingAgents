@@ -229,11 +229,19 @@ def compose_issue_messages(run_payload: Mapping[str, Any], *, issue_number: int,
     date_text = str(run.get("as_of_date") or "")
     base = (site_base_url or "").rstrip("/")
     link = f"{base}/harness/{run.get('id')}" if base else f"/harness/{run.get('id')}"
+    # An intraday pass only closes positions; its own notes say the screener
+    # was not run. Reporting that as "0개 후보를 살폈지만 통과한 종목이 없습니다"
+    # tells a subscriber the screen looked and found nothing, when it never
+    # looked — and it is the morning screen they are waiting to hear about.
+    screened = bool(int(run.get("universe_size") or 0)) or bool(decisions)
     if ordered:
         names = ", ".join(f"{item.get('ticker_name') or item.get('ticker_code')}({item.get('ticker_code')})" for item in ordered[:5])
         head = f"<b>제 {issue_number}호 · {date_text}</b>\n{total}개 후보 중 {len(ordered)}개 통과: {names}"
-    else:
+    elif screened:
         head = f"<b>제 {issue_number}호 · {date_text}</b>\n{total}개 후보를 살폈지만 통과한 종목이 없습니다."
+    else:
+        head = (f"<b>제 {issue_number}호 · {date_text}</b>\n"
+                "이번 실행은 보유 종목 정리만 확인했습니다. 새로 고른 종목은 없습니다.")
     # A run with no confirmer has no rating to report. A dash where the verdict
     # goes reads as a missing value rather than as what actually happened,
     # which is that the rules passed it and no AI was asked.
@@ -248,8 +256,15 @@ def compose_issue_messages(run_payload: Mapping[str, Any], *, issue_number: int,
     record = f"\n{'토론 전문' if argued else '선별 기록'}: {link}"
     paid = head + ("\n" + "\n".join(lines) if lines else "") + record + "\n\nAI 분석 자료이며 매매 권유가 아닙니다."
     free = (
-        f"<b>제 {issue_number}호 · {date_text}</b>\n{total}개 후보 중 {len(ordered)}개가 통과했습니다. "
-        f"종목과 토론 전문은 데일리 패스에서 실행 즉시 열리고, 무료 플랜은 다음 거래일에 공개됩니다.\n{base or ''}/pricing"
+        (
+            f"<b>제 {issue_number}호 · {date_text}</b>\n{total}개 후보 중 {len(ordered)}개가 통과했습니다. "
+            f"종목과 토론 전문은 데일리 패스에서 실행 즉시 열리고, 무료 플랜은 다음 거래일에 공개됩니다.\n{base or ''}/pricing"
+        )
+        if screened
+        else (
+            f"<b>제 {issue_number}호 · {date_text}</b>\n이번 실행은 보유 종목 정리만 확인했습니다. "
+            f"새로 고른 종목은 아침 선별에서 나옵니다.\n{base or ''}/pricing"
+        )
     )
     record = account_line(account, base=base)
     if record:
@@ -275,7 +290,14 @@ def notify_harness_issue(
     if harness_run_id:
         target = next((item for item in items if item.get("id") == harness_run_id), None)
     else:
-        target = items[0] if items else None
+        # The newest run is usually an intraday exits-only pass, which screens
+        # nothing. Handing that a newsletter number spends an issue saying the
+        # screen found nobody — on a pass that never looked — and pushes the
+        # morning screen, the thing subscribers signed up for, out of the
+        # numbering entirely. 제 50호 went out that way.
+        target = next((item for item in items if int(item.get("universe_size") or 0)), None) or (
+            items[0] if items else None
+        )
     if not target:
         return {"status": "no_run", "sent": 0}
     if (target.get("metadata") or {}).get("notified_at") and not force:

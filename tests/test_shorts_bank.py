@@ -232,17 +232,24 @@ def test_an_upload_that_returns_no_id_stops_the_flow_instead_of_announcing_it():
     nodes = {node["name"]: node for node in flow["nodes"]}
     check = nodes["업로드 확인"]
 
-    # it throws, so 실패 감지 picks it up and the alert carries what YouTube said
-    assert "throw new Error" in check["parameters"]["jsCode"]
-    assert "JSON.stringify(up)" in check["parameters"]["jsCode"]
-    assert check.get("onError") is None                  # continuing would defeat the point
+    # It used to throw. Throwing killed the reply, so three mornings in a row
+    # there was nothing to inspect — and the video was on the channel each
+    # time. It hands the upload node's own output through instead.
+    code = check["parameters"]["jsCode"]
+    assert "throw new Error" not in code
+    assert "findId" in code and "upload: up" in code
 
     # and it sits between the upload and everything that announces a success
     assert flow["connections"]["유튜브 업로드"]["main"][0][0]["node"] == "업로드 확인"
-    for name in ("채널 댓글", "텔레그램 알림", "업로드 결과 회신"):
+    for name in ("채널 댓글", "텔레그램 알림"):
         blob = _json.dumps(nodes[name]["parameters"], ensure_ascii=False)
         assert "$('업로드 확인').first().json.videoId" in blob, name
         assert "$('유튜브 업로드')" not in blob, name     # the unchecked id is gone
+
+    # the reply carries the raw output so the PC can find the id itself
+    reply = nodes["업로드 결과 회신"]["parameters"]["responseBody"]
+    assert "$('업로드 확인').first().json.videoId" in reply
+    assert "upload: $('유튜브 업로드').first().json" in reply
 
 
 def test_the_upload_flow_posts_a_comment_and_says_what_it_cannot_do():
@@ -305,7 +312,7 @@ def test_a_200_with_no_video_id_is_a_failure_not_a_footnote():
 
     source = inspect.getsource(cli.shorts_daily_command)
     # the id is what proves YouTube saw the file; without it the run stops
-    assert 'video_id = str(answer.get("videoId") or "").strip()' in source
+    assert "video_id = _video_id_in(answer)" in source
     assert "videoId 를 받지 못했습니다." in source
     assert "raise typer.Exit(code=1)" in source.split("videoId 를 받지 못했습니다.", 1)[1]
 
@@ -623,7 +630,7 @@ def test_an_upload_with_no_id_still_burns_the_story():
     from cli import main as cli
 
     source = inspect.getsource(cli.shorts_daily_command)
-    head, tail = source.split('video_id = str(answer.get("videoId") or "").strip()', 1)
+    head, tail = source.split("video_id = _video_id_in(answer)", 1)
     failure, success = tail.split("[green]발행 완료", 1)
     # the no-id branch records the story and still exits non-zero
     assert "record_published(story.key, video_id=None" in failure
@@ -750,3 +757,24 @@ def test_the_shortlist_story_is_on_the_shelf_once_it_has_both_sides():
     assert BY_KEY["rejected"].renderer == "rejected"
     # nothing to compare, nothing on the shelf
     assert "rejected" not in {item.story.key for item in evaluate(payload, now=MONDAY, ledger=[])}
+
+
+def test_the_video_id_is_found_wherever_n8n_put_it():
+    """Three mornings reported nothing published while the video was live."""
+
+    from cli.main import _video_id_in
+
+    # the shape we always expected
+    assert _video_id_in({"ok": True, "videoId": "63THZaQxMn0"}) == "63THZaQxMn0"
+    # what the upload node actually hands back, nested
+    assert _video_id_in({"videoId": "", "upload": {"id": {"videoId": "dQw4w9WgXcQ"}}}) == "dQw4w9WgXcQ"
+    assert _video_id_in({"upload": {"id": "dQw4w9WgXcQ"}}) == "dQw4w9WgXcQ"
+    assert _video_id_in({"upload": [{"snippet": {"resourceId": {"videoId": "dQw4w9WgXcQ"}}}]}) == "dQw4w9WgXcQ"
+
+    # and nothing that is not an eleven-character id gets mistaken for one
+    assert _video_id_in({"ok": True, "videoId": "", "story": "curve"}) == ""
+    assert _video_id_in({"upload": {"id": "abc"}}) == ""
+    assert _video_id_in({"upload": {"kind": "youtube#video", "etag": "x" * 40}}) == ""
+    assert _video_id_in(None) == "" and _video_id_in("") == ""
+    # a self-referencing structure cannot spin it forever
+    assert _video_id_in({"a": {"b": {"c": {"d": {"e": {"f": {"videoId": "dQw4w9WgXcQ"}}}}}}}) == ""

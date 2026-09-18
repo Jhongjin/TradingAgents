@@ -128,3 +128,41 @@ def test_telegram_client_errors_surface():
     assert failing.get_me()["username"] == "TradingAgentsKRBot"
     assert failing.set_webhook("https://example.com/hook", secret_token="s") is True
     assert failing.get_webhook_info()["pending_update_count"] == 0
+
+
+def test_an_exits_only_pass_does_not_claim_the_screen_looked_and_found_nothing():
+    """It went out as "0개 후보를 살폈지만" on a pass that never screened."""
+
+    from tradingagents.site.notifications import compose_issue_messages
+
+    exits_only = {
+        "run": {"id": "abc", "as_of_date": "2026-09-17", "confirmer": "none", "universe_size": 0,
+                "notes": ["exits-only pass: the screener was not run"]},
+        "decisions": [],
+    }
+    message = compose_issue_messages(exits_only, issue_number=50, site_base_url="https://agenttrust.kr")
+    assert all("0개 후보를 살폈지만" not in text for text in message.values())
+    assert "보유 종목 정리만 확인했습니다" in message["paid"]
+    assert "보유 종목 정리만 확인했습니다" in message["free"]   # the teaser lied the same way
+
+    # a screen that genuinely passed nobody still says so
+    screened = {
+        "run": {"id": "abc", "as_of_date": "2026-09-17", "confirmer": "none", "universe_size": 349},
+        "decisions": [{"stage": "forecast_rejected", "ticker_code": "005930", "ticker_name": "삼성전자"}],
+    }
+    message = compose_issue_messages(screened, issue_number=51, site_base_url="https://agenttrust.kr")
+    assert "1개 후보를 살폈지만 통과한 종목이 없습니다" in message["paid"]
+
+
+def test_the_daily_issue_reports_the_morning_screen_not_the_last_intraday_pass():
+    """제 50호 was spent on an exits-only pass that screened nothing."""
+
+    import inspect
+
+    from tradingagents.site import notifications
+
+    source = inspect.getsource(notifications.notify_harness_issue)
+    picker = source.split("if harness_run_id:", 1)[1].split("if not target", 1)[0]
+    assert 'int(item.get("universe_size") or 0)' in picker
+    # and it still sends something rather than nothing when only exits ran
+    assert "items[0] if items else None" in picker

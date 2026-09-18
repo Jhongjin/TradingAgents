@@ -74,7 +74,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// 2026-09-16: 유튜브 노드가 오류 없이 빈 항목을 돌려준 날이 있었습니다. 체인은\n// 그대로 흘러 텔레그램은 링크 없는 '발행' 알림을 보냈고, PC 는 발행 기록에 적었고,\n// 채널에는 아무것도 올라오지 않았습니다. id 가 없으면 그것은 업로드가 아닙니다.\n// 여기서 멈추면 실패 감지가 받아 텔레그램으로 이 메시지를 그대로 보냅니다.\nconst up = $input.first().json || {};\nconst id = (up.id && up.id.videoId) || (typeof up.id === 'string' ? up.id : '') || up.videoId || '';\nif (!id) {\n  throw new Error('유튜브가 영상 id 를 돌려주지 않았습니다. 업로드 노드가 내놓은 것: ' + JSON.stringify(up).slice(0, 500));\n}\nreturn [{ json: { ...$('받은 것 확인').first().json, videoId: id } }];"
+        "jsCode": "// 2026-09-18: three mornings in a row the reply carried no videoId while\n// the video itself was on the channel. Throwing here killed the reply and\n// left nothing to inspect, so this now hands the upload node's own output\n// through and lets the PC find the id in whatever shape it arrived.\nconst up = $input.first().json || {};\nfunction findId(value, depth) {\n  if (depth > 4 || value == null) return '';\n  if (typeof value === 'string') return /^[A-Za-z0-9_-]{11}$/.test(value) ? value : '';\n  if (Array.isArray(value)) {\n    for (const item of value) { const hit = findId(item, depth + 1); if (hit) return hit; }\n    return '';\n  }\n  if (typeof value !== 'object') return '';\n  for (const key of ['videoId', 'id']) {\n    if (key in value) { const hit = findId(value[key], depth + 1); if (hit) return hit; }\n  }\n  for (const key of Object.keys(value)) {\n    const hit = findId(value[key], depth + 1); if (hit) return hit;\n  }\n  return '';\n}\nreturn [{ json: { ...$('받은 것 확인').first().json, videoId: findId(up, 0), upload: up } }];"
       },
       "id": "b2000000-0000-4000-8000-000000000009",
       "name": "업로드 확인",
@@ -84,7 +84,7 @@
         100,
         320
       ],
-      "notes": "업로드가 정말 되었는지 확인합니다. id 가 없으면 여기서 실패로 처리해 실패 알림이 유튜브 노드의 응답을 그대로 보내줍니다. 이 노드를 지우면 조용한 실패가 다시 '발행 완료'로 보고됩니다."
+      "notes": "유튜브 노드가 돌려준 것에서 영상 id 를 찾습니다. 못 찾아도 멈추지 않고 원본을 그대로 실어 보냅니다 — 멈추면 회신 자체가 사라져서 무엇이 왔는지 볼 수가 없습니다. PC 쪽이 id 없는 응답을 실패로 처리합니다."
     },
     {
       "parameters": {
@@ -148,7 +148,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: true, videoId: $('업로드 확인').first().json.videoId, story: $('받은 것 확인').first().json.story }) }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, videoId: $('업로드 확인').first().json.videoId, story: $('받은 것 확인').first().json.story, upload: $('유튜브 업로드').first().json }) }}",
         "options": {}
       },
       "id": "b2000000-0000-4000-8000-000000000005",

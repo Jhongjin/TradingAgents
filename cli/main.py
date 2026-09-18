@@ -1,5 +1,6 @@
 from typing import Any, Mapping, Optional, Sequence
 import datetime
+import re as _re
 import typer
 from pathlib import Path
 from functools import wraps
@@ -2264,6 +2265,44 @@ SURVIVING_STAGES = {"ordered", "exit"}
 RATING_WORDS = {"overweight": "비중 확대", "underweight": "비중 축소", "neutral": "중립"}
 
 
+YOUTUBE_ID = _re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def _video_id_in(answer: Any, depth: int = 0) -> str:
+    """The YouTube id somewhere in n8n's reply, whatever shape it came in.
+
+    Reading only answer["videoId"] meant three mornings reported nothing
+    published while the video was on the channel: the upload works and only
+    the path to its id was wrong. The reply now carries the upload node's own
+    output, and an 11-character id is distinctive enough to find in it without
+    knowing which key n8n chose this week.
+    """
+
+    if depth > 5 or answer is None:
+        return ""
+    if isinstance(answer, str):
+        return answer if YOUTUBE_ID.match(answer) else ""
+    if isinstance(answer, (list, tuple)):
+        for item in answer:
+            found = _video_id_in(item, depth + 1)
+            if found:
+                return found
+        return ""
+    if not isinstance(answer, Mapping):
+        return ""
+    # the named keys first, so a real id always beats a lookalike elsewhere
+    for key in ("videoId", "id"):
+        if key in answer:
+            found = _video_id_in(answer[key], depth + 1)
+            if found:
+                return found
+    for value in answer.values():
+        found = _video_id_in(value, depth + 1)
+        if found:
+            return found
+    return ""
+
+
 def _funnel_in(run: dict) -> dict | None:
     """The screen this run ran, stage by stage, with what survived each one.
 
@@ -2826,7 +2865,7 @@ def shorts_daily_command(
         answer = response.json() or {}
     except ValueError:
         answer = {}
-    video_id = str(answer.get("videoId") or "").strip()
+    video_id = _video_id_in(answer)
     if not video_id:
         # A 200 with no id used to be treated as "nothing was published", and
         # the ledger got no row. Then 09-17 went up on the channel anyway: the
@@ -2837,7 +2876,10 @@ def shorts_daily_command(
         # this as a clean morning.
         console.print("[red]videoId 를 받지 못했습니다.[/red] n8n 이 id 없이 응답했습니다. "
                       "유튜브에는 올라갔을 수 있으니 채널을 확인해 주세요.")
-        console.print(f"[dim]n8n 응답: {response.status_code} {response.text[:200]}[/dim]")
+        # The whole body, not a 200-character slice: the point of this line is
+        # to show what the upload node actually returned, and the shape is the
+        # thing we have been guessing at for three mornings.
+        console.print(f"[dim]n8n 응답 {response.status_code}:[/dim] {response.text[:2000]}")
         console.print(f"[dim]영상 파일: {video}[/dim]")
         record_published(story.key, video_id=None, path=ledger, title=title, confirmed=False)
         console.print("[yellow]같은 이야기가 내일 또 나가지 않도록 발행 기록에는 남겼습니다.[/yellow]")

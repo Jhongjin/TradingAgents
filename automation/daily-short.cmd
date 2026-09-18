@@ -8,6 +8,18 @@ rem
 rem Register with Task Scheduler (weekdays 08:40 KST):
 rem   schtasks /create /tn "AgentTrust Daily Short" /tr "D:\Codex\TradingAgents\automation\daily-short.cmd" /sc weekly /d MON,TUE,WED,THU,FRI /st 08:40 /rl highest /f
 rem
+rem schtasks cannot set these three, and without them a morning is simply lost.
+rem 2026-09-18: the PC booted at 08:36:59 and the scheduler had not picked the
+rem 08:40 trigger up in time; the run was skipped and the next one moved to
+rem Monday, so Friday had no video and nothing said so. Run this straight after
+rem the create above:
+rem
+rem   powershell -NoProfile -Command "$t = Get-ScheduledTask -TaskName 'AgentTrust Daily Short'; $t.Settings.StartWhenAvailable = $true; $t.Settings.WakeToRun = $true; $t.Settings.DisallowStartIfOnBatteries = $false; $t.Settings.StopIfGoingOnBatteries = $false; Set-ScheduledTask -TaskName 'AgentTrust Daily Short' -Settings $t.Settings"
+rem
+rem   StartWhenAvailable  - a missed 08:40 runs as soon as the machine is back
+rem   WakeToRun           - a sleeping machine wakes for it
+rem   DisallowStartIfOnBatteries - off, or a laptop on battery never publishes
+rem
 rem Remove it again:
 rem   schtasks /delete /tn "AgentTrust Daily Short" /f
 
