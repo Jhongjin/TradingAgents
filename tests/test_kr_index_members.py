@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from tradingagents.dataflows.kr_index_members import (
     INDEX_ETFS,
     MEMBERS_PATH,
@@ -154,3 +156,70 @@ def test_without_the_stored_file_the_old_bounded_universe_is_still_there(monkeyp
     monkeypatch.setenv("TRADINGAGENTS_INDEX_MEMBERS_PATH", str(tmp_path / "absent.json"))
     codes, source = _fallback_codes(150)
     assert source == "fallback universe" and codes
+
+
+def _flat_history(code, start, end):
+    return [{"date": f"2026-09-{day:02d}", "close": 10_000 + hash(code) % 500,
+             "volume": 500_000, "value": 5_000_000_000} for day in range(1, 19)]
+
+
+def test_the_index_can_be_priced_with_no_ranking_vendor_at_all():
+    """Naver deleted the KOSPI200 constituent page; that URL answers 410 now."""
+
+    from tradingagents.screener.universe import load_stored_index_snapshot
+
+    snapshot = load_stored_index_snapshot("2026-09-18", _flat_history, limit=40)
+    assert len(snapshot.rows) == 40
+    assert "stored membership" in snapshot.vendor
+    # names come from the stored file; a screen listing six-digit numbers is
+    # a screen nobody reads
+    assert snapshot.rows[0].name and not snapshot.rows[0].name.isdigit()
+    assert {row.market for row in snapshot.rows} <= {"KOSPI", "KOSDAQ"}
+
+
+def test_pricing_the_stored_index_refuses_rather_than_returning_nothing():
+    from tradingagents.dataflows.errors import VendorUnavailableError
+    from tradingagents.screener.universe import load_stored_index_snapshot
+
+    with pytest.raises(VendorUnavailableError):
+        load_stored_index_snapshot("2026-09-18", lambda *a: [], limit=10)
+
+
+def test_index_mode_survives_every_ranking_vendor_being_dead(monkeypatch):
+    """Exactly production: index mode, an explicit list set, nothing answering."""
+
+    from tradingagents.dataflows.errors import VendorUnavailableError
+    from tradingagents.screener import ScreenerConfig, screener as S, universe as U
+
+    def dead(*args, **kwargs):
+        raise VendorUnavailableError("410 Gone")
+
+    monkeypatch.setattr(U, "load_kospi200_rows", dead)
+    monkeypatch.setattr(U, "load_naver_market_snapshot", dead)
+    monkeypatch.setattr(S, "load_naver_market_snapshot", dead)
+    monkeypatch.setattr(S, "load_market_snapshot", dead)
+    monkeypatch.setenv("TRADINGAGENTS_SCREENER_SNAPSHOT_MODE", "index")
+    monkeypatch.setenv("TRADINGAGENTS_SCREENER_UNIVERSE", "005930,000660")
+
+    points = [{"date": f"2026-09-{day:02d}", "close": 10_000 + day * 40,
+               "volume": 400_000, "value": 4_000_000_000} for day in range(1, 19)]
+    result = S.screen_korean_market(
+        "2026-09-18",
+        config=ScreenerConfig(top_n=10, min_composite=-10),
+        history_fetcher=lambda code, s, e: points,
+    )
+
+    # the twenty-name list must not shadow the index: this loader runs first
+    assert result.universe_size > 100
+    assert any("stored membership" in note for note in result.notes)
+
+
+def test_a_code_the_resolver_refuses_does_not_take_the_snapshot_with_it():
+    """0126Z0 is a real KRX code and resolve_kr_ticker raises on it."""
+
+    from tradingagents.screener.universe import build_snapshot_from_history
+
+    snapshot = build_snapshot_from_history(
+        ["005930", "0126Z0", "000660"], "2026-09-18", _flat_history, lookback_days=30,
+    )
+    assert [row.code for row in snapshot.rows] == ["005930", "000660"]

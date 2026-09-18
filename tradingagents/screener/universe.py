@@ -9,7 +9,7 @@ for the names that pass the liquidity and valuation pre-filters.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import date, datetime, timedelta
 import os
 from typing import Any, Callable, Mapping, Sequence
@@ -141,6 +141,7 @@ def build_snapshot_from_history(
     end = _coerce_date(as_of_date)
     start = end - timedelta(days=lookback_days)
     rows: list[MarketSnapshotRow] = []
+    skipped_codes: list[str] = []
     latest_date: str | None = None
     for code in codes:
         try:
@@ -151,7 +152,17 @@ def build_snapshot_from_history(
         if not points:
             continue
         last = points[-1]
-        resolved = resolve_kr_ticker(code, lookup_pykrx=False)
+        try:
+            resolved = resolve_kr_ticker(code, lookup_pykrx=False)
+        except ValueError:
+            # Not every KRX code is six digits. Newly listed and spun-off shares
+            # carry codes like 0126Z0, which the resolver refuses — and the
+            # refusal used to escape this loop and take the whole snapshot with
+            # it. Skipping one name is the only safe answer here: without the
+            # resolver there is no way to tell whether it is KOSPI or KOSDAQ,
+            # and guessing would corrupt the split the screener ranks within.
+            skipped_codes.append(code)
+            continue
         market = resolved.market if resolved.market in selected else ("UNKNOWN" if resolved.market == "UNKNOWN" else None)
         if market is None:
             continue
@@ -666,15 +677,21 @@ def load_index_snapshot(
     market_sum_page_fetcher: PageFetcher | None = None,
     kosdaq150_codes: Sequence[str] | None = None,
     kosdaq_scan_pages: int = 6,
+    history_fetcher: Callable[[str, str, str], Sequence[Mapping[str, Any]]] | None = None,
+    universe_size: int | None = None,
 ) -> MarketSnapshot:
     """Snapshot over the KOSPI200 + KOSDAQ150 universe.
 
-    * KOSPI200 rows come straight from Naver's constituent pages (price,
-      volume, trading value, market cap).
-    * KOSDAQ150 codes come from ``kosdaq150_codes`` or pykrx (needs a KRX
-      account); the rows themselves come from the Naver market-cap ranking.
-      Without a constituent list the top ``KOSDAQ150_PROXY_SIZE`` KOSDAQ names by
-      market cap stand in, and the snapshot notes say so.
+    * KOSPI200 rows came from Naver's constituent pages until Naver deleted
+      them; that URL now answers 410 and will not come back, so the stored ETF
+      holdings are the membership and the prices come from elsewhere.
+    * KOSDAQ150 codes come from ``kosdaq150_codes``, the stored holdings, or
+      pykrx; the rows themselves come from the Naver market-cap ranking.
+
+    ``history_fetcher`` is the last resort and the only one that needs no
+    ranking vendor at all: membership from the stored file, prices from
+    per-ticker history. That combination is what works on a serverless host,
+    where every whole-market endpoint is refused.
     """
 
     selected = tuple(_normalize_market(market) for market in markets)
@@ -714,6 +731,45 @@ def load_index_snapshot(
     if not rows:
         raise VendorUnavailableError("index universe produced no rows")
     return MarketSnapshot(as_of_date=_coerce_date(as_of_date).isoformat(), markets=selected, rows=rows, vendor="index:" + ", ".join(notes))
+
+
+def load_stored_index_snapshot(
+    as_of_date: str | date | None,
+    history_fetcher: Callable[[str, str, str], Sequence[Mapping[str, Any]]],
+    *,
+    markets: tuple[str, ...] | list[str] = SUPPORTED_MARKETS,
+    limit: int = 150,
+    lookback_days: int = 330,
+) -> MarketSnapshot:
+    """The index, priced one ticker at a time, with no ranking vendor involved.
+
+    Membership is the checked-in ETF holdings, so it needs no network. Prices
+    come from per-ticker daily history, which is the one market call that still
+    works from a serverless host. Between them there is nothing left to be
+    blocked.
+    """
+
+    from tradingagents.dataflows.kr_index_members import index_universe
+
+    members = index_universe(limit=max(int(limit), 1))
+    if not members:
+        raise VendorUnavailableError("no stored index membership to price")
+
+    snapshot = build_snapshot_from_history(
+        [code for code, _ in members], as_of_date, history_fetcher,
+        markets=markets, lookback_days=lookback_days,
+    )
+    named = dict(members)
+    # build_snapshot_from_history only knows codes; the stored file knows names,
+    # and a screen listing six-digit numbers is a screen nobody reads.
+    rows = [
+        replace(row, name=named.get(row.code) or row.name)
+        for row in snapshot.rows
+    ]
+    return MarketSnapshot(
+        as_of_date=snapshot.as_of_date, markets=snapshot.markets, rows=rows,
+        vendor=f"index:stored membership of {len(members)}, priced per ticker",
+    )
 
 
 def _index_codes_from_file(index: str) -> list[str]:

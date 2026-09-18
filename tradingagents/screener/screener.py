@@ -18,6 +18,7 @@ from .universe import (
     load_index_snapshot,
     load_market_snapshot,
     load_naver_market_snapshot,
+    load_stored_index_snapshot,
 )
 
 
@@ -201,6 +202,15 @@ def screen_korean_market(
                     loaders.append(("pykrx", lambda: load_market_snapshot(as_of_date, markets=config.markets)))
                 if snapshot_mode == "index":
                     loaders.append(("index", lambda: load_index_snapshot(as_of_date, markets=config.markets)))
+                    # Naver deleted the KOSPI200 constituent page — that URL
+                    # answers 410 now and is not coming back — so the loader
+                    # above fails outright on a host where pykrx is also
+                    # blocked. This one needs no ranking vendor: membership from
+                    # the stored file, prices one ticker at a time.
+                    loaders.append(("index-stored", lambda: load_stored_index_snapshot(
+                        as_of_date, cached_fetcher, markets=config.markets, limit=universe_size,
+                        lookback_days=int(config.history_days * 1.6) + 10,
+                    )))
                 if snapshot_mode in {"auto", "naver"}:
                     loaders.append(("naver", lambda: load_naver_market_snapshot(as_of_date, markets=config.markets, max_rows_per_market=universe_size)))
             for vendor_name, loader in loaders:
