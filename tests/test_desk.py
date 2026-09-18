@@ -397,3 +397,145 @@ def test_clicking_a_price_fills_the_order_box():
         page = http.get("/?t=T0KEN").text
     assert "drawBook" in page
     assert "el('o-price').value" in page
+
+
+def test_the_period_pnl_accepts_both_spellings_nh_uses():
+    """The spec writes byn_cst_sum1; the gateway answers byn_cst_sum."""
+
+    class _Books:
+        def daily_pnl(self, *, start, end, account_no=None):
+            return {"rsp_cd": "00000",
+                    "Output_0": {"byn_cst_sum": 1_838_320, "sll_cst_sum": 0,
+                                 "pls_amt_sum": 23_536, "acl_sdr_xps": 450},
+                    "Output_1": [{"sby_dt": "20260907", "byn_amt": 1_838_320, "sll_amt": 0,
+                                  "pls_amt": -740, "pft_rt": -0.217}]}
+
+        def trading_pnl(self, *, start, end, account_no=None):
+            return {"rsp_cd": "00000", "Output_0": {},
+                    "Output_1": [{"iem_cd": "034020", "iem_nm": "두산에너빌리티",
+                                  "byn_qty": 10.0, "byn_amt": 839_000, "sll_amt": 0,
+                                  "pls_amt": 0, "pft_rt": 0.0}]}
+
+        def realized_pnl(self, account_no=None):
+            return {"rsp_cd": "00000", "Output_0": {"tdy_dca": 122_790, "eal_pls_amt": 31_760,
+                                                    "aet_amt": 1_031_760}}
+
+    app = create_desk_app(token="T0KEN", client_factory=lambda: _Books())
+    with _client(app) as http:
+        body = http.get("/api/pnl?days=90&t=T0KEN").json()
+
+    assert body["totals"]["bought"] == 1_838_320
+    assert body["totals"]["profit"] == 23_536
+    assert body["days"][0]["date"] == "20260907"
+    assert body["stocks"][0]["name"] == "두산에너빌리티"
+    assert body["standing"]["open_profit"] == 31_760
+
+
+def test_the_standing_line_missing_does_not_take_the_period_figures_down():
+    """realizedPnl is a separate call; losing it must not lose the panel."""
+
+    class _Half:
+        def daily_pnl(self, *, start, end, account_no=None):
+            return {"rsp_cd": "00000", "Output_0": {"pls_amt_sum": 100}, "Output_1": []}
+
+        def trading_pnl(self, *, start, end, account_no=None):
+            return {"rsp_cd": "00000", "Output_0": {}, "Output_1": []}
+
+        def realized_pnl(self, account_no=None):
+            raise RuntimeError("모의투자에서는 해당업무가 제공되지 않습니다")
+
+    app = create_desk_app(token="T0KEN", client_factory=lambda: _Half())
+    with _client(app) as http:
+        body = http.get("/api/pnl?t=T0KEN").json()
+
+    assert body["totals"]["profit"] == 100
+    assert body["standing"] is None
+
+
+def test_the_investor_columns_are_read_under_either_name():
+    class _Flow:
+        def investors(self, code, *, days=20, market="KRX"):
+            return {"rsp_cd": "00000", "Output_0": [
+                {"bsop_date1": "20260918", "stck_prpr": 260_000, "prdy_ctrt": 2.97,
+                 "for_rate": 46.46, "frgn_ntby_qty": -1_379_955,
+                 "person": -2_975_813, "gigwan": 2_746_972, "program": -1_433_248},
+                {"bsop_date1": "20260917", "stck_prpr": 256_000,
+                 "personz10": -39_299, "gigwanz10": 196_838, "programz10": -1_935_285},
+            ]}
+
+    app = create_desk_app(token="T0KEN", client_factory=lambda: _Flow())
+    with _client(app) as http:
+        rows = http.get("/api/investors?code=005930&days=3&t=T0KEN").json()["rows"]
+
+    assert rows[0]["institution"] == 2_746_972
+    assert rows[1]["institution"] == 196_838      # the z10 spelling, same column
+    assert rows[0]["foreign"] == -1_379_955
+
+
+def test_a_reserved_order_is_capped_and_confirmed_like_any_other(monkeypatch, tmp_path):
+    """It is money committed, just later, so it goes through the same gate."""
+
+    monkeypatch.setenv("TRADINGAGENTS_DESK_LEDGER", str(tmp_path / "orders.jsonl"))
+    monkeypatch.setenv("NH_IS_PAPER", "false")
+    sent = []
+
+    class _Queue:
+        def place_reserved_order(self, *, side, code, quantity, price, account_no=None):
+            sent.append((side, code, quantity, price))
+            return {"rsp_cd": "00210", "Output_0": {"bkg_orr_no": 27}, "rsp_msg": "예약되었습니다."}
+
+    app = create_desk_app(token="T0KEN", client_factory=lambda: _Queue())
+    with _client(app) as http:
+        wrong = http.post("/api/reserved/order?t=T0KEN", json={
+            "side": "buy", "code": "005930", "quantity": 2, "price": 1_000, "confirmation": "3"})
+        assert wrong.status_code == 400 and not sent
+
+        big = http.post("/api/reserved/order?t=T0KEN", json={
+            "side": "buy", "code": "005930", "quantity": 100, "price": 1_000_000,
+            "confirmation": "100"})
+        assert big.status_code == 400 and not sent
+
+        good = http.post("/api/reserved/order?t=T0KEN", json={
+            "side": "buy", "code": "삼성전자", "quantity": 2, "price": 1_000, "confirmation": "2"})
+
+    assert good.status_code == 200 and good.json()["reserved_no"] == 27
+    assert sent == [("buy", "005930", 2, 1_000)]
+
+
+def test_the_paper_account_is_told_it_has_no_reserved_orders_not_shown_a_fault(monkeypatch):
+    """NH answers 19999 there; a 502 would read as something being broken."""
+
+    monkeypatch.setenv("NH_IS_PAPER", "true")
+    asked = []
+
+    class _Loud:
+        def reserved_orders(self, account_no=None):
+            asked.append(1)
+            raise AssertionError("the paper gateway should not have been called")
+
+    app = create_desk_app(token="T0KEN", client_factory=lambda: _Loud())
+    with _client(app) as http:
+        listing = http.get("/api/reserved?t=T0KEN")
+        placing = http.post("/api/reserved/order?t=T0KEN", json={
+            "side": "buy", "code": "005930", "quantity": 1, "price": 100, "confirmation": "1"})
+
+    assert listing.status_code == 200 and listing.json()["reserved"] == []
+    assert "모의투자" in listing.json()["unsupported"]
+    assert placing.status_code == 400 and "모의투자" in placing.json()["error"]
+    assert not asked
+
+
+def test_the_new_panels_are_on_the_page_and_behind_the_guard():
+    # a fresh client: loading the page sets the cookie, which would carry the
+    # token into every call after it and prove nothing about the guard
+    with _client(_app()) as http:
+        assert http.get("/api/pnl").status_code == 401
+        assert http.get("/api/investors?code=005930").status_code == 401
+        assert http.get("/api/reserved").status_code == 401
+        assert http.post("/api/reserved/cancel", json={}).status_code == 401
+
+    with _client(_app()) as http:
+        page = http.get("/?t=T0KEN").text
+
+    for marker in ("실현손익", "예약 주문", "수급", "loadPnl", "loadFlow", "loadReserved"):
+        assert marker in page

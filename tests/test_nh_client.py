@@ -33,6 +33,15 @@ def _recorder(response=None, *, fail_first=False):
     return transport
 
 
+def _ready(transport=None, **overrides):
+    """A client that already holds a token, so calls[0] is the business call."""
+
+    client = _client(transport, **overrides)
+    client._token = "TOKEN"                                             # noqa: SLF001
+    client._token_expires_at = time.time() + 3600                       # noqa: SLF001
+    return client
+
+
 def _client(transport=None, **overrides):
     config = NHConfig(app_key="KEY", app_secret_key="SECRET", **overrides)
     return NHClient(config=config, transport=transport or _recorder())
@@ -303,3 +312,102 @@ def test_a_business_failure_is_raised_rather_than_returned_as_an_empty_result():
 
     with pytest.raises(NHError, match="IGW40011"):
         client.balance("20901867134")
+
+
+def test_a_token_the_gateway_has_already_retired_is_replaced_and_the_call_retried():
+    """NH can drop a token before the expiry it handed out. The cache cannot know."""
+
+    state = {"issued": 0, "tried": 0}
+
+    def transport(method, url, headers, params, data):
+        if url.endswith("/oauth2/token"):
+            state["issued"] += 1
+            return {"access_token": f"T{state['issued']}", "expires_in": 86400}
+        state["tried"] += 1
+        if headers["Authorization"] == "Bearer T1":
+            raise NHError('NH POST ... -> 400: {"rsp_cd":"IGW40043","rsp_msg":"유효하지 않은 token 입니다."}')
+        return {"rsp_cd": "00166", "Output_0": {"dca": 1}}
+
+    client = _client(transport, account_no="50001004611")
+    assert client.balance()["Output_0"]["dca"] == 1
+    assert state["issued"] == 2      # the stale one, then a fresh one
+    assert state["tried"] == 2       # and the business call was sent twice
+
+
+def test_any_other_failure_is_not_retried_with_a_new_token():
+    """A closed market is not an auth problem, and burning a token on it hides that."""
+
+    state = {"issued": 0}
+
+    def transport(method, url, headers, params, data):
+        if url.endswith("/oauth2/token"):
+            state["issued"] += 1
+            return {"access_token": "TOKEN", "expires_in": 86400}
+        raise NHError("NH ... -> 14580: 장운영일이 아닙니다.")
+
+    client = _client(transport, account_no="50001004611")
+    with pytest.raises(NHError, match="14580"):
+        client.balance()
+    assert state["issued"] == 1
+
+
+def test_the_period_pnl_calls_send_dates_as_eight_digits_however_they_are_written():
+    transport = _recorder({"rsp_cd": "00000", "Output_0": {}, "Output_1": []})
+    client = _ready(transport, account_no="50001004611")
+    client.daily_pnl(start="2026-06-01", end="2026-07-01")
+    client.trading_pnl(start="20260601", end="20260701")
+
+    daily, trading = transport.calls[0], transport.calls[1]
+    assert daily["headers"]["tr_cd"] == "SCSOS63119A"
+    assert trading["headers"]["tr_cd"] == "SCSOS63122A"
+    for sent in (daily, trading):
+        assert sent["data"]["Input_0"]["iqr_sta_dt"] == "20260601"
+        assert sent["data"]["Input_0"]["iqr_end_dt"] == "20260701"
+
+
+def test_the_investor_flow_is_asked_of_the_live_host_because_paper_has_no_prices():
+    transport = _recorder({"rsp_cd": "00000", "Output_0": []})
+    client = _ready(transport, account_no="50001004611", is_paper=True)
+    client.investors("5930", days=20)
+
+    sent = transport.calls[0]
+    assert sent["url"].startswith("https://api.nhplug.com:8443")
+    assert sent["headers"]["tr_cd"] == "IVOUORDAY05"
+    assert sent["data"]["Input_0"] == {"market_cd": "KRX", "iem_cd": "005930", "array_cnt": "20"}
+
+
+def test_a_reserved_buy_and_sell_are_the_two_numbers_nh_uses_for_the_sides():
+    """sby_dit_cd is 2 for a buy and 1 for a sell, which is easy to get backwards."""
+
+    transport = _recorder({"rsp_cd": "00210", "Output_0": {"bkg_orr_no": 27}})
+    client = _ready(transport, account_no="50001004611", is_paper=True)
+    client.place_reserved_order(side="buy", code="005940", quantity=10, price=35_000)
+    client.place_reserved_order(side="sell", code="005940", quantity=10, price=35_000)
+
+    buy, sell = transport.calls[0], transport.calls[1]
+    assert buy["headers"]["tr_cd"] == "SCSOS61201A"
+    assert buy["data"]["Input_0"]["sby_dit_cd"] == "2"
+    assert sell["data"]["Input_0"]["sby_dit_cd"] == "1"
+    assert buy["data"]["Input_0"]["orr_qty"] == 10
+    assert buy["data"]["Input_0"]["orr_uit_pr"] == 35_000
+
+
+def test_a_reserved_order_into_the_live_account_needs_the_same_switch_as_a_live_one(monkeypatch):
+    monkeypatch.delenv("TRADINGAGENTS_ENABLE_LIVE_TRADING", raising=False)
+    transport = _recorder({"rsp_cd": "00210", "Output_0": {"bkg_orr_no": 27}})
+    client = _client(transport, account_no="50001004611", is_paper=False)
+
+    with pytest.raises(LiveTradingDisabledError):
+        client.place_reserved_order(side="buy", code="005940", quantity=1, price=100)
+    assert len(transport.calls) == 0        # not even a token was fetched
+
+
+def test_cancelling_a_reservation_names_the_order_and_the_side():
+    transport = _recorder({"rsp_cd": "00106", "Output_0": {}})
+    client = _ready(transport, account_no="50001004611", is_paper=True)
+    client.cancel_reserved_order(reserved_no=27, code="005940", side="buy")
+
+    sent = transport.calls[0]
+    assert sent["headers"]["tr_cd"] == "SCSOS61202A"
+    assert sent["data"]["Input_0"]["bkg_orr_no"] == 27
+    assert sent["data"]["Input_0"]["sby_dit_cd"] == "2"

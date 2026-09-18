@@ -71,10 +71,11 @@ footer { color: var(--muted); font-size: 12px; margin-top: 26px; line-height: 1.
 .order { flex-wrap: wrap; align-items: flex-end; gap: 12px; }
 .order label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
 .order input { flex: 0 0 120px; width: 120px; }
-.order select {
+select {
   background: #0d1117; border: 1px solid var(--line); color: var(--ink);
-  border-radius: 8px; padding: 9px 12px; font: inherit; width: 96px;
+  border-radius: 8px; padding: 9px 12px; font: inherit;
 }
+.order select { width: 96px; }
 .order button { background: var(--warn); color: #1a1205; }
 .order button[disabled] { opacity: .4; cursor: not-allowed; }
 .amount { font-size: 15px; font-weight: 700; margin-top: 12px; }
@@ -103,6 +104,9 @@ const won = (v) => v == null ? '–' : Math.round(v).toLocaleString('ko-KR') + '
 const pct = (v) => v == null ? '–' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
 const cls = (v) => v == null || v === 0 ? '' : (v > 0 ? 'up' : 'down');
 const el = (id) => document.getElementById(id);
+const qty = (v) => v == null ? '–' : Math.round(v).toLocaleString('ko-KR');
+// 20260918 -> 09.18, because a column of eight digits is a column nobody reads
+const day = (v) => (v || '').length === 8 ? v.slice(4, 6) + '.' + v.slice(6) : (v || '');
 
 async function ask(path, options) {
   const response = await fetch(path, Object.assign({ credentials: 'same-origin' }, options || {}));
@@ -204,6 +208,7 @@ async function lookUp(event) {
     el('quote-msg').textContent = data.error;
     el('quote').innerHTML = '';
     el('chart').hidden = true;
+    el('flow-table').hidden = true;
     el('book').innerHTML = '';
     // several names matched: offer them rather than making them guess again
     for (const s of (data.suggestions || [])) {
@@ -218,6 +223,7 @@ async function lookUp(event) {
   const q = data.quote || {};
   drawBook(data.book);
   drawChart(q.code || code);
+  loadFlow(q.code || code);
   el('quote').innerHTML = `
     <div class="stat"><div class="k">${q.name || ''} ${q.code || ''}</div>
       <div class="v ${cls(q.change)}">${won(q.price)}</div></div>
@@ -227,6 +233,143 @@ async function lookUp(event) {
       <div class="v">${won(q.high)} / ${won(q.low)}</div></div>
     <div class="stat"><div class="k">거래량</div>
       <div class="v">${q.volume == null ? '–' : q.volume.toLocaleString('ko-KR')}</div></div>`;
+}
+
+async function loadFlow(code) {
+  const table = el('flow-table');
+  const data = await ask('/api/investors?days=10&code=' + encodeURIComponent(code));
+  const rows = data.rows || [];
+  if (data.error || !rows.length) { table.hidden = true; return; }
+  el('flow').innerHTML = rows.map((r) => `
+    <tr>
+      <td>${day(r.date)}</td>
+      <td>${won(r.price)}</td>
+      <td class="${cls(r.change_pct)}">${pct(r.change_pct)}</td>
+      <td class="${cls(r.foreign)}">${qty(r.foreign)}</td>
+      <td class="${cls(r.institution)}">${qty(r.institution)}</td>
+      <td class="${cls(r.individual)}">${qty(r.individual)}</td>
+      <td>${r.foreign_pct == null ? '–' : r.foreign_pct.toFixed(2) + '%'}</td>
+    </tr>`).join('');
+  table.hidden = false;
+}
+
+async function loadPnl(event) {
+  if (event) event.preventDefault();
+  const data = await ask('/api/pnl?days=' + el('pnl-days').value);
+  if (data.error) {
+    el('pnl-msg').textContent = data.error;
+    el('pnl-stats').innerHTML = ''; el('pnl-stocks').innerHTML = ''; el('pnl-note').textContent = '';
+    return;
+  }
+  el('pnl-msg').textContent = '';
+  const t = data.totals || {}, s = data.standing;
+  const cards = [
+    ['실현손익', won(t.profit), cls(t.profit)],
+    ['매수', won(t.bought), ''],
+    ['매도', won(t.sold), ''],
+    ['수수료·세금', won(t.costs), ''],
+  ];
+  // the standing line is a separate live-only call; when it is missing the
+  // period figures above are still true, so the panel just gets shorter
+  if (s) cards.push(['평가손익 (보유분)', won(s.open_profit), cls(s.open_profit)]);
+  el('pnl-stats').innerHTML = cards
+    .map(([k, v, c]) => `<div class="stat"><div class="k">${k}</div><div class="v ${c}">${v}</div></div>`).join('');
+
+  const rows = data.stocks || [];
+  el('pnl-stocks').innerHTML = rows.length ? rows.map((r) => `
+    <tr>
+      <td><span class="name">${r.name || r.code}</span><span class="code">${r.code}</span></td>
+      <td>${won(r.bought)}</td>
+      <td>${won(r.sold)}</td>
+      <td class="${cls(r.profit)}">${won(r.profit)}</td>
+      <td class="${cls(r.return_pct)}">${pct(r.return_pct)}</td>
+    </tr>`).join('') : '<tr><td colspan="5" class="empty">이 기간에 매매가 없습니다.</td></tr>';
+
+  const days = (data.days || []).filter((d) => d.profit);
+  el('pnl-note').textContent = days.length
+    ? `매매한 날 ${days.length}일 · ${day(days[days.length - 1].date)} ~ ${day(days[0].date)}`
+    : `${data.from} ~ ${data.to}`;
+}
+
+async function loadReserved() {
+  const data = await ask('/api/reserved');
+  const rows = data.reserved || [];
+  if (data.error) {
+    el('reserved-msg').textContent = data.error;
+    el('reserved').innerHTML = '<tr><td colspan="7" class="empty">예약주문을 불러오지 못했습니다.</td></tr>';
+    return;
+  }
+  el('reserved-msg').textContent = data.unsupported || '';
+  if (data.unsupported) {
+    el('r-send').disabled = true;
+    el('reserve-form').querySelectorAll('input, select').forEach((f) => { f.disabled = true; });
+  }
+  el('reserved').innerHTML = rows.length ? rows.map((r) => `
+    <tr>
+      <td><span class="name">${r.name || r.code}</span><span class="code">${r.code}</span></td>
+      <td>${r.side || ''}</td>
+      <td>${qty(r.quantity)}</td>
+      <td>${won(r.price)}</td>
+      <td>${qty(r.filled)}</td>
+      <td>${day(r.from)} ~ ${day(r.to)}</td>
+      <td><button class="cancel" data-no="${r.reserved_no}" data-code="${r.code}"
+            data-side="${(r.side || '').includes('매도') ? 'sell' : 'buy'}">취소</button></td>
+    </tr>`).join('') : '<tr><td colspan="7" class="empty">예약된 주문이 없습니다.</td></tr>';
+
+  for (const button of el('reserved').querySelectorAll('.cancel')) {
+    button.onclick = () => cancelReserved(button.dataset);
+  }
+}
+
+async function cancelReserved(row) {
+  if (!confirm(`예약주문 ${row.no} · ${row.code} 를 취소합니다.`)) return;
+  const data = await ask('/api/reserved/cancel', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reserved_no: Number(row.no), code: row.code, order_side: row.side }),
+  });
+  el('reserved-msg').textContent = data.error || (data.message || '취소 요청을 보냈습니다.');
+  loadReserved();
+}
+
+function reserveAmount() {
+  const q = parseInt(el('r-qty').value, 10), p = parseInt(el('r-price').value, 10);
+  return (q > 0 && p > 0) ? q * p : 0;
+}
+
+function refreshReserveUi() {
+  const amount = reserveAmount();
+  el('r-amount').textContent = amount ? `예약 금액 ${won(amount)}` : '';
+  el('r-send').disabled = !(amount > 0 && el('r-confirm').value.trim() === el('r-qty').value.trim());
+}
+
+async function sendReserve(event) {
+  event.preventDefault();
+  const side = el('r-side').value;
+  const label = side === 'buy' ? '매수' : '매도';
+  if (!confirm(`${el('r-code').value} ${el('r-qty').value}주 ${label} 예약
+지정가 ${won(parseInt(el('r-price').value, 10))}
+예약 금액 ${won(reserveAmount())}
+
+다음 장에 자동으로 나갑니다. 예약하시겠습니까?`)) return;
+
+  el('r-send').disabled = true;
+  const data = await ask('/api/reserved/order', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      side, code: el('r-code').value.trim(),
+      quantity: parseInt(el('r-qty').value, 10),
+      price: parseInt(el('r-price').value, 10),
+      confirmation: el('r-confirm').value.trim(),
+    }),
+  });
+  if (data.error) { el('reserved-msg').textContent = data.error; }
+  else {
+    el('reserved-msg').textContent = `예약했습니다. 번호 ${data.reserved_no ?? '-'} · ${data.message ?? ''}`;
+    el('r-qty').value = el('r-confirm').value = '';
+    loadReserved();
+  }
+  loadLimits();
+  refreshReserveUi();
 }
 
 function orderAmount() {
@@ -361,12 +504,22 @@ async function switchMode() {
   location.reload();
 }
 
+for (const id of ['r-qty', 'r-price', 'r-confirm']) {
+  el(id).addEventListener('input', refreshReserveUi);
+}
+document.getElementById('reserve-form').addEventListener('submit', sendReserve);
+document.getElementById('pnl-form').addEventListener('submit', loadPnl);
+el('pnl-days').addEventListener('change', loadPnl);
+
 el('mode-btn').addEventListener('click', switchMode);
 loadLimits();
 refreshOrderUi();
+refreshReserveUi();
 document.getElementById('quote-form').addEventListener('submit', lookUp);
 loadAccount();
 loadOrders();
+loadPnl();
+loadReserved();
 setInterval(() => { loadAccount(); loadOrders(); }, 60000);
 """
 
@@ -418,7 +571,54 @@ def render_desk(*, mode: str) -> str:
   <div class="book" id="book"></div>
   <svg id="chart" viewBox="0 0 880 180" preserveAspectRatio="none" hidden></svg>
   <p class="hint" id="chart-note"></p>
+  <table id="flow-table" hidden>
+    <thead><tr>
+      <th>수급</th><th>종가</th><th>등락</th><th>외국인</th><th>기관</th><th>개인</th><th>외인비중</th>
+    </tr></thead>
+    <tbody id="flow"></tbody>
+  </table>
   <p class="msg" id="quote-msg"></p>
+</section>
+
+<section class="panel">
+  <h2>실현손익 <span class="hint">기간 내 매수·매도로 확정된 손익</span></h2>
+  <form id="pnl-form">
+    <select id="pnl-days">
+      <option value="30">최근 30일</option>
+      <option value="90" selected>최근 90일</option>
+      <option value="365">최근 1년</option>
+    </select>
+    <button type="submit">조회</button>
+  </form>
+  <div class="stats" id="pnl-stats" style="margin-top:16px"></div>
+  <table style="margin-top:16px">
+    <thead><tr>
+      <th>종목</th><th>매수</th><th>매도</th><th>실현손익</th><th>수익률</th>
+    </tr></thead>
+    <tbody id="pnl-stocks"></tbody>
+  </table>
+  <p class="hint" id="pnl-note"></p>
+  <p class="msg" id="pnl-msg"></p>
+</section>
+
+<section class="panel">
+  <h2>예약 주문 <span class="hint">장 시작 전에 걸어두는 주문 · 실계좌 전용</span></h2>
+  <table>
+    <thead><tr>
+      <th>종목</th><th>구분</th><th>수량</th><th>지정가</th><th>체결</th><th>유효기간</th><th></th>
+    </tr></thead>
+    <tbody id="reserved"></tbody>
+  </table>
+  <form id="reserve-form" class="order" style="margin-top:16px">
+    <label>구분<select id="r-side"><option value="buy">매수</option><option value="sell">매도</option></select></label>
+    <label>종목<input id="r-code" placeholder="종목명 또는 코드" autocomplete="off" /></label>
+    <label>수량<input id="r-qty" inputmode="numeric" autocomplete="off" /></label>
+    <label>지정가<input id="r-price" inputmode="numeric" autocomplete="off" /></label>
+    <label>수량 다시 입력<input id="r-confirm" inputmode="numeric" autocomplete="off" placeholder="확인" /></label>
+    <button type="submit" id="r-send">예약</button>
+  </form>
+  <p class="amount" id="r-amount"></p>
+  <p class="msg" id="reserved-msg"></p>
 </section>
 
 <section class="panel">

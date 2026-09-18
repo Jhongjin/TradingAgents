@@ -19,6 +19,8 @@ DESK_TOKEN_QUERY = "t"
 # the shape of a DNS rebinding attack.
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
 
+PAPER_NO_RESERVED = "예약주문은 모의투자에서 제공되지 않습니다. 실계좌에서만 쓸 수 있습니다."
+
 
 def new_token() -> str:
     return secrets.token_urlsafe(24)
@@ -261,6 +263,168 @@ def create_desk_app(*, token: str, client_factory=None) -> FastAPI:
                                  "amount": _num(raw.get("csh_orr_pbl_amt"))})
         except Exception as exc:                        # noqa: BLE001 - shown to one person
             return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
+
+    @app.get("/api/pnl")
+    def pnl(request: Request, days: int = Query(90, ge=1, le=365)) -> JSONResponse:
+        """What the account actually made, by day and by ticker."""
+
+        from datetime import date, timedelta
+
+        client = request.app.state.client_factory()
+        if client is None:
+            return JSONResponse({"error": _unconfigured()}, status_code=503)
+
+        end = date.today()
+        start = end - timedelta(days=days)
+        try:
+            daily = client.daily_pnl(start=start.isoformat(), end=end.isoformat())
+            stocks = client.trading_pnl(start=start.isoformat(), end=end.isoformat())
+        except Exception as exc:                        # noqa: BLE001 - shown to one person
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
+
+        # The standing summary is a live-only call; a paper account without it
+        # is still worth showing the other two panels for.
+        standing: dict[str, Any] | None = None
+        try:
+            standing = _standing((client.realized_pnl().get("Output_0") or {}))
+        except Exception:                               # noqa: BLE001
+            standing = None
+
+        return JSONResponse({
+            "from": start.isoformat(), "to": end.isoformat(),
+            "totals": _pnl_totals(daily.get("Output_0") or {}),
+            "days": [_pnl_day(row) for row in (daily.get("Output_1") or []) if isinstance(row, Mapping)],
+            "stocks": [_pnl_stock(row) for row in (stocks.get("Output_1") or []) if isinstance(row, Mapping)],
+            "standing": standing,
+        })
+
+    @app.get("/api/investors")
+    def investors(
+        request: Request,
+        code: str = Query(min_length=1, max_length=40),
+        days: int = Query(10, ge=1, le=60),
+    ) -> JSONResponse:
+        """Foreign, institutional and individual net buying, day by day."""
+
+        client = request.app.state.client_factory()
+        if client is None:
+            return JSONResponse({"error": _unconfigured()}, status_code=503)
+        resolved, matches = _resolve(code)
+        if resolved is None:
+            return JSONResponse({"error": "종목을 찾지 못했습니다.", "suggestions": matches}, status_code=404)
+        try:
+            raw = client.investors(resolved, days=days)
+        except Exception as exc:                        # noqa: BLE001 - shown to one person
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
+        rows = raw.get("Output_0") or []
+        return JSONResponse({"code": resolved,
+                             "rows": [_investor(row) for row in rows if isinstance(row, Mapping)]})
+
+    @app.get("/api/reserved")
+    def reserved(request: Request) -> JSONResponse:
+        # The paper gateway answers 19999 for every 예약주문 call, so asking it
+        # only spends one of the five requests a second and returns a 502 that
+        # looks like a fault. Saying so outright is both cheaper and truer.
+        if _mode(request) == "paper":
+            return JSONResponse({"reserved": [], "unsupported": PAPER_NO_RESERVED})
+
+        client = request.app.state.client_factory()
+        if client is None:
+            return JSONResponse({"error": _unconfigured()}, status_code=503)
+        try:
+            raw = client.reserved_orders()
+        except Exception as exc:                        # noqa: BLE001 - shown to one person
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
+        rows = raw.get("Output_1") or []
+        return JSONResponse({"reserved": [_reserved(row) for row in rows if isinstance(row, Mapping)]})
+
+    @app.post("/api/reserved/order")
+    def reserve(request: Request, body: dict = Body(...)) -> JSONResponse:
+        """Queue an order for the next session, under the same caps as a live one.
+
+        A reserved order is still money committed; it just lands later. So it
+        goes through the same typed confirmation, the same daily cap and the
+        same ledger — the only difference is which broker call it ends in.
+        """
+
+        from .orders import Limits, OrderRefused, check, ledger, new_attempt, record, today_spent
+
+        mode = _mode(request)
+        if mode == "paper":
+            return JSONResponse({"error": PAPER_NO_RESERVED}, status_code=400)
+        side = str(body.get("side") or "").strip().lower()
+        try:
+            quantity = int(body.get("quantity") or 0)
+            price = int(body.get("price") or 0)
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "수량과 가격은 숫자여야 합니다."}, status_code=400)
+
+        resolved, matches = _resolve(str(body.get("code") or ""))
+        if resolved is None:
+            return JSONResponse({"error": "종목을 찾지 못했습니다.", "suggestions": matches}, status_code=404)
+
+        book = ledger()
+        spent, count = today_spent(book)
+        try:
+            amount = check(
+                side=side, code=resolved, quantity=quantity, price=price,
+                confirmation=str(body.get("confirmation") or ""),
+                mode=mode, limits=Limits.from_env(),
+                spent_today=spent, orders_today=count,
+            )
+        except OrderRefused as refused:
+            return JSONResponse({"error": str(refused)}, status_code=400)
+
+        client = request.app.state.client_factory()
+        if client is None:
+            return JSONResponse({"error": _unconfigured()}, status_code=503)
+
+        common = dict(attempt=new_attempt(), side=f"reserve-{side}", code=resolved,
+                      quantity=quantity, price=price, amount=amount, mode=mode)
+        record(book, stage="sent", **common)
+        try:
+            result = client.place_reserved_order(side=side, code=resolved, quantity=quantity, price=price)
+        except Exception as exc:                        # noqa: BLE001 - shown to one person
+            record(book, stage="failed", **common, error=f"{type(exc).__name__}: {exc}")
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
+        record(book, stage="accepted", **common, result=result)
+        return JSONResponse({
+            "ok": True,
+            "reserved_no": (result.get("Output_0") or {}).get("bkg_orr_no"),
+            "message": result.get("rsp_msg"),
+            "amount": amount,
+        })
+
+    @app.post("/api/reserved/cancel")
+    def unreserve(request: Request, body: dict = Body(...)) -> JSONResponse:
+        from .orders import ledger, new_attempt, record
+
+        client = request.app.state.client_factory()
+        if client is None:
+            return JSONResponse({"error": _unconfigured()}, status_code=503)
+        try:
+            reserved_no = int(body.get("reserved_no"))
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "예약주문번호가 필요합니다."}, status_code=400)
+
+        resolved, matches = _resolve(str(body.get("code") or ""))
+        if resolved is None:
+            return JSONResponse({"error": "종목을 찾지 못했습니다.", "suggestions": matches}, status_code=404)
+
+        book, mode = ledger(), _mode(request)
+        common = dict(attempt=new_attempt(), side="reserve-cancel", code=resolved,
+                      quantity=0, price=0, amount=0, mode=mode)
+        record(book, stage="sent", **common)
+        try:
+            result = client.cancel_reserved_order(
+                reserved_no=reserved_no, code=resolved,
+                side=str(body.get("order_side") or "buy"),
+            )
+        except Exception as exc:                        # noqa: BLE001 - shown to one person
+            record(book, stage="failed", **common, error=f"{type(exc).__name__}: {exc}")
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
+        record(book, stage="accepted", **common, result=result)
+        return JSONResponse({"ok": True, "message": result.get("rsp_msg")})
 
     @app.get("/api/limits")
     def limits(request: Request) -> JSONResponse:
@@ -533,6 +697,93 @@ def _quote_row(raw: Mapping[str, Any]) -> dict[str, Any]:
         "high": _num(out.get("stck_hgpr")),
         "low": _num(out.get("stck_lwpr")),
         "volume": _num(out.get("acml_vol")),
+    }
+
+
+def _first(row: Mapping[str, Any], *names: str) -> Any:
+    """The first of several spellings that is present.
+
+    The published spec writes the daily totals as byn_cst_sum1 and the investor
+    columns as personz10; the gateway answers with byn_cst_sum and person. Both
+    are accepted rather than picking one and being wrong on some accounts.
+    """
+
+    for name in names:
+        if row.get(name) is not None:
+            return row.get(name)
+    return None
+
+
+def _pnl_totals(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "bought": _num(_first(row, "byn_cst_sum", "byn_cst_sum1")),
+        "sold": _num(_first(row, "sll_cst_sum", "sll_cst_sum1")),
+        "profit": _num(row.get("pls_amt_sum")),
+        "costs": _num(row.get("acl_sdr_xps")),
+    }
+
+
+def _pnl_day(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "date": str(row.get("sby_dt") or "").strip(),
+        "bought": _num(row.get("byn_amt")),
+        "sold": _num(row.get("sll_amt")),
+        "profit": _num(row.get("pls_amt")),
+        "return_pct": _num(row.get("pft_rt")),
+    }
+
+
+def _pnl_stock(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "code": str(row.get("iem_cd") or "").strip(),
+        "name": str(row.get("iem_nm") or "").strip().lstrip("*"),
+        "bought_qty": _num(row.get("byn_qty")),
+        "bought": _num(row.get("byn_amt")),
+        "sold_qty": _num(row.get("sll_qty")),
+        "sold": _num(row.get("sll_amt")),
+        "profit": _num(row.get("pls_amt")),
+        "return_pct": _num(row.get("pft_rt")),
+    }
+
+
+def _standing(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Today's cash and the profit still sitting in open positions."""
+
+    return {
+        "cash": _num(row.get("tdy_dca")),
+        "buying_power": _num(row.get("orr_pbl_amt1")),
+        "evaluation": _num(row.get("eal_amt_sum")),
+        "open_profit": _num(row.get("eal_pls_amt")),
+        "total_assets": _num(row.get("aet_amt")),
+        "bought_today": _num(row.get("tdt_byn_amt")),
+        "sold_today": _num(row.get("tdt_sll_amt")),
+    }
+
+
+def _investor(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "date": str(row.get("bsop_date1") or "").strip(),
+        "price": _num(row.get("stck_prpr")),
+        "change_pct": _num(row.get("prdy_ctrt")),
+        "foreign_pct": _num(row.get("for_rate")),
+        "foreign": _num(row.get("frgn_ntby_qty")),
+        "individual": _num(_first(row, "person", "personz10")),
+        "institution": _num(_first(row, "gigwan", "gigwanz10")),
+        "program": _num(_first(row, "program", "programz10")),
+    }
+
+
+def _reserved(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "reserved_no": _first(row, "bkg_orr_no"),
+        "code": str(row.get("iem_cd") or "").strip(),
+        "name": str(row.get("iem_nm") or "").strip().lstrip("*"),
+        "side": str(row.get("sby_dit_cd_nm") or "").strip(),
+        "quantity": _num(row.get("orr_qty")),
+        "price": _num(row.get("orr_pr")),
+        "filled": _num(row.get("acl_cns_qty")),
+        "from": str(row.get("orr_enf_sta_dt") or "").strip(),
+        "to": str(row.get("orr_enf_end_dt") or "").strip(),
     }
 
 

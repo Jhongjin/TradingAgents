@@ -51,6 +51,9 @@ ORDER_PATHS = {
 # NAMUH PLUG documents ThroughputQuotaRule.requestLimit = 1 on the token
 # endpoint, measured per second.
 TOKEN_RATE_LIMIT_WAIT_SECONDS = 2
+# The gateway's way of saying the bearer token is no longer good, whatever the
+# expiry it came with claimed.
+TOKEN_REJECTED = "IGW40043"
 
 Transport = Callable[[str, str, Mapping[str, str], Mapping[str, Any] | None, Mapping[str, Any] | None], Mapping[str, Any]]
 
@@ -246,13 +249,27 @@ class NHClient:
         same place KIS puts tr_id.
         """
 
-        headers = {
-            "Content-Type": "application/json; charset=UTF-8",
-            "Authorization": f"Bearer {self.access_token()}",
-            "tr_cd": tr_code,
-        }
         base = self.config.quote_url if live_only else self.config.account_url
-        response = self._request("POST", path, headers=headers, json_body={"Input_0": dict(payload)}, base_url=base)
+        body = {"Input_0": dict(payload)}
+
+        def send(token: str) -> Mapping[str, Any]:
+            return self._request("POST", path, base_url=base, json_body=body, headers={
+                "Content-Type": "application/json; charset=UTF-8",
+                "Authorization": f"Bearer {token}",
+                "tr_cd": tr_code,
+            })
+
+        try:
+            response = send(self.access_token())
+        except NHError as first:
+            # NH can retire a token before the expiry it handed out, and the
+            # cache on disk has no way to know. IGW40043 is that and only that,
+            # so it is worth one fresh token before giving up — otherwise the
+            # desk goes dark until someone deletes the cache file by hand.
+            if TOKEN_REJECTED not in str(first):
+                raise
+            response = send(self.access_token(force_refresh=True))
+
         code = str(response.get("rsp_cd") or "")
         # NH answers HTTP 200 with a business code, and only some mean success,
         # so a failure must not arrive upstream looking like an empty result.
@@ -424,6 +441,112 @@ class NHClient:
             "view_main_yn": "N",
         }, live_only=True)
 
+    def daily_pnl(self, *, start: str, end: str, account_no: str | None = None) -> Mapping[str, Any]:
+        """Realised profit day by day between two dates (YYYYMMDD)."""
+
+        return self._call("/krstock/inquiry/v1/dailyPnl", "SCSOS63119A", {
+            "act_no": account_no or self.config.account_no,
+            "iqr_sta_dt": _day(start),
+            "iqr_end_dt": _day(end),
+        })
+
+    def trading_pnl(self, *, start: str, end: str, account_no: str | None = None) -> Mapping[str, Any]:
+        """The same window broken down by ticker."""
+
+        return self._call("/krstock/inquiry/v1/tradingPnl", "SCSOS63122A", {
+            "act_no": account_no or self.config.account_no,
+            "iqr_sta_dt": _day(start),
+            "iqr_end_dt": _day(end),
+        })
+
+    def investors(self, code: str, *, days: int = 20, market: str = "KRX") -> Mapping[str, Any]:
+        """Who was buying: foreigners, institutions, individuals, by day."""
+
+        return self._call("/krstock/quote/v1/currentInvestor", "IVOUORDAY05", {
+            "market_cd": market, "iem_cd": _code(code), "array_cnt": str(int(days)),
+        }, live_only=True)
+
+    def realized_pnl(self, account_no: str | None = None) -> Mapping[str, Any]:
+        """Today's standing: cash, evaluation, and profit on what is still held."""
+
+        return self._call("/krstock/inquiry/v1/realizedPnl", "SCIOT933581", {
+            "act_no": account_no or self.config.account_no,
+            "iqr_dit_cd1": "0",
+            "fee_dit_cd": "1",
+            "qut_dit_cd": "UNT",
+            "aly_qut_cd": "2",
+        })
+
+    def reserved_orders(self, account_no: str | None = None) -> Mapping[str, Any]:
+        """Orders queued for a later session. Live account only — the paper
+        gateway answers 19999 for every 예약주문 call."""
+
+        return self._call("/krstock/inquiry/v1/reservedInquiry", "SCSOS63053A", {
+            "act_no": account_no or self.config.account_no,
+            "sby_dit_cd": "0",
+            "bkg_orr_tp_cd": "0",
+        })
+
+    def place_reserved_order(
+        self,
+        *,
+        side: str,
+        code: str,
+        quantity: int,
+        price: int,
+        account_no: str | None = None,
+    ) -> Mapping[str, Any]:
+        """Queue a limit order for the next session.
+
+        sby_dit_cd is 1 for a sell and 2 for a buy, which is the one place NH
+        numbers the two sides rather than naming them — and the one place it is
+        easy to get backwards, so it is written here once.
+        """
+
+        chosen = str(side).strip().lower()
+        if chosen not in {"buy", "sell"}:
+            raise ValueError(f"side must be buy or sell, not {side!r}")
+        if int(quantity) <= 0 or int(price) <= 0:
+            raise ValueError("quantity and price must both be positive")
+        if not self.config.is_paper and not live_trading_enabled():
+            raise LiveTradingDisabledError(
+                "TRADINGAGENTS_ENABLE_LIVE_TRADING is not set; no live order will be sent"
+            )
+
+        return self._call("/krstock/order/v1/reservedOrder", "SCSOS61201A", {
+            "act_no": account_no or self.config.account_no,
+            "iem_cd": _code(code),
+            "sby_dit_cd": "2" if chosen == "buy" else "1",
+            "frs_sba_orr_yn": "N",
+            "nmn_pr_tp_cd": "01",
+            "cfd_lon_cd": "00",
+            "orr_qty": int(quantity),
+            "orr_uit_pr": int(price),
+            "bkg_orr_tp_cd": "1",
+            "bkg_orr_enf_tp_cd": "1",
+            "rmt_mkt_cd": "KRX",
+        })
+
+    def cancel_reserved_order(
+        self,
+        *,
+        reserved_no: int,
+        code: str,
+        side: str,
+        account_no: str | None = None,
+    ) -> Mapping[str, Any]:
+        """Take a queued order back."""
+
+        chosen = str(side).strip().lower()
+        return self._call("/krstock/order/v1/reservedCancel", "SCSOS61202A", {
+            "act_no": account_no or self.config.account_no,
+            "sby_dit_cd": "2" if chosen == "buy" else "1",
+            "iem_cd": _code(code),
+            "bkg_orr_no": int(reserved_no),
+            "bkg_orr_tp_cd": "1",
+            "rmt_mkt_cd": "KRX",
+        })
+
     def sellable_quantity(self, code: str, account_no: str | None = None) -> Mapping[str, Any]:
         """How many of it the account could sell right now.
 
@@ -494,6 +617,12 @@ def _flag(name: str, *, default: bool) -> bool:
     if raw is None or not raw.strip():
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _day(value: str) -> str:
+    """YYYYMMDD, however the date was written."""
+
+    return "".join(character for character in str(value) if character.isdigit())[:8]
 
 
 def _account(value: str) -> str:
