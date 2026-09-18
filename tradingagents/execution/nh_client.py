@@ -70,7 +70,7 @@ class NHConfig:
         return cls(
             app_key=(os.getenv("NH_APP_KEY") or "").strip(),
             app_secret_key=(os.getenv("NH_APP_SECRET_KEY") or "").strip(),
-            account_no=(os.getenv("NH_ACCOUNT_NO") or "").strip(),
+            account_no=_account(os.getenv("NH_ACCOUNT_NO") or ""),
             base_url=(os.getenv("NH_BASE_URL") or BASE_URL).strip().rstrip("/"),
         )
 
@@ -192,6 +192,43 @@ class NHClient:
         except OSError:
             pass
 
+    # ----------------------------------------------------------- read only
+    def _call(self, path: str, tr_code: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        """One NAMUH PLUG business call.
+
+        The token endpoint is form-encoded; everything else is JSON and carries
+        the TR code the catalogue lists under extraParam.tr_cd, which is the
+        same place KIS puts tr_id.
+        """
+
+        headers = {
+            "Content-Type": "application/json; charset=UTF-8",
+            "Authorization": f"Bearer {self.access_token()}",
+            "tr_cd": tr_code,
+        }
+        response = self._request("POST", path, headers=headers, json_body={"Input_0": dict(payload)})
+        code = str(response.get("rsp_cd") or "")
+        # NH answers 200 with a business code; only some of them mean success,
+        # so a failure here must not look like an empty result upstream.
+        if code and not code.startswith("0"):
+            raise NHError(f"NH {path} -> {code}: {response.get('rsp_msg') or ''}")
+        return response
+
+    def balance(self, account_no: str | None = None) -> Mapping[str, Any]:
+        """국내 주식 잔고."""
+
+        return self._call("/krstock/inquiry/v1/balance", "SCIOT983691", {
+            "act_no": account_no or self.config.account_no,
+            "bnc_bse_cd": "1", "ltg_aot_dit_cd": "9", "aet_bse": "2",
+            "qut_dit_cd": "UNT", "aly_qut_cd": "2",
+        })
+
+    def current_price(self, code: str, *, market: str = "KRX") -> Mapping[str, Any]:
+        """국내 주식 현재가."""
+
+        return self._call("/krstock/quote/v1/currentPrice", "IVOUTKMST04",
+                          {"market_cd": market, "iem_cd": _code(code)})
+
     # --------------------------------------------------------------- orders
     def place_order(self, *args: Any, **kwargs: Any) -> Mapping[str, Any]:
         """Not built. See the module docstring.
@@ -217,10 +254,11 @@ class NHClient:
         headers: Mapping[str, str] | None = None,
         params: Mapping[str, Any] | None = None,
         data: Mapping[str, Any] | None = None,
+        json_body: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]:
         url = f"{self.config.base_url}{path}"
         send = self.transport or self._requests_transport
-        return send(method, url, dict(headers or {}), params, data)
+        return send(method, url, dict(headers or {}), params, json_body if json_body is not None else data)
 
     def _requests_transport(
         self,
@@ -237,8 +275,15 @@ class NHClient:
         # This machine sits behind a TLS-inspecting proxy; the chain is only
         # trusted by Windows' own store, not the one bundled with certifi.
         apply_system_truststore_if_available()
+        # The token call is form-encoded, every business call is JSON; the
+        # content-type header already says which, so it picks the body form.
+        as_json = "json" in str(headers.get("Content-Type") or headers.get("content-type") or "")
         try:
-            response = requests.request(method, url, headers=dict(headers), params=params, data=data, timeout=self.timeout)
+            response = requests.request(
+                method, url, headers=dict(headers), params=params,
+                json=data if as_json else None, data=None if as_json else data,
+                timeout=self.timeout,
+            )
         except Exception as exc:                        # noqa: BLE001 - surfaced as NHError
             raise NHError(f"NH request failed: {type(exc).__name__}: {exc}") from exc
         if response.status_code >= 400:
@@ -248,6 +293,24 @@ class NHClient:
         except ValueError as exc:
             raise NHError(f"NH {method} {url} returned non-JSON: {response.text[:200]}") from exc
         return payload if isinstance(payload, Mapping) else {"data": payload}
+
+
+def _account(value: str) -> str:
+    """Eleven digits, however the account was written.
+
+    NAMUH PLUG shows 209-01-867134 on its own registration page and then
+    answers IGW40011 "act_no 길이나 data type을 확인하세요" when you send it
+    that way. It wants the digits only.
+    """
+
+    return "".join(character for character in str(value) if character.isdigit())
+
+
+def _code(value: str) -> str:
+    """Six digits, however the ticker was written."""
+
+    digits = "".join(character for character in str(value) if character.isdigit())
+    return digits.zfill(6)[:6] if digits else str(value)
 
 
 def _redact(payload: Mapping[str, Any]) -> dict[str, Any]:

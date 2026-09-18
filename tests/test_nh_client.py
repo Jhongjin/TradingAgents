@@ -152,3 +152,56 @@ def test_the_base_url_and_paths_match_the_published_guide():
     # the rate limit the guide states is one per second, so the retry pause is
     # seconds rather than the minute KIS needs
     assert 1 <= nh_client.TOKEN_RATE_LIMIT_WAIT_SECONDS <= 5
+
+
+def test_the_account_number_is_sent_the_way_nh_wants_not_the_way_it_displays():
+    """Its own page shows 209-01-867134; the API answers IGW40011 to that."""
+
+    from tradingagents.execution.nh_client import _account
+
+    assert _account("209-01-867134") == "20901867134"
+    assert _account("20901867134") == "20901867134"
+    assert _account(" 209-01-867134 ") == "20901867134"
+    assert _account("") == ""
+
+
+def test_config_normalises_the_account_from_the_environment(monkeypatch):
+    monkeypatch.setenv("NH_APP_KEY", "K")
+    monkeypatch.setenv("NH_APP_SECRET_KEY", "S")
+    monkeypatch.setenv("NH_ACCOUNT_NO", "209-01-867134")
+    assert NHConfig.from_env().account_no == "20901867134"
+
+
+def test_business_calls_are_json_and_carry_the_tr_code():
+    """The token call is form-encoded; everything else is not."""
+
+    transport = _recorder({"rsp_cd": "00166", "Output_0": {"tot_aet_amt": 1}})
+    client = _client(transport, account_no="20901867134")
+    client._token = "TOKEN"                                             # noqa: SLF001
+    client._token_expires_at = time.time() + 3600                       # noqa: SLF001
+
+    client.balance()
+    sent = transport.calls[-1]
+    assert sent["url"].endswith("/krstock/inquiry/v1/balance")
+    assert sent["headers"]["tr_cd"] == "SCIOT983691"
+    assert sent["headers"]["Authorization"] == "Bearer TOKEN"
+    assert "json" in sent["headers"]["Content-Type"]
+    assert sent["data"]["Input_0"]["act_no"] == "20901867134"
+
+    client.current_price("5930")
+    sent = transport.calls[-1]
+    assert sent["headers"]["tr_cd"] == "IVOUTKMST04"
+    # six digits, however the ticker was typed
+    assert sent["data"]["Input_0"] == {"market_cd": "KRX", "iem_cd": "005930"}
+
+
+def test_a_business_failure_is_raised_rather_than_returned_as_an_empty_result():
+    """NH answers 200 with a code; only some of them mean it worked."""
+
+    transport = _recorder({"rsp_cd": "IGW40011", "rsp_msg": "act_no 길이나 data type을 확인하세요."})
+    client = _client(transport)
+    client._token = "TOKEN"                                             # noqa: SLF001
+    client._token_expires_at = time.time() + 3600                       # noqa: SLF001
+
+    with pytest.raises(NHError, match="IGW40011"):
+        client.balance("20901867134")
