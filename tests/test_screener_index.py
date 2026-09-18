@@ -26,6 +26,12 @@ def _sum_page(rows):
     return f'<html><table class="type_2"><tr>{head}</tr>{body}</table></html>'
 
 
+def _no_stored_members(monkeypatch, tmp_path):
+    """Point the stored-membership lookup at nothing, so the proxy path shows."""
+
+    monkeypatch.setenv("TRADINGAGENTS_INDEX_MEMBERS_PATH", str(tmp_path / "absent.json"))
+
+
 def test_parse_kospi200_page_reads_value_and_cap_units():
     rows = parse_naver_kospi200_page(_k200_page([("005930", "삼성전자", "269,500", "16,080,982", "4,357,868", "15,755,721")]))
     assert rows[0].code == "005930" and rows[0].market == "KOSPI"
@@ -49,9 +55,12 @@ def test_load_kospi200_rows_walks_pages_until_short_page():
         load_kospi200_rows(page_fetcher=lambda page: "<html></html>")
 
 
-def test_index_snapshot_uses_constituents_or_proxy(monkeypatch):
+def test_index_snapshot_uses_constituents_or_proxy(monkeypatch, tmp_path):
     monkeypatch.delenv("KRX_ID", raising=False)
     monkeypatch.delenv("TRADINGAGENTS_KOSDAQ150_CODES", raising=False)
+    # the fake KOSDAQ codes below are not in the real KOSDAQ150, so the stored
+    # membership has to be out of the way for the proxy path to be reachable
+    _no_stored_members(monkeypatch, tmp_path)
     kospi_page = lambda page: _k200_page([("005930", "삼성전자", "269,500", "1,000", "10", "15,755,721")]) if page == 1 else _k200_page([])
     kosdaq_rows = [(f"{200000 + i:06d}", f"Q{i}", "10,000", "5,000", "1,000") for i in range(200)]
 
@@ -73,10 +82,13 @@ def test_index_snapshot_uses_constituents_or_proxy(monkeypatch):
     assert _kosdaq150_codes_from_pykrx() == ["200002", "200003"]
 
 
-def test_screener_index_mode_scores_full_universe(monkeypatch):
+def test_screener_index_mode_scores_full_universe(monkeypatch, tmp_path):
     monkeypatch.setenv("TRADINGAGENTS_SCREENER_SNAPSHOT_MODE", "index")
     monkeypatch.delenv("KRX_ID", raising=False)
     monkeypatch.delenv("TRADINGAGENTS_KOSDAQ150_CODES", raising=False)
+    # the fake KOSDAQ codes below are not in the real KOSDAQ150, so the stored
+    # membership has to be out of the way for the proxy path to be reachable
+    _no_stored_members(monkeypatch, tmp_path)
     kospi_page = lambda page: _k200_page([(f"{i:06d}", f"K{i}", "10,000", "1,000,000", "10,000", "5,000") for i in range(10)]) if page == 1 else _k200_page([])
     sum_page = lambda market, page: _sum_page([(f"{200000 + i:06d}", f"Q{i}", "10,000", "5,000", "1,000,000") for i in range(5)]) if page == 1 else _sum_page([])
     monkeypatch.setattr("tradingagents.screener.screener.load_index_snapshot", lambda when, markets: load_index_snapshot(when, markets=markets, kospi200_page_fetcher=kospi_page, market_sum_page_fetcher=sum_page))

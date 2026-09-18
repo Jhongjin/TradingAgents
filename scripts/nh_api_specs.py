@@ -13,24 +13,10 @@ import requests
 from tradingagents.dataflows.http_trust import apply_system_truststore_if_available
 
 WANT = {
-    "/krstock/inquiry/v1/assetStatus",
-    "/krstock/inquiry/v1/integratedMargin",
-    "/krstock/inquiry/v1/rightsHeld",
-    "/krstock/inquiry/v1/rightsScheduled",
-    "/common/inquiry/v1/depositWithdrawal",
-    "/common/inquiry/v1/totalTransaction",
-    "/n2/acctinfo",
-    "/krstock/quote/v1/currentExecution",
-    "/krstock/quote/v1/period",
-    "/krstock/quote/v1/etfCurrent",
-    "/krstock/quote/v1/etfComponents",
-    "/krstock/quote/v1/afterHoursCurrent",
-    "/krgold/quote/v1/goldCurrent",
-    "/krgold/quote/v1/goldDailyTrend",
-    "/krgold/inquiry/v1/goldDepositAndBalance",
-    "/krgold/order/v1/goldBuy",
+    "/krstock/order/v1/creditBuy",
+    "/krstock/order/v1/creditSell",
 }
-OUT = pathlib.Path("shorts-out/nh/spec7.txt")   # gitignored build output
+OUT = pathlib.Path("shorts-out/nh/spec8.txt")   # gitignored build output
 
 
 def main() -> None:

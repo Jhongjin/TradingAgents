@@ -681,9 +681,25 @@ def load_index_snapshot(
     rows: list[MarketSnapshotRow] = []
     notes: list[str] = []
     if "KOSPI" in selected:
-        kospi_rows = load_kospi200_rows(page_fetcher=kospi200_page_fetcher)
+        try:
+            kospi_rows = load_kospi200_rows(page_fetcher=kospi200_page_fetcher)
+            notes.append(f"KOSPI200 constituents: {len(kospi_rows)}")
+        except VendorUnavailableError:
+            # Naver's constituent pages are the usual source. When they are
+            # down, the stored ETF holdings still say who is in the index, and
+            # the market-cap ranking still carries the prices for them.
+            stored = _index_codes_from_file("KOSPI200")
+            if not stored:
+                raise
+            ranking = load_naver_market_snapshot(
+                as_of_date, markets=("KOSPI",),
+                max_rows_per_market=kosdaq_scan_pages * _NAVER_PAGE_SIZE,
+                page_fetcher=market_sum_page_fetcher,
+            ).rows
+            wanted = set(stored)
+            kospi_rows = [row for row in ranking if row.code in wanted]
+            notes.append(f"KOSPI200 from stored ETF holdings: {len(kospi_rows)} of {len(wanted)}")
         rows.extend(kospi_rows)
-        notes.append(f"KOSPI200 constituents: {len(kospi_rows)}")
     if "KOSDAQ" in selected:
         codes = list(kosdaq150_codes) if kosdaq150_codes is not None else _kosdaq150_codes_from_pykrx()
         ranking = load_naver_market_snapshot(as_of_date, markets=("KOSDAQ",), max_rows_per_market=kosdaq_scan_pages * _NAVER_PAGE_SIZE, page_fetcher=market_sum_page_fetcher).rows
@@ -698,6 +714,17 @@ def load_index_snapshot(
     if not rows:
         raise VendorUnavailableError("index universe produced no rows")
     return MarketSnapshot(as_of_date=_coerce_date(as_of_date).isoformat(), markets=selected, rows=rows, vendor="index:" + ", ".join(notes))
+
+
+def _index_codes_from_file(index: str) -> list[str]:
+    """Membership taken from the index ETF's holdings, checked in under data/."""
+
+    try:
+        from tradingagents.dataflows.kr_index_members import index_member_codes
+
+        return index_member_codes(index)
+    except Exception:                                   # noqa: BLE001 - a missing file is not an error
+        return []
 
 
 def load_kospi200_rows(*, page_fetcher: ConstituentPageFetcher | None = None) -> list[MarketSnapshotRow]:
@@ -781,7 +808,12 @@ def _fetch_naver_kospi200_page(page: int) -> str:
 
 
 def _kosdaq150_codes_from_pykrx() -> list[str]:
-    """KOSDAQ150 constituents via pykrx (KRX data portal; needs KRX_ID/KRX_PW), else env CSV, else empty."""
+    """KOSDAQ150 constituents: env CSV, then the stored ETF holdings, then pykrx.
+
+    The stored file comes ahead of pykrx because pykrx needs a KRX data-portal
+    account almost nobody running this has, and behind the env CSV because an
+    explicit list is someone saying what they want on purpose.
+    """
 
     from tradingagents.dataflows.kr_tickers import is_kr_ticker, normalize_kr_ticker
 
@@ -789,6 +821,11 @@ def _kosdaq150_codes_from_pykrx() -> list[str]:
     codes = [normalize_kr_ticker(part.strip()) for part in raw.split(",") if part.strip() and is_kr_ticker(part.strip())]
     if codes:
         return list(dict.fromkeys(codes))
+
+    stored = _index_codes_from_file("KOSDAQ150")
+    if stored:
+        return stored
+
     if not (os.getenv("KRX_ID") and os.getenv("KRX_PW")):
         return []
     try:
