@@ -2621,6 +2621,116 @@ def _stored_backtests(source: Optional[str]) -> dict | None:
         return None
 
 
+SWEEP_MIN_VARIANTS = 4
+
+
+def _live_rule_key() -> tuple[float, float]:
+    """The stop and variability the account is actually trading on right now."""
+
+    try:
+        from tradingagents.harness.pipeline import PipelineConfig
+
+        live = PipelineConfig()
+        return round(float(live.stop_loss_pct), 4), round(float(live.volatility_exclude_top_pct), 4)
+    except Exception:                                   # noqa: BLE001 - the cut still draws
+        return 0.08, 0.2
+
+
+def _sweep_in(rows: Sequence[Mapping[str, Any]]) -> dict | None:
+    """One sweep as a ranked comparison, with the live rule marked.
+
+    A sweep answers "was this setting the reason", and it is the one thing this
+    project produces that generates material on demand rather than waiting for
+    the market to do something. Marking which row is the rule in force is what
+    keeps it a report rather than a menu.
+    """
+
+    if len(rows) < SWEEP_MIN_VARIANTS:
+        return None
+
+    stop, volatility = _live_rule_key()
+    variants = []
+    for row in rows:
+        config = row.get("config") or {}
+        if not isinstance(config, Mapping):
+            continue
+        total = row.get("total_return")
+        if total is None:
+            continue
+        variants.append({
+            "name": str(row.get("label") or "").split(":", 1)[-1],
+            "total_return": float(total),
+            "max_drawdown": float(row["max_drawdown"]) if row.get("max_drawdown") is not None else None,
+            "sharpe_ratio": float(row["sharpe_ratio"]) if row.get("sharpe_ratio") is not None else None,
+            "hit_rate": float(row["hit_rate"]) if row.get("hit_rate") is not None else None,
+            "trade_count": int(row.get("trade_count") or 0),
+            "live": (
+                round(float(config.get("stop_loss_pct") or 0), 4) == stop
+                and round(float(config.get("volatility_exclude_top_pct") or 0), 4) == volatility
+            ),
+        })
+    if len(variants) < SWEEP_MIN_VARIANTS:
+        return None
+
+    variants.sort(key=lambda item: -item["total_return"])
+    first = rows[0]
+    benchmark = first.get("benchmark_return")
+    return {
+        "start_date": str(first.get("start_date") or "")[:10],
+        "end_date": str(first.get("end_date") or "")[:10],
+        "ran_on": str(first.get("created_at") or "")[:10],
+        "universe": int(first.get("universe_size") or 0),
+        "benchmark": float(benchmark) if benchmark is not None else None,
+        "variants": variants,
+        "best": variants[0],
+        "live": next((item for item in variants if item["live"]), None),
+    }
+
+
+def _latest_sweep(source: Optional[str]) -> dict | None:
+    """The newest batch of rule variants that were replayed together."""
+
+    import os
+
+    if source:
+        return None
+    try:
+        if not os.getenv("DATABASE_URL"):
+            return None
+        from sqlalchemy import text
+
+        from tradingagents.storage import create_storage_engine
+
+        with create_storage_engine().connect() as connection:
+            rows = [
+                dict(row)
+                for row in connection.execute(
+                    text(
+                        "select label, start_date, end_date, universe_size, total_return, "
+                        "benchmark_return, max_drawdown, sharpe_ratio, hit_rate, trade_count, "
+                        "config_json as config, created_at from backtest_runs "
+                        "where label like 'rules:%' order by created_at desc limit 40"
+                    )
+                ).mappings()
+            ]
+        if not rows:
+            return None
+        # Variants of one sweep share a window; an older sweep over a different
+        # window must not be averaged in with this one.
+        window = (rows[0].get("start_date"), rows[0].get("end_date"))
+        batch, seen = [], set()
+        for row in rows:
+            if (row.get("start_date"), row.get("end_date")) != window:
+                break
+            if row["label"] in seen:                    # the newest run of each label wins
+                continue
+            seen.add(row["label"])
+            batch.append(row)
+        return _sweep_in(batch)
+    except Exception:                                   # noqa: BLE001 - the other stories still work
+        return None
+
+
 def _account_curve(source: Optional[str]) -> dict | None:
     """The account's day-by-day line against the index, for the weekly cut."""
 
@@ -2744,6 +2854,7 @@ def _shorts_payload(source: Optional[str]) -> dict:
         ("funnel", lambda: _latest_funnel(source)),
         ("rejected", lambda: _rejected_after(source)),
         ("backtests", lambda: _stored_backtests(source)),
+        ("sweep", lambda: _latest_sweep(source)),
         ("curve", lambda: _account_curve(source)),
         ("candles", lambda: _biggest_mover(payload, source)),
     ):
@@ -2791,7 +2902,7 @@ def _shorts_build(renderer: str, payload: dict, output: Path, *, story_key: str 
     from tradingagents.shorts import build, voice as narration
     from tradingagents.shorts.hyperframes import (
         compose_candles, compose_curve, compose_debate, compose_explain, compose_funnel, compose_picks,
-        compose_record, compose_rejected,
+        compose_record, compose_rejected, compose_sweep,
         run, write_project,
     )
 
@@ -2810,7 +2921,8 @@ def _shorts_build(renderer: str, payload: dict, output: Path, *, story_key: str 
     compose = {"debate": compose_debate, "curve": compose_curve, "candles": compose_candles,
                "funnel": compose_funnel, "explain": compose_explain,
                "picks": compose_picks,
-               "rejected": compose_rejected}.get(renderer, compose_record)
+               "rejected": compose_rejected,
+               "sweep": compose_sweep}.get(renderer, compose_record)
     html, seconds = compose(payload, board)
     project = write_project(html, output / "hf" / (story_key or renderer), name=story_key or renderer)
     run("check", project.directory)

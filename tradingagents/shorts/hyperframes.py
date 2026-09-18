@@ -671,7 +671,7 @@ def run(command: str, directory: Path, *, extra: Sequence[str] = (), timeout: in
 
 
 __all__ = ["Composition", "CLI_VERSION", "HyperFramesMissingError", "compose_candles", "compose_curve",
-           "compose_debate", "compose_explain", "compose_funnel", "compose_picks", "compose_record", "compose_rejected", "run", "write_project"]
+           "compose_debate", "compose_explain", "compose_funnel", "compose_picks", "compose_record", "compose_rejected", "compose_sweep", "run", "write_project"]
 
 
 # ---------------------------------------------------------------- the funnel
@@ -1080,6 +1080,108 @@ def compose_rejected(payload: Mapping[str, Any], board: Storyboard) -> tuple[str
         "{{MISS_TEXT}}": f"{float(best.get('alpha') or 0.0) * 100:+.2f}%p",
         "{{MISS_COLOUR}}": "var(--took)" if best.get("bought") else "var(--passed)",
         "{{TOTALS_NOTE}}": board.scenes[2].note,
+        "{{OUTRO1}}": outro.headline[0] if getattr(outro, "headline", ()) else "",
+        "{{OUTRO2}}": outro.headline[1] if len(getattr(outro, "headline", ())) > 1 else "",
+        "{{OUTRO_CALL}}": getattr(outro, "call", ""),
+        "{{URL}}": host,
+        "{{TELEGRAM_LINE}}": getattr(outro, "telegram_line", ""),
+        "{{TELEGRAM}}": handle or f"{host}/start",
+    }
+    for token, value in replacements.items():
+        template = template.replace(token, str(value))
+    return template, running
+
+
+# ---------------------------------------------------------------- the sweep
+# The bars and the index share 740px; the value labels keep the rest of
+# the row, or the index line draws straight through them.
+BOARD_W, BOARD_STEP = 740.0, 118
+
+
+def _sweep_row(index: int, item: Mapping[str, Any], *, scale: float) -> str:
+    top = index * BOARD_STEP
+    width = max(float(item.get("total_return") or 0.0) * scale, 4.0)
+    tag = '<p class="tag">현행</p>' if item.get("live") else ""
+    return (
+        f'<div class="row{" on" if item.get("live") else ""}" id="row{index}" style="top: {top}px;">'
+        f'<p class="nm">{item.get("name")}</p><div class="track"></div>'
+        f'<div class="fill" style="width: {width:.0f}px;"></div>'
+        f'<p class="val">{float(item.get("total_return") or 0.0) * 100:+.1f}%</p>{tag}</div>'
+    )
+
+
+def compose_sweep(payload: Mapping[str, Any], board: Storyboard) -> tuple[str, float]:
+    """Seven replays of the same three years, ranked, with the index across them.
+
+    The bars are our own settings measured against each other, which on its own
+    says nothing about whether any of them was worth running. The index arrives
+    last, on the same scale, cutting through the lot — that is the comparison
+    that decides it, and the one the stop-loss cut used to leave out.
+    """
+
+    data = payload.get("sweep") or {}
+    variants = list(data.get("variants") or [])
+    benchmark = data.get("benchmark")
+
+    ceiling = max([float(item.get("total_return") or 0.0) for item in variants]
+                  + ([float(benchmark)] if benchmark is not None else []) + [0.01])
+    scale = BOARD_W / (ceiling * 1.06)
+
+    rows = "\n          ".join(_sweep_row(index, item, scale=scale) for index, item in enumerate(variants))
+    board_height = max(len(variants) * BOARD_STEP, BOARD_STEP)
+    index_x = min(float(benchmark) * scale, BOARD_W - 4) if benchmark is not None else BOARD_W - 4
+
+    handle = telegram_handle()
+    host = site_url().split("://", 1)[-1]
+    lengths = [scene.seconds for scene in board.scenes]
+    starts, running = [], 0.0
+    for value in lengths:
+        starts.append(running)
+        running += value
+    outro = board.scenes[-1]
+
+    hero_text, hero_size = hero(str(len(variants)), "가지", cap=300)
+    beat = board.scenes[2]
+    count = str(getattr(beat, "value", "") or "0")
+    count_text, count_size = hero(count, "개", cap=250)
+
+    template = (Path(__file__).parent / "composition_sweep.html").read_text(encoding="utf-8")
+    replacements = {
+        "{{DURATION}}": f"{running:.2f}",
+        "{{S1_DURATION}}": f"{lengths[0]:.2f}",
+        "{{S2_START}}": f"{starts[1]:.2f}",
+        "{{S2_DURATION}}": f"{lengths[1]:.2f}",
+        "{{S3_START}}": f"{starts[2]:.2f}",
+        "{{S3_DURATION}}": f"{lengths[2]:.2f}",
+        "{{S4_START}}": f"{starts[3]:.2f}",
+        "{{S4_DURATION}}": f"{lengths[3]:.2f}",
+        "{{KICKER}}": board.scenes[0].eyebrow,
+        "{{HERO_TEXT}}": hero_text,
+        "{{HERO_SIZE}}": str(hero_size),
+        "{{HOOK_CAPTION}}": board.scenes[0].caption,
+        "{{LINE1}}": board.scenes[0].lines[0] if board.scenes[0].lines else "",
+        "{{LINE2}}": board.scenes[0].lines[1] if len(board.scenes[0].lines) > 1 else "",
+        "{{BOARD_HEAD}}": board.scenes[1].heading,
+        "{{ROWS}}": rows,
+        "{{ROW_COUNT}}": str(len(variants)),
+        "{{BOARD_H}}": f"{board_height}",
+        "{{INDEX_X}}": f"{index_x:.0f}",
+        "{{INDEX_H}}": f"{board_height - 24}",
+        "{{INDEX_TAG_X}}": f"{116 + max(min(index_x - 170, BOARD_W - 300), 0):.0f}",
+        "{{INDEX_TAG_TOP}}": f"{400 + board_height + 6}",
+        "{{INDEX_TEXT}}": f"{float(benchmark) * 100:+.1f}%" if benchmark is not None else "기록 없음",
+        "{{BOARD_NOTE}}": board.scenes[1].note,
+        "{{BOARD_NOTE_TOP}}": f"{400 + board_height + 72}",
+        "{{COUNT_KICKER}}": beat.eyebrow,
+        "{{COUNT_TEXT}}": count_text,
+        "{{COUNT_SIZE}}": str(count_size),
+        "{{COUNT_COLOUR}}": "var(--live)" if count != "0" else "var(--index)",
+        "{{COUNT_CAPTION}}": getattr(beat, "caption", "") or beat.heading,
+        "{{LIVE_LABEL}}": (beat.rows[0]["label"] if beat.rows else ""),
+        "{{LIVE_TEXT}}": (beat.rows[0]["value"] if beat.rows else ""),
+        "{{BEST_LABEL}}": (beat.rows[1]["label"] if len(beat.rows) > 1 else ""),
+        "{{BEST_TEXT}}": (beat.rows[1]["value"] if len(beat.rows) > 1 else ""),
+        "{{COUNT_NOTE}}": beat.note,
         "{{OUTRO1}}": outro.headline[0] if getattr(outro, "headline", ()) else "",
         "{{OUTRO2}}": outro.headline[1] if len(getattr(outro, "headline", ())) > 1 else "",
         "{{OUTRO_CALL}}": getattr(outro, "call", ""),

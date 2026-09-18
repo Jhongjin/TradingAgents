@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Noto Sans KR"; font-weight: 300; src: local("Noto Sans KR Light"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 500; src: local("Noto Sans KR Medium"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 700; src: local("Noto Sans KR Bold"), local("Noto Sans KR"); }
+      @font-face { font-family: "Noto Sans KR"; font-weight: 900; src: local("Noto Sans KR Black"), local("Noto Sans KR"); }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      /* Dark olive: the measuring cut. Nothing here is a market colour because
+         nothing here is a trade — these are seven replays of the same three
+         years with one rule changed each time. */
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #14170e; }
+
+      :root {
+        --ink: #f0f2e4; --ink2: #b3b89b; --muted: #7f8568;
+        --bar: #6f7a4a; --live: #c9d94a; --index: #e8833a;
+        --hair: #2b3019; --ground: #14170e;
+      }
+
+      #root {
+        width: 1080px; height: 1920px; position: relative; overflow: hidden;
+        font-family: "Noto Sans KR", sans-serif; color: var(--ink);
+        font-variant-numeric: tabular-nums;
+        background:
+          radial-gradient(1100px 900px at 8% 3%, rgba(201, 217, 74, 0.09), transparent 60%),
+          radial-gradient(900px 800px at 94% 94%, rgba(9, 11, 6, 0.9), transparent 60%),
+          linear-gradient(177deg, #1a1e12 0%, #14170e 48%, #0d0f08 100%);
+      }
+      .clip { position: absolute; inset: 0; z-index: 10; }
+
+      #grain { position: absolute; inset: 0; pointer-events: none; z-index: 90; }
+      #grain .g {
+        position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; opacity: 0.03;
+        background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.68' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        animation: hf-grain 0.75s steps(1) infinite;
+      }
+      @keyframes hf-grain {
+        0%,100% { transform: translate(0,0); } 20% { transform: translate(-8%,4%); }
+        40% { transform: translate(6%,-7%); } 60% { transform: translate(-4%,9%); }
+        80% { transform: translate(9%,2%); }
+      }
+      #swipe { position: absolute; top: 0; left: -320px; width: 300px; height: 1920px; z-index: 2;
+               background: linear-gradient(90deg, transparent, rgba(201,217,74,0.07) 45%, rgba(201,217,74,0.18) 88%, transparent);
+               transform: translateX(0); }
+
+      .pad { position: absolute; left: 116px; right: 84px; }
+      .kicker { font-weight: 500; font-size: 30px; color: var(--live); letter-spacing: 0.06em; }
+      .head { font-weight: 900; font-size: 64px; letter-spacing: -0.042em; line-height: 1.2; }
+      .body { font-weight: 300; font-size: 34px; color: var(--ink2); line-height: 1.5; word-break: keep-all; }
+      .unit { font-size: 0.38em; font-weight: 700; letter-spacing: -0.02em; }
+      .mark { position: absolute; right: 84px; top: 1498px; font-weight: 300; font-size: 28px;
+              color: var(--muted); z-index: 12; }
+
+      /* ---- 1. how many were tried ------------------------------------------ */
+      #w1-mask { position: absolute; left: 104px; top: 470px; width: 900px; height: 300px; overflow: hidden; }
+      #w1-fig { position: absolute; left: 0; top: 0; font-size: {{HERO_SIZE}}px; font-weight: 900;
+                letter-spacing: -0.055em; line-height: 0.86; color: var(--live); }
+      #w1-rule { position: absolute; left: 116px; width: 880px; top: 996px; height: 4px;
+                 background: var(--live); transform-origin: left center; }
+
+      /* ---- 2. the ranking, with the index cutting across it ----------------- */
+      #board { position: absolute; left: 116px; top: 400px; width: 880px; }
+      .row { position: absolute; left: 0; width: 880px; height: 96px; }
+      .row .nm { position: absolute; left: 0; top: 0; font-weight: 500; font-size: 29px; color: var(--ink2); }
+      .row .track { position: absolute; left: 0; top: 40px; width: 740px; height: 30px; background: var(--hair); }
+      .row .fill { position: absolute; top: 40px; height: 30px; background: var(--bar);
+                   transform-origin: left center; }
+      .row.on .fill { background: var(--live); }
+      .row.on .nm { color: var(--live); font-weight: 700; }
+      .row .val { position: absolute; right: 0; top: -4px; font-weight: 900; font-size: 34px;
+                  letter-spacing: -0.03em; }
+      .row.on .val { color: var(--live); }
+      .row .tag { position: absolute; left: 756px; top: 44px; font-weight: 700; font-size: 22px;
+                  color: var(--live); letter-spacing: 0.04em; }
+
+      /* the index over the same window, on the same scale as the bars */
+      #index-line { position: absolute; top: 24px; width: 4px; background: var(--index); }
+      #index-tag { position: absolute; font-weight: 900; font-size: 28px; color: var(--index);
+                   white-space: nowrap; }
+      #w2-note { position: absolute; left: 116px; right: 84px; }
+
+      /* ---- 3. what that adds up to ----------------------------------------- */
+      #count-mask { position: absolute; left: 104px; top: 420px; width: 900px; height: 240px; overflow: hidden; }
+      #count-fig { position: absolute; left: 0; top: 0; font-size: {{COUNT_SIZE}}px; font-weight: 900;
+                   letter-spacing: -0.05em; line-height: 0.86; color: {{COUNT_COLOUR}}; }
+      .pair { position: absolute; left: 116px; right: 84px; }
+      .pair .k { font-weight: 500; font-size: 30px; color: var(--muted); }
+      .pair .v { font-weight: 900; font-size: 46px; letter-spacing: -0.035em; margin-top: 8px; }
+      .pair .rl { position: absolute; left: 0; bottom: -18px; width: 880px; height: 2px;
+                  background: var(--hair); transform-origin: left center; }
+
+      /* ---- 4. the outro ----------------------------------------------------- */
+      #w4-rule { position: absolute; left: 116px; width: 880px; top: 760px; height: 4px;
+                 background: var(--live); transform-origin: left center; }
+      .url { font-weight: 900; font-size: 74px; letter-spacing: -0.04em; color: var(--ink); }
+      #tg-rule { position: absolute; left: 116px; width: 880px; top: 1052px; height: 2px;
+                 background: var(--hair); transform-origin: left center; }
+      .fine { font-weight: 300; font-size: 25px; line-height: 1.5; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="{{DURATION}}"
+         data-width="1080" data-height="1920">
+
+      <!-- 1. how many were tried -------------------------------------------->
+      <div class="clip" id="w1" data-start="0" data-duration="{{S1_DURATION}}" data-track-index="0">
+        <p class="kicker pad" style="top: 300px;" id="w1-kick">{{KICKER}}</p>
+        <div id="w1-mask"><p id="w1-fig">{{HERO_TEXT}}</p></div>
+        <p class="body pad" style="top: 900px;" id="w1-cap">{{HOOK_CAPTION}}</p>
+        <div id="w1-rule"></div>
+        <div class="pad" style="top: 1052px;">
+          <p class="head" id="w1-l1">{{LINE1}}</p>
+          <p class="head" id="w1-l2">{{LINE2}}</p>
+        </div>
+      </div>
+
+      <!-- 2. the ranking ----------------------------------------------------->
+      <div class="clip" id="w2" data-start="{{S2_START}}" data-duration="{{S2_DURATION}}" data-track-index="0">
+        <p class="head pad" style="top: 280px;" id="w2-head">{{BOARD_HEAD}}</p>
+        <div id="board" style="height: {{BOARD_H}}px;">
+          {{ROWS}}
+          <div id="index-line" style="left: {{INDEX_X}}px; height: {{INDEX_H}}px;"></div>
+        </div>
+        <p id="index-tag" style="left: {{INDEX_TAG_X}}px; top: {{INDEX_TAG_TOP}}px;">코스피 {{INDEX_TEXT}}</p>
+        <p class="body" id="w2-note" style="top: {{BOARD_NOTE_TOP}}px;">{{BOARD_NOTE}}</p>
+      </div>
+
+      <!-- 3. what that adds up to --------------------------------------------->
+      <div class="clip" id="w3" data-start="{{S3_START}}" data-duration="{{S3_DURATION}}" data-track-index="0">
+        <p class="kicker pad" style="top: 300px;" id="w3-kick">{{COUNT_KICKER}}</p>
+        <div id="count-mask"><p id="count-fig">{{COUNT_TEXT}}</p></div>
+        <p class="body pad" style="top: 700px;" id="w3-cap">{{COUNT_CAPTION}}</p>
+        <div class="pair" id="pair0" style="top: 840px;">
+          <p class="k">{{LIVE_LABEL}}</p><p class="v" style="color: var(--live);">{{LIVE_TEXT}}</p><div class="rl"></div>
+        </div>
+        <div class="pair" id="pair1" style="top: 990px;">
+          <p class="k">{{BEST_LABEL}}</p><p class="v">{{BEST_TEXT}}</p><div class="rl"></div>
+        </div>
+        <p class="body pad" style="top: 1150px;" id="w3-note">{{COUNT_NOTE}}</p>
+      </div>
+
+      <!-- 4. the outro ------------------------------------------------------>
+      <div class="clip" id="w4" data-start="{{S4_START}}" data-duration="{{S4_DURATION}}" data-track-index="0">
+        <div class="pad" style="top: 560px;">
+          <p class="head" id="w4-l1">{{OUTRO1}}</p>
+          <p class="head" id="w4-l2">{{OUTRO2}}</p>
+        </div>
+        <div id="w4-rule"></div>
+        <p class="body pad" style="top: 800px;" id="w4-call">{{OUTRO_CALL}}</p>
+        <p class="url pad" style="top: 858px;" id="w4-url">{{URL}}</p>
+        <div id="tg-rule"></div>
+        <div class="pad" style="top: 1090px;" id="w4-tg">
+          <p class="fine" style="color: var(--ink2);">{{TELEGRAM_LINE}}</p>
+          <p class="url" style="font-size: 54px; margin-top: 14px;">{{TELEGRAM}}</p>
+        </div>
+        <p class="fine pad" style="top: 1300px;" id="w4-fine">AI 실험 기록이며 매매 권유가 아닙니다.</p>
+      </div>
+
+      <p class="mark">{{URL}}</p>
+      <div id="swipe"></div>
+      <div id="grain"><div class="g"></div></div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      function cut(at) {
+        tl.fromTo("#swipe", { x: 0 }, { x: 1420, duration: 0.5, ease: "power2.inOut" }, at - 0.22);
+      }
+
+      // --- 1. how many were tried --------------------------------------------
+      tl.fromTo("#w1-kick", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.32 }, 0)
+        .fromTo("#w1-fig", { yPercent: 42, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.62, ease: "power3.out" }, 0.1)
+        .fromTo("#w1-cap", { opacity: 0 }, { opacity: 1, duration: 0.32 }, 0.66)
+        .fromTo("#w1-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46, ease: "power3.out" }, 0.78)
+        .fromTo("#w1-l1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.34 }, 0.98)
+        .fromTo("#w1-l2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.34 }, 1.13);
+
+      // --- 2. the bars grow, then the index cuts across all of them -----------
+      // The index arrives last and on the same scale, because a ranking of our
+      // own settings against each other says nothing about whether any of them
+      // was worth running.
+      const S2 = {{S2_START}}, ROWS = {{ROW_COUNT}};
+      cut(S2);
+      tl.fromTo("#w2-head", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S2);
+      for (let i = 0; i < ROWS; i += 1) {
+        const at = S2 + 0.42 + i * 0.22;
+        const node = "#row" + i;
+        tl.fromTo(node + " .nm", { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.3 }, at)
+          .fromTo(node + " .track", { opacity: 0 }, { opacity: 1, duration: 0.24 }, at)
+          .fromTo(node + " .fill", { scaleX: 0 }, { scaleX: 1, duration: 0.62, ease: "power3.out" }, at + 0.06)
+          .fromTo(node + " .val", { opacity: 0 }, { opacity: 1, duration: 0.3 }, at + 0.34);
+      }
+      const after = S2 + 0.7 + ROWS * 0.22;
+      tl.fromTo(".row.on .tag", { opacity: 0 }, { opacity: 1, duration: 0.3 }, after)
+        .fromTo("#index-line", { opacity: 0, scaleY: 0 }, { opacity: 1, scaleY: 1, duration: 0.5, ease: "power3.out" }, after + 0.2)
+        .fromTo("#index-tag", { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.34 }, after + 0.44)
+        .fromTo("#w2-note", { opacity: 0 }, { opacity: 1, duration: 0.36 }, after + 0.66);
+
+      // --- 3. how many of them beat it ----------------------------------------
+      const S3 = {{S3_START}};
+      cut(S3);
+      tl.fromTo("#w3-kick", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.3 }, S3)
+        .fromTo("#count-fig", { yPercent: 40, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.58, ease: "power3.out" }, S3 + 0.16)
+        .fromTo("#w3-cap", { opacity: 0 }, { opacity: 1, duration: 0.32 }, S3 + 0.7)
+        .fromTo("#pair0", { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.36 }, S3 + 0.95)
+        .fromTo("#pair1", { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.36 }, S3 + 1.18)
+        .fromTo("#w3-note", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S3 + 1.5);
+
+      // --- 4. outro -------------------------------------------------------------
+      const S4 = {{S4_START}};
+      cut(S4);
+      tl.fromTo("#w4-l1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32 }, S4)
+        .fromTo("#w4-l2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32 }, S4 + 0.16)
+        .fromTo("#w4-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46, ease: "power3.out" }, S4 + 0.38)
+        .fromTo("#w4-call", { opacity: 0 }, { opacity: 1, duration: 0.3 }, S4 + 0.5)
+        .fromTo("#w4-url", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S4 + 0.64)
+        .fromTo("#tg-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.46 }, S4 + 1.05)
+        .fromTo("#w4-tg", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36 }, S4 + 1.18)
+        .fromTo("#w4-fine", { opacity: 0 }, { opacity: 1, duration: 0.36 }, S4 + 1.55);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

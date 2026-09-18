@@ -1072,6 +1072,144 @@ def build_rejected(payload, *, now=None, theme=DEFAULT_THEME, story=None):
     )
 
 
+def build_sweep(payload, *, now=None, theme=DEFAULT_THEME, story=None):
+    """A week's rule experiment: several replays of one window, ranked.
+
+    This is the only cut the project can make on demand. It needs no market
+    event and no closed trade — just one sweep, which is work that has to
+    happen anyway before a rule is changed. It is also the cut most able to
+    flatter, so the index goes on the same axis and the count that matters is
+    how many settings beat it, not which of ours came first.
+    """
+
+    data = payload.get("sweep") or {}
+    variants = list(data.get("variants") or [])
+    benchmark = data.get("benchmark")
+    best = data.get("best") or {}
+    live = data.get("live") or {}
+    window = f"{data.get('start_date', '')}~{data.get('end_date', '')}".strip("~")
+    universe = int(data.get("universe") or 0)
+    stamp = _today(now).strftime("%Y%m%d")
+
+    beat_index = len([item for item in variants
+                      if benchmark is not None and float(item.get("total_return") or 0) > float(benchmark)])
+    best_name = str(best.get("name") or "")
+    live_name = str(live.get("name") or "")
+    live_is_best = bool(live) and live_name == best_name
+    runner = variants[1] if len(variants) > 1 else None
+    runner_name = str((runner or {}).get("name") or "")
+
+    scenes = (
+        Hook(
+            eyebrow=f"규칙 실험 · {window}",
+            value=f"{len(variants)}가지",
+            value_colour="accent",
+            caption=f"같은 기간, 같은 {universe}종목. 규칙만 하나씩 바꿔 돌렸습니다" if universe
+                    else "같은 기간, 같은 종목. 규칙만 하나씩 바꿔 돌렸습니다",
+            lines=(
+                ("제일 나은 것도", "지수는 못 넘었습니다.")
+                if benchmark is not None and not beat_index
+                else ("그중 지수를 넘은 건", f"{beat_index}가지입니다.")
+            ),
+            seconds=3.8,
+            narration=(
+                f"같은 기간을 {len(variants)}번 다시 돌렸습니다. 규칙만 하나씩 바꿔서요. "
+                + (
+                    "결과부터 말하면, 제일 나은 것도 지수는 못 넘었습니다."
+                    if benchmark is not None and not beat_index
+                    else f"그중 지수를 넘은 건 {beat_index}가지였습니다."
+                )
+            ),
+        ),
+        Rows(
+            eyebrow="성적순",
+            heading="바꾼 것과 그 결과",
+            rows=tuple(
+                {"label": str(item.get("name")), "value": percent(float(item.get("total_return") or 0), digits=1),
+                 "sub": "현행" if item.get("live") else "", "colour": "accent"}
+                for item in variants
+            ),
+            note=(
+                "주황선이 같은 기간 코스피입니다. 우리 설정끼리 줄 세우는 건 쉬운데, 저 선을 넘는 건 다른 문제입니다."
+                if benchmark is not None
+                else "이 실행은 지수를 함께 기록하지 못했습니다."
+            ),
+            seconds=3.4 + len(variants) * 0.38,
+            narration=(
+                "성적순입니다. 초록으로 표시된 게 지금 실제로 쓰는 설정이고요. "
+                + ("주황선이 같은 기간 코스피입니다. 우리끼리 줄 세우는 건 쉬운데, 저 선을 넘는 게 어렵습니다."
+                   if benchmark is not None else "")
+            ),
+        ),
+        Rows(
+            eyebrow="정리하면",
+            heading="지수를 넘은 설정",
+            value=str(beat_index),
+            caption=f"{len(variants)}가지 중 {beat_index}가지",
+            # When the rule in force came first, repeating it as "the best" is
+            # two rows of the same number. The runner-up is what a viewer
+            # cannot work out from the first row.
+            rows=(
+                {"label": f"지금 쓰는 설정 · {live_name}" if live_name else "지금 쓰는 설정",
+                 "value": percent(float(live.get("total_return") or 0), digits=1) if live else "기록 없음"},
+                ({"label": f"다음으로 나았던 설정 · {runner_name}",
+                  "value": percent(float(runner.get("total_return") or 0), digits=1)}
+                 if live_is_best and runner
+                 else {"label": f"이번에 제일 나았던 설정 · {best_name}",
+                       "value": percent(float(best.get("total_return") or 0), digits=1) if best else "기록 없음"}),
+            ),
+            note=(
+                "규칙을 바꾸면 바꾼 날짜와 근거를 사이트에 적습니다. 과거 성과이며 앞으로를 보장하지 않습니다."
+                if live_is_best
+                else "1위였다고 바로 바꾸지는 않습니다. 한 번의 구간에서 제일 나은 설정은 다음 구간에서 아닐 수 있습니다."
+            ),
+            seconds=5.4,
+            narration=(
+                (f"{len(variants)}가지 중에 지수를 넘은 건 {beat_index}가지입니다. " if benchmark is not None else "")
+                + (
+                    f"지금 쓰는 설정이 이번 구간에서는 1위였습니다. 다음으로 나았던 건 {runner_name}이고요."
+                    if live_is_best and runner
+                    else f"지금 쓰는 건 이거고, 이번에 제일 나았던 건 {best_name}입니다. 1위였다고 바로 바꾸지는 않아요."
+                )
+                + " 한 구간에서 제일 나은 설정이 다음 구간에서도 그렇다는 보장이 없으니까요."
+            ),
+        ),
+        _outro(
+            headline=("바꾸기 전에", "돌려보고 남깁니다."),
+            call="전체 비교와 현재 규칙",
+            narration=(
+                "규칙을 바꿀 때는 먼저 돌려보고, 돌려본 기록을 그대로 남깁니다. "
+                "무엇을 언제 왜 바꿨는지 사이트에서 볼 수 있습니다."
+            ),
+        ),
+    )
+
+    return Storyboard(
+        slug=f"rule_test-{stamp}",
+        title=(
+            f"규칙 {len(variants)}가지를 다 돌려봤습니다 | 지수를 넘은 건 {beat_index}가지"
+            if benchmark is not None
+            else f"규칙 {len(variants)}가지를 다 돌려봤습니다 | 무엇이 나았나"
+        ),
+        description=(
+            f"{window} 구간을 {len(variants)}번 다시 돌렸습니다. 손절 폭, 익절 폭, 변동성 제외, 보유 기간을 "
+            "하나씩 바꿔 같은 기준으로 비교한 기록입니다." + chr(10) + chr(10)
+            + f"현재 규칙 -> {_link('/rules', 'rule_test', stamp=stamp)}" + chr(10)
+            + f"모의 계좌 -> {_link('/paper', 'rule_test', stamp=stamp)}" + chr(10)
+            + _telegram_line() + chr(10) + chr(10)
+            + "과거 성과이며 앞으로를 보장하지 않습니다. AI 실험 기록이며 매매 권유가 아닙니다." + chr(10)
+            + "#주식 #퀀트 #백테스트 #코스피 #투자기록"
+        ),
+        tags=("주식", "퀀트", "백테스트", "코스피", "투자기록", "리스크관리"),
+        scenes=scenes,
+        theme=theme,
+        comment=_comment(
+            f"{len(variants)}가지 설정의 전체 비교표와 지금 적용 중인 규칙이 여기 있습니다.",
+            path="/rules", campaign="rule_test", stamp=stamp,
+        ),
+    )
+
+
 STORIES: dict[str, Callable[..., Storyboard]] = {
     "record": build_record,
     "picks": build_picks,
@@ -1081,6 +1219,7 @@ STORIES: dict[str, Callable[..., Storyboard]] = {
     "funnel": build_funnel,
     "explain": build_explain,
     "rejected": build_rejected,
+    "sweep": build_sweep,
 }
 
 
@@ -1105,4 +1244,4 @@ def build(
     return STORIES[name](payload, now=now, theme=theme, story=story or name)
 
 
-__all__ = ["STORIES", "Storyboard", "build", "build_explain", "build_funnel", "build_rejected", "build_picks", "build_record", "short_date", "site_url"]
+__all__ = ["STORIES", "Storyboard", "build", "build_explain", "build_funnel", "build_rejected", "build_sweep", "build_picks", "build_record", "short_date", "site_url"]

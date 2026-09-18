@@ -73,6 +73,10 @@ STORIES: tuple[Story, ...] = (
     # --- the calendar ------------------------------------------------------
     Story("weekly", "주간 성적표", "periodic", 1.0, 6, "curve"),
     Story("monthly", "월간 결산", "periodic", 1.0, 25, None),
+    # The one story the project can make on demand: a sweep is work that
+    # has to happen before a rule changes anyway, and it needs no market
+    # event and no closed trade to be worth showing.
+    Story("rule_test", "이번에 시험해본 규칙", "periodic", 1.0, 12, "sweep"),
     # --- needs no data at all, which is what quiet days are for -------------
     Story("explain_stop", "손절선은 어떻게 정하나", "standby", 1.0, 14, "explain"),
     Story("explain_debate", "AI 토론은 뭘 보고 판단하나", "standby", 1.0, 14, "explain"),
@@ -313,6 +317,22 @@ def evaluate(payload: Mapping[str, Any], *, now: datetime | None = None, ledger:
             add("weekly", 0.8, f"한 주가 끝났고, {drawn}거래일치 선이 쌓였습니다.", days=drawn)
     if (today + timedelta(days=1)).day == 1:
         add("monthly", 0.95, "한 달이 끝났습니다.")
+
+    # A sweep that was replayed recently enough to still describe the rules
+    # in force. An old one is a museum piece, not this week's experiment.
+    sweep = payload.get("sweep") or {}
+    variants = list(sweep.get("variants") or [])
+    if len(variants) >= 4 and sweep.get("ran_on"):
+        try:
+            age = (today - date.fromisoformat(str(sweep["ran_on"])[:10])).days
+        except ValueError:
+            age = 999
+        if age <= 45:
+            spread = abs(float(variants[0].get("total_return") or 0.0)
+                         - float(variants[-1].get("total_return") or 0.0))
+            add("rule_test", min(0.6 + spread * 0.4, 1.0),
+                f"규칙 {len(variants)}가지를 같은 구간에 돌려 비교했습니다.",
+                variants=len(variants), age=age)
 
     # --- and the shelf, which is what a quiet day is for --------------------
     # An explainer only goes on the shelf once its evidence beat has something

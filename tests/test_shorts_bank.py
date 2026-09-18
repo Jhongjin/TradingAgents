@@ -851,3 +851,90 @@ def test_a_sweep_can_actually_be_persisted():
     assert "repo.save_backtest_run(variant.as_dict()" in sweep
     assert 'label=f"{label}:{name}"' in sweep          # one label per variant, so a claim is traceable
     assert "benchmark=benchmark or None" in sweep      # or the index column comes back empty
+
+
+def _sweep(*, ran_on="2026-09-18", benchmark=1.684, live_first=True):
+    names = ["변동성 제외 + 손절 8%", "변동성 상위 20% 제외", "익절 늘림 5%/20%",
+             "손절 넓힘 8%/10%", "현행 5%/10%"]
+    returns = [1.2646, 1.1322, 0.9655, 0.8737, 0.5033]
+    variants = [
+        {"name": name, "total_return": value, "max_drawdown": -0.24,
+         "sharpe_ratio": 1.0, "hit_rate": 0.45, "trade_count": 800,
+         "live": (index == 0) if live_first else (index == 4)}
+        for index, (name, value) in enumerate(zip(names, returns))
+    ]
+    return {"start_date": "2023-09-19", "end_date": "2026-09-18", "ran_on": ran_on,
+            "universe": 180, "benchmark": benchmark, "variants": variants,
+            "best": variants[0], "live": next(item for item in variants if item["live"])}
+
+
+def test_the_rule_sweep_counts_how_many_beat_the_index_not_each_other():
+    """Ranking our own settings against each other proves nothing on its own."""
+
+    from tradingagents.shorts import build
+
+    board = build("sweep", {"sweep": _sweep()}, now=MONDAY, story="rule_test")
+    assert "지수를 넘은 건 0가지" in board.title
+    assert board.scenes[0].lines == ("제일 나은 것도", "지수는 못 넘었습니다.")
+    assert board.scenes[2].value == "0"
+
+    # and when something does clear it, the same cut says that instead
+    beaten = build("sweep", {"sweep": _sweep(benchmark=0.60)}, now=MONDAY, story="rule_test")
+    assert beaten.scenes[2].value == "4"
+    assert "4가지" in beaten.scenes[0].lines[1]
+
+
+def test_the_sweep_cut_marks_the_rule_actually_in_force():
+    from tradingagents.shorts import build
+
+    winner = build("sweep", {"sweep": _sweep(live_first=True)}, now=MONDAY, story="rule_test")
+    labels = [row["label"] for row in winner.scenes[2].rows]
+    assert labels[0].startswith("지금 쓰는 설정 · 변동성 제외 + 손절 8%")
+    # the rule in force came first, so repeating it as "the best" is two rows
+    # of one number — the runner-up is what cannot be read off the first row
+    assert labels[1].startswith("다음으로 나았던 설정 · 변동성 상위 20% 제외")
+    assert winner.scenes[2].rows[1]["value"] == "+113.2%"
+
+    behind = build("sweep", {"sweep": _sweep(live_first=False)}, now=MONDAY, story="rule_test")
+    assert behind.scenes[2].rows[0]["value"] == "+50.3%"
+    assert behind.scenes[2].rows[1]["label"].startswith("이번에 제일 나았던 설정")
+    # and it does not promise to switch to whatever won this one window
+    assert "바로 바꾸지는 않습니다" in behind.scenes[2].note
+
+
+def test_a_stale_sweep_is_not_this_week_s_experiment():
+    payload = _payload(closed_before=4)
+    fresh = {item.story.key for item in evaluate({**payload, "sweep": _sweep(ran_on="2026-09-13")},
+                                                now=MONDAY, ledger=[])}
+    assert "rule_test" in fresh
+
+    stale = {item.story.key for item in evaluate({**payload, "sweep": _sweep(ran_on="2026-05-01")},
+                                                now=MONDAY, ledger=[])}
+    assert "rule_test" not in stale
+    assert BY_KEY["rule_test"].renderer == "sweep"
+
+
+def test_the_sweep_reader_marks_the_live_rule_from_the_stored_config():
+    from cli.main import _sweep_in, _live_rule_key
+
+    stop, volatility = _live_rule_key()
+    rows = [
+        {"label": "rules:변동성 제외 + 손절 8%", "start_date": "2023-09-19", "end_date": "2026-09-18",
+         "universe_size": 180, "total_return": 1.2646, "benchmark_return": 1.684,
+         "max_drawdown": -0.2402, "sharpe_ratio": 1.156, "hit_rate": 0.4912, "trade_count": 737,
+         "created_at": "2026-09-18", "config": {"stop_loss_pct": stop, "volatility_exclude_top_pct": volatility}},
+    ] + [
+        {"label": f"rules:다른 설정{i}", "start_date": "2023-09-19", "end_date": "2026-09-18",
+         "universe_size": 180, "total_return": 0.5 - i * 0.1, "benchmark_return": 1.684,
+         "max_drawdown": -0.3, "sharpe_ratio": 0.5, "hit_rate": 0.39, "trade_count": 900,
+         "created_at": "2026-09-18", "config": {"stop_loss_pct": 0.05, "volatility_exclude_top_pct": 0.0}}
+        for i in range(4)
+    ]
+    found = _sweep_in(rows)
+    assert found["variants"][0]["name"] == "변동성 제외 + 손절 8%"   # ranked, label prefix stripped
+    assert found["variants"][0]["live"] is True
+    assert [item["live"] for item in found["variants"][1:]] == [False] * 4
+    assert found["live"]["name"] == found["best"]["name"]
+
+    # too few variants is a single replay, not a comparison
+    assert _sweep_in(rows[:3]) is None

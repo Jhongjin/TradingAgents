@@ -102,6 +102,11 @@ class Rows(Scene):
     heading: str = ""
     rows: tuple[dict, ...] = ()
     note: str = ""
+    # A figure and a line under it, for the cuts whose list beat leads with a
+    # count rather than a heading. Unset everywhere else, and the Pillow
+    # renderer ignores both.
+    value: str = ""
+    caption: str = ""
     stagger: float = 0.26
     seconds: float = 7.0
 
