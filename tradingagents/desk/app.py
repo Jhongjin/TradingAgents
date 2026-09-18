@@ -8,6 +8,7 @@ from typing import Any, Mapping
 from fastapi import Body, FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from .margin import margin_summary
 from .page import render_desk
 
 DESK_TOKEN_HEADER = "x-desk-token"
@@ -683,6 +684,8 @@ def _account_payload(request: Request) -> dict[str, Any]:
             "return_pct": _num(summary.get("pft_rt")),
         },
         "holdings": [_holding(row) for row in rows if isinstance(row, Mapping)],
+        # None unless something is borrowed, so the panel stays off a cash account
+        "margin": margin_summary(summary, rows),
     }
 
 

@@ -142,6 +142,43 @@ async function loadAccount() {
       <td class="${cls(h.unrealised)}">${won(h.unrealised)}</td>
       <td class="${cls(h.return_pct)}">${pct(h.return_pct)}</td>
     </tr>`).join('') : '<tr><td colspan="8" class="empty">보유 종목이 없습니다.</td></tr>';
+
+  drawMargin(data.margin);
+}
+
+function drawMargin(margin) {
+  const panel = el('margin-panel');
+  if (!margin) { panel.hidden = true; return; }
+  panel.hidden = false;
+
+  const room = margin.room_pct;
+  el('margin-stats').innerHTML = [
+    ['담보비율', margin.ratio == null ? '–' : margin.ratio.toFixed(1) + '%',
+     margin.at_risk ? 'down' : ''],
+    ['반대매매선', margin.maintenance_pct.toFixed(0) + '%', ''],
+    ['하락 여유', room == null ? '–' : '약 ' + room.toFixed(1) + '%', room != null && room < 10 ? 'down' : ''],
+    ['융자잔액', won(margin.loan_total), ''],
+    ['가장 이른 만기', margin.next_due_days == null ? '–' : `D-${margin.next_due_days}`,
+     margin.next_due_days != null && margin.next_due_days <= 14 ? 'down' : ''],
+  ].map(([k, v, c]) => `<div class="stat"><div class="k">${k}</div><div class="v ${c}">${v}</div></div>`).join('');
+
+  el('margin-rows').innerHTML = (margin.loans || []).map((l) => `
+    <tr>
+      <td><span class="name">${l.name || l.code}</span><span class="code">${l.code}</span></td>
+      <td>${won(l.loan_amount)}</td>
+      <td>${won(l.value)}</td>
+      <td>${l.deposit_rate || '–'}</td>
+      <td>${(l.opened_on || '').slice(5)}</td>
+      <td class="${l.due_soon ? 'down' : ''}">${(l.expires_on || '').slice(5)}${l.days_left == null ? '' : ` (D-${l.days_left})`}</td>
+    </tr>`).join('');
+
+  // the estimate and the setting are both said out loud: one is arithmetic on a
+  // formula NH does not publish, the other is a contract term, and neither is
+  // something the API handed over
+  el('margin-note').textContent =
+    `하락 여유는 담보비율이 ${margin.maintenance_pct.toFixed(0)}%에 닿기까지 보유 평가금액이 더 빠질 수 있는 폭의 개략치입니다. `
+    + `NH가 담보비율 계산식을 공개하지 않아 교과서 공식으로 계산했고, 반대매매선 `
+    + `${margin.maintenance_pct.toFixed(0)}%도 설정값입니다. 실제 기준은 약정서를 확인하세요.`;
 }
 
 function drawBook(book) {
@@ -659,6 +696,18 @@ def render_desk(*, mode: str) -> str:
   </table>
   <p class="hint" id="pnl-note"></p>
   <p class="msg" id="pnl-msg"></p>
+</section>
+
+<section class="panel" id="margin-panel" hidden>
+  <h2>신용 <span class="hint">빌린 돈 · 만기와 반대매매선</span></h2>
+  <div class="stats" id="margin-stats"></div>
+  <table style="margin-top:16px">
+    <thead><tr>
+      <th>종목</th><th>융자잔액</th><th>평가금액</th><th>증거금률</th><th>대출일</th><th>만기</th>
+    </tr></thead>
+    <tbody id="margin-rows"></tbody>
+  </table>
+  <p class="hint" id="margin-note"></p>
 </section>
 
 <section class="panel">
