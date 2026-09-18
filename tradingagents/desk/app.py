@@ -156,7 +156,7 @@ def create_desk_app(*, token: str, client_factory=None) -> FastAPI:
             raw = client.current_price(resolved)
         except Exception as exc:                        # noqa: BLE001 - shown to one person
             return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
-        return JSONResponse({"quote": _quote_row(raw)})
+        return JSONResponse({"quote": _quote_row(raw), "book": _book(raw)})
 
     @app.get("/api/orders")
     def orders(request: Request, on: str = Query("", max_length=10)) -> JSONResponse:
@@ -494,6 +494,30 @@ def _execution(row: Mapping[str, Any]) -> dict[str, Any]:
         # a partly cancelled order would make that subtraction wrong
         "cancellable": _num(row.get("can_qty")) or 0,
         "status": str(row.get("orr_rjt_rsn_cd_nm") or "").strip(),
+    }
+
+
+def _book(raw: Mapping[str, Any]) -> dict[str, Any]:
+    """The ten levels either side, already inside the quote response.
+
+    NH pushes these over a websocket too, but they are in currentPrice as
+    askp1..10 / bidp1..10 with their sizes — which is a depth view that can be
+    drawn and checked today rather than one that waits for the market to open.
+    """
+
+    out = raw.get("Output_0") or {}
+    levels = lambda side: [
+        {"price": _num(out.get(f"{side}p{index}")), "size": _num(out.get(f"{side}p_rsqn{index}"))}
+        for index in range(1, 11)
+    ]
+    asks = [row for row in levels("ask") if row["price"]]
+    bids = [row for row in levels("bid") if row["price"]]
+    return {
+        # asks are listed best-first by NH; a depth ladder reads worst at the top
+        "asks": list(reversed(asks)),
+        "bids": bids,
+        "ask_total": _num(out.get("total_askp_rsqn")),
+        "bid_total": _num(out.get("total_bidp_rsqn")),
     }
 
 

@@ -78,6 +78,15 @@ footer { color: var(--muted); font-size: 12px; margin-top: 26px; line-height: 1.
 .order button { background: var(--warn); color: #1a1205; }
 .order button[disabled] { opacity: .4; cursor: not-allowed; }
 .amount { font-size: 15px; font-weight: 700; margin-top: 12px; }
+.book { margin-top: 16px; font-size: 13px; }
+.book .row { display: grid; grid-template-columns: 1fr 110px 1fr; align-items: center; gap: 10px; padding: 2px 0; }
+.book .px { text-align: center; font-weight: 700; }
+.book .bar { height: 15px; border-radius: 3px; }
+.book .ask .bar { background: rgba(77,155,255,.28); justify-self: end; }
+.book .bid .bar { background: rgba(255,92,96,.28); }
+.book .qty { color: var(--muted); font-size: 12px; }
+.book .ask .px { color: var(--down); } .book .bid .px { color: var(--up); }
+.book .spread { border-top: 1px solid var(--line); margin: 6px 0; }
 #chart { width: 100%; height: 180px; margin-top: 18px; display: block; }
 #chart rect.up { fill: var(--up); } #chart rect.down { fill: var(--down); }
 #chart line.up { stroke: var(--up); } #chart line.down { stroke: var(--down); }
@@ -128,6 +137,36 @@ async function loadAccount() {
     </tr>`).join('') : '<tr><td colspan="7" class="empty">보유 종목이 없습니다.</td></tr>';
 }
 
+function drawBook(book) {
+  const box = el('book');
+  if (!book || (!book.asks.length && !book.bids.length)) { box.innerHTML = ''; return; }
+  const biggest = Math.max(1, ...[...book.asks, ...book.bids].map((l) => l.size || 0));
+  const side = (level, klass) => {
+    const width = Math.round(((level.size || 0) / biggest) * 100);
+    const bar = `<div class="bar" style="width:${width}%"></div>`;
+    const qty = `<span class="qty">${(level.size || 0).toLocaleString('ko-KR')}</span>`;
+    return klass === 'ask'
+      ? `<div class="row ask">${bar}<span class="px">${won(level.price)}</span>${qty}</div>`
+      : `<div class="row bid">${qty}<span class="px">${won(level.price)}</span>${bar}</div>`;
+  };
+  box.innerHTML = book.asks.map((l) => side(l, 'ask')).join('')
+    + '<div class="spread"></div>'
+    + book.bids.map((l) => side(l, 'bid')).join('');
+
+  // clicking a price puts it in the order box, which is the whole point of
+  // looking at the ladder before placing a limit
+  for (const [index, node] of [...box.querySelectorAll('.px')].entries()) {
+    node.style.cursor = 'pointer';
+    node.onclick = () => {
+      const all = [...book.asks, ...book.bids];
+      el('o-price').value = Math.round(all[index].price);
+      el('o-code').value = el('code').value.trim();
+      askCapacitySoon();
+      refreshOrderUi();
+    };
+  }
+}
+
 async function drawChart(code) {
   const svg = el('chart');
   const data = await ask('/api/candles?count=60&code=' + encodeURIComponent(code));
@@ -165,6 +204,7 @@ async function lookUp(event) {
     el('quote-msg').textContent = data.error;
     el('quote').innerHTML = '';
     el('chart').hidden = true;
+    el('book').innerHTML = '';
     // several names matched: offer them rather than making them guess again
     for (const s of (data.suggestions || [])) {
       const b = document.createElement('button');
@@ -176,6 +216,7 @@ async function lookUp(event) {
   }
   el('quote-msg').textContent = '';
   const q = data.quote || {};
+  drawBook(data.book);
   drawChart(q.code || code);
   el('quote').innerHTML = `
     <div class="stat"><div class="k">${q.name || ''} ${q.code || ''}</div>
@@ -374,6 +415,7 @@ def render_desk(*, mode: str) -> str:
   </form>
   <div class="suggest" id="suggest"></div>
   <div class="stats" id="quote" style="margin-top:16px"></div>
+  <div class="book" id="book"></div>
   <svg id="chart" viewBox="0 0 880 180" preserveAspectRatio="none" hidden></svg>
   <p class="hint" id="chart-note"></p>
   <p class="msg" id="quote-msg"></p>

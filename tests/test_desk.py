@@ -351,3 +351,49 @@ def test_the_capacity_and_candle_routes_are_behind_the_guard():
     with _client(_app()) as http:
         assert http.get("/api/capacity?code=005930&side=sell").status_code == 401
         assert http.get("/api/candles?code=005930").status_code == 401
+
+
+def test_the_order_book_comes_out_of_the_quote_rather_than_a_websocket():
+    """currentPrice already carries askp1..10 / bidp1..10 with their sizes."""
+
+    class _Depth:
+        def current_price(self, code, *, market="KRX"):
+            out = {"iem_cd": "005930", "iem_nm": "삼성전자", "stck_prpr": 260_000,
+                   "total_askp_rsqn": 446_211, "total_bidp_rsqn": 192_648}
+            for index in range(1, 11):
+                out[f"askp{index}"] = 260_000 + (index - 1) * 500
+                out[f"askp_rsqn{index}"] = 30_594 + index
+                out[f"bidp{index}"] = 259_500 - (index - 1) * 500
+                out[f"bidp_rsqn{index}"] = 48_062 + index
+            return {"rsp_cd": "00000", "Output_0": out}
+
+    app = create_desk_app(token="T0KEN", client_factory=lambda: _Depth())
+    with _client(app) as http:
+        book = http.get("/api/quote?code=005930&t=T0KEN").json()["book"]
+
+    assert len(book["asks"]) == len(book["bids"]) == 10
+    # asks come back best-first and a ladder reads worst at the top, so the
+    # touch price is the last ask and the first bid
+    assert book["asks"][-1]["price"] == 260_000
+    assert book["bids"][0]["price"] == 259_500
+    assert book["ask_total"] == 446_211 and book["bid_total"] == 192_648
+
+
+def test_a_quote_with_no_depth_does_not_invent_levels():
+    class _Thin:
+        def current_price(self, code, *, market="KRX"):
+            return {"rsp_cd": "00000", "Output_0": {"iem_cd": "005930", "stck_prpr": 100}}
+
+    app = create_desk_app(token="T0KEN", client_factory=lambda: _Thin())
+    with _client(app) as http:
+        book = http.get("/api/quote?code=005930&t=T0KEN").json()["book"]
+    assert book["asks"] == [] and book["bids"] == []
+
+
+def test_clicking_a_price_fills_the_order_box():
+    """Looking at the ladder before placing a limit is the point of showing it."""
+
+    with _client(_app()) as http:
+        page = http.get("/?t=T0KEN").text
+    assert "drawBook" in page
+    assert "el('o-price').value" in page
