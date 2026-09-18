@@ -29,6 +29,11 @@ h1 { font-size: 22px; letter-spacing: -0.02em; }
 .badge.paper { color: var(--accent); }
 .badge.live { color: var(--warn); }
 .local { margin-left: auto; font-size: 12px; color: var(--muted); }
+.tab {
+  font-size: 13px; color: var(--ink2); text-decoration: none; padding: 4px 11px;
+  border: 1px solid var(--line); border-radius: 999px;
+}
+.tab:hover { color: var(--ink); border-color: var(--ink2); }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; }
 .panel h2 { font-size: 13px; font-weight: 600; color: var(--ink2); letter-spacing: 0.04em; margin-bottom: 14px; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
@@ -137,6 +142,7 @@ def render_desk(*, mode: str) -> str:
 <header>
   <h1>데스크</h1>
   <span class="badge {mode}">{label}</span>
+  <a class="tab" href="/gold">골드 차트</a>
   <span class="local">이 페이지는 이 컴퓨터에서만 열립니다 · 127.0.0.1</span>
 </header>
 

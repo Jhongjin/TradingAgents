@@ -91,6 +91,38 @@ def create_desk_app(*, token: str, client_factory=None) -> FastAPI:
         )
         return response
 
+    @app.get("/gold", response_class=HTMLResponse)
+    def gold(
+        request: Request,
+        intervals: str = Query("", max_length=64),
+        bars: int = Query(600, ge=120, le=1200),
+    ) -> HTMLResponse:
+        """The pattern chart, rendered here rather than pulled from the site.
+
+        The same page exists at agenttrust.kr/lab/gold. Drawing it locally
+        means it still works when the site does not, and avoids framing a
+        remote page into a desk that sets X-Frame-Options: DENY.
+        """
+
+        from tradingagents.site.gold_page import DEFAULT_INTERVALS, render_gold_chart_page
+
+        wanted = tuple(part.strip() for part in intervals.split(",") if part.strip()) or DEFAULT_INTERVALS
+        return HTMLResponse(render_gold_chart_page(repo=None, intervals=wanted, bars=bars, data_url="/gold/data"))
+
+    @app.get("/gold/data")
+    def gold_data(
+        request: Request,
+        interval: str = Query("1h", max_length=8),
+        bars: int = Query(600, ge=120, le=1200),
+    ) -> JSONResponse:
+        from tradingagents.site.gold_page import build_gold_frame
+
+        try:
+            frame = build_gold_frame(repo=None, interval=interval, bars=bars)
+        except Exception as exc:                        # noqa: BLE001 - one timeframe, not the page
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
+        return JSONResponse(frame)
+
     @app.get("/api/account")
     def account(request: Request) -> JSONResponse:
         return JSONResponse(_account_payload(request))

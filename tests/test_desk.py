@@ -189,3 +189,45 @@ def test_the_desk_is_not_part_of_the_deployed_site():
     # and nothing in the public app routes to it
     api = Path("tradingagents/site/api_app.py").read_text(encoding="utf-8")
     assert "desk" not in api.replace("desktop", "")
+
+
+def test_the_gold_chart_is_drawn_here_rather_than_pulled_from_the_site():
+    """Framing a remote page into a desk that sets X-Frame-Options: DENY does not work."""
+
+    import inspect
+
+    from tradingagents.desk import app as desk_app
+
+    source = inspect.getsource(desk_app.create_desk_app)
+    assert 'data_url="/gold/data"' in source          # its own data route, not the site's
+    assert "repo=None" in source                       # no database needed to draw it
+    # and it fetches nothing over the network from the deployed site
+    code = "".join(line.split("#", 1)[0] for line in source.splitlines())
+    assert "https://" not in code and "iframe" not in code
+
+
+def test_the_gold_routes_are_behind_the_same_guard():
+    """A chart is harmless; a route that skips the guard is not."""
+
+    with _client(_app()) as http:
+        assert http.get("/gold").status_code == 401
+        assert http.get("/gold/data?interval=1h").status_code == 401
+        blocked = http.get("/gold?t=T0KEN", headers={"sec-fetch-site": "cross-site"})
+        assert blocked.status_code == 403
+
+
+def test_one_timeframe_failing_does_not_take_the_page_down(monkeypatch):
+    def explode(**kwargs):
+        raise RuntimeError("vendor rate limit")
+
+    monkeypatch.setattr("tradingagents.site.gold_page.build_gold_frame", explode)
+    with _client(_app()) as http:
+        response = http.get("/gold/data?interval=1h&t=T0KEN")
+    assert response.status_code == 502
+    assert "vendor rate limit" in response.json()["error"]
+
+
+def test_the_desk_links_to_the_chart():
+    with _client(_app()) as http:
+        page = http.get("/?t=T0KEN")
+    assert 'href="/gold"' in page.text and "골드 차트" in page.text
