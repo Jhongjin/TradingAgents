@@ -2,6 +2,8 @@
 
 import json
 
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -19,6 +21,10 @@ from tradingagents.execution.audit import AuditLedger
 OK = dict(side="buy", code="005930", quantity=2, price=100_000,
           confirmation="2", mode="paper", limits=Limits(),
           spent_today=0, orders_today=0)
+
+
+_SIZE_BEFORE = (Path.home() / ".tradingagents" / "desk" / "orders.jsonl")
+_SIZE_BEFORE = _SIZE_BEFORE.stat().st_size if _SIZE_BEFORE.exists() else 0
 
 
 def test_the_quantity_has_to_be_typed_twice():
@@ -285,3 +291,37 @@ def test_a_success_code_that_is_not_zero_prefixed_is_still_a_success():
     assert not "IGW40011".startswith(SUCCESS_PREFIXES)
     assert not "14580".startswith(SUCCESS_PREFIXES)
     assert not "11165".startswith(SUCCESS_PREFIXES)
+
+
+def test_the_desk_ledger_env_var_is_the_one_the_desk_actually_reads(tmp_path, monkeypatch):
+    """A redirect that silently does not redirect writes fake orders into the real book.
+
+    AuditLedger.from_env only knows TRADINGAGENTS_AUDIT_LOG_PATH. A test that
+    set TRADINGAGENTS_DESK_LEDGER and believed it had moved the file wrote five
+    runs of pretend live orders into ~/.tradingagents/desk/orders.jsonl, where
+    they turned up as unexplained trades in the reconciliation.
+    """
+
+    from tradingagents.desk.orders import ledger
+
+    target = tmp_path / "desk.jsonl"
+    monkeypatch.setenv("TRADINGAGENTS_DESK_LEDGER", str(target))
+    monkeypatch.delenv("TRADINGAGENTS_AUDIT_LOG_PATH", raising=False)
+
+    book = ledger()
+    book.append("desk.order", {"stage": "sent", "code": "005930"})
+    assert target.exists()
+
+    home_book = Path.home() / ".tradingagents" / "desk" / "orders.jsonl"
+    assert not home_book.exists() or home_book.stat().st_size == _SIZE_BEFORE
+
+
+def test_the_audit_variable_still_works_when_the_desk_one_is_unset(tmp_path, monkeypatch):
+    from tradingagents.desk.orders import ledger
+
+    target = tmp_path / "audit.jsonl"
+    monkeypatch.delenv("TRADINGAGENTS_DESK_LEDGER", raising=False)
+    monkeypatch.setenv("TRADINGAGENTS_AUDIT_LOG_PATH", str(target))
+
+    ledger().append("desk.order", {"stage": "sent", "code": "005930"})
+    assert target.exists()

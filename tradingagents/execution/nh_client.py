@@ -487,6 +487,37 @@ class NHClient:
             "market_cd": market, "iem_cd": _code(code), "array_cnt": str(int(days)),
         }, live_only=True)
 
+    def transactions(self, *, start: str, end: str, account_no: str | None = None) -> Mapping[str, Any]:
+        """Every trade the broker recorded in a window — its books, not ours."""
+
+        return self._call("/common/inquiry/v1/totalTransaction", "SCIOT920011", {
+            "iqr_tp_cd": "1",
+            "iqr_rge_cd": "1",
+            "act_no": account_no or self.config.account_no,
+            "iqr_sta_dt": _day(start),
+            "iqr_end_dt": _day(end),
+            "iem_llf_cd": "00",
+            "act_trd_dtl_cd": "00",
+        })
+
+    def cash_movements(self, *, start: str, end: str, account_no: str | None = None) -> Mapping[str, Any]:
+        """Money in and out of the account, which no trade record explains."""
+
+        return self._call("/common/inquiry/v1/depositWithdrawal", "SCIOT920011", {
+            "iqr_tp_cd": "1",
+            "act_no": account_no or self.config.account_no,
+            "iqr_sta_dt": _day(start),
+            "iqr_end_dt": _day(end),
+            "act_trd_dtl_cd": "01",
+        })
+
+    def accounts(self) -> Mapping[str, Any]:
+        """Which accounts this key can see. No TR code and no body: NH's odd one out."""
+
+        return self._request("POST", "/n2/acctinfo", base_url=self.config.base_url, json_body={},
+                             headers={"Content-Type": "application/json; charset=UTF-8",
+                                      "Authorization": f"Bearer {self.access_token()}"})
+
     def realized_pnl(self, account_no: str | None = None) -> Mapping[str, Any]:
         """Today's standing: cash, evaluation, and profit on what is still held."""
 

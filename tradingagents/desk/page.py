@@ -291,6 +291,43 @@ async function loadPnl(event) {
     : `${data.from} ~ ${data.to}`;
 }
 
+async function loadReconcile() {
+  const data = await ask('/api/reconcile?days=90');
+  if (data.error) {
+    el('rec-msg').textContent = data.error;
+    el('rec-verdict').textContent = '';
+    el('rec-rows').innerHTML = '';
+    return;
+  }
+  el('rec-msg').textContent = '';
+
+  const gaps = [
+    ...data.broker_only.map((r) => ({ ...r, verdict: '우리 기록에 없음' })),
+    ...data.ours_only.map((r) => ({ ...r, verdict: '증권사에 없음' })),
+    ...data.quantity_differs.map((r) => ({ ...r, verdict: '수량 불일치' })),
+  ];
+  el('rec-verdict').innerHTML = data.clean
+    ? `<span class="up">일치</span> · 증권사 ${data.broker_trades}건 / 우리 기록 ${data.our_trades}건`
+    : `<span class="down">차이 ${gaps.length}건</span> · 증권사 ${data.broker_trades}건 / 우리 기록 ${data.our_trades}건`;
+
+  // the gaps are the reason this panel exists, so they go on top
+  const rows = [...gaps, ...data.agreed.map((r) => ({ ...r, verdict: '일치' }))];
+  el('rec-rows').innerHTML = rows.length ? rows.map((r) => `
+    <tr>
+      <td>${day(r.day)}</td>
+      <td><span class="name">${r.name || r.code}</span><span class="code">${r.code}</span></td>
+      <td>${r.side === 'sell' ? '매도' : '매수'}</td>
+      <td>${qty(r.broker_quantity)}</td>
+      <td>${qty(r.our_quantity)}</td>
+      <td class="${r.verdict === '일치' ? '' : 'down'}">${r.verdict}</td>
+    </tr>`).join('') : '<tr><td colspan="6" class="empty">이 기간에 거래가 없습니다.</td></tr>';
+
+  const cash = data.cash || [];
+  el('rec-cash').textContent = cash.length
+    ? '입출금 ' + cash.map((c) => `${day(c.day)} ${c.kind} ${won(c.amount)}`).join(' · ')
+    : '';
+}
+
 async function loadReserved() {
   const data = await ask('/api/reserved');
   const rows = data.reserved || [];
@@ -520,6 +557,7 @@ loadAccount();
 loadOrders();
 loadPnl();
 loadReserved();
+loadReconcile();
 setInterval(() => { loadAccount(); loadOrders(); }, 60000);
 """
 
@@ -600,6 +638,19 @@ def render_desk(*, mode: str) -> str:
   </table>
   <p class="hint" id="pnl-note"></p>
   <p class="msg" id="pnl-msg"></p>
+</section>
+
+<section class="panel">
+  <h2>거래내역 대조 <span class="hint">우리 원장 vs 증권사 장부</span></h2>
+  <p class="amount" id="rec-verdict"></p>
+  <table style="margin-top:12px">
+    <thead><tr>
+      <th>날짜</th><th>종목</th><th>구분</th><th>증권사</th><th>우리 기록</th><th>판정</th>
+    </tr></thead>
+    <tbody id="rec-rows"></tbody>
+  </table>
+  <p class="hint" id="rec-cash"></p>
+  <p class="msg" id="rec-msg"></p>
 </section>
 
 <section class="panel">

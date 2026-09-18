@@ -56,6 +56,19 @@ def _int(name: str, default: int) -> int:
 
 
 def ledger() -> AuditLedger:
+    """The desk's own order book.
+
+    TRADINGAGENTS_DESK_LEDGER is read here rather than left to
+    AuditLedger.from_env, which only knows TRADINGAGENTS_AUDIT_LOG_PATH. A test
+    that set the desk variable and believed it had been redirected wrote five
+    runs of fake live orders into the real file instead, which then showed up
+    as unexplained trades in the reconciliation. A path this destination-
+    specific deserves a name of its own.
+    """
+
+    configured = (os.getenv("TRADINGAGENTS_DESK_LEDGER") or "").strip()
+    if configured:
+        return AuditLedger(configured)
     return AuditLedger.from_env(
         os.path.join(os.path.expanduser("~"), ".tradingagents", "desk", "orders.jsonl")
     )

@@ -334,6 +334,37 @@ def create_desk_app(*, token: str, client_factory=None) -> FastAPI:
             "standing": standing,
         })
 
+    @app.get("/api/reconcile")
+    def reconcile_route(request: Request, days: int = Query(90, ge=1, le=365)) -> JSONResponse:
+        """Our ledger against the broker's books, and the gaps between them."""
+
+        from datetime import date, timedelta
+
+        from .orders import ledger
+        from .reconcile import broker_trades, cash_movements, our_trades, reconcile
+
+        client = request.app.state.client_factory()
+        if client is None:
+            return JSONResponse({"error": _unconfigured()}, status_code=503)
+
+        end = date.today()
+        start = end - timedelta(days=days)
+        try:
+            trades = broker_trades(client.transactions(start=start.isoformat(), end=end.isoformat()))
+            cash = cash_movements(client.cash_movements(start=start.isoformat(), end=end.isoformat()))
+        except Exception as exc:                        # noqa: BLE001 - shown to one person
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
+
+        mode = _mode(request)
+        mine = our_trades(ledger(), start=start.isoformat(), end=end.isoformat(), mode=mode)
+        result = reconcile(trades, mine)
+        return JSONResponse({
+            "from": start.isoformat(), "to": end.isoformat(), "mode": mode,
+            "broker_trades": len(trades), "our_trades": len(mine),
+            "cash": cash,
+            **result.as_dict(),
+        })
+
     @app.get("/api/investors")
     def investors(
         request: Request,
