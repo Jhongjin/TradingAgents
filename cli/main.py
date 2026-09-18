@@ -25,7 +25,6 @@ from rich import box
 from rich.align import Align
 from rich.rule import Rule
 
-from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 from cli.models import AnalystType
 from cli.utils import *
@@ -979,6 +978,11 @@ def run_analysis(checkpoint: bool = False):
     selected_set = {analyst.value for analyst in selections["analysts"]}
     selected_analyst_keys = [a for a in ANALYST_ORDER if a in selected_set]
 
+    # Imported here, not at module scope. Building the graph pulls in yfinance
+    # and langgraph.prebuilt — 2.2s of the CLI's startup — for a stack only the
+    # debate commands use. Every desk, shorts and backtest run was paying it.
+    from tradingagents.graph.trading_graph import TradingAgentsGraph
+
     # Initialize the graph with callbacks bound to LLMs
     graph = TradingAgentsGraph(
         selected_analyst_keys,
@@ -1560,6 +1564,8 @@ def pipeline_command(
     elif confirmer.lower() == "debate":
         selected_confirmer = debate_confirmer(llm_from_config(), rounds=debate_rounds)
     elif confirmer.lower() == "graph":
+        from tradingagents.graph.trading_graph import TradingAgentsGraph
+
         def _graph_factory(harness_context: str = ""):
             return TradingAgentsGraph(config={**DEFAULT_CONFIG, "harness_context": harness_context})
 

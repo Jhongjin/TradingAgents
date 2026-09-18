@@ -64,3 +64,29 @@ def test_the_helpers_that_moved_their_imports_still_work():
         assert "not a rate limit" in str(exc)
     else:
         raise AssertionError("a non-rate-limit error must propagate immediately")
+
+
+def test_the_cli_does_not_build_the_llm_graph_to_show_its_help():
+    """Every desk, shorts and backtest run was paying 2.2s for a debate stack."""
+
+    loaded = _imports_after("cli.main")
+    assert "tradingagents.graph.trading_graph" not in loaded
+    assert "langgraph.prebuilt" not in loaded
+    assert "yfinance" not in loaded
+
+
+def test_the_graph_commands_still_reach_the_graph():
+    """A deferred import that is never reached is a broken command."""
+
+    import inspect
+
+    import cli.main as main
+
+    source = inspect.getsource(main)
+    lines = source.splitlines()
+    uses = [i for i, line in enumerate(lines, 1) if "TradingAgentsGraph(" in line]
+    imports = [i for i, line in enumerate(lines, 1) if "import TradingAgentsGraph" in line]
+
+    assert uses and imports
+    for use in uses:
+        assert any(where < use for where in imports), f"line {use} uses it with no import above"
