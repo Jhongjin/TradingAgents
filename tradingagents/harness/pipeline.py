@@ -81,35 +81,26 @@ class PipelineConfig:
     min_confidence: float = 0.6
     risk_percent_per_trade: float = 0.01
     max_position_weight: float = 0.2
-    # Widened from 5% on 2026-09-15. A 5% stop sits inside the daily range of
-    # the names this screen picks, so it was being hit by noise rather than by
-    # the trade going wrong.
+    # Widened to 8% on 2026-09-15 and put back on 2026-09-18, because the
+    # walk-forward said the widening was overfitted.
     #
-    # Re-run and persisted 2026-09-18 over 2023-09-19~2026-09-18, universe 180,
-    # as backtest_runs labelled "rules:현행 5%/10%" and
-    # "rules:변동성 제외 + 손절 8%" — the sweep that first produced these
-    # figures could not be persisted at all, so for three days the only record
-    # of them was this comment. Alongside the variability filter below:
-    # +50.3% → +126.5%, drawdown -28.9% → -24.0%, Sharpe 0.62 → 1.16, hit rate
-    # 39.1% → 49.1%.
+    # The case for 8% was a sweep over 2023-09~2026-09 where it came first:
+    # +50.3% → +126.5%, drawdown -28.9% → -24.0%, Sharpe 0.62 → 1.16. The
+    # window that chose the rule was the window that reported it. Splitting
+    # them: re-picked on 2023-09~2025-09 it still wins (+88.9%), and on the
+    # held-out year 2025-09~2026-09 it comes last of seven (+26.4%, Sharpe
+    # 0.85). The ranking is close to inverted.
     #
-    # And the part the first version of this comment left out: KOSPI returned
-    # +168.4% over the same window. The change is an improvement on the old
-    # rules and still behind simply holding the index.
+    # Ranked instead by each setting's WORST placing across both windows —
+    # which is the only ranking a walk-forward supports — the 5% stop with the
+    # variability filter below is second in training and second on the
+    # held-out year, the only setting near the top of both. That is what runs
+    # now. The 8% stop is seventh by the same measure.
     #
-    # 2026-09-18, and this is the part that matters: the walk-forward says
-    # this setting is overfitted. Re-picked on 2023-09~2025-09 it still comes
-    # first (+88.9%), but on the held-out year 2025-09~2026-09 it comes LAST
-    # of the seven (+26.6%, Sharpe 0.85) — while the 5%/10% rule it replaced,
-    # which was last in training (+11.9%), returns +60.7% there. KOSPI did
-    # +98.0% over that year and every variant lost to it.
-    # Persisted as backtest_runs labelled "walk-in:*" and "walk-out:*".
-    #
-    # So the figures above are the flattering half: the window that chose the
-    # rule is the window that reports it. This value has NOT been reverted —
-    # that is an operator decision, not a code cleanup — but nothing should
-    # cite the three-year numbers as support without the held-out year.
-    stop_loss_pct: float = 0.08
+    # Evidence: backtest_runs labelled "walk-in:*" and "walk-out:*", replayed
+    # 2026-09-18 over universe 180. For scale, KOSPI returned +98.0% over the
+    # held-out year and every one of the seven lost to it.
+    stop_loss_pct: float = 0.05
     take_profit_pct: float = 0.10
     max_holding_days: int = 20
     min_cash_reserve_pct: float = 0.10

@@ -77,14 +77,21 @@ def _pct(value: Any) -> str:
 
 
 def stop_loss_pct() -> float:
-    """The stop the account actually trades on, read from the rule itself."""
+    """The stop the account actually trades on, read from the rule itself.
+
+    It used to import tradingagents.harness.config, which does not exist. The
+    ImportError went into the bare except and the fallback below was what
+    every cut actually showed — a hardcoded 8% that stayed 8% after the live
+    rule went back to 5%. The fallback is still here for a machine that cannot
+    import the harness at all, and a test asserts the two agree.
+    """
 
     try:
-        from tradingagents.harness.config import PipelineConfig
+        from tradingagents.harness.pipeline import PipelineConfig
 
         return float(PipelineConfig().stop_loss_pct)
     except Exception:                                   # noqa: BLE001 - the cut still has a number
-        return 0.08
+        return 0.05
 
 
 def _pct1(value: Any) -> str:
@@ -183,7 +190,7 @@ TOPICS: tuple[Topic, ...] = (
         hero=f"{stop_loss_pct() * 100:.0f}",
         hero_unit="%",
         caption="모든 종목에 똑같이 걸려 있는 손절선입니다",
-        lines=("사고 나서 정하지", "않습니다."),
+        lines=("한동안 8%였다가", "다시 여기로 돌아왔습니다."),
         steps_head="언제 정하느냐가 전부입니다",
         steps=(
             ("사기 전에 정합니다", "주문을 넣는 순간 나갈 가격이 같이 기록됩니다. 오른 뒤에 올리거나 내린 뒤에 내리지 않습니다."),
@@ -191,21 +198,22 @@ TOPICS: tuple[Topic, ...] = (
             ("닿으면 자동으로 정리됩니다", "다음 실행에서 바로 처리됩니다. 그 사이에 사람이 끼어들 자리는 없습니다."),
         ),
         steps_note="정해둔 선을 지키는 것과 잘 고르는 것은 다른 문제입니다. 여기서 지키는 건 앞쪽입니다.",
-        proof_head="선을 바꿔봤더니",
+        proof_head="바꿔봤을 때는 이랬는데",
         proof=_stop_proof,
         proof_note=lambda payload: backtest_caption(payload.get("backtests") or {}),
-        outro=("규칙을 바꾸면", "바꾼 날짜까지 적습니다."),
-        call="현재 적용 중인 규칙 전문",
-        title="손절선 8%는 어디서 나온 숫자인가 | 바꿔보고 남긴 기록",
-        lead="모든 종목에 같은 손절선을 걸어두는 이유와, 그 폭을 바꿨을 때 계좌가 어떻게 달라졌는지입니다.",
+        outro=("좋아 보이면", "먼저 의심합니다."),
+        call="두 구간 비교와 현재 규칙",
+        title="손절선을 8%로 넓혔다가 되돌렸습니다 | 검증에서 꼴찌였거든요",
+        lead="모든 종목에 같은 손절선을 걸어두는 이유와, 그 폭을 8%로 넓혔다가 다시 5%로 되돌린 과정입니다."
+             " 고른 구간에서 1위였던 설정이 남겨둔 구간에서는 꼴찌였습니다.",
         path="/rules",
         tags=("주식", "AI주식", "손절", "리스크관리", "퀀트", "모의투자"),
-        comment="손절선을 5%에서 8%로 바꾼 백테스트 결과와 현재 적용 중인 규칙 전문입니다.",
+        comment="8%로 넓혔다가 되돌린 이유와 두 구간 비교표, 지금 적용 중인 규칙 전문입니다.",
         narration=(
-            "모든 종목에 똑같이 걸어둔 손절선, 8퍼센트입니다. 사고 나서 정하는 게 아니라 사기 전에 정합니다.",
+            "모든 종목에 똑같이 걸어둔 손절선입니다. 사고 나서 정하는 게 아니라 사기 전에 정합니다.",
             "주문 넣는 순간 나갈 가격이 같이 기록돼요. 종목도 안 가립니다. 닿으면 다음 실행에서 자동으로 정리되고요.",
-            "그럼 이 폭이 왜 8퍼센트냐. 5퍼센트로 두고 돌려본 것과 비교해보면 이렇게 나옵니다. 과거 성과고, 앞으로를 보장하진 않아요.",
-            "규칙을 바꾸면 바꾼 날짜까지 사이트에 적어둡니다. 언제 뭘 바꿨는지 나중에 확인할 수 있게요.",
+            "한동안 8퍼센트로 넓혔었습니다. 돌려보니 이렇게 좋았거든요. 그런데 이건 고른 구간에서 잰 성적이라, 앞 2년으로 고르고 남겨둔 1년으로 채점해봤습니다.",
+            "남겨둔 1년에서 꼴찌였습니다. 그래서 되돌렸어요. 좋아 보이는 숫자일수록 먼저 의심합니다. 바꾼 날짜와 이유는 사이트에 그대로 있습니다.",
         ),
     ),
     Topic(

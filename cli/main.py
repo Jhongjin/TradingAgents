@@ -1791,6 +1791,25 @@ def process_harness_outcomes_command(
         console.print(f"[{colour}]{result.status}[/{colour}] {result.ticker_code} {result.horizon_days}d: {detail}")
 
 
+def _sweep_variants() -> list[tuple[str, dict]]:
+    """The settings a rule change gets to choose between.
+
+    Shared by the sweep and the walk-forward so the two cannot drift: a
+    variant that only exists in one of them could be adopted without ever
+    being checked on a window it had not seen.
+    """
+
+    return [
+        ("현행 5%/10%", dict(stop_loss_pct=0.05, take_profit_pct=0.10)),
+        ("손절 넓힘 8%/10%", dict(stop_loss_pct=0.08, take_profit_pct=0.10)),
+        ("손절 넓힘 10%/15%", dict(stop_loss_pct=0.10, take_profit_pct=0.15)),
+        ("익절 늘림 5%/20%", dict(stop_loss_pct=0.05, take_profit_pct=0.20)),
+        ("변동성 상위 20% 제외", dict(volatility_exclude_top_pct=0.2)),
+        ("변동성 제외 + 손절 8%", dict(volatility_exclude_top_pct=0.2, stop_loss_pct=0.08)),
+        ("보유 40일", dict(max_holding_days=40)),
+    ]
+
+
 @app.command("backtest")
 def backtest_command(
     years: float = typer.Option(3.0, "--years", min=0.25, max=10.0, help="How far back to replay."),
@@ -1801,6 +1820,7 @@ def backtest_command(
     sweep: bool = typer.Option(False, "--sweep", help="Try several stop/target and variability settings and compare them."),
     start_on: Optional[str] = typer.Option(None, "--start", help="Replay from this date instead of --years ago."),
     end_on: Optional[str] = typer.Option(None, "--end", help="Replay up to this date instead of today."),
+    walk_forward: bool = typer.Option(False, "--walk-forward", help="Sweep twice: pick on the first stretch, score on a stretch never seen."),
     persist: bool = typer.Option(False, "--persist", help="Store the result for the site."),
     output: Optional[Path] = typer.Option(None, "--output", help="Write the full result JSON here."),
 ):
@@ -1891,18 +1911,69 @@ def backtest_command(
 
         return sector_of(code)
 
+    repo_for_walk = None
+    if walk_forward and persist:
+        if not os.getenv("DATABASE_URL"):
+            raise typer.BadParameter("--persist requires DATABASE_URL")
+        from tradingagents.storage import StorageRepository, create_storage_engine
+
+        repo_for_walk = StorageRepository(create_storage_engine())
+
+    if walk_forward:
+        # A sweep on its own picks the winner of the window it was measured on,
+        # which is how the 8% stop went live and then came last on a year it
+        # had not seen. This runs the same variants twice and ranks them by
+        # their WORST placing across both, because a setting that is only good
+        # where it was chosen is not a finding.
+        split = start + (end - start) * 2 // 3
+        console.print(f"[bold]Walk-forward[/bold] 학습 {start}~{split} · 검증 {split}~{end}")
+        halves = {}
+        for phase, (window_start, window_end) in (("학습", (start, split)), ("검증", (split, end))):
+            scored = {}
+            for name, overrides in _sweep_variants():
+                variant = run_rule_backtest(
+                    history=history, names=names, start=window_start, end=window_end,
+                    config=BacktestConfig(top_n=top_n, initial_cash=cash, **overrides),
+                    sector_lookup=_sector, benchmark=benchmark or None,
+                )
+                scored[name] = variant.metrics
+                if persist and repo_for_walk is not None:
+                    repo_for_walk.save_backtest_run(variant.as_dict(), label=f"{label}-{phase}:{name}")
+            halves[phase] = scored
+            console.print(f"[dim]  {phase} 완료[/dim]")
+
+        places = {
+            phase: {name: index + 1 for index, name in enumerate(
+                sorted(scored, key=lambda key: -(scored[key].get("total_return") or 0)))}
+            for phase, scored in halves.items()
+        }
+        table = Table(box=box.SIMPLE_HEAD, title="워크포워드 · 두 구간 최악 순위순")
+        for column in ("설정", "학습", "순위", "검증", "순위", "최악 순위"):
+            table.add_column(column)
+        ranked = sorted(places["학습"], key=lambda name: (max(places["학습"][name], places["검증"][name]), name))
+        for name in ranked:
+            table.add_row(
+                name,
+                f"{(halves['학습'][name].get('total_return') or 0) * 100:+.1f}%", str(places["학습"][name]),
+                f"{(halves['검증'][name].get('total_return') or 0) * 100:+.1f}%", str(places["검증"][name]),
+                str(max(places["학습"][name], places["검증"][name])),
+            )
+        console.print(table)
+        winner = ranked[0]
+        console.print(f"[green]두 구간 모두에서 가장 안정적인 설정:[/green] {winner} "
+                      f"(최악 순위 {max(places['학습'][winner], places['검증'][winner])})")
+        console.print("[yellow]한 구간에서만 1위인 설정은 채택하지 마세요. 그게 손절 8%가 간 길입니다.[/yellow]")
+        if output is not None:
+            output.write_text(json.dumps(
+                {"train": halves["학습"], "test": halves["검증"], "places": places, "winner": winner},
+                ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+            console.print(f"[dim]saved {output}[/dim]")
+        return
+
     if sweep:
         # One replay answers "what happened". A sweep answers "was this setting
         # the reason", which is the question the factor study raised.
-        variants = [
-            ("현행 5%/10%", dict(stop_loss_pct=0.05, take_profit_pct=0.10)),
-            ("손절 넓힘 8%/10%", dict(stop_loss_pct=0.08, take_profit_pct=0.10)),
-            ("손절 넓힘 10%/15%", dict(stop_loss_pct=0.10, take_profit_pct=0.15)),
-            ("익절 늘림 5%/20%", dict(stop_loss_pct=0.05, take_profit_pct=0.20)),
-            ("변동성 상위 20% 제외", dict(volatility_exclude_top_pct=0.2)),
-            ("변동성 제외 + 손절 8%", dict(volatility_exclude_top_pct=0.2, stop_loss_pct=0.08)),
-            ("보유 40일", dict(max_holding_days=40)),
-        ]
+        variants = _sweep_variants()
         table = Table(box=box.SIMPLE_HEAD, title=f"설정 비교 ({start} → {end})")
         for column in ("설정", "수익률", "최대낙폭", "샤프", "거래", "승률", "평균보유"):
             table.add_column(column)

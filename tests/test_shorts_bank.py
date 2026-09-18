@@ -962,3 +962,15 @@ def test_the_stop_loss_caption_admits_the_setting_was_picked_on_its_own_window()
     # and with no walk-forward run the caption simply does not claim one
     runs.pop("walkforward")
     assert "남겨둔" not in backtest_caption(runs)
+
+
+def test_the_cut_shows_the_stop_the_account_is_actually_trading_on():
+    """It imported a module that does not exist and showed the fallback."""
+
+    from tradingagents.harness.pipeline import PipelineConfig
+    from tradingagents.shorts.topics import BY_TOPIC, stop_loss_pct
+
+    live = float(PipelineConfig().stop_loss_pct)
+    assert stop_loss_pct() == live
+    # and the hero on screen is that number, not one typed into the topic
+    assert BY_TOPIC["explain_stop"].hero == f"{live * 100:.0f}"

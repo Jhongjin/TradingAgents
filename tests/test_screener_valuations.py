@@ -114,17 +114,21 @@ def test_an_expensive_name_is_now_actually_excluded():
     assert everything == {"005930", "000660"}
 
 
-def test_the_rule_change_of_2026_09_15_is_pinned_and_published():
+def test_the_rules_the_account_trades_on_are_the_ones_the_walk_forward_kept():
     """A rule the account trades on should not drift without a decision."""
 
     from tradingagents.harness.pipeline import PipelineConfig
     from tradingagents.site.paper_rules import RULE_LABELS, format_rule
 
     config = PipelineConfig()
-    # measured over the three years to 2026-09-15: +52.2% -> +129.7%, drawdown
-    # -28.7% -> -24.2%, hit rate 39.3% -> 47.9%
+    # The variability filter is second in training and second on the held-out
+    # year — the only setting near the top of both, which is the only ranking
+    # a walk-forward supports.
     assert config.volatility_exclude_top_pct == 0.2
-    assert config.stop_loss_pct == 0.08
+    # The 8% stop was first where it was chosen and last of seven on the year
+    # it had not seen (+26.4%, Sharpe 0.85), so it went back to 5% on
+    # 2026-09-18. Evidence: backtest_runs labelled walk-in:* and walk-out:*.
+    assert config.stop_loss_pct == 0.05
 
     # and it is on the published rules card, so turning it on is visible and dated
     labelled = {key for key, _label, _unit in RULE_LABELS}
