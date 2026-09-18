@@ -39,6 +39,7 @@ from zoneinfo import ZoneInfo
 from tradingagents.screener import ScreenerCandidate, ScreenerConfig, ScreenerResult, screen_korean_market
 
 from .prompts import get_prompt
+from .rights import holds_through as _holds_through
 from .tasks import HarnessTask, LLMCallable, run_task
 
 
@@ -279,6 +280,20 @@ def run_daily_pipeline(
             entry_dates = dict(repo.latest_harness_entry_dates())
         except Exception as exc:  # storage hiccups must not block risk exits
             notes.append(f"entry dates unavailable ({exc.__class__.__name__}); holding-day exits skipped")
+    # What is due on what is held, so a dividend coming off the price is not
+    # mistaken for the position going wrong. Unavailable is fine: without it the
+    # stop behaves exactly as it did before.
+    ex_rights: dict[str, Any] = {}
+    try:
+        ex_rights = _scheduled_rights()
+        if ex_rights:
+            _audit(ledger, "rights_scheduled", {
+                "codes": sorted(ex_rights),
+                "dates": {code: right.ex_date.isoformat() for code, right in ex_rights.items() if right.ex_date},
+            })
+    except Exception as exc:  # noqa: BLE001 - a missing broker must not block exits
+        notes.append(f"권리예정을 확인하지 못했습니다 ({exc.__class__.__name__}); 배당락 보류 없이 진행합니다")
+
     decisions.extend(
         _evaluate_exits(
             broker,
@@ -289,6 +304,7 @@ def run_daily_pipeline(
             as_of=datetime.strptime(resolved_date, "%Y-%m-%d").date(),
             risk_checker=risk_checker,
             names=held_names,
+            ex_rights=ex_rights,
         )
     )
 
@@ -636,6 +652,33 @@ def _process_candidate(
     return PipelineDecision(stage="ordered", reasons=[result.message], **base)
 
 
+def _scheduled_rights() -> dict[str, Any]:
+    """권리예정 for the configured NH account, or nothing when it is not set up.
+
+    Only the live account has this — 모의투자 pays no dividends — and a harness
+    running against the paper broker simply gets an empty answer.
+    """
+
+    from tradingagents.execution.nh_client import NHConfig
+
+    config = NHConfig.from_env(paper=False)
+    if not (config.configured and config.account_no):
+        return {}
+
+    from tradingagents.execution.nh_client import NHClient, NHError
+
+    from .rights import ex_rights_from_nh
+
+    try:
+        raw = NHClient(config=config).rights_scheduled()
+    except NHError as exc:
+        # 13578 is 'nothing scheduled', which is an answer rather than a fault
+        if "13578" in str(exc):
+            return {}
+        raise
+    return ex_rights_from_nh(raw)
+
+
 def _evaluate_exits(
     broker: BrokerAdapter,
     config: PipelineConfig,
@@ -646,6 +689,7 @@ def _evaluate_exits(
     as_of: date | None = None,
     risk_checker: Any | None = None,
     names: Mapping[str, str] | None = None,
+    ex_rights: Mapping[str, Any] | None = None,
 ) -> list[PipelineDecision]:
     """Close held positions that hit stop-loss, take-profit, or the holding limit.
 
@@ -671,6 +715,17 @@ def _evaluate_exits(
         reason = None
         if move <= -config.stop_loss_pct:
             reason = "stop_loss"
+            # A share opens lower on its ex-dividend date because the dividend
+            # has left it, not because anything happened to the company. Selling
+            # on that drop pays the loss and forfeits the recovery, so the stop
+            # sits out the one session and is asked again tomorrow.
+            right = _holds_through(ex_rights, code, today)
+            if right is not None:
+                _audit(ledger, "exit_held_for_rights", {
+                    "code": code, "move": round(move, 4), "kind": right.kind,
+                    "ex_date": right.ex_date.isoformat() if right.ex_date else None,
+                })
+                continue
         elif move >= config.take_profit_pct:
             reason = "take_profit"
         elif entry_dates and code in entry_dates:

@@ -487,6 +487,24 @@ class NHClient:
             "market_cd": market, "iem_cd": _code(code), "array_cnt": str(int(days)),
         }, live_only=True)
 
+    def rights_scheduled(self, account_no: str | None = None) -> Mapping[str, Any]:
+        """Dividends and other rights coming up on what is held, with their dates.
+
+        Answers 13578 '조회할 내역이 없습니다' when nothing is due, which is an
+        empty answer rather than a fault.
+        """
+
+        return self._call("/krstock/inquiry/v1/rightsScheduled", "SCRITF25022", {
+            "act_no": account_no or self.config.account_no,
+        })
+
+    def rights_held(self, account_no: str | None = None) -> Mapping[str, Any]:
+        """Rights already allocated and not yet settled."""
+
+        return self._call("/krstock/inquiry/v1/rightsHeld", "SCRITF25012", {
+            "act_no": account_no or self.config.account_no,
+        })
+
     def transactions(self, *, start: str, end: str, account_no: str | None = None) -> Mapping[str, Any]:
         """Every trade the broker recorded in a window — its books, not ours."""
 
