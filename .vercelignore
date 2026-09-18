@@ -21,3 +21,7 @@ htmlcov
 shorts-out
 logs
 assets/voice
+
+# The local trade desk shows a brokerage balance and will place orders.
+# It binds to 127.0.0.1 and has no business in a public deployment.
+tradingagents/desk

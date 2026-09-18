@@ -1791,6 +1791,40 @@ def process_harness_outcomes_command(
         console.print(f"[{colour}]{result.status}[/{colour}] {result.ticker_code} {result.horizon_days}d: {detail}")
 
 
+@app.command("desk")
+def desk_command(
+    port: int = typer.Option(8787, "--port", min=1024, max=65535, help="Port on 127.0.0.1."),
+    host: str = typer.Option("127.0.0.1", "--host", help="Leave this alone unless you know why."),
+) -> None:
+    """Open the personal trade desk on this machine only.
+
+    Not part of the deployed site and not reachable from it. The account this
+    shows and the orders it will one day place have no business on a public
+    host, so the desk binds to loopback and prints a one-launch token.
+    """
+
+    import uvicorn
+
+    from tradingagents.desk import create_desk_app, new_token
+    from tradingagents.execution.nh_client import NHConfig
+
+    if host not in {"127.0.0.1", "localhost", "::1"}:
+        # Binding elsewhere puts a brokerage balance on the network. If that is
+        # ever wanted it should be a decision someone writes down, not a flag.
+        raise typer.BadParameter("데스크는 127.0.0.1 에만 엽니다.")
+
+    config = NHConfig.from_env()
+    token = new_token()
+    console.print(f"[bold]데스크[/bold] {config.mode}" + ("" if config.configured else " [yellow](자격증명 없음)[/yellow]"))
+    if not config.configured:
+        prefix = "NH_PAPER_" if config.is_paper else "NH_"
+        console.print(f"[dim].env 에 {prefix}APP_KEY / {prefix}APP_SECRET_KEY / {prefix}ACCOUNT_NO 를 넣으면 계좌가 보입니다.[/dim]")
+    console.print(f"[green]http://127.0.0.1:{port}/?t={token}[/green]")
+    console.print("[dim]이 주소로 여세요. 토큰은 실행할 때마다 새로 만들어집니다.[/dim]")
+
+    uvicorn.run(create_desk_app(token=token), host=host, port=port, log_level="warning")
+
+
 def _sweep_variants() -> list[tuple[str, dict]]:
     """The settings a rule change gets to choose between.
 
