@@ -64,15 +64,34 @@ class NHConfig:
     app_secret_key: str = ""
     account_no: str = ""
     base_url: str = BASE_URL
+    is_paper: bool = True
 
     @classmethod
-    def from_env(cls) -> "NHConfig":
+    def from_env(cls, *, paper: bool | None = None) -> "NHConfig":
+        """Credentials for one account, paper unless told otherwise.
+
+        A key is bound to the account it was issued for: asking the live key
+        about the 모의투자 account returns IGW40018 "토큰정보로 발급된
+        계좌정보와 일치하지 않습니다". So the two are separate triples and
+        this picks one, rather than pretending a single key covers both.
+
+        Paper is the default because the alternative default is a live
+        brokerage account reachable by a typo.
+        """
+
+        want_paper = _flag("NH_IS_PAPER", default=True) if paper is None else paper
+        prefix = "NH_PAPER_" if want_paper else "NH_"
         return cls(
-            app_key=(os.getenv("NH_APP_KEY") or "").strip(),
-            app_secret_key=(os.getenv("NH_APP_SECRET_KEY") or "").strip(),
-            account_no=_account(os.getenv("NH_ACCOUNT_NO") or ""),
+            app_key=(os.getenv(f"{prefix}APP_KEY") or "").strip(),
+            app_secret_key=(os.getenv(f"{prefix}APP_SECRET_KEY") or "").strip(),
+            account_no=_account(os.getenv(f"{prefix}ACCOUNT_NO") or ""),
             base_url=(os.getenv("NH_BASE_URL") or BASE_URL).strip().rstrip("/"),
+            is_paper=want_paper,
         )
+
+    @property
+    def mode(self) -> str:
+        return "paper" if self.is_paper else "live"
 
     @property
     def configured(self) -> bool:
@@ -158,7 +177,7 @@ class NHClient:
         root = os.getenv("TRADINGAGENTS_NH_TOKEN_CACHE_DIR") or os.path.join(
             os.path.expanduser("~"), ".tradingagents", "nh"
         )
-        digest = hashlib.sha256(f"nh:{self.config.app_key}".encode("utf-8")).hexdigest()[:16]
+        digest = hashlib.sha256(f"nh:{self.config.mode}:{self.config.app_key}".encode("utf-8")).hexdigest()[:16]
         return Path(root) / f"token-{digest}.json"
 
     def _load_cached_token(self) -> tuple[str, float] | None:
@@ -237,7 +256,7 @@ class NHClient:
         check is here already so the gate does not have to be remembered later.
         """
 
-        if not live_trading_enabled():
+        if not self.config.is_paper and not live_trading_enabled():
             raise LiveTradingDisabledError(
                 "TRADINGAGENTS_ENABLE_LIVE_TRADING is not set; no live order will be sent"
             )
@@ -293,6 +312,13 @@ class NHClient:
         except ValueError as exc:
             raise NHError(f"NH {method} {url} returned non-JSON: {response.text[:200]}") from exc
         return payload if isinstance(payload, Mapping) else {"data": payload}
+
+
+def _flag(name: str, *, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _account(value: str) -> str:

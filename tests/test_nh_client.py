@@ -97,17 +97,18 @@ def test_a_response_without_a_token_says_so_without_printing_the_secret():
     assert "KEY" not in message and "***" in message
 
 
-def test_the_client_refuses_to_trade_twice_over():
+def test_the_client_refuses_to_trade_twice_over(monkeypatch):
     """No live gate and no order spec — and it says which is missing, in order."""
 
-    client = _client()
+    monkeypatch.delenv("TRADINGAGENTS_ENABLE_LIVE_TRADING", raising=False)
+    client = _client(is_paper=False)
     with pytest.raises(LiveTradingDisabledError):
         client.place_order(code="005930", quantity=1, price=70_000)
 
 
 def test_with_the_live_gate_open_it_still_refuses_because_nothing_is_built(monkeypatch):
     monkeypatch.setenv("TRADINGAGENTS_ENABLE_LIVE_TRADING", "true")
-    client = _client()
+    client = _client(is_paper=False)
     with pytest.raises(NHOrdersUnavailableError, match="주문 API 명세"):
         client.place_order(code="005930", quantity=1, price=70_000)
 
@@ -165,11 +166,60 @@ def test_the_account_number_is_sent_the_way_nh_wants_not_the_way_it_displays():
     assert _account("") == ""
 
 
-def test_config_normalises_the_account_from_the_environment(monkeypatch):
-    monkeypatch.setenv("NH_APP_KEY", "K")
-    monkeypatch.setenv("NH_APP_SECRET_KEY", "S")
+def test_a_key_is_bound_to_its_account_so_paper_and_live_are_separate(monkeypatch):
+    """Asking the live key about the 모의투자 account returns IGW40018."""
+
+    monkeypatch.setenv("NH_APP_KEY", "LIVE-K")
+    monkeypatch.setenv("NH_APP_SECRET_KEY", "LIVE-S")
     monkeypatch.setenv("NH_ACCOUNT_NO", "209-01-867134")
-    assert NHConfig.from_env().account_no == "20901867134"
+    monkeypatch.setenv("NH_PAPER_APP_KEY", "PAPER-K")
+    monkeypatch.setenv("NH_PAPER_APP_SECRET_KEY", "PAPER-S")
+    monkeypatch.setenv("NH_PAPER_ACCOUNT_NO", "500-01-004210")
+    monkeypatch.delenv("NH_IS_PAPER", raising=False)
+
+    # paper by default, because the alternative default is a live brokerage
+    # account reachable by a typo
+    paper = NHConfig.from_env()
+    assert paper.mode == "paper"
+    assert (paper.app_key, paper.account_no) == ("PAPER-K", "50001004210")
+
+    live = NHConfig.from_env(paper=False)
+    assert live.mode == "live"
+    assert (live.app_key, live.account_no) == ("LIVE-K", "20901867134")
+
+    monkeypatch.setenv("NH_IS_PAPER", "false")
+    assert NHConfig.from_env().mode == "live"
+
+
+def test_paper_credentials_missing_is_not_quietly_the_live_account(monkeypatch):
+    for name in ("NH_PAPER_APP_KEY", "NH_PAPER_APP_SECRET_KEY", "NH_PAPER_ACCOUNT_NO", "NH_IS_PAPER"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("NH_APP_KEY", "LIVE-K")
+    monkeypatch.setenv("NH_APP_SECRET_KEY", "LIVE-S")
+
+    config = NHConfig.from_env()
+    assert config.mode == "paper" and config.configured is False
+    assert config.app_key == ""                      # never falls back to the live key
+
+
+def test_the_token_cache_is_per_mode(monkeypatch, tmp_path):
+    """A paper token must never be handed to a live call, or the reverse."""
+
+    monkeypatch.setenv("TRADINGAGENTS_NH_TOKEN_CACHE_DIR", str(tmp_path))
+    paper = NHClient(config=NHConfig(app_key="K", app_secret_key="S", is_paper=True))
+    live = NHClient(config=NHConfig(app_key="K", app_secret_key="S", is_paper=False))
+    assert paper._token_cache_path() != live._token_cache_path()   # noqa: SLF001
+
+
+def test_a_paper_order_does_not_need_the_live_trading_gate(monkeypatch):
+    """The gate exists to protect real money; paper is where mistakes belong."""
+
+    monkeypatch.delenv("TRADINGAGENTS_ENABLE_LIVE_TRADING", raising=False)
+    paper = NHClient(config=NHConfig(app_key="K", app_secret_key="S", is_paper=True),
+                     transport=_recorder())
+    # still refuses, but because the endpoint is unbuilt rather than the gate
+    with pytest.raises(NHOrdersUnavailableError):
+        paper.place_order(code="005930", quantity=1, price=70_000)
 
 
 def test_business_calls_are_json_and_carry_the_tr_code():
