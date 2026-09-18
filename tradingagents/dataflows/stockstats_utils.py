@@ -2,8 +2,6 @@ import time
 import logging
 
 import pandas as pd
-import yfinance as yf
-from yfinance.exceptions import YFRateLimitError
 from stockstats import wrap
 from typing import Annotated
 import os
@@ -11,6 +9,19 @@ from .config import get_config
 from .utils import safe_ticker_component
 
 logger = logging.getLogger(__name__)
+
+
+def _yf():
+    """yfinance, imported on first use.
+
+    It costs 0.37s to import and pulls pandas in with it. Every site route paid
+    that through chart_data's use of yf_retry, on a code path that only runs for
+    non-Korean tickers. Korean pages never reach it at all.
+    """
+
+    import yfinance
+
+    return yfinance
 
 
 def yf_retry(func, max_retries=3, base_delay=2.0):
@@ -23,7 +34,7 @@ def yf_retry(func, max_retries=3, base_delay=2.0):
     for attempt in range(max_retries + 1):
         try:
             return func()
-        except YFRateLimitError:
+        except _yf().exceptions.YFRateLimitError:
             if attempt < max_retries:
                 delay = base_delay * (2 ** attempt)
                 logger.warning(f"Yahoo Finance rate limited, retrying in {delay:.0f}s (attempt {attempt + 1}/{max_retries})")
@@ -74,7 +85,7 @@ def load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
     if os.path.exists(data_file):
         data = pd.read_csv(data_file, on_bad_lines="skip", encoding="utf-8")
     else:
-        data = yf_retry(lambda: yf.download(
+        data = yf_retry(lambda: _yf().download(
             symbol,
             start=start_str,
             end=end_str,

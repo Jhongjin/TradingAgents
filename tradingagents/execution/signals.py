@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from tradingagents.agents.utils.rating import parse_rating
 
 from .models import TradeSignal
 
@@ -44,6 +43,12 @@ def signal_from_decision(
     """Build a paper-execution signal from a final PM decision or rating."""
 
     policy = policy or SignalPolicy()
+    # Imported here rather than at module scope. parse_rating is pure regex,
+    # but reaching it runs tradingagents.agents/__init__, which builds the whole
+    # agent stack — 0.68s on a serverless cold start for a function the web app
+    # calls on one route.
+    from tradingagents.agents.utils.rating import parse_rating
+
     rating = parse_rating(decision_text)
     target_weight = policy.target_for_rating(rating)
     action = _action_for_rating(rating)
