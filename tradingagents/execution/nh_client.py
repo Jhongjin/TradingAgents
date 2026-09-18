@@ -22,7 +22,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -63,11 +65,54 @@ CREDIT_ENV_FLAG = "TRADINGAGENTS_ENABLE_MARGIN_TRADING"
 # NAMUH PLUG documents ThroughputQuotaRule.requestLimit = 1 on the token
 # endpoint, measured per second.
 TOKEN_RATE_LIMIT_WAIT_SECONDS = 2
+
+# Every business TR in the catalogue is documented 초당 5회. The desk opens with
+# six panels, several of which make more than one call, and a page load was
+# measured firing eight inside the same second — which the gateway answers with
+# IGW42903 rather than data. So calls are spaced here, in the one place all of
+# them pass through, rather than in each caller that might forget.
+CALLS_PER_SECOND = 5
+RATE_LIMITED = "IGW42903"
 # The gateway's way of saying the bearer token is no longer good, whatever the
 # expiry it came with claimed.
 TOKEN_REJECTED = "IGW40043"
 
 Transport = Callable[[str, str, Mapping[str, str], Mapping[str, Any] | None, Mapping[str, Any] | None], Mapping[str, Any]]
+
+
+class _Throttle:
+    """At most ``limit`` calls in any trailing second, across every client.
+
+    Process-wide and deliberately so. The desk, the CLI and the harness all
+    speak to one gateway with one key, and a limiter per client object would
+    let two of them together do what neither does alone.
+    """
+
+    def __init__(self, limit: int, per_seconds: float = 1.0) -> None:
+        self.limit = max(1, int(limit))
+        self.window = float(per_seconds)
+        self._recent: deque[float] = deque()
+        self._lock = threading.Lock()
+
+    def wait(self) -> float:
+        """Block until there is room. Returns how long that took."""
+
+        waited = 0.0
+        while True:
+            with self._lock:
+                now = time.monotonic()
+                while self._recent and now - self._recent[0] >= self.window:
+                    self._recent.popleft()
+                if len(self._recent) < self.limit:
+                    self._recent.append(now)
+                    return waited
+                sleep_for = self.window - (now - self._recent[0])
+            sleep_for = max(sleep_for, 0.005)
+            time.sleep(sleep_for)
+            waited += sleep_for
+
+
+_THROTTLE = _Throttle(CALLS_PER_SECOND)
 
 
 class NHError(RuntimeError):
@@ -163,6 +208,7 @@ class NHClient:
     config: NHConfig
     transport: Transport | None = None
     timeout: float = 10.0
+    throttle: "_Throttle" = field(default=_THROTTLE, repr=False)
     _token: str | None = field(default=None, init=False, repr=False)
     _token_expires_at: float = field(default=0.0, init=False, repr=False)
 
@@ -282,6 +328,9 @@ class NHClient:
         body = {"Input_0": dict(payload)}
 
         def send(token: str) -> Mapping[str, Any]:
+            # Every business TR is 초당 5회 and several callers share one key,
+            # so the wait happens here rather than in whoever called.
+            self.throttle.wait()
             return self._request("POST", path, base_url=base, json_body=body, headers={
                 "Content-Type": "application/json; charset=UTF-8",
                 "Authorization": f"Bearer {token}",
@@ -295,9 +344,16 @@ class NHClient:
             # cache on disk has no way to know. IGW40043 is that and only that,
             # so it is worth one fresh token before giving up — otherwise the
             # desk goes dark until someone deletes the cache file by hand.
-            if TOKEN_REJECTED not in str(first):
+            if RATE_LIMITED in str(first):
+                # Spacing here cannot account for other processes holding the
+                # same key, so the gateway still gets the last word. One pause
+                # and one retry; a second refusal is a real one.
+                time.sleep(1.0)
+                response = send(self.access_token())
+            elif TOKEN_REJECTED in str(first):
+                response = send(self.access_token(force_refresh=True))
+            else:
                 raise
-            response = send(self.access_token(force_refresh=True))
 
         code = str(response.get("rsp_cd") or "")
         # NH answers HTTP 200 with a business code, and only some mean success,

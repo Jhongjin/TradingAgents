@@ -613,10 +613,55 @@ refreshReserveUi();
 document.getElementById('quote-form').addEventListener('submit', lookUp);
 loadAccount();
 loadOrders();
-loadPnl();
-loadReserved();
-loadReconcile();
-setInterval(() => { loadAccount(); loadOrders(); }, 60000);
+
+// The panels below the fold cost eight NH calls between them, and NH allows
+// five a second. Loading them when they are first scrolled to means opening
+// the desk asks for the account and today's orders and nothing else; the rest
+// arrives as it is looked at, which is also when it is wanted.
+const WHEN_SEEN = [
+  ['pnl-panel', loadPnl],
+  ['reconcile-panel', loadReconcile],
+  ['reserved-panel', loadReserved],
+];
+
+function loadWhenSeen() {
+  const pending = new Map(WHEN_SEEN);
+  // no observer (an old browser, a odd webview): load everything and move on
+  if (!('IntersectionObserver' in window)) {
+    for (const load of pending.values()) load();
+    return;
+  }
+  const watcher = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      const load = pending.get(entry.target.id);
+      if (load) { pending.delete(entry.target.id); load(); }
+      watcher.unobserve(entry.target);
+    }
+  }, { rootMargin: '200px' });   // start just before it comes into view
+
+  for (const [id] of WHEN_SEEN) {
+    const node = el(id);
+    if (node) watcher.observe(node);
+  }
+}
+
+loadWhenSeen();
+// A desk left open in a background tab was refreshing twice a minute forever,
+// spending the same rate limit the foreground needs. It catches up on return.
+let stale = false;
+setInterval(() => {
+  if (document.hidden) { stale = true; return; }
+  loadAccount();
+  loadOrders();
+}, 60000);
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !stale) return;
+  stale = false;
+  loadAccount();
+  loadOrders();
+});
 """
 
 
@@ -677,7 +722,7 @@ def render_desk(*, mode: str) -> str:
   <p class="msg" id="quote-msg"></p>
 </section>
 
-<section class="panel">
+<section class="panel" id="pnl-panel">
   <h2>실현손익 <span class="hint">기간 내 매수·매도로 확정된 손익</span></h2>
   <form id="pnl-form">
     <select id="pnl-days">
@@ -692,7 +737,7 @@ def render_desk(*, mode: str) -> str:
     <thead><tr>
       <th>종목</th><th>매수</th><th>매도</th><th>실현손익</th><th>수익률</th>
     </tr></thead>
-    <tbody id="pnl-stocks"></tbody>
+    <tbody id="pnl-stocks"><tr><td colspan="5" class="empty">…</td></tr></tbody>
   </table>
   <p class="hint" id="pnl-note"></p>
   <p class="msg" id="pnl-msg"></p>
@@ -710,26 +755,26 @@ def render_desk(*, mode: str) -> str:
   <p class="hint" id="margin-note"></p>
 </section>
 
-<section class="panel">
+<section class="panel" id="reconcile-panel">
   <h2>거래내역 대조 <span class="hint">우리 원장 vs 증권사 장부</span></h2>
   <p class="amount" id="rec-verdict"></p>
   <table style="margin-top:12px">
     <thead><tr>
       <th>날짜</th><th>종목</th><th>구분</th><th>증권사</th><th>우리 기록</th><th>판정</th>
     </tr></thead>
-    <tbody id="rec-rows"></tbody>
+    <tbody id="rec-rows"><tr><td colspan="6" class="empty">…</td></tr></tbody>
   </table>
   <p class="hint" id="rec-cash"></p>
   <p class="msg" id="rec-msg"></p>
 </section>
 
-<section class="panel">
+<section class="panel" id="reserved-panel">
   <h2>예약 주문 <span class="hint">장 시작 전에 걸어두는 주문 · 실계좌 전용</span></h2>
   <table>
     <thead><tr>
       <th>종목</th><th>구분</th><th>수량</th><th>지정가</th><th>체결</th><th>유효기간</th><th></th>
     </tr></thead>
-    <tbody id="reserved"></tbody>
+    <tbody id="reserved"><tr><td colspan="7" class="empty">…</td></tr></tbody>
   </table>
   <form id="reserve-form" class="order" style="margin-top:16px">
     <label>구분<select id="r-side"><option value="buy">매수</option><option value="sell">매도</option></select></label>
