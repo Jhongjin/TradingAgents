@@ -152,12 +152,27 @@ def test_a_broker_failure_is_reported_rather_than_shown_as_an_empty_account():
 
 
 def test_with_no_credentials_it_says_which_ones_are_missing(monkeypatch):
+    # cli.main calls load_dotenv() at import, so the developer's own .env is in
+    # os.environ by the time this runs. Clearing them is what makes this a test
+    # of the message rather than of whoever's machine it runs on.
+    for name in ("NH_APP_KEY", "NH_APP_SECRET_KEY", "NH_ACCOUNT_NO", "NH_PAPER_ACCOUNT_NO"):
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("NH_IS_PAPER", "true")
+
     app = create_desk_app(token="T0KEN", client_factory=lambda: None)
     with _client(app) as http:
         data = http.get("/api/account?t=T0KEN").json()
-    assert "NH_PAPER_APP_KEY" in data["error"]
+    for name in ("NH_APP_KEY", "NH_APP_SECRET_KEY", "NH_PAPER_ACCOUNT_NO"):
+        assert name in data["error"], name
     assert "summary" not in data
+
+    # and the account number alone missing is called out, not left to come back
+    # as IGW40011 from the broker
+    monkeypatch.setenv("NH_APP_KEY", "K")
+    monkeypatch.setenv("NH_APP_SECRET_KEY", "S")
+    with _client(create_desk_app(token="T0KEN", client_factory=lambda: None)) as http:
+        data = http.get("/api/account?t=T0KEN").json()
+    assert data["error"].strip().startswith(".env 에 NH_PAPER_ACCOUNT_NO")
 
 
 def test_every_launch_gets_its_own_token():

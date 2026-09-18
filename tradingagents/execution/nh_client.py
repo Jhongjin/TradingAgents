@@ -30,6 +30,12 @@ from typing import Any, Callable, Mapping
 from .kis_client import LiveTradingDisabledError, live_trading_enabled
 
 BASE_URL = "https://api.nhplug.com:8443"
+# 모의투자 runs on its own host with the same credentials. Two rules the guide
+# does not put together and the errors do: the token must be issued on the live
+# host (the paper one answers IGW40058 "모의투자 서버는 토큰발급이 제한됩니다"),
+# and quotes are not served there either (IGW40023 "모의투자에서는 미지원"), so
+# prices always come from live while the account and orders go to paper.
+PAPER_BASE_URL = "https://moapi.nhplug.com:8443"
 TOKEN_PATH = "/oauth2/token"
 REVOKE_PATH = "/oauth2/revoke"
 
@@ -66,6 +72,18 @@ class NHConfig:
     base_url: str = BASE_URL
     is_paper: bool = True
 
+    @property
+    def account_url(self) -> str:
+        """Where the balance and the orders go."""
+
+        return PAPER_BASE_URL if self.is_paper else self.base_url
+
+    @property
+    def quote_url(self) -> str:
+        """Where prices come from: always live, because paper has none."""
+
+        return self.base_url
+
     @classmethod
     def from_env(cls, *, paper: bool | None = None) -> "NHConfig":
         """Credentials for one account, paper unless told otherwise.
@@ -80,11 +98,14 @@ class NHConfig:
         """
 
         want_paper = _flag("NH_IS_PAPER", default=True) if paper is None else paper
-        prefix = "NH_PAPER_" if want_paper else "NH_"
+        # One credential pair covers both: NAMUH PLUG registers the 모의투자
+        # service automatically with the API service, and only the host and the
+        # account number differ. NH_PAPER_ACCOUNT_NO is the 500- account.
+        account = os.getenv("NH_PAPER_ACCOUNT_NO" if want_paper else "NH_ACCOUNT_NO") or ""
         return cls(
-            app_key=(os.getenv(f"{prefix}APP_KEY") or "").strip(),
-            app_secret_key=(os.getenv(f"{prefix}APP_SECRET_KEY") or "").strip(),
-            account_no=_account(os.getenv(f"{prefix}ACCOUNT_NO") or ""),
+            app_key=(os.getenv("NH_APP_KEY") or "").strip(),
+            app_secret_key=(os.getenv("NH_APP_SECRET_KEY") or "").strip(),
+            account_no=_account(account),
             base_url=(os.getenv("NH_BASE_URL") or BASE_URL).strip().rstrip("/"),
             is_paper=want_paper,
         )
@@ -212,7 +233,7 @@ class NHClient:
             pass
 
     # ----------------------------------------------------------- read only
-    def _call(self, path: str, tr_code: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    def _call(self, path: str, tr_code: str, payload: Mapping[str, Any], *, live_only: bool = False) -> Mapping[str, Any]:
         """One NAMUH PLUG business call.
 
         The token endpoint is form-encoded; everything else is JSON and carries
@@ -225,7 +246,8 @@ class NHClient:
             "Authorization": f"Bearer {self.access_token()}",
             "tr_cd": tr_code,
         }
-        response = self._request("POST", path, headers=headers, json_body={"Input_0": dict(payload)})
+        base = self.config.quote_url if live_only else self.config.account_url
+        response = self._request("POST", path, headers=headers, json_body={"Input_0": dict(payload)}, base_url=base)
         code = str(response.get("rsp_cd") or "")
         # NH answers 200 with a business code; only some of them mean success,
         # so a failure here must not look like an empty result upstream.
@@ -245,8 +267,9 @@ class NHClient:
     def current_price(self, code: str, *, market: str = "KRX") -> Mapping[str, Any]:
         """국내 주식 현재가."""
 
+        # Always from the live host: the paper one answers IGW40023.
         return self._call("/krstock/quote/v1/currentPrice", "IVOUTKMST04",
-                          {"market_cd": market, "iem_cd": _code(code)})
+                          {"market_cd": market, "iem_cd": _code(code)}, live_only=True)
 
     # --------------------------------------------------------------- orders
     def place_order(self, *args: Any, **kwargs: Any) -> Mapping[str, Any]:
@@ -274,8 +297,9 @@ class NHClient:
         params: Mapping[str, Any] | None = None,
         data: Mapping[str, Any] | None = None,
         json_body: Mapping[str, Any] | None = None,
+        base_url: str | None = None,
     ) -> Mapping[str, Any]:
-        url = f"{self.config.base_url}{path}"
+        url = f"{base_url or self.config.base_url}{path}"
         send = self.transport or self._requests_transport
         return send(method, url, dict(headers or {}), params, json_body if json_body is not None else data)
 
@@ -348,6 +372,7 @@ def _redact(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 __all__ = [
     "BASE_URL",
+    "PAPER_BASE_URL",
     "NHClient",
     "NHConfig",
     "NHError",

@@ -166,40 +166,64 @@ def test_the_account_number_is_sent_the_way_nh_wants_not_the_way_it_displays():
     assert _account("") == ""
 
 
-def test_a_key_is_bound_to_its_account_so_paper_and_live_are_separate(monkeypatch):
-    """Asking the live key about the 모의투자 account returns IGW40018."""
+def test_one_key_pair_covers_both_accounts_and_only_the_account_differs(monkeypatch):
+    """NAMUH PLUG registers 모의투자 with the API service; no second key."""
 
-    monkeypatch.setenv("NH_APP_KEY", "LIVE-K")
-    monkeypatch.setenv("NH_APP_SECRET_KEY", "LIVE-S")
+    monkeypatch.setenv("NH_APP_KEY", "K")
+    monkeypatch.setenv("NH_APP_SECRET_KEY", "S")
     monkeypatch.setenv("NH_ACCOUNT_NO", "209-01-867134")
-    monkeypatch.setenv("NH_PAPER_APP_KEY", "PAPER-K")
-    monkeypatch.setenv("NH_PAPER_APP_SECRET_KEY", "PAPER-S")
-    monkeypatch.setenv("NH_PAPER_ACCOUNT_NO", "500-01-004210")
+    monkeypatch.setenv("NH_PAPER_ACCOUNT_NO", "500-01-004611")
     monkeypatch.delenv("NH_IS_PAPER", raising=False)
 
     # paper by default, because the alternative default is a live brokerage
     # account reachable by a typo
     paper = NHConfig.from_env()
     assert paper.mode == "paper"
-    assert (paper.app_key, paper.account_no) == ("PAPER-K", "50001004210")
+    assert (paper.app_key, paper.account_no) == ("K", "50001004611")
 
     live = NHConfig.from_env(paper=False)
-    assert live.mode == "live"
-    assert (live.app_key, live.account_no) == ("LIVE-K", "20901867134")
+    assert (live.app_key, live.account_no) == ("K", "20901867134")
 
     monkeypatch.setenv("NH_IS_PAPER", "false")
     assert NHConfig.from_env().mode == "live"
 
 
-def test_paper_credentials_missing_is_not_quietly_the_live_account(monkeypatch):
-    for name in ("NH_PAPER_APP_KEY", "NH_PAPER_APP_SECRET_KEY", "NH_PAPER_ACCOUNT_NO", "NH_IS_PAPER"):
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("NH_APP_KEY", "LIVE-K")
-    monkeypatch.setenv("NH_APP_SECRET_KEY", "LIVE-S")
+def test_the_account_goes_to_the_paper_host_and_the_quote_never_does():
+    """Paper answers IGW40023 for quotes, so prices always come from live."""
 
-    config = NHConfig.from_env()
-    assert config.mode == "paper" and config.configured is False
-    assert config.app_key == ""                      # never falls back to the live key
+    from tradingagents.execution.nh_client import BASE_URL, PAPER_BASE_URL
+
+    paper = NHConfig(app_key="K", app_secret_key="S", is_paper=True)
+    assert paper.account_url == PAPER_BASE_URL
+    assert paper.quote_url == BASE_URL
+
+    live = NHConfig(app_key="K", app_secret_key="S", is_paper=False)
+    assert live.account_url == BASE_URL == live.quote_url
+
+
+def test_a_paper_client_sends_the_balance_and_the_quote_to_different_hosts():
+    from tradingagents.execution.nh_client import BASE_URL, PAPER_BASE_URL
+
+    transport = _recorder({"rsp_cd": "00000", "Output_0": {}})
+    client = _client(transport, account_no="50001004611", is_paper=True)
+    client._token = "TOKEN"                                             # noqa: SLF001
+    client._token_expires_at = time.time() + 3600                       # noqa: SLF001
+
+    client.balance()
+    assert transport.calls[-1]["url"].startswith(PAPER_BASE_URL)
+    client.current_price("005930")
+    assert transport.calls[-1]["url"].startswith(BASE_URL)
+
+
+def test_the_token_is_always_issued_on_the_live_host():
+    """The paper host answers IGW40058 to a token request."""
+
+    from tradingagents.execution.nh_client import BASE_URL
+
+    transport = _recorder()
+    client = _client(transport, is_paper=True)
+    client.access_token()
+    assert transport.calls[0]["url"] == f"{BASE_URL}/oauth2/token"
 
 
 def test_the_token_cache_is_per_mode(monkeypatch, tmp_path):

@@ -146,7 +146,9 @@ def _default_client_factory():
     from tradingagents.execution.nh_client import NHClient, NHConfig
 
     config = NHConfig.from_env()
-    return NHClient(config=config) if config.configured else None
+    # configured covers the key pair; without an account number every call
+    # comes back IGW40011, which reads like a bug rather than a blank field
+    return NHClient(config=config) if config.configured and config.account_no else None
 
 
 def _mode(request: Request) -> str:
@@ -159,11 +161,13 @@ def _unconfigured() -> str:
     from tradingagents.execution.nh_client import NHConfig
 
     config = NHConfig.from_env()
-    prefix = "NH_PAPER_" if config.is_paper else "NH_"
-    return (
-        f"{config.mode} 자격증명이 없습니다. .env 에 {prefix}APP_KEY, {prefix}APP_SECRET_KEY, "
-        f"{prefix}ACCOUNT_NO 를 넣어주세요."
-    )
+    account = "NH_PAPER_ACCOUNT_NO" if config.is_paper else "NH_ACCOUNT_NO"
+    missing = [name for name, value in (
+        ("NH_APP_KEY", config.app_key),
+        ("NH_APP_SECRET_KEY", config.app_secret_key),
+        (account, config.account_no),
+    ) if not value]
+    return f".env 에 {', '.join(missing)} 를 넣어주세요. ({config.mode})" if missing else ""
 
 
 def _account_payload(request: Request) -> dict[str, Any]:
