@@ -136,7 +136,8 @@ def test_an_accepted_order_is_written_before_and_after_the_broker_call(tmp_path,
         result = http.post("/api/order?t=T", json=_body()).json()
 
     assert result["ok"] is True and result["order_no"] == 12345
-    assert broker.sent == [{"side": "buy", "code": "005930", "quantity": 1, "price": 100_000}]
+    assert broker.sent == [{"side": "buy", "code": "005930", "quantity": 1, "price": 100_000,
+                            "credit": False, "loan_date": None}]
 
     lines = [json.loads(line) for line in (tmp_path / "orders.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [line["payload"]["stage"] for line in lines] == ["sent", "accepted"]

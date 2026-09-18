@@ -533,6 +533,7 @@ def create_desk_app(*, token: str, client_factory=None) -> FastAPI:
             )
         code = resolved
 
+        credit = bool(body.get("credit"))
         book = ledger()
         spent, count = today_spent(book)
         try:
@@ -549,14 +550,28 @@ def create_desk_app(*, token: str, client_factory=None) -> FastAPI:
         if client is None:
             return JSONResponse({"error": _unconfigured()}, status_code=503)
 
+        # A margin sell closes one loan tranche, identified by the day it was
+        # borrowed. Looking it up here rather than trusting the page means the
+        # number comes from the broker's own balance every time.
+        loan_date = None
+        if credit and side == "sell":
+            loan_date = _loan_date_for(client, code)
+            if not loan_date:
+                return JSONResponse(
+                    {"error": f"{code} 는 신용으로 보유한 수량이 없습니다. 현금 매도로 주문하세요."},
+                    status_code=400,
+                )
+
         # Written before the call as well as after: a crash mid-flight still
         # leaves a record that an order was attempted, which is the one thing
-        # you need when the account and the ledger disagree.
-        common = dict(attempt=new_attempt(), side=side, code=code, quantity=quantity,
-                      price=price, amount=amount, mode=mode)
+        # you need when the account and the ledger disagree. The side records
+        # which money was used, because that is not recoverable afterwards.
+        common = dict(attempt=new_attempt(), side=f"credit-{side}" if credit else side,
+                      code=code, quantity=quantity, price=price, amount=amount, mode=mode)
         record(book, stage="sent", **common)
         try:
-            result = client.place_order(side=side, code=code, quantity=quantity, price=price)
+            result = client.place_order(side=side, code=code, quantity=quantity, price=price,
+                                        credit=credit, loan_date=loan_date)
         except Exception as exc:                        # noqa: BLE001 - shown to one person
             record(book, stage="failed", **common, error=f"{type(exc).__name__}: {exc}")
             return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
@@ -671,6 +686,24 @@ def _account_payload(request: Request) -> dict[str, Any]:
     }
 
 
+def _loan_date_for(client: Any, code: str) -> str | None:
+    """The day the margin loan on this holding was taken, out of the balance."""
+
+    try:
+        rows = (client.balance().get("Output_1") or [])
+    except Exception:                                   # noqa: BLE001 - caller reports the refusal
+        return None
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("iem_cd") or "").strip() != code:
+            continue
+        loan_date = str(row.get("lon_byn_dt") or "").strip()
+        if loan_date and loan_date != "00000000":
+            return loan_date
+    return None
+
+
 def _holding(row: Mapping[str, Any]) -> dict[str, Any]:
     """One position, with only the fields the page draws.
 
@@ -692,6 +725,12 @@ def _holding(row: Mapping[str, Any]) -> dict[str, Any]:
         "unrealised": _num(row.get("eal_pls_amt")),
         "return_pct": _num(row.get("pft_rt")),
         "kind": str(row.get("tp_cd_nm") or "").strip(),
+        # A margin sell has to name the day the loan was taken, and the balance
+        # is the only place that says it. NH spells it lon_byn_dt here and
+        # lon_dt in the order request, which is the sort of difference that is
+        # only findable by reading a live response.
+        "loan_date": str(row.get("lon_byn_dt") or "").strip() or None,
+        "on_margin": bool(str(row.get("lon_byn_dt") or "").strip()),
     }
 
 

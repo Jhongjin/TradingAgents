@@ -77,6 +77,8 @@ select {
 }
 .order select { width: 96px; }
 .order button { background: var(--warn); color: #1a1205; }
+/* borrowed money gets its own colour, so the two orders never look alike */
+.order button.credit { background: var(--up); color: #1a0506; }
 .order button[disabled] { opacity: .4; cursor: not-allowed; }
 .amount { font-size: 15px; font-weight: 700; margin-top: 12px; }
 .book { margin-top: 16px; font-size: 13px; }
@@ -132,13 +134,14 @@ async function loadAccount() {
   el('holdings').innerHTML = rows.length ? rows.map((h) => `
     <tr>
       <td><span class="name">${h.name || h.code}</span><span class="code">${h.code}</span></td>
+      <td class="${h.on_margin ? 'down' : ''}">${h.kind || (h.on_margin ? '신용' : '현금')}</td>
       <td>${h.quantity == null ? '–' : h.quantity.toLocaleString('ko-KR')}</td>
       <td>${won(h.average_price)}</td>
       <td>${won(h.last_price)}</td>
       <td>${won(h.value)}</td>
       <td class="${cls(h.unrealised)}">${won(h.unrealised)}</td>
       <td class="${cls(h.return_pct)}">${pct(h.return_pct)}</td>
-    </tr>`).join('') : '<tr><td colspan="7" class="empty">보유 종목이 없습니다.</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="8" class="empty">보유 종목이 없습니다.</td></tr>';
 }
 
 function drawBook(book) {
@@ -414,10 +417,19 @@ function orderAmount() {
   return (q > 0 && p > 0) ? q * p : 0;
 }
 
+function onCredit() { return el('funding').value === 'credit'; }
+
 function refreshOrderUi() {
   const amount = orderAmount();
   const ready = amount > 0 && el('o-confirm').value.trim() === el('o-qty').value.trim();
-  el('o-amount').textContent = amount ? `주문 금액 ${won(amount)}` : '';
+  const credit = onCredit();
+  el('o-amount').innerHTML = amount
+    ? (credit ? `<span class="down">신용</span> 주문 금액 ${won(amount)} · 빌린 돈입니다`
+              : `주문 금액 ${won(amount)}`)
+    : '';
+  // the button changes colour with the money, so the two orders never look alike
+  el('o-send').textContent = credit ? '신용 주문' : '주문';
+  el('o-send').classList.toggle('credit', credit);
   el('o-send').disabled = !ready;
 }
 
@@ -489,11 +501,19 @@ async function loadLimits() {
 async function sendOrder(event) {
   event.preventDefault();
   const side = el('side').value;
-  const label = side === 'buy' ? '매수' : '매도';
+  const credit = onCredit();
+  const label = (credit ? '신용 ' : '') + (side === 'buy' ? '매수' : '매도');
   const amount = orderAmount();
+  // the borrowed-money warning goes in the dialog too: the colour on the button
+  // is easy to stop seeing after the tenth order
+  const warning = credit
+    ? (side === 'buy'
+        ? '\n\n빌린 돈으로 삽니다. 손실이 넣은 돈보다 커질 수 있고, 이자와 반대매매가 따릅니다.'
+        : '\n\n신용으로 보유한 수량을 갚습니다.')
+    : '';
   if (!confirm(`${el('o-code').value} ${el('o-qty').value}주 ${label}
 지정가 ${won(parseInt(el('o-price').value, 10))}
-주문 금액 ${won(amount)}
+주문 금액 ${won(amount)}${warning}
 
 보내시겠습니까?`)) return;
 
@@ -502,7 +522,7 @@ async function sendOrder(event) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      side, code: el('o-code').value.trim(),
+      side, credit, code: el('o-code').value.trim(),
       quantity: parseInt(el('o-qty').value, 10),
       price: parseInt(el('o-price').value, 10),
       confirmation: el('o-confirm').value.trim(),
@@ -526,6 +546,7 @@ for (const id of ['o-code', 'o-price']) {
   el(id).addEventListener('input', askCapacitySoon);
 }
 el('side').addEventListener('change', showCapacity);
+el('funding').addEventListener('change', refreshOrderUi);
 document.getElementById('order-form').addEventListener('submit', sendOrder);
 async function switchMode() {
   const now = el('mode-btn').textContent.trim();
@@ -593,7 +614,7 @@ def render_desk(*, mode: str) -> str:
   <h2>보유 종목</h2>
   <table>
     <thead><tr>
-      <th>종목</th><th>수량</th><th>평단</th><th>현재가</th><th>평가금액</th><th>평가손익</th><th>수익률</th>
+      <th>종목</th><th>자금</th><th>수량</th><th>평단</th><th>현재가</th><th>평가금액</th><th>평가손익</th><th>수익률</th>
     </tr></thead>
     <tbody id="holdings"></tbody>
   </table>
@@ -685,9 +706,10 @@ def render_desk(*, mode: str) -> str:
 </section>
 
 <section class="panel">
-  <h2>주문 <span class="hint">지정가만 · 모의투자 계좌</span></h2>
+  <h2>주문 <span class="hint">지정가만</span></h2>
   <form id="order-form" class="order">
     <label>구분<select id="side"><option value="buy">매수</option><option value="sell">매도</option></select></label>
+    <label>자금<select id="funding"><option value="cash">현금</option><option value="credit">신용</option></select></label>
     <label>종목<input id="o-code" placeholder="종목명 또는 코드" autocomplete="off" /></label>
     <label>수량<input id="o-qty" inputmode="numeric" autocomplete="off" /></label>
     <label>지정가<input id="o-price" inputmode="numeric" autocomplete="off" /></label>
@@ -702,6 +724,8 @@ def render_desk(*, mode: str) -> str:
 
 <footer>
   주문은 지정가만 보냅니다. 시장가는 코드값 뜻이 문서에 없어 넣지 않았습니다.<br />
+  신용 주문은 .env 에 TRADINGAGENTS_ENABLE_MARGIN_TRADING=true 가 있어야 나갑니다.
+  빌린 돈이라 손실이 넣은 돈보다 커질 수 있습니다.<br />
   숫자는 NH 나무증권 API가 돌려준 값을 그대로 보여줍니다. 매매 권유가 아닙니다.
 </footer>
 

@@ -11,10 +11,10 @@ NH publishes a limit of one token request per second and says plainly not to
 re-issue before the 24 hours are up, so the token is cached on disk and shared
 across processes exactly as the KIS one is.
 
-Orders are 현금 매수/매도 at a limit price and nothing else. The catalogue also
-has credit and reserved orders, and a 시장가 code this project cannot read the
-meaning of; none of them are wired, because each is a separate decision rather
-than a missing branch.
+Orders are limit orders and nothing else: 현금, 신용 and 예약, each at a price
+that was named. The catalogue also carries a 시장가 code whose meaning is not
+documented anywhere this project could find, and guessing which value means "at
+market" is the kind of guess that sells a position at any price it can find.
 """
 
 from __future__ import annotations
@@ -39,14 +39,26 @@ PAPER_BASE_URL = "https://moapi.nhplug.com:8443"
 TOKEN_PATH = "/oauth2/token"
 REVOKE_PATH = "/oauth2/revoke"
 
-# 현금 매수/매도 only. Credit and reserved orders exist in the catalogue and are
-# not wired: they are a different risk conversation, not a missing branch.
 SUCCESS_PREFIXES = ("0", "XA1")
 
 ORDER_PATHS = {
     "buy": ("/krstock/order/v1/cashBuy", "SCSOS61803A"),
     "sell": ("/krstock/order/v1/cashSell", "SCSOS61801A"),
 }
+
+# 신용거래 — the same two orders placed with the broker's money instead of the
+# account's. Separate endpoints, and a separate switch to reach them, because a
+# margin position can lose more than was put into it and the difference between
+# these and the cash paths is one word in a request body.
+CREDIT_ORDER_PATHS = {
+    "buy": ("/krstock/order/v1/creditBuy", "SCSOS61806A"),
+    "sell": ("/krstock/order/v1/creditSell", "SCSOS61805A"),
+}
+
+# 유통융자, the ordinary retail margin line. NH has others; this is the one the
+# request examples use and the one the account's existing positions sit on.
+CREDIT_LOAN_CODE = "01"
+CREDIT_ENV_FLAG = "TRADINGAGENTS_ENABLE_MARGIN_TRADING"
 
 # NAMUH PLUG documents ThroughputQuotaRule.requestLimit = 1 on the token
 # endpoint, measured per second.
@@ -64,6 +76,22 @@ class NHError(RuntimeError):
 
 class NHOrdersUnavailableError(NHError):
     """Raised when an order cannot be attempted at all."""
+
+
+class MarginTradingDisabledError(NHError):
+    """Raised when a 신용 order is asked for without the switch being on."""
+
+
+def margin_trading_enabled() -> bool:
+    """Whether margin orders may be sent at all.
+
+    A separate switch from the live-trading one on purpose. Turning on live
+    trading says "these orders are real"; this says "these orders may be placed
+    with borrowed money", and a margin position can lose more than was put into
+    it. Running them together would mean one decision unlocked both.
+    """
+
+    return os.getenv(CREDIT_ENV_FLAG, "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
 @dataclass(frozen=True)
@@ -96,10 +124,11 @@ class NHConfig:
     def from_env(cls, *, paper: bool | None = None) -> "NHConfig":
         """Credentials for one account, paper unless told otherwise.
 
-        A key is bound to the account it was issued for: asking the live key
-        about the 모의투자 account returns IGW40018 "토큰정보로 발급된
-        계좌정보와 일치하지 않습니다". So the two are separate triples and
-        this picks one, rather than pretending a single key covers both.
+        One credential pair covers both accounts — registering for the API
+        service registers 모의투자 with it — so only the host and the account
+        number change. Asking about an account the key was not issued for is
+        what returns IGW40018 "토큰정보로 발급된 계좌정보와 일치하지
+        않습니다", which is why the account number is picked here too.
 
         Paper is the default because the alternative default is a live
         brokerage account reachable by a typo.
@@ -308,6 +337,8 @@ class NHClient:
         quantity: int,
         price: int,
         account_no: str | None = None,
+        credit: bool = False,
+        loan_date: str | None = None,
     ) -> Mapping[str, Any]:
         """One 지정가 order. Limit only, and deliberately so.
 
@@ -328,9 +359,12 @@ class NHClient:
             raise LiveTradingDisabledError(
                 "TRADINGAGENTS_ENABLE_LIVE_TRADING is not set; no live order will be sent"
             )
+        if credit and not margin_trading_enabled():
+            raise MarginTradingDisabledError(
+                f"{CREDIT_ENV_FLAG} is not set; no margin order will be sent"
+            )
 
-        path, tr_code = ORDER_PATHS[chosen]
-        return self._call(path, tr_code, {
+        body = {
             "act_no": account_no or self.config.account_no,
             "iem_cd": _code(code),
             "orr_qty": int(quantity),
@@ -338,10 +372,25 @@ class NHClient:
             # straight from the published request example; see the docstring
             "nmn_pr_tp_cd": "01",
             "orr_cnd_dit_cd": "00",
-            "ssl_nmn_pr_dit_cd": "00",
             "rmt_mkt_cd": "SOR",
             "sor_mkt_sli_yn": "N",
-        })
+        }
+        if not credit:
+            path, tr_code = ORDER_PATHS[chosen]
+            body["ssl_nmn_pr_dit_cd"] = "00"
+            return self._call(path, tr_code, body)
+
+        path, tr_code = CREDIT_ORDER_PATHS[chosen]
+        body["cfd_lon_cd"] = CREDIT_LOAN_CODE
+        if chosen == "sell":
+            # A margin sell has to name which loan it is closing, and the broker
+            # tracks those by the day the money was borrowed. The balance
+            # carries it per holding as lon_dt; sending the wrong one closes a
+            # different tranche than the one intended.
+            if not loan_date:
+                raise ValueError("a margin sell needs loan_date (the holding's lon_dt)")
+            body["lon_dt"] = _day(loan_date)
+        return self._call(path, tr_code, body)
 
     def cancel_order(
         self,
@@ -722,7 +771,11 @@ def _redact(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 __all__ = [
     "BASE_URL",
+    "CREDIT_ENV_FLAG",
+    "CREDIT_ORDER_PATHS",
+    "MarginTradingDisabledError",
     "ORDER_PATHS",
+    "margin_trading_enabled",
     "PAPER_BASE_URL",
     "NHClient",
     "NHConfig",

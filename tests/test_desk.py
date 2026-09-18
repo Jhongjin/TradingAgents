@@ -120,6 +120,8 @@ def test_the_balance_is_reshaped_into_names_a_person_can_read():
         "code": "005930", "name": "삼성전자", "quantity": 5.0,
         "average_price": 250_000.0, "last_price": 260_000.0, "value": 1_300_000.0,
         "unrealised": 50_000.0, "return_pct": 4.0, "kind": "현금매수",
+        # no lon_byn_dt on the row, so this one was bought with the account's money
+        "loan_date": None, "on_margin": False,
     }
 
 
@@ -539,3 +541,75 @@ def test_the_new_panels_are_on_the_page_and_behind_the_guard():
 
     for marker in ("실현손익", "예약 주문", "수급", "loadPnl", "loadFlow", "loadReserved"):
         assert marker in page
+
+
+def test_the_desk_looks_the_loan_date_up_rather_than_trusting_the_page(monkeypatch, tmp_path):
+    """A margin sell closes one tranche; the page must not get to choose which."""
+
+    monkeypatch.setenv("TRADINGAGENTS_DESK_LEDGER", str(tmp_path / "orders.jsonl"))
+    monkeypatch.setenv("NH_IS_PAPER", "true")
+    sent = []
+
+    class _Margin:
+        def balance(self, account_no=None):
+            return {"rsp_cd": "00166", "Output_0": {}, "Output_1": [
+                {"iem_cd": "034020", "iem_nm": "두산에너빌리티", "itg_bnc_qty": 10.0,
+                 "tp_cd_nm": "유통융자", "lon_byn_dt": "20260909"},
+                {"iem_cd": "005930", "iem_nm": "삼성전자", "itg_bnc_qty": 5.0,
+                 "tp_cd_nm": "현금", "lon_byn_dt": ""},
+            ]}
+
+        def place_order(self, *, side, code, quantity, price, credit=False, loan_date=None,
+                        account_no=None):
+            sent.append((side, code, credit, loan_date))
+            return {"rsp_cd": "00047", "Output_0": {"mkt_orr_no": 31}}
+
+    app = create_desk_app(token="T0KEN", client_factory=lambda: _Margin())
+    with _client(app) as http:
+        ok = http.post("/api/order?t=T0KEN", json={
+            "side": "sell", "code": "034020", "quantity": 2, "price": 80_000,
+            "confirmation": "2", "credit": True})
+        # 005930 is held for cash, so there is no loan to close
+        refused = http.post("/api/order?t=T0KEN", json={
+            "side": "sell", "code": "005930", "quantity": 1, "price": 260_000,
+            "confirmation": "1", "credit": True})
+
+    assert ok.status_code == 200
+    assert sent == [("sell", "034020", True, "20260909")]
+    assert refused.status_code == 400 and "신용으로 보유한 수량이 없습니다" in refused.json()["error"]
+
+
+def test_the_ledger_says_which_money_an_order_used(monkeypatch, tmp_path):
+    """Cash or borrowed is not recoverable after the fact, so it is written down."""
+
+    from tradingagents.execution.audit import AuditLedger
+
+    path = tmp_path / "orders.jsonl"
+    monkeypatch.setenv("TRADINGAGENTS_DESK_LEDGER", str(path))
+    monkeypatch.setenv("NH_IS_PAPER", "true")
+
+    class _Any:
+        def balance(self, account_no=None):
+            return {"Output_1": [{"iem_cd": "005930", "lon_byn_dt": "20260909"}]}
+
+        def place_order(self, **kwargs):
+            return {"rsp_cd": "00048", "Output_0": {"mkt_orr_no": 1}}
+
+    app = create_desk_app(token="T0KEN", client_factory=lambda: _Any())
+    with _client(app) as http:
+        http.post("/api/order?t=T0KEN", json={"side": "buy", "code": "005930", "quantity": 1,
+                                              "price": 1_000, "confirmation": "1"})
+        http.post("/api/order?t=T0KEN", json={"side": "buy", "code": "005930", "quantity": 1,
+                                              "price": 1_000, "confirmation": "1", "credit": True})
+
+    sides = [(record.payload or {}).get("side") for record in AuditLedger(str(path)).iter_records()]
+    assert "buy" in sides and "credit-buy" in sides
+
+
+def test_the_margin_holding_is_marked_on_the_page():
+    with _client(_app()) as http:
+        page = http.get("/?t=T0KEN").text
+    assert "on_margin" in page
+    assert "id=\"funding\"" in page
+    # borrowed money must not share the cash order's button
+    assert "button.credit" in page

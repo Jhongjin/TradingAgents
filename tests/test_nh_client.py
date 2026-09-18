@@ -411,3 +411,80 @@ def test_cancelling_a_reservation_names_the_order_and_the_side():
     assert sent["headers"]["tr_cd"] == "SCSOS61202A"
     assert sent["data"]["Input_0"]["bkg_orr_no"] == 27
     assert sent["data"]["Input_0"]["sby_dit_cd"] == "2"
+
+
+def test_a_margin_order_goes_to_its_own_endpoint_not_the_cash_one(monkeypatch):
+    """One word in a request body is the whole difference, so it is checked."""
+
+    monkeypatch.setenv("TRADINGAGENTS_ENABLE_MARGIN_TRADING", "true")
+    transport = _recorder({"rsp_cd": "00048", "Output_0": {"mkt_orr_no": 29}})
+    client = _ready(transport, account_no="50001004611", is_paper=True)
+
+    client.place_order(side="buy", code="005940", quantity=10, price=35_500)
+    client.place_order(side="buy", code="005940", quantity=10, price=35_500, credit=True)
+
+    cash, credit = transport.calls[0], transport.calls[1]
+    assert cash["url"].endswith("/krstock/order/v1/cashBuy")
+    assert cash["headers"]["tr_cd"] == "SCSOS61803A"
+    assert "cfd_lon_cd" not in cash["data"]["Input_0"]
+
+    assert credit["url"].endswith("/krstock/order/v1/creditBuy")
+    assert credit["headers"]["tr_cd"] == "SCSOS61806A"
+    assert credit["data"]["Input_0"]["cfd_lon_cd"] == "01"
+
+
+def test_margin_needs_its_own_switch_and_the_live_one_does_not_unlock_it(monkeypatch):
+    """Live says the orders are real; margin says they may use borrowed money."""
+
+    from tradingagents.execution.nh_client import MarginTradingDisabledError
+
+    monkeypatch.setenv("TRADINGAGENTS_ENABLE_LIVE_TRADING", "true")
+    monkeypatch.delenv("TRADINGAGENTS_ENABLE_MARGIN_TRADING", raising=False)
+
+    transport = _recorder({"rsp_cd": "00048", "Output_0": {}})
+    client = _ready(transport, account_no="50001004611", is_paper=False)
+
+    # cash still goes
+    client.place_order(side="buy", code="005940", quantity=1, price=100)
+    assert len(transport.calls) == 1
+
+    with pytest.raises(MarginTradingDisabledError, match="TRADINGAGENTS_ENABLE_MARGIN_TRADING"):
+        client.place_order(side="buy", code="005940", quantity=1, price=100, credit=True)
+    assert len(transport.calls) == 1        # nothing was sent
+
+
+def test_the_live_switch_is_still_needed_for_a_margin_order(monkeypatch):
+    monkeypatch.delenv("TRADINGAGENTS_ENABLE_LIVE_TRADING", raising=False)
+    monkeypatch.setenv("TRADINGAGENTS_ENABLE_MARGIN_TRADING", "true")
+
+    transport = _recorder({"rsp_cd": "00048", "Output_0": {}})
+    client = _ready(transport, account_no="50001004611", is_paper=False)
+
+    with pytest.raises(LiveTradingDisabledError):
+        client.place_order(side="buy", code="005940", quantity=1, price=100, credit=True)
+    assert len(transport.calls) == 0
+
+
+def test_a_margin_sell_must_name_the_loan_it_is_closing(monkeypatch):
+    """The broker tracks loans by the day borrowed; the wrong one closes the wrong tranche."""
+
+    monkeypatch.setenv("TRADINGAGENTS_ENABLE_MARGIN_TRADING", "true")
+    transport = _recorder({"rsp_cd": "00047", "Output_0": {"mkt_orr_no": 31}})
+    client = _ready(transport, account_no="50001004611", is_paper=True)
+
+    with pytest.raises(ValueError, match="loan_date"):
+        client.place_order(side="sell", code="005940", quantity=10, price=35_500, credit=True)
+    assert len(transport.calls) == 0
+
+    client.place_order(side="sell", code="005940", quantity=10, price=35_500,
+                       credit=True, loan_date="2026-09-09")
+    sent = transport.calls[0]
+    assert sent["headers"]["tr_cd"] == "SCSOS61805A"
+    assert sent["data"]["Input_0"]["lon_dt"] == "20260909"
+
+
+def test_a_cash_sell_never_carries_a_loan_date(monkeypatch):
+    transport = _recorder({"rsp_cd": "00047", "Output_0": {}})
+    client = _ready(transport, account_no="50001004611", is_paper=True)
+    client.place_order(side="sell", code="005940", quantity=10, price=35_500, loan_date="20260909")
+    assert "lon_dt" not in transport.calls[0]["data"]["Input_0"]
