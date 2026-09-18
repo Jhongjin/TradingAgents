@@ -209,6 +209,59 @@ def create_desk_app(*, token: str, client_factory=None) -> FastAPI:
         record(book, stage="accepted", **common, result=result)
         return JSONResponse({"ok": True, "message": result.get("rsp_msg")})
 
+    @app.get("/api/candles")
+    def candles(
+        request: Request,
+        code: str = Query(min_length=1, max_length=40),
+        count: int = Query(60, ge=10, le=200),
+    ) -> JSONResponse:
+        client = request.app.state.client_factory()
+        if client is None:
+            return JSONResponse({"error": _unconfigured()}, status_code=503)
+        resolved, matches = _resolve(code)
+        if resolved is None:
+            return JSONResponse({"error": "종목을 찾지 못했습니다.", "suggestions": matches}, status_code=404)
+        try:
+            raw = client.daily_candles(resolved, count=count)
+        except Exception as exc:                        # noqa: BLE001 - shown to one person
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
+
+        rows = raw.get("Output_0") or []
+        # NH hands these back newest first; a chart reads the other way
+        bars = [_candle(row) for row in rows if isinstance(row, Mapping)]
+        return JSONResponse({"code": resolved, "candles": list(reversed(bars))})
+
+    @app.get("/api/capacity")
+    def capacity(
+        request: Request,
+        code: str = Query(min_length=1, max_length=40),
+        side: str = Query("buy", max_length=8),
+        price: int = Query(0, ge=0),
+    ) -> JSONResponse:
+        """How much of this the account could actually do, asked before offering it."""
+
+        client = request.app.state.client_factory()
+        if client is None:
+            return JSONResponse({"error": _unconfigured()}, status_code=503)
+        resolved, matches = _resolve(code)
+        if resolved is None:
+            return JSONResponse({"error": "종목을 찾지 못했습니다.", "suggestions": matches}, status_code=404)
+
+        try:
+            if str(side).lower() == "sell":
+                raw = (client.sellable_quantity(resolved).get("Output_0") or {})
+                return JSONResponse({"side": "sell", "code": resolved,
+                                     "quantity": _num(raw.get("sll_pbl_qty")),
+                                     "held": _num(raw.get("bnc_qty"))})
+            if price <= 0:
+                return JSONResponse({"error": "지정가를 먼저 입력해 주세요."}, status_code=400)
+            raw = (client.buyable_quantity(resolved, price).get("Output_0") or {})
+            return JSONResponse({"side": "buy", "code": resolved,
+                                 "quantity": _num(raw.get("csh_orr_pbl_qty")),
+                                 "amount": _num(raw.get("csh_orr_pbl_amt"))})
+        except Exception as exc:                        # noqa: BLE001 - shown to one person
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
+
     @app.get("/api/limits")
     def limits(request: Request) -> JSONResponse:
         from .orders import Limits, ledger, today_spent
@@ -321,6 +374,13 @@ def _resolve(value: str) -> tuple[str | None, list[dict[str, Any]]]:
     found = search_directory(text, limit=8)
     if len(found) == 1:
         return found[0].code, []
+    # An exact name is an answer, not a shortlist. 삼성전자 matches 삼성전자우,
+    # KODEX 삼성전자채권혼합 and more, and offering those back is the search
+    # failing on the one word it should be surest about.
+    folded = text.replace(" ", "").lower()
+    exact = [entry for entry in found if entry.name.replace(" ", "").lower() == folded]
+    if len(exact) == 1:
+        return exact[0].code, []
     if found:
         return None, [{"code": e.code, "name": e.name, "market": e.market} for e in found]
     return None, []
@@ -401,6 +461,18 @@ def _holding(row: Mapping[str, Any]) -> dict[str, Any]:
         "unrealised": _num(row.get("eal_pls_amt")),
         "return_pct": _num(row.get("pft_rt")),
         "kind": str(row.get("tp_cd_nm") or "").strip(),
+    }
+
+
+def _candle(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "date": str(row.get("bsop_date") or "").strip(),
+        "open": _num(row.get("stck_oprc")),
+        "high": _num(row.get("stck_hgpr")),
+        "low": _num(row.get("stck_lwpr")),
+        "close": _num(row.get("stck_clpr")),
+        "volume": _num(row.get("acml_vol")),
+        "change_pct": _num(row.get("prdy_ctrt")),
     }
 
 

@@ -396,12 +396,46 @@ class NHClient:
         })
 
     def buyable_quantity(self, code: str, price: int, account_no: str | None = None) -> Mapping[str, Any]:
-        """How many the account could buy at that price, asked before offering it."""
+        """How many the account could buy at that price.
 
-        return self._call("/krstock/inquiry/v1/buyableQuantity", "SCIOT983691", {
+        The TR code here is SCSOS62018A, not the balance one — an earlier
+        version reused SCIOT983691 and the gateway answered for the wrong
+        transaction entirely.
+        """
+
+        return self._call("/krstock/inquiry/v1/buyableQuantity", "SCSOS62018A", {
+            "ost_dit_cd": "1",
             "act_no": account_no or self.config.account_no,
             "iem_cd": _code(code),
+            "nmn_pr_tp_cd": "01",
             "orr_pr": int(price),
+            "mdi_tp_cd": "3",
+            "cfd_lon_cd": "00",
+            "lon_dt": "",
+        })
+
+    def daily_candles(self, code: str, *, count: int = 60, market: str = "KRX") -> Mapping[str, Any]:
+        """Daily bars, newest first. Live host only, like every other quote."""
+
+        return self._call("/krstock/quote/v1/currentDaily", "IVOUTKDAY04", {
+            "market_cd": market,
+            "iem_cd": _code(code),
+            "array_cnt": str(int(count)),
+            "view_main_yn": "N",
+        }, live_only=True)
+
+    def sellable_quantity(self, code: str, account_no: str | None = None) -> Mapping[str, Any]:
+        """How many of it the account could sell right now.
+
+        Not the same as the balance: today's buys may not have settled, which
+        is the gap between bnc_qty and sll_pbl_qty.
+        """
+
+        return self._call("/krstock/inquiry/v1/sellableQuantity", "SCSOS620161", {
+            "act_no": account_no or self.config.account_no,
+            "iem_cd": _code(code),
+            "lon_dt": "",
+            "cfd_lon_cd": "00",
         })
 
     # ------------------------------------------------------------- transport

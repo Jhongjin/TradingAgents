@@ -292,3 +292,62 @@ def test_switching_to_the_live_account_is_off_unless_it_is_turned_on(monkeypatch
         assert http.get("/api/limits?t=T0KEN").json()["mode"] == "live"
         # going back needs no permission at all
         assert http.post("/api/mode?t=T0KEN", json={"mode": "paper"}).json()["mode"] == "paper"
+
+
+def test_an_exact_name_is_an_answer_not_a_shortlist():
+    """삼성전자 also matches 삼성전자우 and KODEX 삼성전자채권혼합."""
+
+    from tradingagents.desk.app import _resolve
+
+    assert _resolve("삼성전자")[0] == "005930"
+    assert _resolve("삼성전자우")[0] == "005935"
+    assert _resolve("SK하이닉스")[0] == _resolve("sk하이닉스")[0] == "000660"
+    # a prefix that is nobody's whole name still asks
+    assert _resolve("삼성")[0] is None
+
+
+def test_capacity_is_asked_before_an_order_is_offered(monkeypatch):
+    class _Room:
+        def buyable_quantity(self, code, price, account_no=None):
+            return {"rsp_cd": "XA102", "Output_0": {"csh_orr_pbl_qty": 1919, "csh_orr_pbl_amt": 499_014_190}}
+
+        def sellable_quantity(self, code, account_no=None):
+            return {"rsp_cd": "XA102", "Output_0": {"bnc_qty": 90, "sll_pbl_qty": 65}}
+
+    app = create_desk_app(token="T0KEN", client_factory=lambda: _Room())
+    with _client(app) as http:
+        buy = http.get("/api/capacity?code=005930&side=buy&price=260000&t=T0KEN").json()
+        assert buy == {"side": "buy", "code": "005930", "quantity": 1919.0, "amount": 499_014_190.0}
+
+        # 매도가능 is not the balance: today's buys may not have settled
+        sell = http.get("/api/capacity?code=005930&side=sell&t=T0KEN").json()
+        assert sell["quantity"] == 65.0 and sell["held"] == 90.0
+
+        # buying needs a price to be measured against
+        assert http.get("/api/capacity?code=005930&side=buy&t=T0KEN").status_code == 400
+
+
+def test_the_candles_are_turned_around_for_a_chart():
+    """NH hands them back newest first; a chart reads the other way."""
+
+    class _Bars:
+        def daily_candles(self, code, *, count=60, market="KRX"):
+            return {"rsp_cd": "00000", "Output_0": [
+                {"bsop_date": "26/09/18", "stck_oprc": 261_000, "stck_hgpr": 262_000,
+                 "stck_lwpr": 257_500, "stck_clpr": 260_000, "acml_vol": 17_489_615},
+                {"bsop_date": "26/09/17", "stck_oprc": 257_000, "stck_hgpr": 259_000,
+                 "stck_lwpr": 251_500, "stck_clpr": 256_000, "acml_vol": 11_827_514},
+            ]}
+
+    app = create_desk_app(token="T0KEN", client_factory=lambda: _Bars())
+    with _client(app) as http:
+        bars = http.get("/api/candles?code=005930&t=T0KEN").json()["candles"]
+
+    assert [bar["date"] for bar in bars] == ["26/09/17", "26/09/18"]
+    assert bars[-1]["close"] == 260_000 and bars[-1]["high"] == 262_000
+
+
+def test_the_capacity_and_candle_routes_are_behind_the_guard():
+    with _client(_app()) as http:
+        assert http.get("/api/capacity?code=005930&side=sell").status_code == 401
+        assert http.get("/api/candles?code=005930").status_code == 401

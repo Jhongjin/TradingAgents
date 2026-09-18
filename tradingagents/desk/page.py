@@ -78,6 +78,9 @@ footer { color: var(--muted); font-size: 12px; margin-top: 26px; line-height: 1.
 .order button { background: var(--warn); color: #1a1205; }
 .order button[disabled] { opacity: .4; cursor: not-allowed; }
 .amount { font-size: 15px; font-weight: 700; margin-top: 12px; }
+#chart { width: 100%; height: 180px; margin-top: 18px; display: block; }
+#chart rect.up { fill: var(--up); } #chart rect.down { fill: var(--down); }
+#chart line.up { stroke: var(--up); } #chart line.down { stroke: var(--down); }
 .cancel {
   background: transparent; border: 1px solid var(--line); color: var(--ink2);
   font-size: 12px; font-weight: 500; padding: 5px 12px; border-radius: 7px;
@@ -125,6 +128,33 @@ async function loadAccount() {
     </tr>`).join('') : '<tr><td colspan="7" class="empty">보유 종목이 없습니다.</td></tr>';
 }
 
+async function drawChart(code) {
+  const svg = el('chart');
+  const data = await ask('/api/candles?count=60&code=' + encodeURIComponent(code));
+  if (data.error || !(data.candles || []).length) { svg.hidden = true; el('chart-note').textContent = ''; return; }
+
+  const bars = data.candles;
+  const highs = bars.map((b) => b.high), lows = bars.map((b) => b.low);
+  const top = Math.max(...highs), bottom = Math.min(...lows);
+  const span = (top - bottom) || 1;
+  const step = 880 / bars.length;
+  const y = (v) => 174 - ((v - bottom) / span) * 168;
+
+  svg.innerHTML = bars.map((b, i) => {
+    const x = i * step + step / 2;
+    const rising = b.close >= b.open;
+    const klass = rising ? 'up' : 'down';
+    const width = Math.max(step * 0.62, 1.5);
+    const bodyTop = y(Math.max(b.open, b.close));
+    const height = Math.max(Math.abs(y(b.open) - y(b.close)), 1);
+    return `<line class="${klass}" x1="${x}" x2="${x}" y1="${y(b.high)}" y2="${y(b.low)}" stroke-width="1" />`
+      + `<rect class="${klass}" x="${x - width / 2}" y="${bodyTop}" width="${width}" height="${height}" />`;
+  }).join('');
+  svg.hidden = false;
+  el('chart-note').textContent =
+    `최근 ${bars.length}거래일 · ${bars[0].date} ~ ${bars[bars.length - 1].date} · 고 ${won(top)} / 저 ${won(bottom)}`;
+}
+
 async function lookUp(event) {
   if (event) event.preventDefault();
   const code = el('code').value.trim();
@@ -134,6 +164,7 @@ async function lookUp(event) {
   if (data.error) {
     el('quote-msg').textContent = data.error;
     el('quote').innerHTML = '';
+    el('chart').hidden = true;
     // several names matched: offer them rather than making them guess again
     for (const s of (data.suggestions || [])) {
       const b = document.createElement('button');
@@ -145,6 +176,7 @@ async function lookUp(event) {
   }
   el('quote-msg').textContent = '';
   const q = data.quote || {};
+  drawChart(q.code || code);
   el('quote').innerHTML = `
     <div class="stat"><div class="k">${q.name || ''} ${q.code || ''}</div>
       <div class="v ${cls(q.change)}">${won(q.price)}</div></div>
@@ -166,6 +198,28 @@ function refreshOrderUi() {
   const ready = amount > 0 && el('o-confirm').value.trim() === el('o-qty').value.trim();
   el('o-amount').textContent = amount ? `주문 금액 ${won(amount)}` : '';
   el('o-send').disabled = !ready;
+}
+
+let capacityTimer = null;
+
+async function showCapacity() {
+  const code = el('o-code').value.trim();
+  const side = el('side').value;
+  const price = parseInt(el('o-price').value, 10);
+  if (!code || (side === 'buy' && !(price > 0))) { el('capacity').textContent = ''; return; }
+
+  const url = `/api/capacity?code=${encodeURIComponent(code)}&side=${side}&price=${price || 0}`;
+  const d = await ask(url);
+  if (d.error) { el('capacity').textContent = d.error; return; }
+  el('capacity').textContent = side === 'buy'
+    ? `이 가격에 최대 ${(d.quantity || 0).toLocaleString('ko-KR')}주 (${won(d.amount)})`
+    : `매도 가능 ${(d.quantity || 0).toLocaleString('ko-KR')}주 · 보유 ${(d.held || 0).toLocaleString('ko-KR')}주`;
+}
+
+function askCapacitySoon() {
+  // one call after typing stops, not one per keystroke: NH allows five a second
+  clearTimeout(capacityTimer);
+  capacityTimer = setTimeout(showCapacity, 450);
 }
 
 async function loadOrders() {
@@ -247,6 +301,10 @@ async function sendOrder(event) {
 for (const id of ['o-qty', 'o-price', 'o-confirm']) {
   el(id).addEventListener('input', refreshOrderUi);
 }
+for (const id of ['o-code', 'o-price']) {
+  el(id).addEventListener('input', askCapacitySoon);
+}
+el('side').addEventListener('change', showCapacity);
 document.getElementById('order-form').addEventListener('submit', sendOrder);
 async function switchMode() {
   const now = el('mode-btn').textContent.trim();
@@ -316,6 +374,8 @@ def render_desk(*, mode: str) -> str:
   </form>
   <div class="suggest" id="suggest"></div>
   <div class="stats" id="quote" style="margin-top:16px"></div>
+  <svg id="chart" viewBox="0 0 880 180" preserveAspectRatio="none" hidden></svg>
+  <p class="hint" id="chart-note"></p>
   <p class="msg" id="quote-msg"></p>
 </section>
 
@@ -341,6 +401,7 @@ def render_desk(*, mode: str) -> str:
     <button type="submit" id="o-send">주문</button>
   </form>
   <p class="amount" id="o-amount"></p>
+  <p class="hint" id="capacity"></p>
   <p class="msg" id="order-msg"></p>
   <p class="hint" id="limits"></p>
 </section>
