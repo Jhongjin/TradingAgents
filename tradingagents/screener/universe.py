@@ -733,6 +733,90 @@ def load_index_snapshot(
     return MarketSnapshot(as_of_date=_coerce_date(as_of_date).isoformat(), markets=selected, rows=rows, vendor="index:" + ", ".join(notes))
 
 
+def fetch_histories_by_code(
+    codes: Sequence[str],
+    fetcher: Callable[[str, str, str], Sequence[Mapping[str, Any]]],
+    start: str,
+    end: str,
+    *,
+    max_workers: int = 8,
+    deadline: float | None = None,
+    grace_seconds: float = 5.0,
+) -> dict[str, tuple[Sequence[Mapping[str, Any]], Exception | None]]:
+    """Daily history for many tickers at once, and a deadline that actually bites.
+
+    Returns ``code -> (points, error)``; a code missing from the result was
+    never reached.
+
+    The workers are daemon threads rather than a ThreadPoolExecutor, and that
+    is the entire point. A pool's deadline can only cancel what has not
+    started — it still has to join whatever is in flight, and a fetch already
+    in flight is somebody else's function with no timeout of its own. Measured
+    on today's index: one ticker in a hundred and fifty never returns at all.
+    Through a pool that one ticker hangs the screener; through a daemon thread
+    it is abandoned at the deadline and does not hold up the interpreter
+    either.
+    """
+
+    import threading
+    import time
+
+    results: dict[str, tuple[Sequence[Mapping[str, Any]], Exception | None]] = {}
+    remaining = list(codes)
+    if not remaining:
+        return results
+
+    results_lock = threading.Lock()
+    queue_lock = threading.Lock()
+
+    def worker() -> None:
+        while True:
+            if deadline is not None and time.monotonic() > deadline:
+                return
+            with queue_lock:
+                if not remaining:
+                    return
+                code = remaining.pop(0)
+            try:
+                points = fetcher(code, start, end)
+                outcome = (points, None)
+            except Exception as exc:       # a vendor error is one ticker, never fatal
+                outcome = ([], exc)
+            with results_lock:
+                results[code] = outcome
+
+    workers = max(1, min(int(max_workers), len(remaining)))
+    threads = [
+        threading.Thread(target=worker, name=f"history-{index}", daemon=True)
+        for index in range(workers)
+    ]
+    for thread in threads:
+        thread.start()
+
+    # Wait for the queue to drain rather than for the threads to finish. A
+    # single ticker that never returns would otherwise hold the whole budget
+    # while the other seven workers sat idle with nothing left to do — which
+    # spends the time the caller needed for the work that comes after this.
+    while True:
+        with queue_lock:
+            if not remaining:
+                break
+        if deadline is not None and time.monotonic() > deadline:
+            break
+        time.sleep(0.02)
+
+    # Everything is either done or in flight. Give the stragglers a moment, then
+    # leave them: they are daemon threads and will not hold the interpreter.
+    until = time.monotonic() + grace_seconds
+    if deadline is not None:
+        until = min(until, deadline)
+    for thread in threads:
+        thread.join(timeout=max(until - time.monotonic(), 0.0))
+
+    with results_lock:
+        return dict(results)
+
+
 def load_stored_index_snapshot(
     as_of_date: str | date | None,
     history_fetcher: Callable[[str, str, str], Sequence[Mapping[str, Any]]],
@@ -740,6 +824,8 @@ def load_stored_index_snapshot(
     markets: tuple[str, ...] | list[str] = SUPPORTED_MARKETS,
     limit: int = 150,
     lookback_days: int = 330,
+    max_workers: int = 8,
+    deadline: float | None = None,
 ) -> MarketSnapshot:
     """The index, priced one ticker at a time, with no ranking vendor involved.
 
@@ -747,6 +833,11 @@ def load_stored_index_snapshot(
     come from per-ticker daily history, which is the one market call that still
     works from a serverless host. Between them there is nothing left to be
     blocked.
+
+    The fetching is concurrent and stops at ``deadline``. Serially, 150 tickers
+    is five seconds from Seoul and would be closer to a minute from a host with
+    a slower path to the vendor — which is the host this exists for, and where
+    the function is killed at sixty seconds.
     """
 
     from tradingagents.dataflows.kr_index_members import index_universe
@@ -755,8 +846,22 @@ def load_stored_index_snapshot(
     if not members:
         raise VendorUnavailableError("no stored index membership to price")
 
+    end = _coerce_date(as_of_date)
+    start = end - timedelta(days=lookback_days)
+    gathered = fetch_histories_by_code(
+        [code for code, _ in members], history_fetcher,
+        start.isoformat(), end.isoformat(),
+        max_workers=max_workers, deadline=deadline,
+    )
+    fetched = {code: points for code, (points, _) in gathered.items() if points}
+
+    if not fetched:
+        raise VendorUnavailableError("stored index membership produced no priced rows")
+
+    # Everything is in hand now, so the builder's own fetch is a dictionary read
+    # and its serial loop costs nothing.
     snapshot = build_snapshot_from_history(
-        [code for code, _ in members], as_of_date, history_fetcher,
+        list(fetched), as_of_date, lambda code, _s, _e: fetched.get(code, []),
         markets=markets, lookback_days=lookback_days,
     )
     named = dict(members)
@@ -768,7 +873,7 @@ def load_stored_index_snapshot(
     ]
     return MarketSnapshot(
         as_of_date=snapshot.as_of_date, markets=snapshot.markets, rows=rows,
-        vendor=f"index:stored membership of {len(members)}, priced per ticker",
+        vendor=f"index:stored membership, {len(rows)} of {len(members)} priced per ticker",
     )
 
 

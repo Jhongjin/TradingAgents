@@ -15,6 +15,7 @@ from .universe import (
     MarketSnapshotRow,
     build_snapshot_from_history,
     fallback_universe_codes,
+    fetch_histories_by_code,
     load_index_snapshot,
     load_market_snapshot,
     load_naver_market_snapshot,
@@ -207,9 +208,14 @@ def screen_korean_market(
                     # above fails outright on a host where pykrx is also
                     # blocked. This one needs no ranking vendor: membership from
                     # the stored file, prices one ticker at a time.
+                    # The same deadline the scoring phase gets. It can have all
+                    # of it: cached_fetcher means scoring re-reads what this
+                    # fetched rather than asking the vendor twice.
                     loaders.append(("index-stored", lambda: load_stored_index_snapshot(
                         as_of_date, cached_fetcher, markets=config.markets, limit=universe_size,
                         lookback_days=int(config.history_days * 1.6) + 10,
+                        max_workers=config.max_workers,
+                        deadline=(started + config.time_budget_seconds) if config.time_budget_seconds is not None else None,
                     )))
                 if snapshot_mode in {"auto", "naver"}:
                     loaders.append(("naver", lambda: load_naver_market_snapshot(as_of_date, markets=config.markets, max_rows_per_market=universe_size)))
@@ -329,51 +335,19 @@ def _fetch_histories(
     """Fetch daily history for every row, concurrently, honouring the time budget.
 
     Returns ``code -> (points, error)``; rows missing from the result were not
-    attempted before the deadline. Results are collected in submission order
-    so ranking stays deterministic for equal scores.
+    attempted before the deadline.
+
+    This used to run on a ThreadPoolExecutor, whose deadline could cancel the
+    queue but still had to join whatever was in flight. Measured on today's
+    index one ticker in a hundred and fifty never returns, and joining that one
+    is how a sixty-second function dies with nothing to show. The shared helper
+    uses daemon threads so the deadline is real.
     """
 
-    import time
-    from concurrent.futures import ThreadPoolExecutor, wait
-
-    results: dict[str, tuple[Sequence[Mapping[str, Any]], Exception | None]] = {}
-    if not rows:
-        return results
-
-    def load(code: str):
-        try:
-            return code, (fetcher(code, start, end), None)
-        except Exception as exc:  # vendor errors are per-row, never fatal
-            return code, ([], exc)
-
-    workers = max(1, min(max_workers, len(rows)))
-    if workers == 1:
-        for row in rows:
-            if deadline is not None and time.monotonic() > deadline:
-                break
-            code, outcome = load(row.code)
-            results[code] = outcome
-        return results
-
-    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="screener") as pool:
-        pending = {pool.submit(load, row.code): row.code for row in rows}
-        while pending:
-            timeout = None if deadline is None else max(deadline - time.monotonic(), 0.0)
-            done, _ = wait(list(pending), timeout=timeout)
-            for future in done:
-                pending.pop(future, None)
-                code, outcome = future.result()
-                results[code] = outcome
-            if not done:  # deadline hit: abandon what has not started yet
-                for future in list(pending):
-                    if future.cancel():
-                        pending.pop(future, None)
-                if pending:  # in-flight fetches finish, then we stop
-                    for future in wait(list(pending)).done:
-                        code, outcome = future.result()
-                        results[code] = outcome
-                break
-    return results
+    return fetch_histories_by_code(
+        [row.code for row in rows], fetcher, start, end,
+        max_workers=max_workers, deadline=deadline,
+    )
 
 
 def _resolve_snapshot_mode(value: str | None) -> str:
