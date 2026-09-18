@@ -74,7 +74,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// 2026-09-18: three mornings in a row the reply carried no videoId while\n// the video itself was on the channel. Throwing here killed the reply and\n// left nothing to inspect, so this now hands the upload node's own output\n// through and lets the PC find the id in whatever shape it arrived.\nconst up = $input.first().json || {};\nfunction findId(value, depth) {\n  if (depth > 4 || value == null) return '';\n  if (typeof value === 'string') return /^[A-Za-z0-9_-]{11}$/.test(value) ? value : '';\n  if (Array.isArray(value)) {\n    for (const item of value) { const hit = findId(item, depth + 1); if (hit) return hit; }\n    return '';\n  }\n  if (typeof value !== 'object') return '';\n  for (const key of ['videoId', 'id']) {\n    if (key in value) { const hit = findId(value[key], depth + 1); if (hit) return hit; }\n  }\n  for (const key of Object.keys(value)) {\n    const hit = findId(value[key], depth + 1); if (hit) return hit;\n  }\n  return '';\n}\nreturn [{ json: { ...$('받은 것 확인').first().json, videoId: findId(up, 0), upload: up } }];"
+        "jsCode": "// Answered 2026-09-18: the YouTube node returns { uploadId: '...' } —\n// not id, not videoId. Three mornings of empty replies were the Respond\n// node reading keys that were never there. The search below is kept\n// rather than hardcoding uploadId, because the key has now changed once\n// and the reply also carries the raw output either way.\nconst up = $input.first().json || {};\nfunction findId(value, depth) {\n  if (depth > 4 || value == null) return '';\n  if (typeof value === 'string') return /^[A-Za-z0-9_-]{11}$/.test(value) ? value : '';\n  if (Array.isArray(value)) {\n    for (const item of value) { const hit = findId(item, depth + 1); if (hit) return hit; }\n    return '';\n  }\n  if (typeof value !== 'object') return '';\n  for (const key of ['uploadId', 'videoId', 'id']) {\n    if (key in value) { const hit = findId(value[key], depth + 1); if (hit) return hit; }\n  }\n  for (const key of Object.keys(value)) {\n    const hit = findId(value[key], depth + 1); if (hit) return hit;\n  }\n  return '';\n}\nreturn [{ json: { ...$('받은 것 확인').first().json, videoId: findId(up, 0), upload: up } }];"
       },
       "id": "b2000000-0000-4000-8000-000000000009",
       "name": "업로드 확인",
@@ -84,7 +84,7 @@
         100,
         320
       ],
-      "notes": "유튜브 노드가 돌려준 것에서 영상 id 를 찾습니다. 못 찾아도 멈추지 않고 원본을 그대로 실어 보냅니다 — 멈추면 회신 자체가 사라져서 무엇이 왔는지 볼 수가 없습니다. PC 쪽이 id 없는 응답을 실패로 처리합니다."
+      "notes": "유튜브 노드는 영상 id 를 uploadId 로 돌려줍니다 (2026-09-18 확인). 키가 한 번 바뀐 적이 있어 이름을 박지 않고 11자리 id 를 찾습니다. 못 찾아도 멈추지 않고 원본을 그대로 실어 보냅니다 — 멈추면 회신이 사라져서 무엇이 왔는지 볼 수가 없습니다."
     },
     {
       "parameters": {

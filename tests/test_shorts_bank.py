@@ -974,3 +974,24 @@ def test_the_cut_shows_the_stop_the_account_is_actually_trading_on():
     assert stop_loss_pct() == live
     # and the hero on screen is that number, not one typed into the topic
     assert BY_TOPIC["explain_stop"].hero == f"{live * 100:.0f}"
+
+
+def test_the_key_n8n_actually_uses_is_the_one_that_was_missing():
+    """The YouTube node returns uploadId. Three mornings went looking for id."""
+
+    from cli.main import _video_id_in
+
+    real = {"ok": True, "videoId": "2nprZzFg9fY", "story": "probe",
+            "upload": {"uploadId": "2nprZzFg9fY"}}
+    assert _video_id_in(real) == "2nprZzFg9fY"
+    # and off the raw output alone, which is what the reply carries when the
+    # workflow's own expression is wrong again
+    assert _video_id_in({"videoId": "", "upload": {"uploadId": "2nprZzFg9fY"}}) == "2nprZzFg9fY"
+
+    import json as _json
+    from pathlib import Path
+
+    flow = _json.loads(Path("automation/n8n/daily-short-hosted.json").read_text(encoding="utf-8"))
+    check = next(node for node in flow["nodes"] if node["name"] == "업로드 확인")
+    assert "'uploadId'" in check["parameters"]["jsCode"]
+    assert "uploadId" in check["notes"]

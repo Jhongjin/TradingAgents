@@ -2387,8 +2387,10 @@ def _video_id_in(answer: Any, depth: int = 0) -> str:
         return ""
     if not isinstance(answer, Mapping):
         return ""
-    # the named keys first, so a real id always beats a lookalike elsewhere
-    for key in ("videoId", "id"):
+    # uploadId is the key n8n's YouTube node actually uses — that was the
+    # whole three-day mystery — and the named keys go first so a real id
+    # always beats a lookalike elsewhere in the payload
+    for key in ("videoId", "uploadId", "id"):
         if key in answer:
             found = _video_id_in(answer[key], depth + 1)
             if found:
