@@ -73,6 +73,7 @@ TOKEN_RATE_LIMIT_WAIT_SECONDS = 2
 # them pass through, rather than in each caller that might forget.
 CALLS_PER_SECOND = 5
 RATE_LIMITED = "IGW42903"
+RATE_LIMIT_RETRY_WAIT_SECONDS = 1.0
 # The gateway's way of saying the bearer token is no longer good, whatever the
 # expiry it came with claimed.
 TOKEN_REJECTED = "IGW40043"
@@ -113,6 +114,8 @@ class _Throttle:
 
 
 _THROTTLE = _Throttle(CALLS_PER_SECOND)
+# An injected transport is not the gateway, so nothing it does needs spacing.
+_NO_THROTTLE = _Throttle(1_000_000)
 
 
 class NHError(RuntimeError):
@@ -209,6 +212,14 @@ class NHClient:
     transport: Transport | None = None
     timeout: float = 10.0
     throttle: "_Throttle" = field(default=_THROTTLE, repr=False)
+
+    def __post_init__(self) -> None:
+        # A client built around an injected transport is a test or a caller
+        # supplying its own plumbing; either way NH's limit does not apply to
+        # it, and making the suite sleep through a rate limit nobody is hitting
+        # cost six seconds a run. Setting throttle explicitly still wins.
+        if self.transport is not None and self.throttle is _THROTTLE:
+            self.throttle = _NO_THROTTLE
     _token: str | None = field(default=None, init=False, repr=False)
     _token_expires_at: float = field(default=0.0, init=False, repr=False)
 
@@ -348,7 +359,8 @@ class NHClient:
                 # Spacing here cannot account for other processes holding the
                 # same key, so the gateway still gets the last word. One pause
                 # and one retry; a second refusal is a real one.
-                time.sleep(1.0)
+                if self.transport is None:
+                    time.sleep(RATE_LIMIT_RETRY_WAIT_SECONDS)
                 response = send(self.access_token())
             elif TOKEN_REJECTED in str(first):
                 response = send(self.access_token(force_refresh=True))

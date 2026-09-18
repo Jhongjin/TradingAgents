@@ -50,13 +50,26 @@ def test_the_limiter_holds_across_threads_not_just_within_one():
     assert time.monotonic() - start >= 0.9
 
 
-def test_every_client_shares_one_limiter_by_default():
+def test_every_real_client_shares_one_limiter():
     """One key, one gateway: two clients together must not do what one cannot."""
 
     first = NHClient(config=NHConfig(app_key="K", app_secret_key="S"))
     second = NHClient(config=NHConfig(app_key="K", app_secret_key="S", is_paper=False))
     assert first.throttle is second.throttle
     assert first.throttle.limit == CALLS_PER_SECOND
+
+
+def test_a_client_with_its_own_transport_is_not_talking_to_nh_and_is_not_spaced():
+    """Otherwise the suite sleeps through a rate limit nobody is hitting."""
+
+    faked = NHClient(config=NHConfig(app_key="K", app_secret_key="S"),
+                     transport=lambda *a: {"rsp_cd": "00000"})
+    assert faked.throttle is not NHClient(config=NHConfig()).throttle
+    assert faked.throttle.limit > CALLS_PER_SECOND
+
+    # asking for one explicitly still wins
+    chosen = _Throttle(2)
+    assert NHClient(config=NHConfig(), transport=lambda *a: {}, throttle=chosen).throttle is chosen
 
 
 def test_a_business_call_waits_its_turn():

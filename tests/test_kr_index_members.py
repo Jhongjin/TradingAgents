@@ -98,3 +98,59 @@ def test_pointing_the_lookup_elsewhere_does_not_leave_a_stale_answer_behind(tmp_
 
     monkeypatch.delenv("TRADINGAGENTS_INDEX_MEMBERS_PATH")
     assert len(load_index_members("KOSDAQ150")) == real
+
+
+def test_the_universe_is_ordered_by_index_weight_so_a_cap_keeps_what_matters():
+    """First N by code number would be an arbitrary slice of the market."""
+
+    from tradingagents.dataflows.kr_index_members import index_universe
+
+    everything = index_universe()
+    assert len(everything) == 351                     # 201 + 150, no overlap
+
+    top = index_universe(limit=5)
+    assert top == everything[:5]
+    assert [name for _, name in top][:2] == ["삼성전자", "SK하이닉스"]
+
+
+def test_every_member_carries_a_weight_that_sums_to_two_hundred_percent():
+    """Each index is normalised to 100, and there are two of them."""
+
+    total = 0.0
+    for index in INDEX_ETFS:
+        members = load_index_members(index)
+        weights = [members.weights[code] for code in members.codes]
+        assert all(weight >= 0 for weight in weights)
+        total += sum(weights)
+    assert 199.0 <= total <= 201.0
+
+
+def test_an_explicit_screener_universe_still_beats_the_stored_index(monkeypatch):
+    """Someone naming tickers on purpose must not be quietly overruled."""
+
+    from tradingagents.screener.screener import _fallback_codes
+
+    monkeypatch.setenv("TRADINGAGENTS_SCREENER_UNIVERSE", "005930,000660")
+    codes, source = _fallback_codes(150)
+    assert codes == ["005930", "000660"] and source == "fallback universe"
+
+
+def test_the_stored_index_beats_the_sitemap_list(monkeypatch):
+    """SITEMAP_TICKERS lists pages for a sitemap; it was never a screening choice."""
+
+    from tradingagents.screener.screener import _fallback_codes
+
+    monkeypatch.delenv("TRADINGAGENTS_SCREENER_UNIVERSE", raising=False)
+    monkeypatch.setenv("TRADINGAGENTS_SITEMAP_TICKERS", "005930,000660")
+    codes, source = _fallback_codes(150)
+    assert source == "stored index membership"
+    assert len(codes) == 150
+
+
+def test_without_the_stored_file_the_old_bounded_universe_is_still_there(monkeypatch, tmp_path):
+    from tradingagents.screener.screener import _fallback_codes
+
+    monkeypatch.delenv("TRADINGAGENTS_SCREENER_UNIVERSE", raising=False)
+    monkeypatch.setenv("TRADINGAGENTS_INDEX_MEMBERS_PATH", str(tmp_path / "absent.json"))
+    codes, source = _fallback_codes(150)
+    assert source == "fallback universe" and codes

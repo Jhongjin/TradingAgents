@@ -40,8 +40,27 @@ def fetch(client, etf_code: str) -> list[dict[str, str]]:
         code = str(row.get("iem_cd") or "").strip()
         if not is_tradeable_code(code):        # the 현금(원) row has no code
             continue
-        members.append({"code": code, "name": str(row.get("iem_nm") or "").strip().lstrip("*")})
+        members.append({
+            "code": code,
+            "name": str(row.get("iem_nm") or "").strip().lstrip("*"),
+            # How much of the ETF this name is: the index weight, near enough.
+            # It is what lets a screener with a time budget pick the part of the
+            # index that matters instead of the first N codes alphabetically.
+            "weight": _num(row.get("vltn_amt")),
+        })
+
+    total = sum(row["weight"] or 0 for row in members)
+    if total > 0:
+        for row in members:
+            row["weight"] = round((row["weight"] or 0) / total * 100, 6)
     return members
+
+
+def _num(value):
+    try:
+        return float(str(value).replace(",", ""))
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def main() -> int:
@@ -64,7 +83,7 @@ def main() -> int:
         indices[index] = {
             "as_of": today,
             "source": f"{etf_name} ({etf_code}) holdings via NH etfComponents",
-            "members": sorted(members, key=lambda row: row["code"]),
+            "members": sorted(members, key=lambda row: -(row.get("weight") or 0)),
         }
         print(f"{index}: {len(members)} members from {etf_name}")
         time.sleep(1)                          # the gateway allows five a second

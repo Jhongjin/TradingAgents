@@ -39,6 +39,7 @@ class IndexMembers:
     index: str
     codes: tuple[str, ...]
     names: dict[str, str]
+    weights: dict[str, float]
     as_of: str
     source: str
 
@@ -84,9 +85,36 @@ def load_index_members(index: str, *, path: str | None = None) -> IndexMembers |
         index=name,
         codes=codes,
         names={str(row.get("code") or ""): str(row.get("name") or "") for row in members},
+        weights={str(row.get("code") or ""): float(row.get("weight") or 0.0) for row in members},
         as_of=str(stored.get("as_of") or ""),
         source=str(stored.get("source") or ""),
     )
+
+
+def index_universe(*, limit: int | None = None, path: str | None = None) -> list[tuple[str, str]]:
+    """(code, name) across both indices, heaviest first.
+
+    Heaviest first is what makes a limit useful. A screener working under a time
+    budget can only look at so many names, and the top of the index by weight is
+    the part of the market that actually moves it — whereas the first N codes in
+    numerical order is an arbitrary slice.
+    """
+
+    rows: list[tuple[float, str, str]] = []
+    seen: set[str] = set()
+    for index in INDEX_ETFS:
+        members = load_index_members(index, path=path)
+        if not members:
+            continue
+        for code in members.codes:
+            if code in seen:
+                continue
+            seen.add(code)
+            rows.append((members.weights.get(code, 0.0), code, members.names.get(code, code)))
+
+    rows.sort(key=lambda row: -row[0])
+    ordered = [(code, name) for _, code, name in rows]
+    return ordered[:limit] if limit else ordered
 
 
 def index_member_codes(index: str, *, path: str | None = None) -> list[str]:

@@ -111,6 +111,44 @@ class ScreenerResult:
         }
 
 
+
+def _fallback_codes(universe_size: int) -> tuple[list[str], str]:
+    """The universe to use when no ranking vendor will answer.
+
+    The stored index membership comes first because it is the real KOSPI200 and
+    KOSDAQ150 and costs nothing to read, where the built-in seed is a handful of
+    names someone typed once. It is ordered by index weight, so a cap keeps the
+    part of the market that moves it rather than an arbitrary slice.
+    """
+
+    import os
+
+    from tradingagents.dataflows.kr_tickers import is_kr_ticker, normalize_kr_ticker
+
+    # An explicit list wins. Someone set TRADINGAGENTS_SCREENER_UNIVERSE to say
+    # "screen exactly these", and quietly screening something else instead would
+    # be the worst of the three outcomes here.
+    raw = os.getenv("TRADINGAGENTS_SCREENER_UNIVERSE", "")
+    chosen = [normalize_kr_ticker(part.strip()) for part in raw.split(",")
+              if part.strip() and is_kr_ticker(part.strip())]
+    if chosen:
+        return list(dict.fromkeys(chosen)), "fallback universe"
+
+    # Then the real index, which needs no vendor because it ships with the repo.
+    # This deliberately outranks TRADINGAGENTS_SITEMAP_TICKERS: that variable
+    # exists to list pages for a sitemap, and its use as a screening universe is
+    # reuse of whatever happened to be there rather than a choice about screening.
+    try:
+        from tradingagents.dataflows.kr_index_members import index_universe
+
+        members = index_universe(limit=max(int(universe_size), 1))
+        if members:
+            return [code for code, _ in members], "stored index membership"
+    except Exception:                               # noqa: BLE001 - a missing file is not an error
+        pass
+    return list(fallback_universe_codes()), "fallback universe"
+
+
 def screen_korean_market(
     as_of_date: str | date | None = None,
     *,
@@ -146,9 +184,12 @@ def screen_korean_market(
         if snapshot_mode == "fallback":
             if not config.allow_fallback_universe:
                 raise VendorUnavailableError("snapshot_mode=fallback requires allow_fallback_universe=True")
-            codes = fallback_universe_codes()
+            # Same universe the automatic fallback uses. Two different answers
+            # to "no vendor is available" is the kind of difference that turns
+            # into a bug report nobody can reproduce.
+            codes, source = _fallback_codes(config.universe_size or _resolve_universe_size())
             snapshot = build_snapshot_from_history(codes, as_of_date, cached_fetcher, markets=config.markets, lookback_days=int(config.history_days * 1.6) + 10)
-            fallback_note = f"snapshot_mode=fallback: used bounded universe of {len(codes)} tickers (market cap/PER filters skipped)"
+            fallback_note = f"snapshot_mode=fallback: used {source} of {len(codes)} tickers (market cap/PER filters skipped)"
         else:
             errors: list[str] = []
             universe_size = config.universe_size or _resolve_universe_size()
@@ -171,11 +212,19 @@ def screen_korean_market(
             if snapshot is None:
                 if not config.allow_fallback_universe:
                     raise VendorUnavailableError("; ".join(errors) or "no snapshot loader succeeded")
-                codes = fallback_universe_codes()
+
+                # Every ranking vendor is refused on this network — which is the
+                # normal state on Vercel, where both data.krx.co.kr and Naver's
+                # ranking are blocked. The stored index membership needs no
+                # vendor at all: it ships with the repository. Per-ticker history
+                # still works here, which is what the old six-name fallback was
+                # already relying on, so the only thing that changes is how many
+                # names get looked at.
+                codes, source = _fallback_codes(universe_size)
                 snapshot = build_snapshot_from_history(codes, as_of_date, cached_fetcher, markets=config.markets, lookback_days=int(config.history_days * 1.6) + 10)
                 fallback_note = (
                     f"whole-market snapshot unavailable ({'; '.join(errors)[:200]}); "
-                    f"used fallback universe of {len(codes)} tickers (market cap/PER filters skipped)"
+                    f"used {source} of {len(codes)} tickers (market cap/PER filters skipped)"
                 )
     end_date = datetime.strptime(snapshot.as_of_date, "%Y-%m-%d").date()
     start_date = end_date - timedelta(days=int(config.history_days * 1.6) + 10)
