@@ -11,10 +11,10 @@ NH publishes a limit of one token request per second and says plainly not to
 re-issue before the 24 hours are up, so the token is cached on disk and shared
 across processes exactly as the KIS one is.
 
-Order placement is deliberately not implemented here. The endpoints for it
-exist in NAMUH PLUG's catalogue but were not in the group this was built from,
-and a broker adapter that guesses an order path is worse than one that says it
-cannot place orders yet.
+Orders are 현금 매수/매도 at a limit price and nothing else. The catalogue also
+has credit and reserved orders, and a 시장가 code this project cannot read the
+meaning of; none of them are wired, because each is a separate decision rather
+than a missing branch.
 """
 
 from __future__ import annotations
@@ -39,6 +39,13 @@ PAPER_BASE_URL = "https://moapi.nhplug.com:8443"
 TOKEN_PATH = "/oauth2/token"
 REVOKE_PATH = "/oauth2/revoke"
 
+# 현금 매수/매도 only. Credit and reserved orders exist in the catalogue and are
+# not wired: they are a different risk conversation, not a missing branch.
+ORDER_PATHS = {
+    "buy": ("/krstock/order/v1/cashBuy", "SCSOS61803A"),
+    "sell": ("/krstock/order/v1/cashSell", "SCSOS61801A"),
+}
+
 # NAMUH PLUG documents ThroughputQuotaRule.requestLimit = 1 on the token
 # endpoint, measured per second.
 TOKEN_RATE_LIMIT_WAIT_SECONDS = 2
@@ -51,11 +58,7 @@ class NHError(RuntimeError):
 
 
 class NHOrdersUnavailableError(NHError):
-    """Raised when something asks this client to trade.
-
-    Kept as its own type so the trade desk can tell "the broker refused" from
-    "this half is not built", and so nobody wires an order path by accident.
-    """
+    """Raised when an order cannot be attempted at all."""
 
 
 @dataclass(frozen=True)
@@ -272,20 +275,57 @@ class NHClient:
                           {"market_cd": market, "iem_cd": _code(code)}, live_only=True)
 
     # --------------------------------------------------------------- orders
-    def place_order(self, *args: Any, **kwargs: Any) -> Mapping[str, Any]:
-        """Not built. See the module docstring.
+    def place_order(
+        self,
+        *,
+        side: str,
+        code: str,
+        quantity: int,
+        price: int,
+        account_no: str | None = None,
+    ) -> Mapping[str, Any]:
+        """One 지정가 order. Limit only, and deliberately so.
 
-        Live trading also needs TRADINGAGENTS_ENABLE_LIVE_TRADING, and that
-        check is here already so the gate does not have to be remembered later.
+        NAMUH PLUG's catalogue gives working values for nmn_pr_tp_cd,
+        orr_cnd_dit_cd and the rest in its request example, but documents what
+        none of them mean — the description field is twenty-one characters and
+        tr/property is empty. So the example's values go through verbatim and
+        there is no 시장가 option: guessing which code means "at market" is the
+        kind of guess that sells a position at any price it can find.
         """
 
+        chosen = str(side).strip().lower()
+        if chosen not in ORDER_PATHS:
+            raise ValueError(f"side must be buy or sell, not {side!r}")
+        if int(quantity) <= 0 or int(price) <= 0:
+            raise ValueError("quantity and price must both be positive")
         if not self.config.is_paper and not live_trading_enabled():
             raise LiveTradingDisabledError(
                 "TRADINGAGENTS_ENABLE_LIVE_TRADING is not set; no live order will be sent"
             )
-        raise NHOrdersUnavailableError(
-            "NH 주문 API 명세가 아직 없습니다. nhplug.com 의 국내주식 주문 그룹 명세를 받은 뒤 구현합니다."
-        )
+
+        path, tr_code = ORDER_PATHS[chosen]
+        return self._call(path, tr_code, {
+            "act_no": account_no or self.config.account_no,
+            "iem_cd": _code(code),
+            "orr_qty": int(quantity),
+            "orr_pr": int(price),
+            # straight from the published request example; see the docstring
+            "nmn_pr_tp_cd": "01",
+            "orr_cnd_dit_cd": "00",
+            "ssl_nmn_pr_dit_cd": "00",
+            "rmt_mkt_cd": "SOR",
+            "sor_mkt_sli_yn": "N",
+        })
+
+    def buyable_quantity(self, code: str, price: int, account_no: str | None = None) -> Mapping[str, Any]:
+        """How many the account could buy at that price, asked before offering it."""
+
+        return self._call("/krstock/inquiry/v1/buyableQuantity", "SCIOT983691", {
+            "act_no": account_no or self.config.account_no,
+            "iem_cd": _code(code),
+            "orr_pr": int(price),
+        })
 
     # ------------------------------------------------------------- transport
     def _request(
@@ -372,6 +412,7 @@ def _redact(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 __all__ = [
     "BASE_URL",
+    "ORDER_PATHS",
     "PAPER_BASE_URL",
     "NHClient",
     "NHConfig",

@@ -5,7 +5,7 @@ from __future__ import annotations
 import secrets
 from typing import Any, Mapping
 
-from fastapi import FastAPI, Query, Request
+from fastapi import Body, FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from .page import render_desk
@@ -137,6 +137,71 @@ def create_desk_app(*, token: str, client_factory=None) -> FastAPI:
         except Exception as exc:                        # noqa: BLE001 - shown to one person
             return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
         return JSONResponse({"quote": _quote_row(raw)})
+
+    @app.get("/api/limits")
+    def limits(request: Request) -> JSONResponse:
+        from .orders import Limits, ledger, today_spent
+
+        rules = Limits.from_env()
+        spent, count = today_spent(ledger())
+        return JSONResponse({
+            "mode": _mode(request),
+            "max_order_krw": rules.max_order_krw,
+            "max_daily_krw": rules.max_daily_krw,
+            "max_daily_orders": rules.max_daily_orders,
+            "spent_today": spent,
+            "orders_today": count,
+        })
+
+    @app.post("/api/order")
+    def order(request: Request, body: dict = Body(...)) -> JSONResponse:
+        """Send one limit order, after everything in orders.check holds."""
+
+        from .orders import Limits, OrderRefused, check, ledger, new_attempt, record, today_spent
+
+        mode = _mode(request)
+        side = str(body.get("side") or "").strip().lower()
+        code = str(body.get("code") or "").strip()
+        try:
+            quantity = int(body.get("quantity") or 0)
+            price = int(body.get("price") or 0)
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "수량과 가격은 숫자여야 합니다."}, status_code=400)
+
+        book = ledger()
+        spent, count = today_spent(book)
+        try:
+            amount = check(
+                side=side, code=code, quantity=quantity, price=price,
+                confirmation=str(body.get("confirmation") or ""),
+                mode=mode, limits=Limits.from_env(),
+                spent_today=spent, orders_today=count,
+            )
+        except OrderRefused as refused:
+            return JSONResponse({"error": str(refused)}, status_code=400)
+
+        client = request.app.state.client_factory()
+        if client is None:
+            return JSONResponse({"error": _unconfigured()}, status_code=503)
+
+        # Written before the call as well as after: a crash mid-flight still
+        # leaves a record that an order was attempted, which is the one thing
+        # you need when the account and the ledger disagree.
+        common = dict(attempt=new_attempt(), side=side, code=code, quantity=quantity,
+                      price=price, amount=amount, mode=mode)
+        record(book, stage="sent", **common)
+        try:
+            result = client.place_order(side=side, code=code, quantity=quantity, price=price)
+        except Exception as exc:                        # noqa: BLE001 - shown to one person
+            record(book, stage="failed", **common, error=f"{type(exc).__name__}: {exc}")
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=502)
+        record(book, stage="accepted", **common, result=result)
+        return JSONResponse({
+            "ok": True,
+            "order_no": (result.get("Output_0") or {}).get("mkt_orr_no"),
+            "message": result.get("rsp_msg"),
+            "amount": amount,
+        })
 
     return app
 

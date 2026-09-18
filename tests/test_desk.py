@@ -90,7 +90,9 @@ def test_the_page_says_which_account_it_is_looking_at(monkeypatch):
         page = http.get("/?t=T0KEN")
     assert page.status_code == 200
     assert "모의투자" in page.text
-    assert "주문 기능은 아직 없습니다" in page.text
+    # the mode is said out loud because the order form below it is live
+    assert "주문" in page.text and "지정가만" in page.text
+    assert "시장가는 코드값" in page.text        # and why there is no market order
     assert "noindex" in page.text
     # the cookie is set so the page's own fetches carry the token
     assert page.cookies.get("desk_token") == "T0KEN"

@@ -60,6 +60,17 @@ button {
 .msg { color: var(--warn); font-size: 13px; margin-top: 10px; word-break: break-all; }
 .empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
 footer { color: var(--muted); font-size: 12px; margin-top: 26px; line-height: 1.7; }
+.hint { color: var(--muted); font-size: 12px; font-weight: 400; }
+.order { flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.order label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+.order input { flex: 0 0 120px; width: 120px; }
+.order select {
+  background: #0d1117; border: 1px solid var(--line); color: var(--ink);
+  border-radius: 8px; padding: 9px 12px; font: inherit; width: 96px;
+}
+.order button { background: var(--warn); color: #1a1205; }
+.order button[disabled] { opacity: .4; cursor: not-allowed; }
+.amount { font-size: 15px; font-weight: 700; margin-top: 12px; }
 """
 
 _JS = """
@@ -68,8 +79,8 @@ const pct = (v) => v == null ? '–' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
 const cls = (v) => v == null || v === 0 ? '' : (v > 0 ? 'up' : 'down');
 const el = (id) => document.getElementById(id);
 
-async function ask(path) {
-  const response = await fetch(path, { credentials: 'same-origin' });
+async function ask(path, options) {
+  const response = await fetch(path, Object.assign({ credentials: 'same-origin' }, options || {}));
   const body = await response.json().catch(() => ({ error: response.statusText }));
   if (!response.ok && !body.error) body.error = 'HTTP ' + response.status;
   return body;
@@ -120,6 +131,64 @@ async function lookUp(event) {
       <div class="v">${q.volume == null ? '–' : q.volume.toLocaleString('ko-KR')}</div></div>`;
 }
 
+function orderAmount() {
+  const q = parseInt(el('o-qty').value, 10), p = parseInt(el('o-price').value, 10);
+  return (q > 0 && p > 0) ? q * p : 0;
+}
+
+function refreshOrderUi() {
+  const amount = orderAmount();
+  const ready = amount > 0 && el('o-confirm').value.trim() === el('o-qty').value.trim();
+  el('o-amount').textContent = amount ? `주문 금액 ${won(amount)}` : '';
+  el('o-send').disabled = !ready;
+}
+
+async function loadLimits() {
+  const d = await ask('/api/limits');
+  if (d.error) return;
+  el('limits').textContent =
+    `1회 ${won(d.max_order_krw)} · 오늘 ${won(d.spent_today)} / ${won(d.max_daily_krw)}` +
+    ` · ${d.orders_today}/${d.max_daily_orders}건`;
+}
+
+async function sendOrder(event) {
+  event.preventDefault();
+  const side = el('side').value;
+  const label = side === 'buy' ? '매수' : '매도';
+  const amount = orderAmount();
+  if (!confirm(`${el('o-code').value} ${el('o-qty').value}주 ${label}
+지정가 ${won(parseInt(el('o-price').value, 10))}
+주문 금액 ${won(amount)}
+
+보내시겠습니까?`)) return;
+
+  el('o-send').disabled = true;
+  const data = await ask('/api/order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      side, code: el('o-code').value.trim(),
+      quantity: parseInt(el('o-qty').value, 10),
+      price: parseInt(el('o-price').value, 10),
+      confirmation: el('o-confirm').value.trim(),
+    }),
+  });
+  if (data.error) { el('order-msg').textContent = data.error; }
+  else {
+    el('order-msg').textContent = `보냈습니다. 주문번호 ${data.order_no ?? '-'} · ${data.message ?? ''}`;
+    el('o-qty').value = el('o-confirm').value = '';
+    loadAccount();
+  }
+  loadLimits();
+  refreshOrderUi();
+}
+
+for (const id of ['o-qty', 'o-price', 'o-confirm']) {
+  el(id).addEventListener('input', refreshOrderUi);
+}
+document.getElementById('order-form').addEventListener('submit', sendOrder);
+loadLimits();
+refreshOrderUi();
 document.getElementById('quote-form').addEventListener('submit', lookUp);
 loadAccount();
 setInterval(loadAccount, 60000);
@@ -172,8 +241,23 @@ def render_desk(*, mode: str) -> str:
   <p class="msg" id="quote-msg"></p>
 </section>
 
+<section class="panel">
+  <h2>주문 <span class="hint">지정가만 · 모의투자 계좌</span></h2>
+  <form id="order-form" class="order">
+    <label>구분<select id="side"><option value="buy">매수</option><option value="sell">매도</option></select></label>
+    <label>종목코드<input id="o-code" placeholder="005930" autocomplete="off" /></label>
+    <label>수량<input id="o-qty" inputmode="numeric" autocomplete="off" /></label>
+    <label>지정가<input id="o-price" inputmode="numeric" autocomplete="off" /></label>
+    <label>수량 다시 입력<input id="o-confirm" inputmode="numeric" autocomplete="off" placeholder="확인" /></label>
+    <button type="submit" id="o-send">주문</button>
+  </form>
+  <p class="amount" id="o-amount"></p>
+  <p class="msg" id="order-msg"></p>
+  <p class="hint" id="limits"></p>
+</section>
+
 <footer>
-  읽기 전용입니다. 주문 기능은 아직 없습니다.<br />
+  주문은 지정가만 보냅니다. 시장가는 코드값 뜻이 문서에 없어 넣지 않았습니다.<br />
   숫자는 NH 나무증권 API가 돌려준 값을 그대로 보여줍니다. 매매 권유가 아닙니다.
 </footer>
 
