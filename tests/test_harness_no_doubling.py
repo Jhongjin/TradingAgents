@@ -1,9 +1,11 @@
 """One name gets one slot, however many mornings the screen likes it.
 
-에스엠 was bought twice in one week and stopped out twice, for 422,090원 and
-425,216원 — two full slots in one company. Sizing capped each buy at a slot;
-the mandate gate allowed the combined position up to its own, larger limit;
-nothing compared the two.
+Sizing caps a buy at 1/max_positions; the mandate gate checks the combined
+position against its own, larger limit; nothing compared the two, so a name
+picked on two mornings could reach two and a half slots and pass both checks.
+
+Latent rather than observed — the repeated names in the weekly digest are one
+position in each of the two parallel accounts, not two in one account.
 """
 
 from tradingagents.execution import BrokerAccountSnapshot, BrokerOrderResult
@@ -113,7 +115,6 @@ def test_a_name_not_held_still_gets_a_full_slot():
 
 
 def test_two_mornings_in_a_row_cannot_put_a_fifth_of_the_account_in_one_name():
-    """The 에스엠 case, played forward."""
 
     broker = _Account()
     first = _run(broker)

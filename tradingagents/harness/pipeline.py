@@ -582,13 +582,16 @@ def _process_candidate(
 
     # A name already held gets what is left of its slot, not another whole one.
     #
-    # This is how 에스엠 was bought twice in one week and stopped out twice, for
-    # 422,090원 and 425,216원 — two full slots in one company, about a fifth of
-    # the account, when the rule says a tenth. Sizing capped each buy at one
-    # slot; the mandate gate let the combined position reach its own, larger
-    # limit; and nothing compared the two. The screen surfacing the same name on
-    # consecutive days is normal — it is the same company with the same numbers
-    # — so without this the second pick doubles the bet on it.
+    # Sizing caps a buy at min(max_position_weight, mandate.max_position_weight,
+    # 1/max_positions) — a tenth of the account by default. The mandate gate
+    # then checks the combined position against mandate.max_position_weight, a
+    # quarter. Nothing compared the two, so a name the screen picked on two
+    # mornings could reach two and a half slots while passing both checks.
+    #
+    # No trade has actually done this: the 에스엠 pair in the weekly digest
+    # turned out to be one position in each of the two parallel accounts, not
+    # two in one. This closes the gap before it is reached, and matches what
+    # the comment below already claimed the sizing did.
     held_value = float((snapshot.positions.get(candidate.code) or {}).get("market_value") or 0.0)
     held_weight = held_value / snapshot.equity if snapshot.equity > 0 else 0.0
     room = weight_cap - held_weight
