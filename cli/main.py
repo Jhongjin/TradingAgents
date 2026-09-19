@@ -1510,6 +1510,44 @@ def playbook_command(
         console.print(f"[dim]saved {output}[/dim]")
 
 
+def _live_prices(codes: list[str]) -> tuple[dict[str, float], dict[str, int]]:
+    """Intraday prices for held positions, from NH when it is configured.
+
+    Returns ``(prices, source_counts)``. NH is asked only for what it can
+    answer; anything it misses is left to the caller's daily fallback, because
+    a stale price is better than no price when deciding whether a stop fired.
+
+    Quotes come off the live host whichever account is configured, and this
+    reads only — it never touches a balance or places an order.
+    """
+
+    prices: dict[str, float] = {}
+    counts: dict[str, int] = {}
+    if not codes:
+        return prices, counts
+
+    try:
+        from tradingagents.execution.nh_client import NHClient, NHConfig
+
+        config = NHConfig.from_env(paper=False)
+        if not config.configured:
+            return prices, counts
+        client = NHClient(config=config)
+    except Exception:                                   # noqa: BLE001 - fallback covers it
+        return prices, counts
+
+    for code in codes:
+        try:
+            out = client.current_price(code).get("Output_0") or {}
+            price = float(out.get("stck_prpr") or 0.0)
+        except Exception:                               # noqa: BLE001 - one ticker, not the run
+            continue
+        if price > 0:
+            prices[code] = price
+            counts["NH"] = counts.get("NH", 0) + 1
+    return prices, counts
+
+
 @app.command("pipeline")
 def pipeline_command(
     markets: str = typer.Option("KOSPI,KOSDAQ", "--markets", help="Comma-separated markets."),
@@ -1610,17 +1648,27 @@ def pipeline_command(
         if held:
             # exits compare today's price with the average cost, and the paper
             # broker has no quote feed of its own
-            from tradingagents.site.market_api import build_latest_prices_payload
+            # NH quotes first, because they are the only intraday source here.
+            # The chart vendors return the last daily bar, so an exits pass run
+            # during the session would compare this morning's cost against
+            # yesterday's close and find nothing — which is the whole reason a
+            # 5% stop was realising at 8.8% on average.
+            held_prices, price_source = _live_prices(held)
+            if len(held_prices) < len(held):
+                from tradingagents.site.market_api import build_latest_prices_payload
 
-            try:
-                payload = build_latest_prices_payload(held, ignore_errors=True, max_tickers=max(len(held), 1))
-                for code, item in (payload.get("prices") or {}).items():
-                    price = item.get("close")
-                    if price:
-                        held_prices[str(code)] = float(price)
-            except Exception as exc:
-                console.print(f"[yellow]held-position prices unavailable ({exc.__class__.__name__}); exits skipped this run[/yellow]")
-            console.print(f"[dim]priced {len(held_prices)}/{len(held)} holding(s) for exit checks[/dim]")
+                try:
+                    payload = build_latest_prices_payload(held, ignore_errors=True, max_tickers=max(len(held), 1))
+                    for code, item in (payload.get("prices") or {}).items():
+                        price = item.get("close")
+                        if price and str(code) not in held_prices:
+                            held_prices[str(code)] = float(price)
+                            price_source.setdefault("daily", 0)
+                            price_source["daily"] += 1
+                except Exception as exc:
+                    console.print(f"[yellow]held-position prices unavailable ({exc.__class__.__name__}); exits skipped this run[/yellow]")
+            where = ", ".join(f"{name} {count}" for name, count in sorted(price_source.items())) or "none"
+            console.print(f"[dim]priced {len(held_prices)}/{len(held)} holding(s) for exit checks ({where})[/dim]")
 
     risk_checker = None
     held_names: dict[str, str] = {}
