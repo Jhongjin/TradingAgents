@@ -579,6 +579,26 @@ def _process_candidate(
     # kept so a later pick and the next day's picks can still be bought.
     slot_weight = 1.0 / max(config.mandate.max_positions, 1)
     weight_cap = min(config.max_position_weight, config.mandate.max_position_weight, slot_weight)
+
+    # A name already held gets what is left of its slot, not another whole one.
+    #
+    # This is how 에스엠 was bought twice in one week and stopped out twice, for
+    # 422,090원 and 425,216원 — two full slots in one company, about a fifth of
+    # the account, when the rule says a tenth. Sizing capped each buy at one
+    # slot; the mandate gate let the combined position reach its own, larger
+    # limit; and nothing compared the two. The screen surfacing the same name on
+    # consecutive days is normal — it is the same company with the same numbers
+    # — so without this the second pick doubles the bet on it.
+    held_value = float((snapshot.positions.get(candidate.code) or {}).get("market_value") or 0.0)
+    held_weight = held_value / snapshot.equity if snapshot.equity > 0 else 0.0
+    room = weight_cap - held_weight
+    if held_value > 0 and room <= 1e-9:
+        return PipelineDecision(
+            stage="gate_rejected",
+            reasons=[f"이미 {held_weight:.1%} 보유 중 · 1종목 상한 {weight_cap:.1%}"],
+            **base,
+        )
+    weight_cap = max(room, 0.0)
     reserve = snapshot.equity * config.min_cash_reserve_pct
     spendable = max(snapshot.cash - reserve, 0.0)
     if candidate.code not in snapshot.positions and len(snapshot.positions) >= config.mandate.max_positions:
