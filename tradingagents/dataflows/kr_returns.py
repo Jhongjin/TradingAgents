@@ -51,12 +51,9 @@ def fetch_korean_returns(
 
     stock_frame = stock.get_market_ohlcv_by_date(start_compact, end_compact, resolved.code)
     stock_close = _close_series(stock_frame, "stock")
-    try:
-        index_frame = stock.get_index_ohlcv_by_date(start_compact, end_compact, index_code)
-        benchmark_close = _close_series(index_frame, "benchmark")
-    except Exception:
-        # pykrx index data comes from data.krx.co.kr, which is blocked on some
-        # networks (TLS interception, cloud IPs). Fall back to the Yahoo index.
+    benchmark_close = _pykrx_index_closes(start_compact, end_compact, index_code)
+    if benchmark_close is None:
+        # data.krx.co.kr is blocked here. Yahoo carries the same index.
         benchmark_close = _yfinance_benchmark_close(resolved.benchmark_symbol, trade_date, end.strftime("%Y-%m-%d"))
     if benchmark_close.empty:
         benchmark_close = _yfinance_benchmark_close(resolved.benchmark_symbol, trade_date, end.strftime("%Y-%m-%d"))
@@ -77,6 +74,37 @@ def fetch_korean_returns(
     return raw_return, raw_return - benchmark_return, actual_days
 
 
+# pykrx reads index data from data.krx.co.kr, which is blocked outright on some
+# networks — TLS interception, cloud IPs, this machine. When it is blocked it is
+# blocked for the whole run, but every caller was trying it again first: a daily
+# shorts build made 241 attempts that could not succeed, 175ms each, forty-two
+# seconds of waiting plus 241 error lines that buried everything else in the log.
+#
+# One failure is enough to stop asking. It is per-process, so the next run still
+# gives it a fair chance — a network that is blocked now may not be tomorrow.
+_index_vendor_down = False
+
+
+def _pykrx_index_closes(start_compact: str, end_compact: str, index_code: str):
+    """Index closes from pykrx, or None once it has been shown not to work."""
+
+    global _index_vendor_down
+
+    if _index_vendor_down:
+        return None
+    try:
+        stock = _get_pykrx_stock_module()
+        frame = stock.get_index_ohlcv_by_date(start_compact, end_compact, index_code)
+    except Exception:
+        _index_vendor_down = True
+        return None
+    closes = _close_series(frame, "benchmark")
+    if closes.dropna().empty:
+        _index_vendor_down = True
+        return None
+    return closes
+
+
 def fetch_benchmark_close(symbol: str = "^KS11", *, on_date: str, lookback_days: int = 12) -> float | None:
     """Latest index close on or before ``on_date``.
 
@@ -88,14 +116,11 @@ def fetch_benchmark_close(symbol: str = "^KS11", *, on_date: str, lookback_days:
     end = datetime.strptime(on_date[:10], "%Y-%m-%d")
     start = end - timedelta(days=max(lookback_days, 3))
     index_code = "2001" if symbol.upper() in {"^KQ11", "KQ11"} else "1001"
-    try:
-        stock = _get_pykrx_stock_module()
-        frame = stock.get_index_ohlcv_by_date(start.strftime("%Y%m%d"), end.strftime("%Y%m%d"), index_code)
-        closes = _close_series(frame, "benchmark").dropna()
+    closes = _pykrx_index_closes(start.strftime("%Y%m%d"), end.strftime("%Y%m%d"), index_code)
+    if closes is not None:
+        closes = closes.dropna()
         if not closes.empty:
             return float(closes.iloc[-1])
-    except Exception:
-        pass
     try:
         closes = _yfinance_benchmark_close(symbol, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")).dropna()
     except Exception:
