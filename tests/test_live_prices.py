@@ -88,3 +88,18 @@ def test_the_intraday_task_runs_both_books_and_only_closes():
     assert "--confirmer none" in script
     assert "--broker paper" in script
     assert "--confirmer playbook" not in script and "--confirmer debate" not in script
+
+
+def test_each_task_announces_as_soon_as_it_finishes():
+    """The cron slots sit on the wrong side of the new schedule."""
+
+    from pathlib import Path
+
+    harness = Path("automation/daily-harness.cmd").read_text(encoding="utf-8")
+    exits = Path("automation/intraday-exits.cmd").read_text(encoding="utf-8")
+
+    assert "notify --what issue" in harness
+    assert "notify --what exits" in exits
+    # the morning pass announces the screen, not the exits, and vice versa
+    assert "notify --what exits" not in harness
+    assert "notify --what issue" not in exits

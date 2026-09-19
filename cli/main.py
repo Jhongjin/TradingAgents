@@ -1548,6 +1548,66 @@ def _live_prices(codes: list[str]) -> tuple[dict[str, float], dict[str, int]]:
     return prices, counts
 
 
+@app.command("notify")
+def notify_command(
+    what: str = typer.Option("exits", "--what", help="issue (아침 선별) 또는 exits (청산)."),
+    run_id: Optional[str] = typer.Option(None, "--run-id", help="Announce this harness run rather than the newest screened one."),
+    site: str = typer.Option("", "--site", help="Base URL used in the links. Falls back to TRADINGAGENTS_SITE_BASE_URL."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Compose and print, send nothing."),
+):
+    """Push a Telegram notification now, instead of waiting for the next cron.
+
+    The cron slots are fixed — 07:56 and 10:25 for the issue, 10:35 for exits —
+    and the harness now runs at 08:20 with exit passes through to 15:20. A stop
+    that fires at 14:00 would wait until 10:35 tomorrow to be announced, which
+    is not news by then. The scheduled task calls this the moment a run
+    finishes, so the message goes out with the fill.
+    """
+
+    import os
+
+    from tradingagents.site.notifications import (
+        TelegramClient,
+        TelegramConfig,
+        notify_exit_alerts,
+        notify_harness_issue,
+    )
+    from tradingagents.storage import StorageRepository, create_storage_engine
+
+    chosen = what.strip().lower()
+    if chosen not in {"issue", "exits"}:
+        raise typer.BadParameter("--what must be issue or exits")
+    if not os.getenv("DATABASE_URL"):
+        raise typer.BadParameter("DATABASE_URL is required")
+
+    config = TelegramConfig.from_env()
+    if not config.is_configured():
+        raise typer.BadParameter("TELEGRAM_BOT_TOKEN is not set")
+
+    base = site.strip() or os.getenv("TRADINGAGENTS_SITE_BASE_URL") or "https://agenttrust.kr"
+    repo = StorageRepository(create_storage_engine())
+
+    sent: list[str] = []
+
+    class _Preview:
+        """Stands in for the client so --dry-run can show the message."""
+
+        def send_message(self, chat_id, text, **kwargs):
+            sent.append(text)
+            return {"ok": True}
+
+    client = _Preview() if dry_run else TelegramClient(config)
+    if chosen == "issue":
+        result = notify_harness_issue(repo, client, site_base_url=base, harness_run_id=run_id)
+    else:
+        result = notify_exit_alerts(repo, client, site_base_url=base, mark=not dry_run)
+
+    console.print(f"[dim]{chosen}: {result.get('status')} · 수신자 {result.get('recipients', 0)} · 전송 {result.get('sent', 0)}[/dim]")
+    for text in sent[:1]:
+        console.print("[dim]--- 미리보기 ---[/dim]")
+        console.print(text.replace("<b>", "").replace("</b>", ""))
+
+
 @app.command("pipeline")
 def pipeline_command(
     markets: str = typer.Option("KOSPI,KOSDAQ", "--markets", help="Comma-separated markets."),

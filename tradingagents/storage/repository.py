@@ -996,7 +996,17 @@ class StorageRepository:
         stage: str | None = None,
         limit: int = 50,
         public_only: bool = True,
+        executed_only: bool = False,
     ) -> list[dict[str, Any]]:
+        """Recent decisions. ``executed_only`` drops the ones nothing acted on.
+
+        A dry run writes the same rows as a real one — it is a rehearsal, and
+        the rows are the point of it. So anything announced to a subscriber as
+        something that happened has to filter on the run, or a preview goes out
+        as news: a --dry-run pass produced "익절 · 모의 303주" for a sale that
+        was never made.
+        """
+
         if limit <= 0:
             raise ValueError("limit must be positive")
         stmt = (
@@ -1004,6 +1014,10 @@ class StorageRepository:
             .order_by(desc(harness_decisions.c.as_of_date), desc(harness_decisions.c.created_at))
             .limit(limit)
         )
+        if executed_only:
+            stmt = stmt.where(
+                harness_decisions.c.harness_run_id.in_(select(harness_runs.c.id).where(harness_runs.c.dry_run == 0))
+            )
         if public_only:
             stmt = stmt.where(
                 harness_decisions.c.harness_run_id.in_(select(harness_runs.c.id).where(harness_runs.c.visibility == "public"))

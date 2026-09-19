@@ -58,4 +58,12 @@ echo ---- account kis >> "%LOG%"
   --confirmer none >> "%LOG%" 2>&1
 if errorlevel 1 echo [warn] account kis exited %ERRORLEVEL% >> "%LOG%"
 
+rem Straight after the fill. The notify-exits cron runs once, at 10:35, so a
+rem stop that fires at 14:00 would have waited until 10:35 tomorrow — by which
+rem point it is not news, and the subscriber has watched it happen without
+rem hearing from us.
+echo ---- notify >> "%LOG%"
+"%PYTHON%" -m cli.main notify --what exits >> "%LOG%" 2>&1
+if errorlevel 1 echo [warn] notify exited %ERRORLEVEL% >> "%LOG%"
+
 endlocal

@@ -335,11 +335,13 @@ def notify_harness_issue(
 
 
 # --------------------------------------------------------- exit / outcome push
-def notify_exit_alerts(repo: StorageRepository, client: TelegramClient, *, site_base_url: str | None = None, now: datetime | None = None, limit: int = 50) -> dict[str, Any]:
+def notify_exit_alerts(repo: StorageRepository, client: TelegramClient, *, site_base_url: str | None = None, now: datetime | None = None, limit: int = 50, mark: bool = True) -> dict[str, Any]:
     """Tell paid members about stop-loss / take-profit / holding-limit exits not yet announced."""
 
     now = now or datetime.now(timezone.utc)
-    decisions = repo.list_harness_decisions(stage="exit", limit=limit)
+    # Only what was actually sold. A dry run writes exit rows too, and they
+    # were going out as if a position had been closed.
+    decisions = repo.list_harness_decisions(stage="exit", limit=limit, executed_only=True)
     pending = [item for item in decisions if not (item.get("detail_json") or {}).get("notified_at")]
     if not pending:
         return {"status": "nothing_to_send", "sent": 0}
@@ -361,8 +363,9 @@ def notify_exit_alerts(repo: StorageRepository, client: TelegramClient, *, site_
             sent += 1
         except TelegramError:
             failed += 1
-    for item in pending:
-        repo.update_harness_decision_detail(str(item["id"]), {"notified_at": now.isoformat()})
+    if mark:
+        for item in pending:
+            repo.update_harness_decision_detail(str(item["id"]), {"notified_at": now.isoformat()})
     return {"status": "sent", "decisions": len(pending), "recipients": len(recipients), "sent": sent, "failed": failed}
 
 

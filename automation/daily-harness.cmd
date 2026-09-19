@@ -62,4 +62,11 @@ echo ---- kis (KIS 모의투자) >> "%LOG%"
   --broker kis --account kis --confirmer playbook >> "%LOG%" 2>&1
 if errorlevel 1 echo [warn] kis exited %ERRORLEVEL% >> "%LOG%"
 
+rem Announce it now rather than waiting for the 07:56 / 10:25 cron slots, which
+rem both sit on the wrong side of an 08:20 run: the first fires before it and
+rem the second two hours after.
+echo ---- notify >> "%LOG%"
+"%PYTHON%" -m cli.main notify --what issue >> "%LOG%" 2>&1
+if errorlevel 1 echo [warn] notify exited %ERRORLEVEL% >> "%LOG%"
+
 endlocal
