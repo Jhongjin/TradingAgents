@@ -38,8 +38,12 @@ set LOG=%REPO%\logs\intraday-exits-%STAMP:/=-%.log
 
 echo ==== %DATE% %TIME% ==== >> "%LOG%"
 
-rem Both books get the same treatment: the comparison between them is only
+rem All three books get the same treatment: the comparison between them is only
 rem meaningful if the exit rule runs identically on each.
+rem
+rem kis was missing here and it showed. SK이노베이션 sat at -10.52% against a
+rem 142,383 stop with nothing looking at it, because every executed run on
+rem record was broker=paper.
 for %%A in (paper rules) do (
   echo ---- account %%A >> "%LOG%"
   "%PYTHON%" -m cli.main pipeline ^
@@ -47,5 +51,11 @@ for %%A in (paper rules) do (
     --confirmer none >> "%LOG%" 2>&1
   if errorlevel 1 echo [warn] account %%A exited %%ERRORLEVEL%% >> "%LOG%"
 )
+
+echo ---- account kis >> "%LOG%"
+"%PYTHON%" -m cli.main pipeline ^
+  --exits-only --execute --persist --broker kis --account kis ^
+  --confirmer none >> "%LOG%" 2>&1
+if errorlevel 1 echo [warn] account kis exited %ERRORLEVEL% >> "%LOG%"
 
 endlocal

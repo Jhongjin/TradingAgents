@@ -22,14 +22,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import threading
 import time
-from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from .kis_client import LiveTradingDisabledError, live_trading_enabled
+from .throttle import Throttle
 
 BASE_URL = "https://api.nhplug.com:8443"
 # 모의투자 runs on its own host with the same credentials. Two rules the guide
@@ -81,41 +80,9 @@ TOKEN_REJECTED = "IGW40043"
 Transport = Callable[[str, str, Mapping[str, str], Mapping[str, Any] | None, Mapping[str, Any] | None], Mapping[str, Any]]
 
 
-class _Throttle:
-    """At most ``limit`` calls in any trailing second, across every client.
-
-    Process-wide and deliberately so. The desk, the CLI and the harness all
-    speak to one gateway with one key, and a limiter per client object would
-    let two of them together do what neither does alone.
-    """
-
-    def __init__(self, limit: int, per_seconds: float = 1.0) -> None:
-        self.limit = max(1, int(limit))
-        self.window = float(per_seconds)
-        self._recent: deque[float] = deque()
-        self._lock = threading.Lock()
-
-    def wait(self) -> float:
-        """Block until there is room. Returns how long that took."""
-
-        waited = 0.0
-        while True:
-            with self._lock:
-                now = time.monotonic()
-                while self._recent and now - self._recent[0] >= self.window:
-                    self._recent.popleft()
-                if len(self._recent) < self.limit:
-                    self._recent.append(now)
-                    return waited
-                sleep_for = self.window - (now - self._recent[0])
-            sleep_for = max(sleep_for, 0.005)
-            time.sleep(sleep_for)
-            waited += sleep_for
-
-
-_THROTTLE = _Throttle(CALLS_PER_SECOND)
+_THROTTLE = Throttle(CALLS_PER_SECOND)
 # An injected transport is not the gateway, so nothing it does needs spacing.
-_NO_THROTTLE = _Throttle(1_000_000)
+_NO_THROTTLE = Throttle(1_000_000)
 
 
 class NHError(RuntimeError):
@@ -211,7 +178,7 @@ class NHClient:
     config: NHConfig
     transport: Transport | None = None
     timeout: float = 10.0
-    throttle: "_Throttle" = field(default=_THROTTLE, repr=False)
+    throttle: Throttle = field(default=_THROTTLE, repr=False)
 
     def __post_init__(self) -> None:
         # A client built around an injected transport is a test or a caller

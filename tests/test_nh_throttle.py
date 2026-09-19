@@ -5,12 +5,12 @@ import time
 
 import pytest
 
+from tradingagents.execution.throttle import Throttle as _Throttle
 from tradingagents.execution.nh_client import (
     CALLS_PER_SECOND,
     NHClient,
     NHConfig,
     NHError,
-    _Throttle,
 )
 
 

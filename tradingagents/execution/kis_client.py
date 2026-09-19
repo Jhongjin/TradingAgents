@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from .broker import BrokerAccountSnapshot, BrokerOrderResult
+from .throttle import Throttle
 from .kis import KISConfig
 from .models import Fill, OrderIntent, OrderSide
 
@@ -71,6 +72,11 @@ def live_trading_enabled() -> bool:
     return os.getenv("TRADINGAGENTS_ENABLE_LIVE_TRADING", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
+KIS_PAPER_CALLS_PER_SECOND = 2
+KIS_LIVE_CALLS_PER_SECOND = 20
+_PAPER_THROTTLE = Throttle(KIS_PAPER_CALLS_PER_SECOND)
+
+
 @dataclass
 class KISClient:
     """Thin REST client. ``transport(method, url, headers, params, json)`` returns parsed JSON."""
@@ -78,6 +84,12 @@ class KISClient:
     config: KISConfig
     transport: Transport | None = None
     timeout: float = 10.0
+    # KIS documents 모의투자 at 2 calls a second and live at 20. The paper
+    # gateway is the one in use and the stricter of the two, so it sets the
+    # ceiling; exceeding it returns HTTP 500 "초당 거래건수를 초과하였습니다"
+    # rather than data, which an exits pass over eighteen holdings hit every
+    # single time.
+    throttle: Throttle = field(default_factory=lambda: _PAPER_THROTTLE, repr=False)
     _token: str | None = field(default=None, init=False, repr=False)
     _token_expires_at: float = field(default=0.0, init=False, repr=False)
 
@@ -365,6 +377,11 @@ class KISClient:
     ) -> Mapping[str, Any]:
         url = f"{self.base_url}{path}"
         transport = self.transport or self._requests_transport
+        # Only a real call needs spacing. self.transport is None is the test for
+        # that; comparing against self._requests_transport would never be true,
+        # because attribute access builds a fresh bound method each time.
+        if self.transport is None:
+            self.throttle.wait()
         try:
             return transport(method, url, headers, params, json)
         except KISError:

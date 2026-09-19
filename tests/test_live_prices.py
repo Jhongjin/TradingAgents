@@ -83,6 +83,7 @@ def test_the_intraday_task_runs_both_books_and_only_closes():
     script = Path("automation/intraday-exits.cmd").read_text(encoding="utf-8")
     assert "--exits-only" in script
     assert "for %%A in (paper rules)" in script
+    assert "--broker kis --account kis" in script      # the book that was being missed
     # an exits pass must never open anything, and must never reach an LLM
     assert "--confirmer none" in script
     assert "--broker paper" in script

@@ -1621,7 +1621,11 @@ def pipeline_command(
 
     broker_adapter = None
     restore_notes: list[str] = []
-    if broker.lower() == "paper" and execute and repo is not None and config.account_key != "kis":
+    # Restored whenever the book is available, not only when the run will fill.
+    # Without this a dry run started from 50,000,000원 and no positions, so it
+    # could never show what the real account was about to do — which is exactly
+    # what you want to see before letting it trade every morning on its own.
+    if broker.lower() == "paper" and repo is not None and config.account_key != "kis":
         from tradingagents.harness.paper_state import restore_paper_account
 
         broker_adapter, restore_notes = restore_paper_account(
