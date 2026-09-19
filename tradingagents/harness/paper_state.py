@@ -400,6 +400,47 @@ def build_paper_account_payload(
     }
 
 
+def latest_prices_for(repo: Any, *, limit: int = 2000) -> dict[str, float]:
+    """Closing prices for whatever the books currently hold.
+
+    Without this every position was valued at its own cost. market_value fell
+    back to ``(price or average) * quantity``, which is a silent and flattering
+    default: an open position down 20% showed as 0.00%, and the account's
+    published return counted only what had already been sold.
+    """
+
+    codes: set[str] = set()
+    for key, _label in ACCOUNTS:
+        try:
+            adapter, _ = restore_paper_account(repo, account_key=key, limit=limit)
+        except Exception:                               # noqa: BLE001 - a book that cannot load is not priced
+            continue
+        if adapter is None:
+            continue
+        codes.update(
+            code for code, position in adapter.broker.portfolio.positions.items()
+            if int(position.quantity) > 0
+        )
+    if not codes:
+        return {}
+
+    from tradingagents.site.market_api import build_latest_prices_payload
+
+    try:
+        payload = build_latest_prices_payload(
+            sorted(codes), ignore_errors=True, max_tickers=max(len(codes), 1),
+        )
+    except Exception:                                   # noqa: BLE001 - cost basis is the fallback
+        return {}
+
+    prices: dict[str, float] = {}
+    for code, item in (payload.get("prices") or {}).items():
+        close = item.get("close")
+        if close:
+            prices[str(code)] = float(close)
+    return prices
+
+
 def build_combined_account_payload(
     repo: Any,
     *,
@@ -415,13 +456,17 @@ def build_combined_account_payload(
     sum of those, never one book's cash minus another book's purchases.
     """
 
+    # Priced once for every book, so the three account pages agree with each
+    # other and the vendor is asked for each ticker a single time.
+    priced = dict(current_prices) if current_prices else latest_prices_for(repo, limit=limit)
+
     books: dict[str, Any] = {}
     positions: list[dict[str, Any]] = []
     closed: list[dict[str, Any]] = []
     totals = {"initial_cash": 0.0, "cash": 0.0, "holdings_value": 0.0, "equity": 0.0, "realized_pnl": 0.0, "open_count": 0, "closed_count": 0, "win_count": 0, "priced_count": 0}
 
     for key, label in accounts:
-        payload = build_paper_account_payload(repo, account_key=key, current_prices=current_prices, limit=limit)
+        payload = build_paper_account_payload(repo, account_key=key, current_prices=priced, limit=limit)
         summary = dict(payload.get("summary") or {})
         books[key] = {"key": key, "label": label, "status": payload.get("status"), "summary": summary}
         for item in payload.get("positions") or []:
