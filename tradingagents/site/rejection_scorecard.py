@@ -164,3 +164,97 @@ def _reason_of(decision: Mapping[str, Any]) -> str:
         if mark in head:
             return label
     return head[:40]
+
+
+#: A stated confidence is only usable if it varies. Below this much spread
+#: between the highest and lowest it has ever said, there is nothing to
+#: threshold on, nothing to size on, and nothing to calibrate — whatever the
+#: number correlates with.
+MIN_USEFUL_SPREAD = 0.20
+
+
+def build_confidence_report(
+    decisions: Sequence[Mapping[str, Any]],
+    *,
+    horizon_days: int = DEFAULT_HORIZON,
+) -> dict[str, Any]:
+    """Whether the confirmer's stated confidence means anything.
+
+    The confirmer asks an LLM for a JSON object and reads ``confidence`` out of
+    it — a number the model writes about itself. Measured over the record so
+    far it has never left 0.78–0.91: thirteen points of range across every
+    decision, buys and rejections alike.
+
+    Range collapse is the finding that does not need a large sample. A
+    confidence that never varies cannot be acted on even if it is perfectly
+    informative, because there is no threshold that separates anything.
+    """
+
+    pairs: list[tuple[float, float]] = []
+    stated: list[float] = []
+    for decision in decisions:
+        value = decision.get("confirmation_confidence")
+        if value is None:
+            continue
+        confidence = float(value)
+        stated.append(confidence)
+        outcome = _completed_return(decision.get("outcomes") or [], horizon_days)
+        if outcome is not None:
+            pairs.append((confidence, outcome))
+
+    spread = (max(stated) - min(stated)) if stated else 0.0
+    # Confidences of exactly 0 are the confirmer failing to report one, not a
+    # model saying it is certain of nothing. They would fake the spread.
+    voiced = [value for value in stated if value > 0]
+    voiced_spread = (max(voiced) - min(voiced)) if voiced else 0.0
+
+    return {
+        "horizon_days": horizon_days,
+        "count": len(stated),
+        "scored": len(pairs),
+        "low": min(voiced) if voiced else None,
+        "high": max(voiced) if voiced else None,
+        "spread": round(voiced_spread, 4),
+        "usable": voiced_spread >= MIN_USEFUL_SPREAD,
+        "unreported": sum(1 for value in stated if value <= 0),
+        "correlation": _correlation(pairs),
+        "buckets": _buckets(pairs),
+    }
+
+
+def _buckets(pairs: Sequence[tuple[float, float]]) -> list[dict[str, Any]]:
+    """Realised return per tenth of stated confidence."""
+
+    grouped: dict[float, list[float]] = {}
+    for confidence, outcome in pairs:
+        grouped.setdefault(round(confidence * 10) / 10, []).append(outcome)
+    return [
+        {
+            "confidence": edge,
+            "count": len(values),
+            "mean_return": sum(values) / len(values),
+            "rose": sum(1 for value in values if value > 0),
+        }
+        for edge, values in sorted(grouped.items())
+    ]
+
+
+def _correlation(pairs: Sequence[tuple[float, float]]) -> float | None:
+    """Pearson r between stated confidence and what happened.
+
+    None below a handful of points, and None when the confidence never moved —
+    a constant has no correlation with anything, and reporting 0.0 there would
+    read as "measured and found unrelated" rather than "nothing to measure".
+    """
+
+    if len(pairs) < 5:
+        return None
+    xs = [x for x, _ in pairs]
+    ys = [y for _, y in pairs]
+    mx = sum(xs) / len(xs)
+    my = sum(ys) / len(ys)
+    sx = sum((x - mx) ** 2 for x in xs) ** 0.5
+    sy = sum((y - my) ** 2 for y in ys) ** 0.5
+    if sx == 0 or sy == 0:
+        return None
+    return round(sum((x - mx) * (y - my) for x, y in pairs) / (sx * sy), 4)
