@@ -40,6 +40,10 @@ class BacktestConfig:
     top_n: int = 5
     min_composite: float = 0.0
     stop_loss_pct: float = 0.05
+    # Whether a stop may be reached during the session rather than only at the
+    # close. The live account checks five times a day; a backtest that reads
+    # only closes is measuring different rules from the ones that run.
+    intraday_exits: bool = True
     take_profit_pct: float = 0.10
     max_holding_days: int = 20
     max_positions: int = 10
@@ -106,6 +110,14 @@ def _indexed(points: Sequence[Mapping[str, Any]]) -> list[tuple[date, dict[str, 
     return rows
 
 
+def _float_or_none(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
 def run_rule_backtest(
     *,
     history: Mapping[str, Sequence[Mapping[str, Any]]],
@@ -156,6 +168,7 @@ def run_rule_backtest(
     for day_number, today in enumerate(trading_days):
         # advance each ticker's window to everything known on or before today
         prices: dict[str, float] = {}
+        bars: dict[str, Mapping[str, Any]] = {}
         for code, rows in series.items():
             index = cursor[code]
             while index < len(rows) and rows[index][0] <= today:
@@ -163,7 +176,9 @@ def run_rule_backtest(
                 index += 1
             cursor[code] = index
             if points_before[code] and _as_date(points_before[code][-1].get("date")) == today:
-                prices[code] = float(points_before[code][-1]["close"])
+                last = points_before[code][-1]
+                prices[code] = float(last["close"])
+                bars[code] = last
         closes_by_day[today] = prices
 
         # ---------------------------------------------------------- exits
@@ -174,18 +189,46 @@ def run_rule_backtest(
                 continue
             average = float(position.average_price)
             move = (price / average) - 1 if average else 0.0
-            reason = None
-            if move <= -config.stop_loss_pct:
-                reason = "stop_loss"
-            elif move >= config.take_profit_pct:
-                reason = "take_profit"
+            reason, fill = None, price
+            bar = bars.get(code) or {}
+
+            # The live account checks its stops five times during the session,
+            # so a breach at 11:00 that recovers by the close is a sale there.
+            # Reading only the close made the backtest hold a position the
+            # account would have sold, and rate it on a day it never saw.
+            #
+            # The fill follows the same bar. A stop that gapped below its
+            # trigger at the open fills at the open, not at the trigger —
+            # crediting the trigger would book a price the market never showed.
+            if config.intraday_exits and average:
+                stop_price = average * (1 - config.stop_loss_pct)
+                target_price = average * (1 + config.take_profit_pct)
+                low = _float_or_none(bar.get("low"))
+                high = _float_or_none(bar.get("high"))
+                open_ = _float_or_none(bar.get("open"))
+                if low is not None and low <= stop_price:
+                    reason = "stop_loss"
+                    fill = open_ if open_ is not None and open_ <= stop_price else stop_price
+                elif high is not None and high >= target_price:
+                    # A stop reached in the same session wins the tie above, so
+                    # this only runs when the day never touched the stop.
+                    reason = "take_profit"
+                    fill = open_ if open_ is not None and open_ >= target_price else target_price
+
+            if reason is None:
+                if move <= -config.stop_loss_pct:
+                    reason = "stop_loss"
+                elif move >= config.take_profit_pct:
+                    reason = "take_profit"
+                elif entry_index.get(code) is not None and (day_number - entry_index[code]) >= config.max_holding_days:
+                    reason = "max_holding_days"
             elif entry_index.get(code) is not None and (day_number - entry_index[code]) >= config.max_holding_days:
-                reason = "max_holding_days"
+                pass
             if reason is None:
                 continue
             quantity = int(position.quantity)
             cash_before = float(broker.portfolio.cash)
-            broker.submit_order(OrderIntent(ticker=code, side=OrderSide.SELL, quantity=quantity, reason=reason), price)
+            broker.submit_order(OrderIntent(ticker=code, side=OrderSide.SELL, quantity=quantity, reason=reason), fill)
             proceeds = float(broker.portfolio.cash) - cash_before
             cost = average * quantity
             trades.append(
