@@ -26,7 +26,13 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from .typed import Choice, TypedDecisionClient, direction_question
+from .typed import (
+    Choice,
+    TypedDecisionClient,
+    direction_question,
+    noul_question,
+    score_question,
+)
 
 #: Long-only, because the accounts behind this are. "avoid" means stay in cash,
 #: never short — naming it "short" would invite reading a record of trades
@@ -41,6 +47,41 @@ DIRECTION_INSTRUCTIONS = (
     "아래 가격 기록만 보고, 지금 이 자산을 새로 사도 좋은 자리인지 판단하세요. "
     "공매도는 선택지가 아닙니다."
 )
+
+#: Asked in the same request as the direction, because the service answers
+#: every question against one state in parallel and the docs say adding
+#: questions barely moves the response time. Each one is separately gradeable
+#: later, which a single verdict is not: if the direction turns out useless but
+#: "is the trend intact" is reliable, that is worth knowing separately.
+SUPPORTING_QUESTIONS: dict[str, Any] = {
+    "regime": direction_question(
+        (
+            ("advancing", "꾸준히 오르는 구간"),
+            ("declining", "꾸준히 내리는 구간"),
+            ("ranging", "방향 없이 오르내리는 구간"),
+            ("volatile", "폭이 크고 방향이 자주 바뀌는 구간"),
+        ),
+        "지금 이 자산이 어떤 국면에 있는지 고르세요.",
+    ),
+    "trend_strength": score_question(
+        ["없음", "약함", "보통", "강함"],
+        "추세가 얼마나 뚜렷한지 평가하세요.",
+    ),
+    "pullback_risk": score_question(
+        ["낮음", "보통", "높음"],
+        "지금 들어갔을 때 곧바로 되돌림을 맞을 위험을 평가하세요.",
+    ),
+    "above_trend": noul_question(
+        "현재가가 최근 60일 흐름의 위쪽에 있습니까?",
+        when_true="최근 범위의 위쪽",
+        when_false="최근 범위의 아래쪽",
+    ),
+    "extended": noul_question(
+        "최근 상승폭이 지나쳐서 쉬어갈 자리입니까?",
+        when_true="단기 과열",
+        when_false="과열이 아님",
+    ),
+}
 
 #: The instruments this runs on, and where their bars come from.
 INSTRUMENTS: dict[str, dict[str, str]] = {
@@ -116,17 +157,18 @@ def decide(
     bars: Iterable[Any],
     *,
     instrument: str,
-) -> tuple[dict[str, Choice], dict[str, Any]]:
-    """Ask the direction question about one instrument. Places no order."""
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Ask every question about one instrument, in one request. Places no order."""
 
     meta = INSTRUMENTS.get(instrument)
     if meta is None:
         raise ValueError(f"unknown instrument {instrument!r}")
 
     state = build_state(bars, label=meta["label"], unit=meta["unit"])
-    questions = {
+    questions: dict[str, Any] = {
         "direction": direction_question(DIRECTION_OPTIONS, DIRECTION_INSTRUCTIONS),
     }
+    questions.update(SUPPORTING_QUESTIONS)
     return client.ask(state, questions), state
 
 
@@ -184,7 +226,7 @@ def make_record(
     *,
     instrument: str,
     state: Mapping[str, Any],
-    answers: Mapping[str, Choice],
+    answers: Mapping[str, Any],
     model: str,
 ) -> ShadowRecord:
     meta = INSTRUMENTS[instrument]

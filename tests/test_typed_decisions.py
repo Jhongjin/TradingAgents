@@ -100,12 +100,51 @@ def test_without_a_key_it_says_so_rather_than_calling():
         TypedDecisionClient().ask("state", QUESTIONS)
 
 
-def test_an_answer_of_another_primitive_is_ignored_not_misread():
+def test_every_primitive_comes_back_as_its_own_shape():
+    """One state, several questions, answered in parallel — the service's own design."""
+
+    from tradingagents.decisions.typed import Choice, Noul, Score
+
     payload = {"answers": {
-        "urgent": {"type": "noul", "noul": 0.9},
+        "overheated": {"type": "noul", "noul": 0.9},
+        "strength": {"type": "score", "score": 1.05,
+                     "legend": {"0": "없음", "1": "약함", "2": "강함"},
+                     "probabilities": {"0": 0.0, "1": 0.95, "2": 0.05},
+                     "confidence": 0.92},
         "direction": {"type": "choice", "choice": "wait",
                       "probabilities": {"buy": 0.2, "wait": 0.6, "avoid": 0.2},
                       "confidence": 0.5},
     }}
     answers = _client(payload).ask("state", QUESTIONS)
-    assert set(answers) == {"direction"}
+
+    assert isinstance(answers["direction"], Choice)
+    assert isinstance(answers["strength"], Score) and answers["strength"].levels == 3
+    assert isinstance(answers["overheated"], Noul) and answers["overheated"].noul == 0.9
+
+
+def test_a_score_outside_its_own_rubric_is_refused():
+    """A 1.05 on a three-level rubric is fine; a 7 is a broken answer."""
+
+    payload = {"answers": {"strength": {
+        "type": "score", "score": 7.0,
+        "legend": {"0": "없음", "1": "약함", "2": "강함"},
+        "probabilities": {"0": 0.1, "1": 0.8, "2": 0.1}, "confidence": 0.9,
+    }}}
+    with pytest.raises(TypedDecisionError, match="outside a 3-level rubric"):
+        _client(payload).ask("state", QUESTIONS)
+
+
+def test_a_noul_outside_zero_to_one_is_refused():
+    payload = {"answers": {"overheated": {"type": "noul", "noul": 1.6}}}
+    with pytest.raises(TypedDecisionError, match="noul is"):
+        _client(payload).ask("state", QUESTIONS)
+
+
+def test_an_unknown_primitive_is_ignored_rather_than_guessed_at():
+    payload = {"answers": {
+        "odd": {"type": "ranking", "order": ["a", "b"]},
+        "direction": {"type": "choice", "choice": "wait",
+                      "probabilities": {"buy": 0.2, "wait": 0.6, "avoid": 0.2},
+                      "confidence": 0.5},
+    }}
+    assert set(_client(payload).ask("state", QUESTIONS)) == {"direction"}

@@ -47,6 +47,43 @@ class TypedDecisionError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class Score:
+    """A rating on an ordered rubric, with the spread that produced it."""
+
+    name: str
+    score: float
+    legend: dict[str, str]
+    probabilities: dict[str, float]
+    confidence: float
+
+    @property
+    def levels(self) -> int:
+        return len(self.legend) or len(self.probabilities)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "type": "score",
+            "name": self.name,
+            "score": self.score,
+            "levels": self.levels,
+            "legend": dict(self.legend),
+            "probabilities": dict(self.probabilities),
+            "confidence": self.confidence,
+        }
+
+
+@dataclass(frozen=True)
+class Noul:
+    """One statement, and how true it is. No confidence: the value is the answer."""
+
+    name: str
+    noul: float
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"type": "noul", "name": self.name, "noul": self.noul}
+
+
+@dataclass(frozen=True)
 class Choice:
     """One answer: the option picked, the spread over all options, a confidence."""
 
@@ -65,6 +102,7 @@ class Choice:
 
     def as_dict(self) -> dict[str, Any]:
         return {
+            "type": "choice",
             "name": self.name,
             "choice": self.choice,
             "probabilities": dict(self.probabilities),
@@ -97,7 +135,7 @@ class TypedDecisionClient:
     def configured(self) -> bool:
         return bool(self.api_key)
 
-    def ask(self, state: Any, questions: Mapping[str, Mapping[str, Any]]) -> dict[str, Choice]:
+    def ask(self, state: Any, questions: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
         """Put one state and several questions, get one answer each.
 
         Every question is answered against the same state in one request, which
@@ -120,13 +158,13 @@ class TypedDecisionClient:
         if not isinstance(answers, Mapping):
             raise TypedDecisionError(f"no answers in response: {str(payload)[:200]}")
 
-        out: dict[str, Choice] = {}
+        out: dict[str, Any] = {}
         for name, answer in answers.items():
-            parsed = _parse_choice(str(name), answer)
+            parsed = _parse_answer(str(name), answer)
             if parsed is not None:
                 out[str(name)] = parsed
         if not out:
-            raise TypedDecisionError("no choice answers in response")
+            raise TypedDecisionError("no usable answers in response")
         return out
 
     def _post(self, headers: Mapping[str, str], body: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -162,6 +200,77 @@ class TypedDecisionClient:
         raise TypedDecisionError(last or "no response")
 
 
+def _parse_answer(name: str, answer: Any) -> Any:
+    """One answer of whichever primitive it declares itself to be."""
+
+    if not isinstance(answer, Mapping):
+        return None
+    kind = str(answer.get("type") or "")
+    if kind == "choice":
+        return _parse_choice(name, answer)
+    if kind == "score":
+        return _parse_score(name, answer)
+    if kind == "noul":
+        return _parse_noul(name, answer)
+    return None
+
+
+def _distribution(name: str, raw: Any) -> dict[str, float]:
+    """Probabilities that cover their options, sit in [0,1] and sum to one."""
+
+    if not isinstance(raw, Mapping) or not raw:
+        raise TypedDecisionError(f"{name}: answer carried no probabilities")
+    out: dict[str, float] = {}
+    for option, value in raw.items():
+        try:
+            probability = float(value)
+        except (TypeError, ValueError) as exc:
+            raise TypedDecisionError(f"{name}: probability for {option!r} is not a number") from exc
+        if not 0.0 <= probability <= 1.0:
+            raise TypedDecisionError(f"{name}: probability for {option!r} is {probability}")
+        out[str(option)] = probability
+    total = sum(out.values())
+    if abs(total - 1.0) > 0.01:
+        raise TypedDecisionError(f"{name}: probabilities sum to {total:.4f}")
+    return out
+
+
+def _confidence(name: str, value: Any) -> float:
+    try:
+        confidence = float(value)
+    except (TypeError, ValueError) as exc:
+        raise TypedDecisionError(f"{name}: confidence is not a number") from exc
+    if not 0.0 <= confidence <= 1.0:
+        raise TypedDecisionError(f"{name}: confidence is {confidence}")
+    return confidence
+
+
+def _parse_score(name: str, answer: Mapping[str, Any]) -> Score:
+    """A score has to sit inside the rubric it was asked about."""
+
+    probabilities = _distribution(name, answer.get("probabilities"))
+    legend = {str(key): str(value) for key, value in (answer.get("legend") or {}).items()}
+    try:
+        score = float(answer.get("score"))
+    except (TypeError, ValueError) as exc:
+        raise TypedDecisionError(f"{name}: score is not a number") from exc
+    levels = len(legend) or len(probabilities)
+    if levels and not -0.001 <= score <= levels - 1 + 0.001:
+        raise TypedDecisionError(f"{name}: score {score} is outside a {levels}-level rubric")
+    return Score(name=name, score=score, legend=legend, probabilities=probabilities,
+                 confidence=_confidence(name, answer.get("confidence")))
+
+
+def _parse_noul(name: str, answer: Mapping[str, Any]) -> Noul:
+    try:
+        value = float(answer.get("noul"))
+    except (TypeError, ValueError) as exc:
+        raise TypedDecisionError(f"{name}: noul is not a number") from exc
+    if not 0.0 <= value <= 1.0:
+        raise TypedDecisionError(f"{name}: noul is {value}")
+    return Noul(name=name, noul=value)
+
+
 def _parse_choice(name: str, answer: Any) -> Choice | None:
     """A choice answer, or None for the other primitives.
 
@@ -173,23 +282,7 @@ def _parse_choice(name: str, answer: Any) -> Choice | None:
     if not isinstance(answer, Mapping) or str(answer.get("type")) != "choice":
         return None
 
-    raw = answer.get("probabilities")
-    if not isinstance(raw, Mapping) or not raw:
-        raise TypedDecisionError(f"{name}: choice answer carried no probabilities")
-
-    probabilities: dict[str, float] = {}
-    for option, value in raw.items():
-        try:
-            probability = float(value)
-        except (TypeError, ValueError) as exc:
-            raise TypedDecisionError(f"{name}: probability for {option!r} is not a number") from exc
-        if not 0.0 <= probability <= 1.0:
-            raise TypedDecisionError(f"{name}: probability for {option!r} is {probability}")
-        probabilities[str(option)] = probability
-
-    total = sum(probabilities.values())
-    if abs(total - 1.0) > 0.01:
-        raise TypedDecisionError(f"{name}: probabilities sum to {total:.4f}")
+    probabilities = _distribution(name, answer.get("probabilities"))
 
     choice = str(answer.get("choice") or "")
     if choice not in probabilities:
@@ -200,14 +293,8 @@ def _parse_choice(name: str, answer: Any) -> Choice | None:
             f"while {max(probabilities, key=probabilities.get)!r} is more likely"
         )
 
-    try:
-        confidence = float(answer.get("confidence"))
-    except (TypeError, ValueError) as exc:
-        raise TypedDecisionError(f"{name}: confidence is not a number") from exc
-    if not 0.0 <= confidence <= 1.0:
-        raise TypedDecisionError(f"{name}: confidence is {confidence}")
-
-    return Choice(name=name, choice=choice, probabilities=probabilities, confidence=confidence)
+    return Choice(name=name, choice=choice, probabilities=probabilities,
+                  confidence=_confidence(name, answer.get("confidence")))
 
 
 def direction_question(options: Sequence[tuple[str, str]], instructions: str) -> dict[str, Any]:
@@ -217,4 +304,20 @@ def direction_question(options: Sequence[tuple[str, str]], instructions: str) ->
         "type": "choice",
         "instructions": instructions,
         "criteria": {key: description for key, description in options},
+    }
+
+
+def score_question(levels: Sequence[str], instructions: str) -> dict[str, Any]:
+    """A Score question: an ordered rubric, lowest first."""
+
+    return {"type": "score", "instructions": instructions, "criteria": list(levels)}
+
+
+def noul_question(instructions: str, *, when_true: str, when_false: str) -> dict[str, Any]:
+    """A Noul question: one statement, answered as how true it is."""
+
+    return {
+        "type": "noul",
+        "instructions": instructions,
+        "criteria": {"true": when_true, "false": when_false},
     }
