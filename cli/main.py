@@ -1621,6 +1621,73 @@ def _screen_time_budget_seconds() -> float:
     return value if value > 0 else 120.0
 
 
+@app.command("shadow-decide")
+def shadow_decide_command(
+    instruments: str = typer.Option("KRXGOLD,BTC", "--instruments", help="Comma separated: KRXGOLD, BTC, COMEXGOLD."),
+    log: Optional[Path] = typer.Option(None, "--log", help="Where the record is kept."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Ask and print, write nothing."),
+    force: bool = typer.Option(False, "--force", help="Record again even if today is already down."),
+):
+    """Ask a typed decision model about an instrument and write down the answer.
+
+    It never trades. The point is to find out whether a model that answers with
+    a probability distribution says anything useful here, and the only honest
+    way to find that out is to let it be wrong for a few weeks at no cost.
+
+    Long-only on purpose: the options are buy, wait and avoid. Naming a short
+    would build a record of trades these accounts could not have made.
+    """
+
+    from goldlab.data import fetch_bars
+    from tradingagents.decisions import INSTRUMENTS, decide, make_record, record
+    from tradingagents.decisions.shadow import already_recorded
+    from tradingagents.decisions.typed import TypedDecisionClient, TypedDecisionError
+
+    client = TypedDecisionClient.from_env()
+    if not client.configured:
+        console.print("[yellow].env 에 TYPESAFE_API_KEY 를 넣어주세요.[/yellow]")
+        raise typer.Exit(code=2)
+
+    chosen = [part.strip().upper() for part in instruments.split(",") if part.strip()]
+    unknown = [name for name in chosen if name not in INSTRUMENTS]
+    if unknown:
+        raise typer.BadParameter(f"unknown instrument(s): {', '.join(unknown)}")
+
+    rows = []
+    for name in chosen:
+        meta = INSTRUMENTS[name]
+        try:
+            bars = fetch_bars(meta["symbol"], interval="1d")
+        except Exception as exc:                        # noqa: BLE001 - one instrument, not the run
+            console.print(f"[yellow]{meta['label']}: 가격을 못 가져왔습니다 ({type(exc).__name__})[/yellow]")
+            continue
+        try:
+            answers, state = decide(client, bars.bars, instrument=name)
+        except (TypedDecisionError, ValueError) as exc:
+            console.print(f"[yellow]{meta['label']}: {exc}[/yellow]")
+            continue
+
+        answer = answers["direction"]
+        spread = ", ".join(f"{option} {value:.0%}" for option, value in
+                           sorted(answer.probabilities.items(), key=lambda item: -item[1]))
+        console.print(
+            f"[bold]{meta['label']}[/bold] {state['latest_close']:,.2f} {meta['unit']} · "
+            f"[green]{answer.choice}[/green] (확신 {answer.confidence:.0%}) · {spread}"
+        )
+
+        if already_recorded(state["as_of"], name, path=log) and not force:
+            console.print(f"[dim]  {state['as_of']} 기록이 이미 있어 건너뜁니다[/dim]")
+            continue
+        rows.append(make_record(instrument=name, state=state, answers=answers, model=client.model))
+
+    if dry_run:
+        console.print("[dim]--dry-run: 기록하지 않았습니다[/dim]")
+        return
+    if rows:
+        written = record(rows, path=log)
+        console.print(f"[dim]{written}건 기록 · 주문은 하지 않습니다[/dim]")
+
+
 @app.command("pipeline")
 def pipeline_command(
     markets: str = typer.Option("KOSPI,KOSDAQ", "--markets", help="Comma-separated markets."),
