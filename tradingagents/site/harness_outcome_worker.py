@@ -36,6 +36,19 @@ class HarnessOutcomeResult:
     error: str | None = None
 
 
+#: Every stage worth scoring afterwards. "ordered" is what was bought;
+#: the rest is what the rules turned down, which nobody was ever checking.
+#: A screen that rejects three hundred names a day for stated, numeric reasons
+#: is making three hundred claims a day, and none of them were being marked.
+SCORED_STAGES: tuple[str, ...] = (
+    "ordered",
+    "gate_rejected",
+    "confirmation_rejected",
+    "forecast_rejected",
+)
+REJECTED_STAGES: tuple[str, ...] = tuple(stage for stage in SCORED_STAGES if stage != "ordered")
+
+
 def evaluate_harness_outcomes(
     repo: StorageRepository,
     *,
@@ -43,6 +56,7 @@ def evaluate_harness_outcomes(
     limit: int = 50,
     as_of_date: str | date | None = None,
     returns_fetcher=None,
+    stages: tuple[str, ...] = SCORED_STAGES,
 ) -> list[HarnessOutcomeResult]:
     if limit <= 0:
         raise ValueError("limit must be positive")
@@ -54,7 +68,7 @@ def evaluate_harness_outcomes(
     evaluated_at = _coerce_date(as_of_date) if as_of_date is not None else datetime.now(ZoneInfo("Asia/Seoul")).date()
 
     results: list[HarnessOutcomeResult] = []
-    for decision in repo.list_harness_decisions_for_outcomes(limit=limit):
+    for decision in repo.list_harness_decisions_for_outcomes(limit=limit, stages=stages):
         decision_id = str(decision["id"])
         run_id = str(decision["harness_run_id"])
         ticker_code = str(decision["ticker_code"])

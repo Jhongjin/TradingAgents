@@ -45,14 +45,18 @@ def _seed(repo, *, visibility="public", stage="ordered"):
 def test_evaluate_harness_outcomes_completes_pending_and_unavailable():
     repo = _repo()
     run_id, decision_id = _seed(repo)
-    _seed(repo, stage="forecast_rejected")  # must be ignored
+    _seed(repo, stage="forecast_rejected")
 
     def fetcher(code, entry, horizon):
         if horizon == 5:
             return 0.04, 0.01, 5
         return 0.02, -0.01, 12  # 20D not elapsed yet
 
-    results = evaluate_harness_outcomes(repo, limit=10, as_of_date="2026-08-20", returns_fetcher=fetcher)
+    # stages pins this to the picks; rejections are scored too by default now,
+    # which is the point — a rule that turns a name down is making a claim, and
+    # it was the only kind of claim here nobody ever marked.
+    results = evaluate_harness_outcomes(repo, limit=10, as_of_date="2026-08-20",
+                                        returns_fetcher=fetcher, stages=("ordered",))
     assert [(r.horizon_days, r.status) for r in results] == [(5, "completed"), (20, "pending")]
     stored = repo.list_harness_outcomes(harness_run_id=run_id)
     assert {row["horizon_days"]: row["status"] for row in stored} == {5: "completed", 20: "pending"}
@@ -66,7 +70,8 @@ def test_evaluate_harness_outcomes_completes_pending_and_unavailable():
     def failing(code, entry, horizon):
         raise RuntimeError("network")
 
-    results = evaluate_harness_outcomes(repo, limit=10, as_of_date="2026-08-21", returns_fetcher=failing)
+    results = evaluate_harness_outcomes(repo, limit=10, as_of_date="2026-08-21",
+                                        returns_fetcher=failing, stages=("ordered",))
     assert [(r.horizon_days, r.status) for r in results] == [(5, "skipped"), (20, "unavailable")]
     summary = summarize_harness_outcome_results(results)
     assert summary["skipped_count"] == 1 and summary["unavailable_count"] == 1
