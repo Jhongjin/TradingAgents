@@ -249,15 +249,28 @@ def _rename(frame: pd.DataFrame) -> pd.DataFrame:
     return renamed
 
 
+# data.krx.co.kr answers the whole-market frames, and where it is blocked it is
+# blocked for the whole run. load_market_snapshot walks back seven business days
+# across two markets with three fetchers each — 48 calls at about 1.1s, every
+# one certain to fail, before the loader gives up and the next vendor is tried.
+# One failure is enough to know. Per-process, so tomorrow still gets a chance.
+_whole_market_down = False
+
+
 def _safe_frame(
     fetcher: SnapshotFetcher,
     compact_date: str,
     market: str,
     errors: list[str] | None = None,
 ) -> pd.DataFrame | None:
+    global _whole_market_down
+
+    if _whole_market_down:
+        return None
     try:
         frame = fetcher(compact_date, market)
     except Exception as exc:
+        _whole_market_down = True
         if errors is not None:
             errors.append(f"{exc.__class__.__name__}: {str(exc)[:200]}")
         return None

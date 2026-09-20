@@ -83,3 +83,63 @@ def test_the_flag_does_not_leak_between_runs():
     assert "_index_vendor_down = False" in source
     # and it is a module global, not persisted anywhere
     assert "_index_vendor_down" not in kr_returns.__dict__.get("__file__", "")
+
+
+def test_the_whole_market_loader_stops_after_one_refusal(monkeypatch):
+    """48 calls at 1.1s each, every one certain to fail, before it gave up."""
+
+    from tradingagents.dataflows.errors import VendorUnavailableError
+    from tradingagents.screener import universe
+
+    monkeypatch.setattr(universe, "_whole_market_down", False)
+    calls = {"n": 0}
+
+    def blocked(compact, market):
+        calls["n"] += 1
+        raise RuntimeError("data.krx.co.kr refused the connection")
+
+    with pytest.raises(VendorUnavailableError):
+        universe.load_market_snapshot(
+            "2026-09-18",
+            ohlcv_fetcher=blocked, cap_fetcher=blocked, fundamental_fetcher=blocked,
+            name_lookup=lambda code: code,
+        )
+
+    assert calls["n"] == 1
+
+
+def test_a_whole_market_vendor_that_answers_is_not_written_off(monkeypatch):
+    import pandas as pd
+
+    from tradingagents.screener import universe
+
+    monkeypatch.setattr(universe, "_whole_market_down", False)
+    calls = {"n": 0}
+
+    def working(compact, market):
+        calls["n"] += 1
+        return pd.DataFrame(
+            {"종가": [70_000.0], "거래량": [1_000_000.0], "거래대금": [7e10], "등락률": [1.2]},
+            index=["005930"],
+        )
+
+    snapshot = universe.load_market_snapshot(
+        "2026-09-18",
+        ohlcv_fetcher=working, cap_fetcher=working, fundamental_fetcher=working,
+        name_lookup=lambda code: "삼성전자",
+    )
+    assert snapshot.rows
+    assert calls["n"] > 1
+    assert universe._whole_market_down is False
+
+
+def test_the_cli_bounds_how_long_a_screen_may_take():
+    """An unattended morning run had nothing stopping it; the web path always did."""
+
+    import inspect
+
+    import cli.main as main
+
+    assert main._screen_time_budget_seconds() > 0
+    source = inspect.getsource(main.pipeline_command)
+    assert "time_budget_seconds=_screen_time_budget_seconds()" in source

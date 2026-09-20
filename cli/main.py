@@ -1608,6 +1608,19 @@ def notify_command(
         console.print(text.replace("<b>", "").replace("</b>", ""))
 
 
+def _screen_time_budget_seconds() -> float:
+    """Seconds the screen may spend fetching before it ranks what it has."""
+
+    import os
+
+    raw = (os.getenv("TRADINGAGENTS_SCREENER_TIME_BUDGET_SECONDS") or "").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        return 120.0
+    return value if value > 0 else 120.0
+
+
 @app.command("pipeline")
 def pipeline_command(
     markets: str = typer.Option("KOSPI,KOSDAQ", "--markets", help="Comma-separated markets."),
@@ -1645,7 +1658,11 @@ def pipeline_command(
     market_tuple = tuple(part.strip().upper() for part in markets.split(",") if part.strip())
     config = PipelineConfig(
         markets=market_tuple,
-        screener=ScreenerConfig(markets=market_tuple, top_n=top_n),
+        # The web path has always passed one; the CLI never did, so an
+        # unattended morning run had nothing bounding how long the screen could
+        # take. Same default, so both behave the same way.
+        screener=ScreenerConfig(markets=market_tuple, top_n=top_n,
+                                time_budget_seconds=_screen_time_budget_seconds()),
         confirm_top_n=confirm_top_n,
         risk_percent_per_trade=risk_per_trade,
         initial_cash=initial_cash,
