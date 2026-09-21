@@ -48,6 +48,15 @@ set LOG=%REPO%\logs\daily-short-%STAMP:/=-%.log
 
 echo ==== %DATE% %TIME% ==== >> "%LOG%"
 rem Goes out public. Change to private to have a look before anyone else does.
+rem Runs at 08:40, 11:15 and 14:30. The later two do nothing when the morning
+rem worked — shorts-daily checks the ledger first and exits immediately if
+rem today already has a video id.
+rem
+rem Why three attempts rather than another point fix: six weekday attempts
+rem between 09-14 and 09-21 produced one confirmed video, and every failure had
+rem a different cause (console encoding, n8n's uploadId, a machine still
+rem booting, npx refused with WinError 5 while the GPU was saturated). Each was
+rem fixed after the fact. Retrying covers the next one without knowing it.
 "%PYTHON%" -m cli.main shorts-daily --privacy public >> "%LOG%" 2>&1
 set CODE=%ERRORLEVEL%
 echo exit=%CODE% >> "%LOG%"

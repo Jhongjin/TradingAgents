@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -652,6 +653,14 @@ def write_project(html: str, directory: Path, *, name: str) -> Composition:
     return Composition(directory=directory, html=index, seconds=seconds)
 
 
+#: Windows refuses to start a process for reasons that clear on their own —
+#: a scanner holding the shim, a cache still being written. On 2026-09-21
+#: `render` died with WinError 5 seconds after `check` ran the same binary
+#: successfully, and forty minutes of finished narration went in the bin.
+SPAWN_ATTEMPTS = 3
+SPAWN_BACKOFF_SECONDS = 5.0
+
+
 def run(command: str, directory: Path, *, extra: Sequence[str] = (), timeout: int = 1800) -> str:
     """Drive the HyperFrames CLI in the project directory."""
 
@@ -660,14 +669,30 @@ def run(command: str, directory: Path, *, extra: Sequence[str] = (), timeout: in
     binary = shutil.which("npx.cmd") or shutil.which("npx")
     if binary is None:
         raise HyperFramesMissingError("npx 를 찾지 못했습니다. Node 22 이상을 설치해 주세요.")
-    result = subprocess.run(
-        [binary, "--yes", f"hyperframes@{CLI_VERSION}", command, *extra],
-        cwd=directory, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
-    )
-    output = (result.stdout or "") + (result.stderr or "")
-    if result.returncode != 0:
-        raise HyperFramesMissingError(f"hyperframes {command} 실패 ({result.returncode}):\n{output[-1200:]}")
-    return output
+
+    for attempt in range(SPAWN_ATTEMPTS):
+        try:
+            result = subprocess.run(
+                [binary, "--yes", f"hyperframes@{CLI_VERSION}", command, *extra],
+                cwd=directory, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=timeout,
+            )
+        except (PermissionError, OSError) as exc:
+            # Only the refusal to start is retried. A command that ran and
+            # failed has a real reason, and running it again would hide it.
+            if attempt == SPAWN_ATTEMPTS - 1:
+                raise HyperFramesMissingError(
+                    f"hyperframes {command} 를 실행하지 못했습니다 "
+                    f"({type(exc).__name__}: {exc}). {SPAWN_ATTEMPTS}회 시도했습니다."
+                ) from exc
+            time.sleep(SPAWN_BACKOFF_SECONDS * (attempt + 1))
+            continue
+
+        output = (result.stdout or "") + (result.stderr or "")
+        if result.returncode != 0:
+            raise HyperFramesMissingError(f"hyperframes {command} 실패 ({result.returncode}):\n{output[-1200:]}")
+        return output
+    raise HyperFramesMissingError(f"hyperframes {command} 를 실행하지 못했습니다")
 
 
 __all__ = ["Composition", "CLI_VERSION", "HyperFramesMissingError", "compose_candles", "compose_curve",

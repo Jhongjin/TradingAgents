@@ -3350,6 +3350,7 @@ def shorts_daily_command(
     privacy: str = typer.Option("private", "--privacy", help="private, unlisted or public."),
     ledger: Optional[Path] = typer.Option(None, "--ledger", help="Where the published record is kept."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Choose and render, but do not post it anywhere."),
+    force: bool = typer.Option(False, "--force", help="Build again even if today is already published, and pick a fresh story."),
 ):
     """Choose today's story, make it, and hand it to n8n to publish.
 
@@ -3362,16 +3363,46 @@ def shorts_daily_command(
 
     import json as _json
     import os
+    from datetime import date as _date
 
+    from tradingagents.shorts.attempt import (
+        clear_claim,
+        published_today,
+        read_claim,
+        start_attempt,
+    )
     from tradingagents.shorts.bank import BY_KEY, plan, read_ledger, record_published
 
-    payload = _shorts_payload(source)
-    decision = plan(payload, ledger=read_ledger(ledger))
-    if not decision.get("story"):
-        console.print(f"[yellow]오늘은 올릴 이야기가 없습니다.[/yellow] {decision['reason']}")
+    rows = read_ledger(ledger)
+    today = _date.today().isoformat()
+
+    # An attempt that finds the day already finished does nothing. This is what
+    # makes running the job three times a day safe, and running it three times
+    # is what covers the causes nobody has seen yet.
+    done = published_today(rows, day=today)
+    if done is not None and not force:
+        console.print(f"[green]{today} 영상은 이미 올라갔습니다[/green] · {done.get('story')} · {done.get('video_id')}")
         raise typer.Exit(code=0)
 
-    story = BY_KEY[decision["story"]]
+    payload = _shorts_payload(source)
+
+    # The story is chosen once a day and written down before any work starts.
+    # Without that a second attempt picks a different story and publishes a
+    # second, different short — worse than publishing none.
+    held = read_claim(day=today)
+    if held is not None and held.story in BY_KEY and not force:
+        story = BY_KEY[held.story]
+        decision = {"date": today, "story": held.story,
+                    "chosen": {"reason": held.reason or "이어서 진행"}}
+        console.print(f"[dim]{today} 시도 {held.attempts + 1}회차 · 같은 이야기로 이어갑니다[/dim]")
+    else:
+        decision = plan(payload, ledger=rows)
+        if not decision.get("story"):
+            console.print(f"[yellow]오늘은 올릴 이야기가 없습니다.[/yellow] {decision['reason']}")
+            raise typer.Exit(code=0)
+        story = BY_KEY[decision["story"]]
+
+    claim = start_attempt(day=today, story=story.key, reason=decision["chosen"]["reason"])
     console.print(f"[bold]{decision['date']}[/bold] · {story.label} · {decision['chosen']['reason']}")
 
     board, video, caption = _shorts_build(story.renderer, payload, output, story_key=story.key)
@@ -3418,6 +3449,8 @@ def shorts_daily_command(
     except ValueError:
         answer = {}
     video_id = _video_id_in(answer)
+    if video_id:
+        clear_claim()
     if not video_id:
         # A 200 with no id used to be treated as "nothing was published", and
         # the ledger got no row. Then 09-17 went up on the channel anyway: the
