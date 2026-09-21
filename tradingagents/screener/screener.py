@@ -17,6 +17,8 @@ from .universe import (
     fallback_universe_codes,
     fetch_histories_by_code,
     load_index_snapshot,
+    load_krx_openapi_snapshot,
+    load_krx_ranked_snapshot,
     load_market_snapshot,
     load_naver_market_snapshot,
     load_stored_index_snapshot,
@@ -199,26 +201,51 @@ def screen_korean_market(
                 loaders = [("custom", lambda: snapshot_loader(as_of_date, markets=config.markets))]
             else:
                 loaders = []
-                if snapshot_mode in {"auto", "pykrx"}:
-                    loaders.append(("pykrx", lambda: load_market_snapshot(as_of_date, markets=config.markets)))
-                if snapshot_mode == "index":
-                    loaders.append(("index", lambda: load_index_snapshot(as_of_date, markets=config.markets)))
-                    # Naver deleted the KOSPI200 constituent page — that URL
-                    # answers 410 now and is not coming back — so the loader
-                    # above fails outright on a host where pykrx is also
-                    # blocked. This one needs no ranking vendor: membership from
-                    # the stored file, prices one ticker at a time.
-                    # The same deadline the scoring phase gets. It can have all
-                    # of it: cached_fetcher means scoring re-reads what this
-                    # fetched rather than asking the vendor twice.
-                    loaders.append(("index-stored", lambda: load_stored_index_snapshot(
+                # Naver deleted the KOSPI200 constituent page — that URL answers
+                # 410 now and is not coming back — so the index loader fails
+                # outright on a host where pykrx is also blocked. This one needs
+                # no ranking vendor: membership from the stored file, prices one
+                # ticker at a time.
+                # The same deadline the scoring phase gets. It can have all of
+                # it: cached_fetcher means scoring re-reads what this fetched
+                # rather than asking the vendor twice.
+                def stored_index_loader() -> tuple[str, Callable[[], MarketSnapshot]]:
+                    return ("index-stored", lambda: load_stored_index_snapshot(
                         as_of_date, cached_fetcher, markets=config.markets, limit=universe_size,
                         lookback_days=int(config.history_days * 1.6) + 10,
                         max_workers=config.max_workers,
                         deadline=(started + config.time_budget_seconds) if config.time_budget_seconds is not None else None,
+                    ))
+
+                if snapshot_mode in {"auto", "krx"}:
+                    # First because it is the only vendor still answering with
+                    # market cap and traded value attached, which is what the
+                    # cap and turnover prefilters need to mean anything. It is
+                    # the ranked variant rather than the raw snapshot because
+                    # the Open API publishes T+1: taking its prices would have
+                    # shown Friday's screen on a Monday evening.
+                    loaders.append(("krx-ranked", lambda: load_krx_ranked_snapshot(
+                        as_of_date, cached_fetcher, markets=config.markets,
+                        limit=config.prefilter_limit,
+                        lookback_days=int(config.history_days * 1.6) + 10,
+                        max_workers=config.max_workers,
+                        deadline=(started + config.time_budget_seconds) if config.time_budget_seconds is not None else None,
                     )))
+                if snapshot_mode in {"auto", "pykrx"}:
+                    loaders.append(("pykrx", lambda: load_market_snapshot(as_of_date, markets=config.markets)))
+                if snapshot_mode == "index":
+                    loaders.append(("index", lambda: load_index_snapshot(as_of_date, markets=config.markets)))
+                    loaders.append(stored_index_loader())
                 if snapshot_mode in {"auto", "naver"}:
                     loaders.append(("naver", lambda: load_naver_market_snapshot(as_of_date, markets=config.markets, max_rows_per_market=universe_size)))
+                if snapshot_mode == "auto":
+                    # Last, and the reason it has to be here: every vendor above
+                    # needs a key or an unblocked host, and when they all refuse
+                    # the only remaining choice was a 20-ticker fallback. The
+                    # stored membership ships with the repository and needs
+                    # neither, so a missing env var costs a worse ranking rather
+                    # than 94% of the universe.
+                    loaders.append(stored_index_loader())
             for vendor_name, loader in loaders:
                 try:
                     snapshot = loader()
@@ -262,14 +289,27 @@ def screen_korean_market(
     scored: list[tuple[MarketSnapshotRow, FactorScores]] = []
     failures = 0
     skipped_for_time = 0
-    histories = _fetch_histories(
-        prefiltered,
-        cached_fetcher,
-        start_date.isoformat(),
-        end_date.isoformat(),
-        max_workers=config.max_workers,
-        deadline=(started + config.time_budget_seconds) if config.time_budget_seconds is not None else None,
-    )
+    # Anything the snapshot loader already fetched is a dictionary read, and a
+    # dictionary read does not need permission from the clock. Without this the
+    # deadline check runs before the cache is consulted, so a loader that used
+    # the whole budget — which is exactly what the ranked KRX universe does on a
+    # slow host — left every row "not scored" and published an empty screen,
+    # having already paid for the data that would have filled it.
+    histories = {
+        row.code: (history_cache[row.code], None)
+        for row in prefiltered
+        if row.code in history_cache
+    }
+    pending = [row for row in prefiltered if row.code not in history_cache]
+    if pending:
+        histories.update(_fetch_histories(
+            pending,
+            cached_fetcher,
+            start_date.isoformat(),
+            end_date.isoformat(),
+            max_workers=config.max_workers,
+            deadline=(started + config.time_budget_seconds) if config.time_budget_seconds is not None else None,
+        ))
     for row in prefiltered:
         outcome = histories.get(row.code)
         if outcome is None:
@@ -356,8 +396,8 @@ def _resolve_snapshot_mode(value: str | None) -> str:
     selected = (value or "auto").strip().lower()
     if selected == "auto":
         selected = (os.getenv("TRADINGAGENTS_SCREENER_SNAPSHOT_MODE") or "auto").strip().lower()
-    if selected not in {"auto", "pykrx", "naver", "index", "fallback"}:
-        raise ValueError("snapshot_mode must be 'auto', 'pykrx', 'naver', 'index', or 'fallback'")
+    if selected not in {"auto", "krx", "pykrx", "naver", "index", "fallback"}:
+        raise ValueError("snapshot_mode must be 'auto', 'krx', 'pykrx', 'naver', 'index', or 'fallback'")
     return selected
 
 

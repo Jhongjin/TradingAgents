@@ -27,6 +27,20 @@ _BROKER_ENV_VARS = (
 for _name in _BROKER_ENV_VARS:
     os.environ[_name] = ""
 
+# And for market-data vendors that bill per call. These differ from the LLM keys
+# below, which are given a placeholder so the "no key configured" branch does not
+# get exercised everywhere: here the no-key branch is exactly what tests should
+# see, because a configured key means a real request. The screener's auto mode
+# tries the KRX Open API first, so leaving a real key in place sent two suite
+# runs to data-dbg.krx.co.kr and pulled back the live 943-name KOSPI tape in a
+# test that had carefully mocked every other vendor.
+_VENDOR_ENV_VARS = (
+    "KRX_API_KEY",
+    "KRX_OPENAPI_KEY",
+)
+for _name in _VENDOR_ENV_VARS:
+    os.environ[_name] = ""
+
 
 def pytest_configure(config):
     for marker in ("unit", "integration", "smoke"):
@@ -47,7 +61,6 @@ _API_KEY_ENV_VARS = (
     "DART_API_KEY",
     "NAVER_CLIENT_ID",
     "NAVER_CLIENT_SECRET",
-    "KRX_API_KEY",
     "KIS_APP_KEY",
     "KIS_APP_SECRET",
 )
@@ -59,7 +72,7 @@ def _dummy_api_keys(monkeypatch):
         monkeypatch.setenv(env_var, os.environ.get(env_var, "placeholder"))
     # Re-assert per test in case a test or import mutated it.
     monkeypatch.setenv("DATABASE_URL", "")
-    for name in _BROKER_ENV_VARS:
+    for name in _BROKER_ENV_VARS + _VENDOR_ENV_VARS:
         monkeypatch.setenv(name, "")
     # The site runs free-for-all by default. The billing suite exercises the
     # dormant paid plans, so tests see them on unless one turns them off.

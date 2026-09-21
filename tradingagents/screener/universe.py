@@ -106,6 +106,132 @@ def load_market_snapshot(
     return MarketSnapshot(as_of_date=resolved_date, markets=selected, rows=rows)
 
 
+#: One call per market on the KRX Open API's daily-trade service. KOSPI comes
+#: back from the plain "stock" endpoint (942 rows on 2026-09-18) and KOSDAQ
+#: from its own (1,820), so the whole tape is two calls.
+KRX_OPENAPI_DAILY_TRADE_CALLS = {
+    "KOSPI": "get_stock_daily_trade",
+    "KOSDAQ": "get_kosdaq_stock_daily_trade",
+}
+
+
+def load_krx_openapi_snapshot(
+    as_of_date: str | date | None = None,
+    *,
+    markets: tuple[str, ...] | list[str] = SUPPORTED_MARKETS,
+    client: Any | None = None,
+    lookback_business_days: int = 7,
+) -> MarketSnapshot:
+    """Whole-market snapshot from the KRX Open API.
+
+    This is the vendor the screener should prefer, and the reason is that the
+    other two stopped being available rather than that this one got better.
+    pykrx scrapes data.krx.co.kr, which now refuses anyone without a site
+    login — it answers a six-byte ``LOGOUT`` body — and Naver deleted the
+    constituent page the index loader read. Neither failure is about which
+    network the request comes from: both were measured failing identically from
+    Vercel, from the Windows box and from a Korean server on 2026-09-21.
+
+    The Open API is the sanctioned route to the same numbers, it is already
+    paid for (``KRX_API_KEY``), and one call per market returns every listed
+    name with its market cap and traded value attached. That last part is what
+    the stored-membership fallback cannot do: it knows which names are in an
+    index but nothing about their size or liquidity, so the cap and turnover
+    filters get skipped and the screen ranks on price history alone.
+
+    PER and PBR are not in this service — the screener attaches those from its
+    own valuation store, the same as it does for every other snapshot vendor.
+    """
+
+    selected = tuple(_normalize_market(market) for market in markets)
+    unknown = [market for market in selected if market not in KRX_OPENAPI_DAILY_TRADE_CALLS]
+    if unknown:
+        raise VendorUnavailableError(f"KRX Open API has no daily-trade service for {', '.join(unknown)}")
+
+    if client is None:
+        from tradingagents.dataflows import krx_openapi
+
+        if not krx_openapi.is_configured():
+            raise VendorUnavailableError("KRX_API_KEY or KRX_OPENAPI_KEY is not configured")
+        client = krx_openapi._get_krx_client()
+
+    target = _coerce_date(as_of_date)
+    errors: list[str] = []
+    # A holiday returns an empty block rather than an error, so walk back the
+    # same way the pykrx loader does instead of reporting "no rows" on a Sunday.
+    for offset in range(lookback_business_days + 1):
+        probe = target - timedelta(days=offset)
+        collected: list[MarketSnapshotRow] = []
+        for market in selected:
+            method = getattr(client, KRX_OPENAPI_DAILY_TRADE_CALLS[market])
+            try:
+                payload = method(probe.strftime("%Y%m%d"))
+            except Exception as exc:  # vendor errors are per-market, keep the other one
+                errors.append(f"{market}: {exc.__class__.__name__}: {exc}")
+                continue
+            collected.extend(_krx_openapi_rows(payload, market=market))
+        if collected:
+            return MarketSnapshot(
+                as_of_date=probe.isoformat(),
+                markets=selected,
+                rows=collected,
+                vendor="krx-openapi",
+            )
+
+    detail = f" Last vendor error: {errors[-1]}" if errors else ""
+    raise VendorUnavailableError(
+        f"KRX Open API returned no rows for {target.isoformat()} within {lookback_business_days} days.{detail}"
+    )
+
+
+def _krx_openapi_rows(payload: Any, *, market: str) -> list[MarketSnapshotRow]:
+    """Rows out of one daily-trade response, skipping anything unpriced.
+
+    A listing that is suspended comes back with a zero close, and a zero close
+    would sail through the price prefilter as "cheap" and then divide by zero in
+    scoring, so it is dropped here rather than defended against downstream.
+    """
+
+    blocks = payload.get("OutBlock_1") if isinstance(payload, Mapping) else payload
+    rows: list[MarketSnapshotRow] = []
+    for entry in blocks or []:
+        if not isinstance(entry, Mapping):
+            continue
+        code = str(entry.get("ISU_CD") or "").strip()
+        close = _as_float(entry.get("TDD_CLSPRC"))
+        if not code or close is None or close <= 0:
+            continue
+        rows.append(
+            MarketSnapshotRow(
+                code=code,
+                name=str(entry.get("ISU_NM") or code).strip(),
+                market=market,
+                close=close,
+                volume=_as_float(entry.get("ACC_TRDVOL")) or 0.0,
+                trading_value=_as_float(entry.get("ACC_TRDVAL")),
+                market_cap=_as_float(entry.get("MKTCAP")),
+                change_rate=_as_float(entry.get("FLUC_RT")),
+            )
+        )
+    return rows
+
+
+def _as_float(value: Any) -> float | None:
+    """KRX sends numbers as numbers, but empty cells as '' or '-'."""
+
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip().replace(",", "")
+    if not text or text == "-":
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
 def fallback_universe_codes() -> tuple[str, ...]:
     """Bounded ticker universe used when whole-market pykrx frames are blocked.
 
@@ -887,6 +1013,90 @@ def load_stored_index_snapshot(
     return MarketSnapshot(
         as_of_date=snapshot.as_of_date, markets=snapshot.markets, rows=rows,
         vendor=f"index:stored membership, {len(rows)} of {len(members)} priced per ticker",
+    )
+
+
+def load_krx_ranked_snapshot(
+    as_of_date: str | date | None,
+    history_fetcher: Callable[[str, str, str], Sequence[Mapping[str, Any]]],
+    *,
+    markets: tuple[str, ...] | list[str] = SUPPORTED_MARKETS,
+    limit: int = 400,
+    lookback_days: int = 330,
+    max_workers: int = 8,
+    deadline: float | None = None,
+    client: Any | None = None,
+) -> MarketSnapshot:
+    """The whole market ranked by size, then priced to the current session.
+
+    Two sources, because neither one alone is enough. The KRX Open API knows
+    every listed name and what it is worth, which is what the cap and turnover
+    prefilters need — but it publishes T+1, so on a Monday evening it still ends
+    at Friday. Per-ticker history has the session that just closed but knows
+    nothing about size, which is why the stored-membership fallback has to skip
+    those filters entirely and rank on price alone.
+
+    So membership and size come from the Open API's last published day, and
+    every price comes from history fetched up to the requested date. A market
+    cap one session old is a perfectly good way to decide whether a company is
+    too small to screen; a close one session old is not a good way to decide
+    what a screen published today should say.
+    """
+
+    base = load_krx_openapi_snapshot(as_of_date, markets=markets, client=client)
+
+    # Biggest first, so the cut at ``limit`` drops the tail nobody would trade
+    # rather than an arbitrary slice. Turnover breaks ties: two companies of the
+    # same size are not equally tradeable.
+    ranked = sorted(
+        base.rows,
+        key=lambda row: (row.market_cap or 0.0, row.trading_value or 0.0),
+        reverse=True,
+    )[:max(int(limit), 1)]
+    if not ranked:
+        raise VendorUnavailableError("KRX Open API returned no rows to rank")
+
+    end = _coerce_date(as_of_date)
+    start = end - timedelta(days=lookback_days)
+    gathered = fetch_histories_by_code(
+        [row.code for row in ranked], history_fetcher,
+        start.isoformat(), end.isoformat(),
+        max_workers=max_workers, deadline=deadline,
+    )
+    fetched = {code: points for code, (points, _) in gathered.items() if points}
+    if not fetched:
+        raise VendorUnavailableError("KRX-ranked universe produced no priced rows")
+
+    priced = build_snapshot_from_history(
+        list(fetched), as_of_date, lambda code, _s, _e: fetched.get(code, []),
+        markets=markets, lookback_days=lookback_days,
+    )
+
+    # The history builder knows codes and closes; everything that makes a row
+    # filterable — name, market, size, turnover — comes back from the Open API.
+    reference = base.by_code()
+    rows = []
+    for row in priced.rows:
+        known = reference.get(row.code)
+        if known is None:
+            continue
+        rows.append(replace(
+            row,
+            name=known.name or row.name,
+            market=known.market,
+            market_cap=known.market_cap,
+            trading_value=known.trading_value,
+        ))
+
+    return MarketSnapshot(
+        as_of_date=priced.as_of_date,
+        markets=priced.markets,
+        rows=rows,
+        # Both dates, because they differ and the difference is the design.
+        vendor=(
+            f"krx-ranked: {len(rows)} of {len(base.rows)} listed names, "
+            f"sized {base.as_of_date}, priced {priced.as_of_date}"
+        ),
     )
 
 

@@ -69,8 +69,14 @@ The local fork can use 6-digit Korean stock codes such as `005930` and routes
 Korean-market requests through Korea-focused vendors first:
 
 - OHLCV and technical indicators: `pykrx`
-- Future KRX replacement path: `krx` vendor through `pykrx-openapi` once
-  `KRX_API_KEY`/`KRX_OPENAPI_KEY` and per-service approvals are ready
+- Whole-market screening universe: KRX Open API through `pykrx-openapi`
+  (`KRX_API_KEY`/`KRX_OPENAPI_KEY`). This is now the preferred snapshot vendor,
+  not a future path: `pykrx` scrapes data.krx.co.kr, which began requiring a
+  site login (`KRX_ID`/`KRX_PW`) and answers a six-byte `LOGOUT` body without
+  one. Verified failing identically from Vercel, Windows and a Korean server on
+  2026-09-21, so it is an authentication change rather than a blocked host.
+  The Open API publishes T+1, so `snapshot_mode=krx` takes membership and market
+  cap from it and prices every name from per-ticker history instead.
 - Disclosures and financial statements: OpenDART (`DART_API_KEY`)
 - News: Naver Search API (`NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`)
 - Benchmark alpha: pykrx KOSPI/KOSDAQ benchmark returns first, then yfinance fallback
