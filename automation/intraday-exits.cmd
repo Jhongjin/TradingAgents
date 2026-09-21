@@ -27,7 +27,9 @@ rem
 rem StartWhenAvailable and WakeToRun matter: a missed 08:40 is why a Friday
 rem video never got made.
 
-setlocal
+rem Delayed expansion: inside a for block %ERRORLEVEL% is expanded once when
+rem the block is parsed, so it printed literally and hid the exit code.
+setlocal enabledelayedexpansion
 set REPO=D:\Codex\TradingAgents
 set PYTHON=%REPO%\.codex-test-venv\Scripts\python.exe
 
@@ -49,14 +51,14 @@ for %%A in (paper rules) do (
   "%PYTHON%" -m cli.main pipeline ^
     --exits-only --execute --persist --broker paper --account %%A ^
     --confirmer none >> "%LOG%" 2>&1
-  if errorlevel 1 echo [warn] account %%A exited %%ERRORLEVEL%% >> "%LOG%"
+  if errorlevel 1 echo [warn] account %%A exited !ERRORLEVEL! >> "%LOG%"
 )
 
 echo ---- account kis >> "%LOG%"
 "%PYTHON%" -m cli.main pipeline ^
   --exits-only --execute --persist --broker kis --account kis ^
   --confirmer none >> "%LOG%" 2>&1
-if errorlevel 1 echo [warn] account kis exited %ERRORLEVEL% >> "%LOG%"
+if errorlevel 1 echo [warn] account kis exited !ERRORLEVEL! >> "%LOG%"
 
 rem Straight after the fill. The notify-exits cron runs once, at 10:35, so a
 rem stop that fires at 14:00 would have waited until 10:35 tomorrow — by which
@@ -64,6 +66,6 @@ rem point it is not news, and the subscriber has watched it happen without
 rem hearing from us.
 echo ---- notify >> "%LOG%"
 "%PYTHON%" -m cli.main notify --what exits >> "%LOG%" 2>&1
-if errorlevel 1 echo [warn] notify exited %ERRORLEVEL% >> "%LOG%"
+if errorlevel 1 echo [warn] notify exited !ERRORLEVEL! >> "%LOG%"
 
 endlocal
