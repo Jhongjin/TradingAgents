@@ -105,3 +105,44 @@ def test_an_already_announced_exit_is_left_alone(monkeypatch):
 
     assert result["status"] == "nothing_to_send"
     assert client.sent == []
+
+
+def test_a_telegram_outage_is_reported_not_raised(monkeypatch, capsys):
+    """api.telegram.org stopped answering from this machine on 2026-09-21.
+
+    A traceback in the scheduled log buries the run that actually worked, and
+    the Vercel crons deliver the same messages from a different network — so
+    the local attempt reports and steps aside.
+    """
+
+    import typer
+    from typer.testing import CliRunner
+
+    import cli.main as main
+
+    monkeypatch.setenv("TYPESAFE_API_KEY", "x")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "t")
+    monkeypatch.setenv("DATABASE_URL", "sqlite://")
+
+    class _Repo:
+        pass
+
+    def explode(*args, **kwargs):
+        raise requests_timeout()
+
+    def requests_timeout():
+        import requests
+
+        return requests.exceptions.ReadTimeout("api.telegram.org timed out")
+
+    monkeypatch.setattr("tradingagents.storage.StorageRepository", lambda *a, **k: _Repo())
+    monkeypatch.setattr("tradingagents.storage.create_storage_engine", lambda *a, **k: object())
+    monkeypatch.setattr("tradingagents.site.notifications.notify_exit_alerts", explode)
+
+    result = CliRunner().invoke(main.app, ["notify", "--what", "exits"])
+
+    assert result.exit_code == 1
+    assert "보내지 못했습니다" in result.output
+    assert "Traceback" not in result.output
+    # and it says the record is still unsent, so the next attempt picks it up
+    assert "다시 시도" in result.output

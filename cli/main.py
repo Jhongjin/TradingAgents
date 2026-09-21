@@ -1597,10 +1597,21 @@ def notify_command(
             return {"ok": True}
 
     client = _Preview() if dry_run else TelegramClient(config)
-    if chosen == "issue":
-        result = notify_harness_issue(repo, client, site_base_url=base, harness_run_id=run_id)
-    else:
-        result = notify_exit_alerts(repo, client, site_base_url=base, mark=not dry_run)
+    try:
+        if chosen == "issue":
+            result = notify_harness_issue(repo, client, site_base_url=base, harness_run_id=run_id)
+        else:
+            result = notify_exit_alerts(repo, client, site_base_url=base, mark=not dry_run)
+    except Exception as exc:                            # noqa: BLE001 - reported, not raised
+        # api.telegram.org stopped answering from this machine on 2026-09-21 —
+        # DNS resolves and TCP connects, the response never arrives, while
+        # every other host is fine. Nothing here can fix that, and a traceback
+        # in the scheduled log obscures the run that actually worked. The
+        # Vercel crons deliver the same messages from a different network, and
+        # an unsent run stays unmarked so they still pick it up.
+        console.print(f"[yellow]{chosen} 알림을 보내지 못했습니다 ({type(exc).__name__}). "
+                      f"기록은 미발송으로 남아 다음 차례에 다시 시도됩니다.[/yellow]")
+        raise typer.Exit(code=1)
 
     console.print(f"[dim]{chosen}: {result.get('status')} · 수신자 {result.get('recipients', 0)} · 전송 {result.get('sent', 0)}[/dim]")
     for text in sent[:1]:
