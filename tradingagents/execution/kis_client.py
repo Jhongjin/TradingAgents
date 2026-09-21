@@ -72,6 +72,18 @@ def live_trading_enabled() -> bool:
     return os.getenv("TRADINGAGENTS_ENABLE_LIVE_TRADING", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
+#: KIS answers an over-eager caller with HTTP 500 and this sentence rather than
+#: a status code, so the text is the only thing to match on.
+RATE_LIMIT_MARKERS = ("초당 거래건수", "초당 거래 건수", "EGW00201")
+RATE_LIMIT_ATTEMPTS = 4
+RATE_LIMIT_BACKOFF_SECONDS = 1.0
+
+
+def _is_rate_limited(exc: Exception) -> bool:
+    text = str(exc)
+    return any(marker in text for marker in RATE_LIMIT_MARKERS)
+
+
 KIS_PAPER_CALLS_PER_SECOND = 2
 KIS_LIVE_CALLS_PER_SECOND = 20
 _PAPER_THROTTLE = Throttle(KIS_PAPER_CALLS_PER_SECOND)
@@ -377,17 +389,28 @@ class KISClient:
     ) -> Mapping[str, Any]:
         url = f"{self.base_url}{path}"
         transport = self.transport or self._requests_transport
-        # Only a real call needs spacing. self.transport is None is the test for
-        # that; comparing against self._requests_transport would never be true,
-        # because attribute access builds a fresh bound method each time.
-        if self.transport is None:
-            self.throttle.wait()
-        try:
-            return transport(method, url, headers, params, json)
-        except KISError:
-            raise
-        except Exception as exc:
-            raise KISError(f"KIS request failed for {path}: {exc.__class__.__name__}: {exc}") from exc
+        live = self.transport is None
+
+        # Spacing cannot be the whole answer. On 2026-09-21 the throttle was
+        # running at two a second and a take-profit exit on 010170 still came
+        # back "초당 거래건수를 초과하였습니다" — the position stayed open
+        # because the one error that must be retried was treated as final.
+        for attempt in range(RATE_LIMIT_ATTEMPTS):
+            # Only a real call needs spacing. self.transport is None is the
+            # test for that; comparing against self._requests_transport would
+            # never be true, because attribute access builds a fresh bound
+            # method each time.
+            if live:
+                self.throttle.wait()
+            try:
+                return transport(method, url, headers, params, json)
+            except KISError as exc:
+                if not (live and _is_rate_limited(exc) and attempt < RATE_LIMIT_ATTEMPTS - 1):
+                    raise
+                time.sleep(RATE_LIMIT_BACKOFF_SECONDS * (attempt + 1))
+            except Exception as exc:
+                raise KISError(f"KIS request failed for {path}: {exc.__class__.__name__}: {exc}") from exc
+        raise KISError(f"KIS refused {path} after {RATE_LIMIT_ATTEMPTS} attempts")
 
     def _requests_transport(
         self,
