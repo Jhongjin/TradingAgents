@@ -157,3 +157,31 @@ def test_the_page_still_renders_when_the_scorecard_cannot_be_built():
 
     assert _scorecard_card(_Broken()) == ""
     assert _scorecard_card(None) == ""
+
+
+def test_an_empty_long_horizon_does_not_bury_a_short_one_that_answered():
+    """The 20-day card was empty while the 5-day said the picks did worse.
+
+    Showing the empty horizon and keeping the answer we had would have been a
+    choice about which number the site prefers.
+    """
+
+    from tradingagents.site.harness_pages import _scorecard_card
+
+    rows = _enough([-0.09, -0.08, -0.07], [-0.01, -0.02, 0.03])
+    for row in rows:                       # only the 5-day horizon has elapsed
+        row["outcomes"][0]["horizon_days"] = 5
+
+    html = _scorecard_card(_Repo(rows))
+
+    assert "5거래일" in html and "20거래일" not in html
+    assert "구분하지 못했습니다" in html
+
+
+def test_the_long_horizon_wins_when_it_has_an_answer_of_its_own():
+    from tradingagents.site.harness_pages import _scorecard_card
+
+    rows = _enough([-0.03, -0.02, -0.04], [-0.08, -0.09, -0.07])
+    html = _scorecard_card(_Repo(rows))
+
+    assert "20거래일" in html

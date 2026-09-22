@@ -116,10 +116,19 @@ def _scorecard_card(repo: StorageRepository | None) -> str:
         from .harness_outcome_worker import SCORED_STAGES
         from .rejection_scorecard import MIN_EACH_SIDE, build_rejection_scorecard
 
-        card = build_rejection_scorecard(
-            repo.list_harness_decisions_for_outcomes(limit=200, stages=SCORED_STAGES),
-            horizon_days=20,
-        )
+        decisions = repo.list_harness_decisions_for_outcomes(limit=200, stages=SCORED_STAGES)
+        # 20 days is the horizon this is meant to be read at. But the book is
+        # younger than that, so on 2026-09-22 the 20-day card was empty while
+        # the 5-day one already said the picks had done 4.19 points worse than
+        # the names they were chosen over. Showing the empty horizon and
+        # keeping the answer we had would have been a choice about which
+        # number the site prefers, so it falls back and says which it is.
+        card = build_rejection_scorecard(decisions, horizon_days=20)
+        horizon = 20
+        if str(card.get("verdict")) == "not_enough_data":
+            shorter = build_rejection_scorecard(decisions, horizon_days=5)
+            if str(shorter.get("verdict")) != "not_enough_data":
+                card, horizon = shorter, 5
     except Exception:                                   # noqa: BLE001 - a page must still render
         return ""
 
@@ -128,7 +137,7 @@ def _scorecard_card(repo: StorageRepository | None) -> str:
     verdict = str(card.get("verdict") or "")
     if verdict == "not_enough_data":
         headline, tone = "아직 판단하기 이릅니다", "b-grey"
-        detail = (f"고른 종목 {bought.get('count', 0)}건, 거른 종목 {passed.get('count', 0)}건이 20거래일을 지났습니다. "
+        detail = (f"고른 종목 {bought.get('count', 0)}건, 거른 종목 {passed.get('count', 0)}건이 {horizon}거래일을 지났습니다. "
                   f"양쪽 {MIN_EACH_SIDE}건씩은 모여야 비교가 의미를 갖습니다.")
     elif verdict == "filter_discriminated":
         headline, tone = "규칙이 둘을 구분했습니다", "b-teal"
@@ -147,11 +156,11 @@ def _scorecard_card(repo: StorageRepository | None) -> str:
         f'<div class="kv"><span class="small">{h(row.get("reason"))} <span class="muted">· {h(row.get("count"))}건</span></span>'
         f'<span class="num small">평균 {h(_fmt_pct(row.get("mean_return")))}</span></div>'
         for row in (card.get("by_reason") or [])[:6]
-    ) or '<p class="muted small">사유별 집계는 20거래일이 지난 판단이 쌓이면 나옵니다.</p>'
+    ) or f'<p class="muted small">사유별 집계는 {h(horizon)}거래일이 지난 판단이 쌓이면 나옵니다.</p>'
 
     return f"""
     <div class="card">
-      <div class="card-h"><h2>{icon_tile("filter", "b-violet", small=True)}거른 종목은 어떻게 됐나 <span class="muted" style="font-weight: 500;">· 20거래일</span></h2><a class="link tiny" href="/api/harness/scorecard">JSON →</a></div>
+      <div class="card-h"><h2>{icon_tile("filter", "b-violet", small=True)}거른 종목은 어떻게 됐나 <span class="muted" style="font-weight: 500;">· {h(horizon)}거래일</span></h2><a class="link tiny" href="/api/harness/scorecard?horizon={h(horizon)}">JSON →</a></div>
       <div class="card-b stack" style="gap: 10px;">
         <div class="row wrap">{badge(headline, tone, icon_name="filter")}</div>
         <p class="small ink2">{h(detail)}</p>
