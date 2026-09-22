@@ -2047,9 +2047,9 @@ def _sweep_variants() -> list[tuple[str, dict]]:
     """
 
     return [
-        ("현행 5%/10%", dict(stop_loss_pct=0.05, take_profit_pct=0.10)),
+        ("이전 5%/10%", dict(stop_loss_pct=0.05, take_profit_pct=0.10)),
         ("손절 넓힘 8%/10%", dict(stop_loss_pct=0.08, take_profit_pct=0.10)),
-        ("손절 넓힘 10%/15%", dict(stop_loss_pct=0.10, take_profit_pct=0.15)),
+        ("현행 10%/15%", dict(stop_loss_pct=0.10, take_profit_pct=0.15)),
         ("익절 늘림 5%/20%", dict(stop_loss_pct=0.05, take_profit_pct=0.20)),
         ("변동성 상위 20% 제외", dict(volatility_exclude_top_pct=0.2)),
         ("변동성 제외 + 손절 8%", dict(volatility_exclude_top_pct=0.2, stop_loss_pct=0.08)),
@@ -2170,21 +2170,22 @@ def backtest_command(
     names = {code: candidate_names.get(code, code) for code in liquid}
     console.print(f"[dim]universe: {len(names)} names by median traded value (from {len(fetched)} fetched)[/dim]")
 
+    # The whole series, not the two endpoints. A walk-forward replays each
+    # variant over a sub-window, and two endpoints of the full range give a
+    # sub-window one point or none — so the index reads as 0.0% and every
+    # variant is recorded as beating a flat market.
     benchmark = {}
     try:
-        from tradingagents.dataflows.kr_returns import fetch_benchmark_close
+        from tradingagents.dataflows.kr_returns import fetch_benchmark_series
 
-        for point in history[next(iter(history))]:
-            day = str(point.get("date"))[:10]
-            if day:
-                benchmark.setdefault(day, None)
-        benchmark = {}
-        start_close = fetch_benchmark_close(on_date=start.isoformat())
-        end_close = fetch_benchmark_close(on_date=end.isoformat())
-        if start_close and end_close:
-            benchmark = {start.isoformat(): start_close, end.isoformat(): end_close}
+        benchmark = fetch_benchmark_series(start=start.isoformat(), end=end.isoformat())
     except Exception:
         benchmark = {}
+    if benchmark:
+        console.print(f"[dim]benchmark: {len(benchmark)} index closes[/dim]")
+    else:
+        # Silence here is how the 0.0% got published. Say it out loud.
+        console.print("[yellow]benchmark unavailable - excess return will not be reported[/yellow]")
 
     def _sector(code: str) -> str:
         from tradingagents.dataflows.kr_ticker_directory import sector_of

@@ -125,10 +125,16 @@ def test_the_rules_the_account_trades_on_are_the_ones_the_walk_forward_kept():
     # year — the only setting near the top of both, which is the only ranking
     # a walk-forward supports.
     assert config.volatility_exclude_top_pct == 0.2
-    # The 8% stop was first where it was chosen and last of seven on the year
-    # it had not seen (+26.4%, Sharpe 0.85), so it went back to 5% on
-    # 2026-09-18. Evidence: backtest_runs labelled walk-in:* and walk-out:*.
-    assert config.stop_loss_pct == 0.05
+    # 10% / 15% since 2026-09-22. The 5% stop that ran before it was picked by
+    # a walk-forward that read closing prices only, and a stop the live account
+    # checks five times a day is not a rule a daily close can measure: the same
+    # replay went from +169.6% to +19.0% once it read session lows. Re-run with
+    # intraday exits, 5% placed 3rd in training and last of seven on the
+    # held-out year (+6.6%); 10%/15% placed 1st and 2nd, with a smaller
+    # drawdown (-18.9% vs -33.3%) and 460 trades against 970.
+    # Evidence: results/walkforward/2026-09-22.json.
+    assert config.stop_loss_pct == 0.10
+    assert config.take_profit_pct == 0.15
 
     # and it is on the published rules card, so turning it on is visible and dated
     labelled = {key for key, _label, _unit in RULE_LABELS}

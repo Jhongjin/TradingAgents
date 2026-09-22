@@ -11,7 +11,16 @@ from tradingagents.site import create_app
 from tradingagents.storage import StorageRepository, create_storage_engine
 
 
-def _series(drift: float, *, seed: int, days: int = 400, start: date = date(2026, 1, 1)) -> list[dict]:
+def _series(drift: float, *, seed: int, days: int = 400, start: date = date(2026, 1, 1),
+            noise: float = 0.015) -> list[dict]:
+    """A synthetic price path. ``noise`` is the daily swing, so it is volatility.
+
+    It is a parameter because every name used to get the same one, which made
+    the twenty names in the variability-filter test statistically identical —
+    the filter had nothing to tell them apart and the test passed on the
+    incidental ordering of a set.
+    """
+
     rng = random.Random(seed)
     points = []
     price = 10_000.0
@@ -20,7 +29,7 @@ def _series(drift: float, *, seed: int, days: int = 400, start: date = date(2026
         day += timedelta(days=1)
         if day.weekday() >= 5:
             continue
-        price *= 1 + drift + rng.uniform(-0.015, 0.015)
+        price *= 1 + drift + rng.uniform(-noise, noise)
         points.append({"date": day.isoformat(), "close": round(price, 1), "volume": 100_000 + step})
     return points
 
@@ -135,20 +144,41 @@ def test_no_stored_replay_shows_no_card():
 
 
 def test_the_variability_filter_narrows_what_can_be_bought():
-    """The factor study's one consistent signal, made testable."""
+    """The factor study's one consistent signal, made testable.
 
-    history = {f"{index:06d}": _series(0.002, seed=index) for index in range(1, 21)}
+    Named by what it excludes rather than by how many names got traded. The
+    old version counted distinct tickers across seven months and compared the
+    two totals, which measured how often the book rotated rather than what it
+    was allowed to buy — over that long a window nearly every name passes
+    through the calm decile at some point. Widening the stop on 2026-09-22 cut
+    the rotation, the two totals crossed, and the test failed without anything
+    being wrong with the filter.
+    """
 
-    unfiltered = run_rule_backtest(history=history, start=date(2026, 7, 1), end=date(2027, 2, 1), config=BacktestConfig(top_n=3, max_positions=6))
-    strict = run_rule_backtest(
-        history=history,
-        start=date(2026, 7, 1),
-        end=date(2027, 2, 1),
-        config=BacktestConfig(top_n=3, max_positions=6, volatility_exclude_top_pct=0.9),
-    )
-    assert len({trade["ticker_code"] for trade in strict.trades}) < len({trade["ticker_code"] for trade in unfiltered.trades})
+    # Four names that swing 6% a day against sixteen that swing 0.4%.
+    wild = {f"{index:06d}" for index in range(1, 5)}
+    history = {
+        f"{index:06d}": _series(0.002, seed=index, noise=0.06 if index < 5 else 0.004)
+        for index in range(1, 21)
+    }
+
+    def traded(**overrides):
+        result = run_rule_backtest(
+            history=history, start=date(2026, 7, 1), end=date(2027, 2, 1),
+            config=BacktestConfig(top_n=3, max_positions=6, **overrides),
+        )
+        return result, {trade["ticker_code"] for trade in result.trades}
+
+    unfiltered, bought_freely = traded()
+    strict, bought_under_filter = traded(volatility_exclude_top_pct=0.2)
+
+    # Without the filter the wild names are exactly the ones momentum reaches for.
+    assert wild & bought_freely
+    # With it, none of them can be bought at all.
+    assert not (wild & bought_under_filter)
+
     assert unfiltered.config["volatility_exclude_top_pct"] == 0.0  # off unless asked for
-    assert strict.config["volatility_exclude_top_pct"] == 0.9
+    assert strict.config["volatility_exclude_top_pct"] == 0.2
 
 
 def test_the_result_breaks_down_by_year():

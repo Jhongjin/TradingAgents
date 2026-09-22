@@ -39,12 +39,14 @@ class BacktestConfig:
 
     top_n: int = 5
     min_composite: float = 0.0
-    stop_loss_pct: float = 0.05
+    # Mirrors PipelineConfig, which the docstring above promises. Widened from
+    # 5% on 2026-09-22 — see the walk-forward table recorded there.
+    stop_loss_pct: float = 0.10
     # Whether a stop may be reached during the session rather than only at the
     # close. The live account checks five times a day; a backtest that reads
     # only closes is measuring different rules from the ones that run.
     intraday_exits: bool = True
-    take_profit_pct: float = 0.10
+    take_profit_pct: float = 0.15
     max_holding_days: int = 20
     max_positions: int = 10
     max_positions_per_sector: int = 2
@@ -337,9 +339,15 @@ def run_rule_backtest(
         "yearly_returns": yearly,
     }
     if benchmark:
-        first = next((benchmark.get(point["date"]) for point in curve if benchmark.get(point["date"])), None)
-        last = next((benchmark.get(point["date"]) for point in reversed(curve) if benchmark.get(point["date"])), None)
-        if first and last:
+        # Both ends have to be days this replay actually covered. A benchmark
+        # holding only the endpoints of some wider range gives a sub-window the
+        # same point twice, and the same point twice is a 0.0% market — which
+        # then makes excess return equal the strategy's own return. That is not
+        # a missing number, it is a flattering one, so it is refused instead.
+        dated = [(point["date"], benchmark.get(point["date"])) for point in curve]
+        priced = [(day, value) for day, value in dated if value]
+        if len(priced) >= 2 and priced[0][0] != priced[-1][0]:
+            first, last = priced[0][1], priced[-1][1]
             metrics["benchmark_return"] = round((float(last) / float(first)) - 1, 6)
             if metrics.get("total_return") is not None:
                 metrics["excess_return"] = round(float(metrics["total_return"]) - metrics["benchmark_return"], 6)

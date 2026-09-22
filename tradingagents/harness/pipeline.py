@@ -82,27 +82,46 @@ class PipelineConfig:
     min_confidence: float = 0.6
     risk_percent_per_trade: float = 0.01
     max_position_weight: float = 0.2
-    # Widened to 8% on 2026-09-15 and put back on 2026-09-18, because the
-    # walk-forward said the widening was overfitted.
+    # 10% / 15% since 2026-09-22. It was 5% / 10% before that, chosen by a
+    # walk-forward run on 2026-09-18 — and that walk-forward read closing
+    # prices only.
     #
-    # The case for 8% was a sweep over 2023-09~2026-09 where it came first:
-    # +50.3% → +126.5%, drawdown -28.9% → -24.0%, Sharpe 0.62 → 1.16. The
-    # window that chose the rule was the window that reported it. Splitting
-    # them: re-picked on 2023-09~2025-09 it still wins (+88.9%), and on the
-    # held-out year 2025-09~2026-09 it comes last of seven (+26.4%, Sharpe
-    # 0.85). The ranking is close to inverted.
+    # A stop cannot be checked once a day and called a 5% stop. Reading the
+    # session low instead of the close took the same replay from +169.6% to
+    # +19.0%, because a close-only replay never sees the days a name dipped
+    # through the stop and recovered by the bell. Those days are exactly the
+    # ones a tight stop turns into realised losses, so the setting the old
+    # walk-forward liked least was the one it was least able to measure. The
+    # live book said the same thing first: the first ten stops were written as
+    # a 5% rule and came out at 8.81% on average.
     #
-    # Ranked instead by each setting's WORST placing across both windows —
-    # which is the only ranking a walk-forward supports — the 5% stop with the
-    # variability filter below is second in training and second on the
-    # held-out year, the only setting near the top of both. That is what runs
-    # now. The 8% stop is seventh by the same measure.
+    # Re-run 2026-09-22 with intraday exits on, same seven variants, same
+    # windows, universe 180 from the index pool. Ranked by worst placing across
+    # both halves, which is the only ranking a walk-forward supports:
     #
-    # Evidence: backtest_runs labelled "walk-in:*" and "walk-out:*", replayed
-    # 2026-09-18 over universe 180. For scale, KOSPI returned +98.0% over the
-    # held-out year and every one of the seven lost to it.
-    stop_loss_pct: float = 0.05
-    take_profit_pct: float = 0.10
+    #                       train 23-09~25-09      held-out 25-09~26-09
+    #   10% / 15%           +80.1%  (1st)          +67.2%  (2nd)   ← now live
+    #   variability + 8%    +64.5%  (2nd)          +40.3%  (4th)
+    #   5% / 20%            +24.8%  (5th)          +91.3%  (1st)
+    #   5% / 10%            +33.4%  (3rd)           +6.6%  (7th)   ← was live
+    #
+    # It is not a close call and there is no trade-off to weigh: against the
+    # 5% stop, 10%/15% earns more in both windows, draws down less (-18.9% vs
+    # -33.3% in training), wins more often (49.8% vs 37.3%) and does it in 460
+    # trades rather than 970. That last number is the mechanism. A 5% stop in a
+    # market this volatile is not risk control, it is churn — twice the trades,
+    # twice the commission, and a seat given up every time noise touches the
+    # line.
+    #
+    # What none of them did was beat the index. KOSPI returned +37.4% in
+    # training and +103.3% over the held-out year; the best variant there came
+    # in 12.0 points short and this one 36.2 short. So this change makes the
+    # rule less bad, not good, and the open question is no longer where to put
+    # the stop but whether the selection rule earns its keep at all.
+    #
+    # Evidence: results/walkforward/2026-09-22.json, replayed over universe 180.
+    stop_loss_pct: float = 0.10
+    take_profit_pct: float = 0.15
     max_holding_days: int = 20
     min_cash_reserve_pct: float = 0.10
     commission_rate: float = 0.00015

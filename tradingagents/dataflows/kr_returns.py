@@ -128,6 +128,44 @@ def fetch_benchmark_close(symbol: str = "^KS11", *, on_date: str, lookback_days:
     return float(closes.iloc[-1]) if not closes.empty else None
 
 
+def fetch_benchmark_series(symbol: str = "^KS11", *, start: str, end: str) -> dict[str, float]:
+    """Every index close in the range, keyed by ISO date.
+
+    ``fetch_benchmark_close`` answers for one day, and a backtest that asks it
+    twice gets a mapping with exactly two dates in it. That is enough while the
+    replay covers the whole range and no more. A walk-forward replays each
+    variant over a sub-window, and a sub-window contains at most one of those
+    two dates — so the first and last benchmark point found are the same point,
+    the index is reported as having returned 0.0%, and excess return comes out
+    equal to the strategy's own return.
+
+    Measured 2026-09-22: every one of seven variants was recorded beating a
+    flat market over 2025-09~2026-09, a year in which KOSPI200 returned 139.4%.
+    """
+
+    index_code = "2001" if symbol.upper() in {"^KQ11", "KQ11"} else "1001"
+    start_day, end_day = start[:10], end[:10]
+    closes = _pykrx_index_closes(start_day.replace("-", ""), end_day.replace("-", ""), index_code)
+    if closes is None or closes.dropna().empty:
+        try:
+            closes = _yfinance_benchmark_close(symbol, start_day, end_day)
+        except Exception:
+            return {}
+    closes = closes.dropna() if closes is not None else None
+    if closes is None or closes.empty:
+        return {}
+
+    series: dict[str, float] = {}
+    for stamp, value in closes.items():
+        day = getattr(stamp, "strftime", None)
+        key = day("%Y-%m-%d") if day else str(stamp)[:10]
+        try:
+            series[key] = float(value)
+        except (TypeError, ValueError):
+            continue
+    return series
+
+
 def _close_series(frame: pd.DataFrame | None, name: str) -> pd.Series:
     if frame is None or frame.empty:
         return pd.Series(dtype="float64", name=name)

@@ -1,0 +1,510 @@
+{
+  "train": {
+    "현행 5%/10%": {
+      "observations": 484,
+      "total_return": 0.333869,
+      "annualized_return": 0.162188,
+      "annualized_volatility": 0.21718,
+      "sharpe_ratio": 0.800842,
+      "sortino_ratio": 1.174184,
+      "max_drawdown": -0.333259,
+      "value_at_risk_95": 0.020589,
+      "conditional_value_at_risk_95": 0.029715,
+      "beta": null,
+      "trade_count": 970,
+      "win_count": 362,
+      "hit_rate": 0.3732,
+      "average_holding_days": 4.9,
+      "final_equity": 66684638.1,
+      "open_positions": 10,
+      "yearly_returns": [
+        {
+          "year": "2023",
+          "return": -0.042613,
+          "days": 64
+        },
+        {
+          "year": "2024",
+          "return": -0.072682,
+          "days": 244
+        },
+        {
+          "year": "2025",
+          "return": 0.461461,
+          "days": 176
+        }
+      ],
+      "benchmark_return": 0.373629,
+      "excess_return": -0.03976
+    },
+    "손절 넓힘 8%/10%": {
+      "observations": 484,
+      "total_return": 0.166541,
+      "annualized_return": 0.083688,
+      "annualized_volatility": 0.218044,
+      "sharpe_ratio": 0.477983,
+      "sortino_ratio": 0.667134,
+      "max_drawdown": -0.261677,
+      "value_at_risk_95": 0.021887,
+      "conditional_value_at_risk_95": 0.031022,
+      "beta": null,
+      "trade_count": 655,
+      "win_count": 316,
+      "hit_rate": 0.4824,
+      "average_holding_days": 7.2,
+      "final_equity": 58319348.95,
+      "open_positions": 10,
+      "yearly_returns": [
+        {
+          "year": "2023",
+          "return": 0.026905,
+          "days": 64
+        },
+        {
+          "year": "2024",
+          "return": -0.040556,
+          "days": 244
+        },
+        {
+          "year": "2025",
+          "return": 0.157144,
+          "days": 176
+        }
+      ],
+      "benchmark_return": 0.373629,
+      "excess_return": -0.207088
+    },
+    "손절 넓힘 10%/15%": {
+      "observations": 484,
+      "total_return": 0.800841,
+      "annualized_return": 0.359225,
+      "annualized_volatility": 0.245957,
+      "sharpe_ratio": 1.371786,
+      "sortino_ratio": 2.018944,
+      "max_drawdown": -0.189145,
+      "value_at_risk_95": 0.023691,
+      "conditional_value_at_risk_95": 0.034623,
+      "beta": null,
+      "trade_count": 460,
+      "win_count": 229,
+      "hit_rate": 0.4978,
+      "average_holding_days": 10.3,
+      "final_equity": 90030167.49,
+      "open_positions": 10,
+      "yearly_returns": [
+        {
+          "year": "2023",
+          "return": 0.051068,
+          "days": 64
+        },
+        {
+          "year": "2024",
+          "return": 0.012062,
+          "days": 244
+        },
+        {
+          "year": "2025",
+          "return": 0.619768,
+          "days": 176
+        }
+      ],
+      "benchmark_return": 0.373629,
+      "excess_return": 0.427212
+    },
+    "익절 늘림 5%/20%": {
+      "observations": 484,
+      "total_return": 0.248051,
+      "annualized_return": 0.122556,
+      "annualized_volatility": 0.232021,
+      "sharpe_ratio": 0.614276,
+      "sortino_ratio": 0.908268,
+      "max_drawdown": -0.275848,
+      "value_at_risk_95": 0.022193,
+      "conditional_value_at_risk_95": 0.030138,
+      "beta": null,
+      "trade_count": 633,
+      "win_count": 174,
+      "hit_rate": 0.2749,
+      "average_holding_days": 7.5,
+      "final_equity": 62394334.51,
+      "open_positions": 10,
+      "yearly_returns": [
+        {
+          "year": "2023",
+          "return": -0.028897,
+          "days": 64
+        },
+        {
+          "year": "2024",
+          "return": -0.104593,
+          "days": 244
+        },
+        {
+          "year": "2025",
+          "return": 0.405644,
+          "days": 176
+        }
+      ],
+      "benchmark_return": 0.373629,
+      "excess_return": -0.125578
+    },
+    "변동성 상위 20% 제외": {
+      "observations": 484,
+      "total_return": 0.225496,
+      "annualized_return": 0.111926,
+      "annualized_volatility": 0.202324,
+      "sharpe_ratio": 0.625737,
+      "sortino_ratio": 0.900664,
+      "max_drawdown": -0.270229,
+      "value_at_risk_95": 0.021929,
+      "conditional_value_at_risk_95": 0.027619,
+      "beta": null,
+      "trade_count": 803,
+      "win_count": 299,
+      "hit_rate": 0.3724,
+      "average_holding_days": 5.9,
+      "final_equity": 61270274.06,
+      "open_positions": 10,
+      "yearly_returns": [
+        {
+          "year": "2023",
+          "return": -0.017362,
+          "days": 64
+        },
+        {
+          "year": "2024",
+          "return": -0.113185,
+          "days": 244
+        },
+        {
+          "year": "2025",
+          "return": 0.386849,
+          "days": 176
+        }
+      ],
+      "benchmark_return": 0.373629,
+      "excess_return": -0.148133
+    },
+    "변동성 제외 + 손절 8%": {
+      "observations": 484,
+      "total_return": 0.644584,
+      "annualized_return": 0.296358,
+      "annualized_volatility": 0.206709,
+      "sharpe_ratio": 1.35985,
+      "sortino_ratio": 1.999932,
+      "max_drawdown": -0.192029,
+      "value_at_risk_95": 0.019407,
+      "conditional_value_at_risk_95": 0.028887,
+      "beta": null,
+      "trade_count": 565,
+      "win_count": 290,
+      "hit_rate": 0.5133,
+      "average_holding_days": 8.4,
+      "final_equity": 82223088.24,
+      "open_positions": 10,
+      "yearly_returns": [
+        {
+          "year": "2023",
+          "return": 0.01314,
+          "days": 64
+        },
+        {
+          "year": "2024",
+          "return": 0.191491,
+          "days": 244
+        },
+        {
+          "year": "2025",
+          "return": 0.358293,
+          "days": 176
+        }
+      ],
+      "benchmark_return": 0.373629,
+      "excess_return": 0.270955
+    },
+    "보유 40일": {
+      "observations": 484,
+      "total_return": 0.30643,
+      "annualized_return": 0.149653,
+      "annualized_volatility": 0.204965,
+      "sharpe_ratio": 0.783161,
+      "sortino_ratio": 1.129831,
+      "max_drawdown": -0.260513,
+      "value_at_risk_95": 0.019912,
+      "conditional_value_at_risk_95": 0.028991,
+      "beta": null,
+      "trade_count": 892,
+      "win_count": 334,
+      "hit_rate": 0.3744,
+      "average_holding_days": 5.3,
+      "final_equity": 65312916.21,
+      "open_positions": 10,
+      "yearly_returns": [
+        {
+          "year": "2023",
+          "return": -0.071475,
+          "days": 64
+        },
+        {
+          "year": "2024",
+          "return": 0.016577,
+          "days": 244
+        },
+        {
+          "year": "2025",
+          "return": 0.349913,
+          "days": 176
+        }
+      ],
+      "benchmark_return": 0.373629,
+      "excess_return": -0.067199
+    }
+  },
+  "test": {
+    "현행 5%/10%": {
+      "observations": 244,
+      "total_return": 0.066121,
+      "annualized_return": 0.068653,
+      "annualized_volatility": 0.322916,
+      "sharpe_ratio": 0.366049,
+      "sortino_ratio": 0.560156,
+      "max_drawdown": -0.282658,
+      "value_at_risk_95": 0.031392,
+      "conditional_value_at_risk_95": 0.036455,
+      "beta": null,
+      "trade_count": 791,
+      "win_count": 286,
+      "hit_rate": 0.3616,
+      "average_holding_days": 2.7,
+      "final_equity": 53297230.41,
+      "open_positions": 10,
+      "yearly_returns": [
+        {
+          "year": "2025",
+          "return": -0.027849,
+          "days": 66
+        },
+        {
+          "year": "2026",
+          "return": 0.057548,
+          "days": 178
+        }
+      ],
+      "benchmark_return": 1.033359,
+      "excess_return": -0.967238
+    },
+    "손절 넓힘 8%/10%": {
+      "observations": 244,
+      "total_return": 0.44661,
+      "annualized_return": 0.466528,
+      "annualized_volatility": 0.358458,
+      "sharpe_ratio": 1.247419,
+      "sortino_ratio": 1.929427,
+      "max_drawdown": -0.293192,
+      "value_at_risk_95": 0.035598,
+      "conditional_value_at_risk_95": 0.044254,
+      "beta": null,
+      "trade_count": 580,
+      "win_count": 290,
+      "hit_rate": 0.5,
+      "average_holding_days": 3.9,
+      "final_equity": 72318508.06,
+      "open_positions": 10,
+      "yearly_returns": [
+        {
+          "year": "2025",
+          "return": 0.038292,
+          "days": 66
+        },
+        {
+          "year": "2026",
+          "return": 0.375379,
+          "days": 178
+        }
+      ],
+      "benchmark_return": 1.033359,
+      "excess_return": -0.586749
+    },
+    "손절 넓힘 10%/15%": {
+      "observations": 244,
+      "total_return": 0.671504,
+      "annualized_return": 0.703612,
+      "annualized_volatility": 0.403896,
+      "sharpe_ratio": 1.521067,
+      "sortino_ratio": 2.379965,
+      "max_drawdown": -0.294578,
+      "value_at_risk_95": 0.035096,
+      "conditional_value_at_risk_95": 0.052536,
+      "beta": null,
+      "trade_count": 384,
+      "win_count": 183,
+      "hit_rate": 0.4766,
+      "average_holding_days": 6.1,
+      "final_equity": 83561324.25,
+      "open_positions": 10,
+      "yearly_returns": [
+        {
+          "year": "2025",
+          "return": 0.019879,
+          "days": 66
+        },
+        {
+          "year": "2026",
+          "return": 0.638207,
+          "days": 178
+        }
+      ],
+      "benchmark_return": 1.033359,
+      "excess_return": -0.361855
+    },
+    "익절 늘림 5%/20%": {
+      "observations": 244,
+      "total_return": 0.913335,
+      "annualized_return": 0.959872,
+      "annualized_volatility": 0.383684,
+      "sharpe_ratio": 1.946292,
+      "sortino_ratio": 3.218087,
+      "max_drawdown": -0.242135,
+      "value_at_risk_95": 0.036905,
+      "conditional_value_at_risk_95": 0.045152,
+      "beta": null,
+      "trade_count": 565,
+      "win_count": 157,
+      "hit_rate": 0.2779,
+      "average_holding_days": 4.0,
+      "final_equity": 95650901.66,
+      "open_positions": 10,
+      "yearly_returns": [
+        {
+          "year": "2025",
+          "return": 0.04067,
+          "days": 66
+        },
+        {
+          "year": "2026",
+          "return": 0.767004,
+          "days": 178
+        }
+      ],
+      "benchmark_return": 1.033359,
+      "excess_return": -0.120024
+    },
+    "변동성 상위 20% 제외": {
+      "observations": 244,
+      "total_return": 0.167748,
+      "annualized_return": 0.174474,
+      "annualized_volatility": 0.321599,
+      "sharpe_ratio": 0.660443,
+      "sortino_ratio": 0.984904,
+      "max_drawdown": -0.263083,
+      "value_at_risk_95": 0.032246,
+      "conditional_value_at_risk_95": 0.03897,
+      "beta": null,
+      "trade_count": 720,
+      "win_count": 265,
+      "hit_rate": 0.3681,
+      "average_holding_days": 3.1,
+      "final_equity": 58377688.1,
+      "open_positions": 10,
+      "yearly_returns": [
+        {
+          "year": "2025",
+          "return": -0.002638,
+          "days": 66
+        },
+        {
+          "year": "2026",
+          "return": 0.145768,
+          "days": 178
+        }
+      ],
+      "benchmark_return": 1.033359,
+      "excess_return": -0.865611
+    },
+    "변동성 제외 + 손절 8%": {
+      "observations": 244,
+      "total_return": 0.402634,
+      "annualized_return": 0.420322,
+      "annualized_volatility": 0.334301,
+      "sharpe_ratio": 1.21746,
+      "sortino_ratio": 1.80813,
+      "max_drawdown": -0.223138,
+      "value_at_risk_95": 0.033091,
+      "conditional_value_at_risk_95": 0.042953,
+      "beta": null,
+      "trade_count": 502,
+      "win_count": 253,
+      "hit_rate": 0.504,
+      "average_holding_days": 4.6,
+      "final_equity": 70120045.6,
+      "open_positions": 10,
+      "yearly_returns": [
+        {
+          "year": "2025",
+          "return": 0.068479,
+          "days": 66
+        },
+        {
+          "year": "2026",
+          "return": 0.326271,
+          "days": 178
+        }
+      ],
+      "benchmark_return": 1.033359,
+      "excess_return": -0.630725
+    },
+    "보유 40일": {
+      "observations": 244,
+      "total_return": 0.099484,
+      "annualized_return": 0.103353,
+      "annualized_volatility": 0.319746,
+      "sharpe_ratio": 0.466596,
+      "sortino_ratio": 0.710383,
+      "max_drawdown": -0.276394,
+      "value_at_risk_95": 0.031323,
+      "conditional_value_at_risk_95": 0.036699,
+      "beta": null,
+      "trade_count": 780,
+      "win_count": 280,
+      "hit_rate": 0.359,
+      "average_holding_days": 2.8,
+      "final_equity": 54965074.38,
+      "open_positions": 10,
+      "yearly_returns": [
+        {
+          "year": "2025",
+          "return": -0.02978,
+          "days": 66
+        },
+        {
+          "year": "2026",
+          "return": 0.092315,
+          "days": 178
+        }
+      ],
+      "benchmark_return": 1.033359,
+      "excess_return": -0.933875
+    }
+  },
+  "places": {
+    "학습": {
+      "손절 넓힘 10%/15%": 1,
+      "변동성 제외 + 손절 8%": 2,
+      "현행 5%/10%": 3,
+      "보유 40일": 4,
+      "익절 늘림 5%/20%": 5,
+      "변동성 상위 20% 제외": 6,
+      "손절 넓힘 8%/10%": 7
+    },
+    "검증": {
+      "익절 늘림 5%/20%": 1,
+      "손절 넓힘 10%/15%": 2,
+      "손절 넓힘 8%/10%": 3,
+      "변동성 제외 + 손절 8%": 4,
+      "변동성 상위 20% 제외": 5,
+      "보유 40일": 6,
+      "현행 5%/10%": 7
+    }
+  },
+  "winner": "손절 넓힘 10%/15%"
+}
