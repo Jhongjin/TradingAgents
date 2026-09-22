@@ -690,7 +690,24 @@ def run(command: str, directory: Path, *, extra: Sequence[str] = (), timeout: in
 
         output = (result.stdout or "") + (result.stderr or "")
         if result.returncode != 0:
-            raise HyperFramesMissingError(f"hyperframes {command} 실패 ({result.returncode}):\n{output[-1200:]}")
+            # A render that genuinely fails explains itself at length: the CLI
+            # streams a line per frame and prints the reason it stopped. Coming
+            # back with a non-zero code and not one byte on either pipe means it
+            # never got going, and that has been transient every time it has
+            # been looked at. On 2026-09-22 it happened at 08:40 and again at
+            # 09:12, both times seconds after the project files were written;
+            # the identical render then succeeded three times in a row against
+            # the project already on disk, twice through this same pipe.
+            #
+            # So the retry is keyed on silence rather than on the exit code,
+            # which has been 0xFFFFF030 and WinError 5 on different days and
+            # will be something else next time. A failure that said something
+            # still raises on the first try — running it again would only hide
+            # the reason it gave.
+            if output.strip() or attempt == SPAWN_ATTEMPTS - 1:
+                raise HyperFramesMissingError(f"hyperframes {command} 실패 ({result.returncode}):\n{output[-1200:]}")
+            time.sleep(SPAWN_BACKOFF_SECONDS * (attempt + 1))
+            continue
         return output
     raise HyperFramesMissingError(f"hyperframes {command} 를 실행하지 못했습니다")
 

@@ -117,5 +117,74 @@ def test_spawning_the_renderer_is_retried_but_a_real_failure_is_not():
     source = inspect.getsource(hyperframes.run)
     assert "except (PermissionError, OSError)" in source
     assert hyperframes.SPAWN_ATTEMPTS >= 2
-    # a non-zero return code still raises on the first try
-    assert source.index("if result.returncode != 0:") > source.index("except (PermissionError, OSError)")
+
+
+class _Result:
+    def __init__(self, returncode, stdout="", stderr=""):
+        self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
+
+
+def _fake_runs(monkeypatch, results):
+    """Drive hyperframes.run through a scripted sequence of subprocess results."""
+
+    from pathlib import Path
+
+    from tradingagents.shorts import hyperframes
+
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        outcome = results[min(len(calls) - 1, len(results) - 1)]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(hyperframes.shutil, "which", lambda name: "npx.cmd")
+    monkeypatch.setattr(hyperframes.subprocess, "run", fake_run)
+    monkeypatch.setattr(hyperframes.time, "sleep", lambda _seconds: None)
+    return calls, Path(".")
+
+
+def test_a_renderer_that_died_without_saying_anything_is_tried_again(monkeypatch):
+    """Measured 2026-09-22: exit 0xFFFFF030 with zero bytes on either pipe.
+
+    It failed that way at 08:40 and again at 09:12, seconds after the project
+    files were written, then the identical render succeeded three times against
+    the project already on disk. A render that genuinely fails streams a line
+    per frame and names its reason; silence means it never started.
+    """
+
+    from tradingagents.shorts import hyperframes
+
+    calls, directory = _fake_runs(monkeypatch, [
+        _Result(4294963248, "", ""),
+        _Result(0, "Render complete"),
+    ])
+
+    assert "Render complete" in hyperframes.run("render", directory)
+    assert len(calls) == 2
+
+
+def test_a_failure_that_explained_itself_is_not_retried(monkeypatch):
+    """Running it again would only hide the reason it gave."""
+
+    from tradingagents.shorts import hyperframes
+
+    calls, directory = _fake_runs(monkeypatch, [
+        _Result(1, "", "SyntaxError: unexpected token in index.html"),
+    ])
+
+    with pytest.raises(hyperframes.HyperFramesMissingError, match="SyntaxError"):
+        hyperframes.run("render", directory)
+    assert len(calls) == 1
+
+
+def test_silence_every_time_still_gives_up(monkeypatch):
+    from tradingagents.shorts import hyperframes
+
+    calls, directory = _fake_runs(monkeypatch, [_Result(4294963248, "", "")])
+
+    with pytest.raises(hyperframes.HyperFramesMissingError, match="4294963248"):
+        hyperframes.run("render", directory)
+    assert len(calls) == hyperframes.SPAWN_ATTEMPTS
