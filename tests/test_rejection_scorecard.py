@@ -89,3 +89,71 @@ def test_an_exit_is_neither_a_pick_nor_a_rejection():
 
     card = build_rejection_scorecard(rows)
     assert card["bought"]["count"] == 3 and card["passed"]["count"] == 3
+
+
+# --------------------------------------------------------------------------
+# In public, which is the point
+# --------------------------------------------------------------------------
+
+class _Repo:
+    """Just enough repository for the page and the endpoint."""
+
+    def __init__(self, rows):
+        self.rows = rows
+        self.asked = []
+
+    def list_harness_decisions_for_outcomes(self, *, limit=50, stages=("ordered",)):
+        self.asked.append(stages)
+        return [row for row in self.rows if row["stage"] in stages][:limit]
+
+
+def test_the_endpoint_asks_for_the_rejections_too():
+    """Asking only for 'ordered' is how the comparison stays impossible."""
+
+    from fastapi.testclient import TestClient
+
+    from tradingagents.site.api_app import create_app
+    from tradingagents.site.harness_outcome_worker import REJECTED_STAGES
+
+    repo = _Repo(_enough([-0.03, -0.02, -0.04], [-0.08, -0.09, -0.07]))
+    client = TestClient(create_app(repo=repo, load_repo_from_env=False))
+
+    body = client.get("/api/harness/scorecard").json()
+
+    assert body["status"] == "available"
+    assert body["verdict"] == "filter_discriminated"
+    assert set(REJECTED_STAGES) <= set(repo.asked[0])
+
+
+def test_the_endpoint_says_when_there_is_not_enough_yet():
+    from fastapi.testclient import TestClient
+
+    from tradingagents.site.api_app import create_app
+
+    client = TestClient(create_app(repo=_Repo(_enough([-0.03], [-0.08])), load_repo_from_env=False))
+    body = client.get("/api/harness/scorecard").json()
+
+    assert body["status"] == "insufficient"
+    assert body["verdict"] == "not_enough_data"
+
+
+def test_a_filter_that_failed_is_said_plainly_on_the_page():
+    """The page must not report a working filter more softly than a broken one."""
+
+    from tradingagents.site.harness_pages import _scorecard_card
+
+    html = _scorecard_card(_Repo(_enough([-0.09, -0.08, -0.07], [-0.01, -0.02, 0.03])))
+
+    assert "구분하지 못했습니다" in html
+    assert "거르는 기준이 값을 하지 못하고" in html
+
+
+def test_the_page_still_renders_when_the_scorecard_cannot_be_built():
+    from tradingagents.site.harness_pages import _scorecard_card
+
+    class _Broken:
+        def list_harness_decisions_for_outcomes(self, **kwargs):
+            raise RuntimeError("storage is down")
+
+    assert _scorecard_card(_Broken()) == ""
+    assert _scorecard_card(None) == ""

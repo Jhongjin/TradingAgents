@@ -1164,6 +1164,34 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @app.get("/api/harness/scorecard")
+    def harness_scorecard(
+        request: Request,
+        horizon: Annotated[int, Query(ge=1, le=120)] = 20,
+        limit: Annotated[int, Query(ge=10, le=500)] = 200,
+    ) -> dict:
+        """How the names the screen turned down went on to do.
+
+        The account's own return says whether the market went up. It cannot say
+        whether the rules tell one name from another — a month where the picks
+        lose 3% and the rejects lose 8% argues the filter works, and a month
+        where both lose 3% argues it does not, and the picks look identical in
+        both. That comparison is the claim the site makes about itself, so it
+        belongs in public rather than in a module nothing calls.
+        """
+
+        repo = request.app.state.repository
+        if repo is None:
+            return {"status": "empty", "reason": "storage is not configured"}
+
+        from .harness_outcome_worker import SCORED_STAGES
+        from .rejection_scorecard import build_rejection_scorecard
+
+        decisions = repo.list_harness_decisions_for_outcomes(limit=limit, stages=SCORED_STAGES)
+        payload = build_rejection_scorecard(decisions, horizon_days=horizon)
+        payload["status"] = "available" if payload.get("gap") is not None else "insufficient"
+        return payload
+
     @app.post("/api/admin/harness-outcomes/process", include_in_schema=False)
     def process_harness_outcomes_admin(
         body: HarnessOutcomeWorkerRequestBody,

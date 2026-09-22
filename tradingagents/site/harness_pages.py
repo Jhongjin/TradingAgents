@@ -100,6 +100,70 @@ def _without_transcripts(payload: Mapping[str, Any]) -> dict[str, Any]:
     return copied
 
 
+def _scorecard_card(repo: StorageRepository | None) -> str:
+    """Whether the screen told the two groups apart, in public.
+
+    The return figure on this page says whether the market went up. It cannot
+    say whether the rules discriminate — picks down 3% while the rejects are
+    down 8% is a working filter, picks down 3% while the rejects are flat is
+    not, and the picks read the same in both. The scorecard existed for weeks
+    with nothing calling it, so the site showed the half that flatters.
+    """
+
+    if repo is None:
+        return ""
+    try:
+        from .harness_outcome_worker import SCORED_STAGES
+        from .rejection_scorecard import MIN_EACH_SIDE, build_rejection_scorecard
+
+        card = build_rejection_scorecard(
+            repo.list_harness_decisions_for_outcomes(limit=200, stages=SCORED_STAGES),
+            horizon_days=20,
+        )
+    except Exception:                                   # noqa: BLE001 - a page must still render
+        return ""
+
+    bought, passed = card.get("bought") or {}, card.get("passed") or {}
+    gap = card.get("gap")
+    verdict = str(card.get("verdict") or "")
+    if verdict == "not_enough_data":
+        headline, tone = "아직 판단하기 이릅니다", "b-grey"
+        detail = (f"고른 종목 {bought.get('count', 0)}건, 거른 종목 {passed.get('count', 0)}건이 20거래일을 지났습니다. "
+                  f"양쪽 {MIN_EACH_SIDE}건씩은 모여야 비교가 의미를 갖습니다.")
+    elif verdict == "filter_discriminated":
+        headline, tone = "규칙이 둘을 구분했습니다", "b-teal"
+        detail = f"고른 종목이 거른 종목보다 평균 {_fmt_pct(gap)} 앞섰습니다."
+    else:
+        headline, tone = "규칙이 둘을 구분하지 못했습니다", "b-amber"
+        detail = f"고른 종목이 거른 종목보다 평균 {_fmt_pct(gap)} 뒤졌습니다. 거르는 기준이 값을 하지 못하고 있다는 뜻입니다."
+
+    def side(data: Mapping[str, Any]) -> str:
+        count = data.get("count") or 0
+        fell = data.get("fell") or 0
+        return (f'<div class="kv"><span>{h(data.get("label"))} <span class="muted">· {h(count)}건</span></span>'
+                f'<span class="num">평균 {h(_fmt_pct(data.get("mean_return")))} <span class="muted">· 중앙 {h(_fmt_pct(data.get("median_return")))} · 하락 {h(fell)}건</span></span></div>')
+
+    reasons = "".join(
+        f'<div class="kv"><span class="small">{h(row.get("reason"))} <span class="muted">· {h(row.get("count"))}건</span></span>'
+        f'<span class="num small">평균 {h(_fmt_pct(row.get("mean_return")))}</span></div>'
+        for row in (card.get("by_reason") or [])[:6]
+    ) or '<p class="muted small">사유별 집계는 20거래일이 지난 판단이 쌓이면 나옵니다.</p>'
+
+    return f"""
+    <div class="card">
+      <div class="card-h"><h2>{icon_tile("filter", "b-violet", small=True)}거른 종목은 어떻게 됐나 <span class="muted" style="font-weight: 500;">· 20거래일</span></h2><a class="link tiny" href="/api/harness/scorecard">JSON →</a></div>
+      <div class="card-b stack" style="gap: 10px;">
+        <div class="row wrap">{badge(headline, tone, icon_name="filter")}</div>
+        <p class="small ink2">{h(detail)}</p>
+        {side(bought)}
+        {side(passed)}
+        <p class="label" style="margin-top: 6px;">거른 사유별</p>
+        {reasons}
+        <p class="tiny muted" style="margin-top: 6px;">거른 종목이 내렸다고 해서 손실을 피한 것은 아닙니다. 그 돈은 어딘가로 갔고, 그 기록은 이미 위에 있습니다. 여기서 보는 것은 규칙이 두 무리를 구분해내는가 하나뿐입니다.</p>
+      </div>
+    </div>"""
+
+
 def render_harness_page(
     *,
     repo: StorageRepository | None = None,
@@ -182,6 +246,7 @@ def render_harness_page(
         for item in runs_payload.get("items") or []
     ) or '<p class="muted small">저장된 실행 기록이 없습니다.</p>'
 
+    scorecard_html = _scorecard_card(repo)
     notices = "".join(f"<li>{h(notice)}</li>" for notice in HARNESS_NOTICES)
     payload_json = _script_json({"runs": runs_payload, "run": _without_transcripts(run_payload)})
     broker_badge = badge("기록만 (체결 없음)" if run.get("dry_run", True) else str(run.get("broker") or "-"), "b-grey" if run.get("dry_run", True) else "b-teal")
@@ -223,6 +288,7 @@ def render_harness_page(
       </div>
       <div class="card-f"><span>각 단계는 실행 기록에 해시로 묶여 남습니다.</span><span>{icon("shield", 12)} 웹 실행은 기록만 남기며 체결되지 않습니다</span></div>
     </div>
+    {scorecard_html}
     <div class="grid-main">
       <div class="card">
         <div class="card-h"><h2>{icon_tile("clock", "b-grey", small=True)}최근 종목 선별</h2><a class="link tiny" href="/api/harness/runs">JSON →</a></div>
