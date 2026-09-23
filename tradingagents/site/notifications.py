@@ -281,8 +281,18 @@ def notify_harness_issue(
     now: datetime | None = None,
     harness_run_id: str | None = None,
     force: bool = False,
+    mark: bool = True,
 ) -> dict[str, Any]:
-    """Send the newest un-notified public run to every linked member."""
+    """Send the newest un-notified public run to every linked member.
+
+    ``mark`` exists because a rehearsal that records itself as a delivery is
+    worse than no rehearsal. ``--dry-run`` swaps in a preview client and sends
+    nothing, but this function wrote ``notified_at`` regardless — so on
+    2026-09-23 a dry run marked the 09-22 issue as delivered at 09:43 and the
+    10:25 cron would have skipped it, leaving subscribers with nothing and the
+    record saying they had been written to. notify_exit_alerts already took
+    this argument for the same reason; this one did not.
+    """
 
     now = now or datetime.now(timezone.utc)
     runs = build_harness_runs_payload(repo, limit=50)
@@ -330,8 +340,9 @@ def notify_harness_issue(
         except TelegramError as exc:
             failed += 1
             details.append({"user_id": str(recipient["user_id"]), "error": str(exc)[:120]})
-    repo.update_harness_run_metadata(str(target["id"]), {"notified_at": now.isoformat(), "notified_count": sent})
-    return {"status": "sent", "run_id": str(target["id"]), "recipients": len(recipients), "sent": sent, "failed": failed, "details": details}
+    if mark:
+        repo.update_harness_run_metadata(str(target["id"]), {"notified_at": now.isoformat(), "notified_count": sent})
+    return {"status": "sent", "run_id": str(target["id"]), "recipients": len(recipients), "sent": sent, "failed": failed, "details": details, "marked": bool(mark)}
 
 
 # --------------------------------------------------------- exit / outcome push

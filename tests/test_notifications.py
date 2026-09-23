@@ -166,3 +166,39 @@ def test_the_daily_issue_reports_the_morning_screen_not_the_last_intraday_pass()
     assert 'int(item.get("universe_size") or 0)' in picker
     # and it still sends something rather than nothing when only exits ran
     assert "items[0] if items else None" in picker
+
+
+def test_a_previewed_issue_is_not_recorded_as_delivered():
+    """--dry-run swaps in a preview client and sends nothing; it also wrote notified_at.
+
+    On 2026-09-23 a dry run marked the 09-22 issue as delivered at 09:43. The
+    10:25 cron reads that field to decide what is still owed, so it would have
+    skipped the run — subscribers with nothing, and the record saying they had
+    been written to. notify_exit_alerts already took `mark` for this reason.
+    """
+
+    repo = _repo()
+    run_id = _seed_run(repo, date(2026, 9, 9))
+    create_link_code(repo, USER, CONFIG, now=NOW)
+    code = repo.get_notification_channel(USER)["link_code"]
+    handle_telegram_update(repo, {"message": {"chat": {"id": 100}, "text": f"/start {code}"}}, None, now=NOW)
+
+    sent: list = []
+    result = notify_harness_issue(repo, _client(sent, fail_for=set()), now=NOW, mark=False)
+
+    assert result["marked"] is False
+    assert not repo.get_harness_run(run_id)["metadata_json"].get("notified_at")
+    # and the real send still gets its turn afterwards
+    assert notify_harness_issue(repo, _client(sent, fail_for=set()), now=NOW)["status"] == "sent"
+
+
+def test_the_cli_previews_without_marking():
+    """The flag is only worth having if the call site passes it."""
+
+    import inspect
+
+    import cli.main as M
+
+    source = inspect.getsource(M.notify_command)
+    assert "mark=not dry_run" in source
+    assert source.count("mark=not dry_run") == 2      # issue and exits both

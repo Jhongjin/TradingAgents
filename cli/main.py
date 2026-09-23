@@ -1618,7 +1618,7 @@ def notify_command(
     client = _Preview() if dry_run else TelegramClient(config)
     try:
         if chosen == "issue":
-            result = notify_harness_issue(repo, client, site_base_url=base, harness_run_id=run_id)
+            result = notify_harness_issue(repo, client, site_base_url=base, harness_run_id=run_id, mark=not dry_run)
         else:
             result = notify_exit_alerts(repo, client, site_base_url=base, mark=not dry_run)
     except Exception as exc:                            # noqa: BLE001 - reported, not raised
