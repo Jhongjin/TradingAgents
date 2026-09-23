@@ -1510,6 +1510,12 @@ def playbook_command(
         console.print(f"[dim]saved {output}[/dim]")
 
 
+#: Ten holdings at a ten-second client timeout is 100s in the worst honest
+#: case. Past that the quote vendor is not slow, it is not answering, and the
+#: daily close is what the exit rule should be reading.
+LIVE_PRICE_BUDGET_SECONDS = 120.0
+
+
 def _live_prices(codes: list[str]) -> tuple[dict[str, float], dict[str, int]]:
     """Intraday prices for held positions, from NH when it is configured.
 
@@ -1520,6 +1526,8 @@ def _live_prices(codes: list[str]) -> tuple[dict[str, float], dict[str, int]]:
     Quotes come off the live host whichever account is configured, and this
     reads only — it never touches a balance or places an order.
     """
+
+    import time
 
     prices: dict[str, float] = {}
     counts: dict[str, int] = {}
@@ -1536,7 +1544,18 @@ def _live_prices(codes: list[str]) -> tuple[dict[str, float], dict[str, int]]:
     except Exception:                                   # noqa: BLE001 - fallback covers it
         return prices, counts
 
+    # Bounded, because the fallback already exists and a stop that never gets
+    # checked is worse than one checked against yesterday's close. Two of five
+    # exit passes on 2026-09-22 were killed by the scheduler at forty-five
+    # minutes, both of them stopped after "restored ... holding(s)" and before
+    # "priced N/N" — so the run never reached the exit rule at all, and the
+    # books behind the stalled one never ran either. Each client call carries a
+    # ten-second timeout, so whatever this was, it was not one slow request.
+    deadline = time.monotonic() + LIVE_PRICE_BUDGET_SECONDS
     for code in codes:
+        if time.monotonic() > deadline:
+            counts["timed_out"] = counts.get("timed_out", 0) + 1
+            continue
         try:
             out = client.current_price(code).get("Output_0") or {}
             price = float(out.get("stck_prpr") or 0.0)
@@ -2831,6 +2850,15 @@ def _rejected_in(run: dict, bought: set[str], returns_fetcher) -> dict | None:
     as_of = str(header.get("as_of_date") or "")[:10]
     if len(shortlist) < REJECTED_MIN_ROWS or not as_of:
         return None
+    # Everything below the scoring loop is decided by counts this function
+    # already has, so a run that cannot pass them must be dropped before it is
+    # priced rather than after. Scoring is twenty vendor calls, every one of
+    # them falling through to Yahoo now that pykrx wants a login, and paying
+    # them for a run that was never going to qualify is how the story builder
+    # came to need more than ninety seconds.
+    on_shortlist = {str(item.get("code") or "") for item in shortlist}
+    if len(on_shortlist & bought) < 2 or len(on_shortlist - bought) < 4:
+        return None
 
     def score(code: str, horizon: int):
         try:
@@ -3216,6 +3244,39 @@ def _biggest_mover(payload: dict, source: Optional[str]) -> dict | None:
     }
 
 
+#: Per-story wall clock. Seven of these run before the claim is even written,
+#: so the budget is what stands between one slow vendor and a day with no video.
+SHORTS_STORY_BUDGET_SECONDS = 45.0
+
+
+def _within_budget(build, *, seconds: float):
+    """Run ``build`` with a deadline. Returns (value, overran, failure).
+
+    A daemon thread rather than a pool, for the same reason the screener uses
+    one: a pool cannot abandon a call already in flight, and the call in flight
+    is somebody else's function with no timeout of its own. Abandoning it leaks
+    a thread until the process exits, which is the right trade against losing
+    the day's video — this runs once a morning and then the process ends.
+    """
+
+    import threading
+
+    box: dict[str, Any] = {}
+
+    def run() -> None:
+        try:
+            box["value"] = build()
+        except Exception as exc:                        # noqa: BLE001 - reported, not raised
+            box["failure"] = exc
+
+    worker = threading.Thread(target=run, name="shorts-story", daemon=True)
+    worker.start()
+    worker.join(seconds)
+    if worker.is_alive():
+        return None, True, None
+    return box.get("value"), False, box.get("failure")
+
+
 def _shorts_payload(source: Optional[str]) -> dict:
     """The account as the site sees it, from the database or from a running site."""
 
@@ -3243,6 +3304,19 @@ def _shorts_payload(source: Optional[str]) -> dict:
     # Each of these only adds a story to the shelf. None of them is worth the
     # day's video: a cut that cannot be drawn should drop off the list, not
     # take the run down with it.
+    #
+    # Which is what the try below already said, and it was only half true. It
+    # catches a builder that fails and has nothing to say about one that simply
+    # does not finish — and not finishing is what actually took the mornings.
+    # "rejected" scores a twenty-name shortlist per stored run through a vendor
+    # that now falls through to Yahoo on every call, and it pays those twenty
+    # calls even for runs it then discards. Measured 2026-09-23: over 90
+    # seconds and still going, against 10s for the next slowest, on a job that
+    # had produced nothing in the thirty-six minutes since it started. It gets
+    # worse every day because the number of stored runs only grows.
+    #
+    # So slowness is refused the same way failure is. A builder gets a wall
+    # clock, and one that overruns is dropped and named.
     for key, build in (
         ("debate", lambda: _latest_debate(source)),
         ("funnel", lambda: _latest_funnel(source)),
@@ -3252,10 +3326,12 @@ def _shorts_payload(source: Optional[str]) -> dict:
         ("curve", lambda: _account_curve(source)),
         ("candles", lambda: _biggest_mover(payload, source)),
     ):
-        try:
-            extra = build()
-        except Exception as exc:                        # noqa: BLE001
-            console.print(f"[yellow]{key} 자료를 붙이지 못했습니다. 이 이야기만 빼고 진행합니다.[/yellow] {exc}")
+        extra, overran, failure = _within_budget(build, seconds=SHORTS_STORY_BUDGET_SECONDS)
+        if overran:
+            console.print(f"[yellow]{key} 자료가 {SHORTS_STORY_BUDGET_SECONDS:.0f}초 안에 끝나지 않아 이 이야기만 빼고 진행합니다.[/yellow]")
+            continue
+        if failure is not None:
+            console.print(f"[yellow]{key} 자료를 붙이지 못했습니다. 이 이야기만 빼고 진행합니다.[/yellow] {failure}")
             continue
         if extra:
             payload = {**payload, key: extra}
