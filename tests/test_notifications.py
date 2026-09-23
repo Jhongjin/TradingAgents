@@ -202,3 +202,60 @@ def test_the_cli_previews_without_marking():
     source = inspect.getsource(M.notify_command)
     assert "mark=not dry_run" in source
     assert source.count("mark=not dry_run") == 2      # issue and exits both
+
+
+def test_the_run_that_traded_is_the_news_not_the_newest_one():
+    """A web cron run screens and fills nothing, and it runs later than the desk.
+
+    On 2026-09-23 the rules book bought four names at 08:26. The issue that
+    went out at 10:25 described a 10:03 web run — "5개 후보를 살폈지만 통과한
+    종목이 없습니다" — so subscribers were told nothing was bought on a morning
+    four names were.
+    """
+
+    from tradingagents.site import notifications as N
+
+    items = [
+        {"id": "web", "universe_size": 300, "order_count": 0, "metadata": {}},
+        {"id": "exits", "universe_size": 0, "order_count": 0, "metadata": {}},
+        {"id": "desk", "universe_size": 147, "order_count": 4, "metadata": {}},
+    ]
+    captured = {}
+
+    def fake_runs(repo, limit=50):
+        return {"items": items}
+
+    def fake_run_payload(repo, harness_run_id=None):
+        captured["id"] = harness_run_id
+        return None                                     # stops before sending
+
+    monkey = pytest.MonkeyPatch()
+    try:
+        monkey.setattr(N, "build_harness_runs_payload", fake_runs)
+        monkey.setattr(N, "build_harness_run_payload", fake_run_payload)
+        N.notify_harness_issue(object(), object(), now=NOW)
+    finally:
+        monkey.undo()
+
+    assert captured["id"] == "desk"
+
+
+def test_with_nothing_traded_it_still_reports_the_screen():
+    from tradingagents.site import notifications as N
+
+    items = [
+        {"id": "exits", "universe_size": 0, "order_count": 0, "metadata": {}},
+        {"id": "web", "universe_size": 300, "order_count": 0, "metadata": {}},
+    ]
+    captured = {}
+
+    monkey = pytest.MonkeyPatch()
+    try:
+        monkey.setattr(N, "build_harness_runs_payload", lambda repo, limit=50: {"items": items})
+        monkey.setattr(N, "build_harness_run_payload",
+                       lambda repo, harness_run_id=None: captured.setdefault("id", harness_run_id) and None)
+        N.notify_harness_issue(object(), object(), now=NOW)
+    finally:
+        monkey.undo()
+
+    assert captured["id"] == "web"

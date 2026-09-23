@@ -400,6 +400,11 @@ def build_paper_account_payload(
     }
 
 
+#: Twenty-odd holdings against a vendor that answers in well under a second
+#: each when it is answering at all. Past this it is not slow, it is down.
+LATEST_PRICE_BUDGET_SECONDS = 90.0
+
+
 def latest_prices_for(repo: Any, *, limit: int = 2000) -> dict[str, float]:
     """Closing prices for whatever the books currently hold.
 
@@ -426,11 +431,24 @@ def latest_prices_for(repo: Any, *, limit: int = 2000) -> dict[str, float]:
 
     from tradingagents.site.market_api import build_latest_prices_payload
 
+    from tradingagents.dataflows.deadline import run_within
+
+    # Bounded for the same reason the except below exists: cost basis is the
+    # fallback, and it should be taken when the vendor stops answering as well
+    # as when it errors. pykrx now wants a site login, so every one of these
+    # falls through to a per-ticker scrape — measured 2026-09-23, this blocked
+    # for ten minutes on two seconds of CPU and took the morning's video with
+    # it, before the job had even written down which story it was making.
     try:
-        payload = build_latest_prices_payload(
-            sorted(codes), ignore_errors=True, max_tickers=max(len(codes), 1),
+        payload = run_within(
+            lambda: build_latest_prices_payload(
+                sorted(codes), ignore_errors=True, max_tickers=max(len(codes), 1),
+            ),
+            seconds=LATEST_PRICE_BUDGET_SECONDS,
         )
     except Exception:                                   # noqa: BLE001 - cost basis is the fallback
+        return {}
+    if payload is None:
         return {}
 
     prices: dict[str, float] = {}

@@ -3250,31 +3250,11 @@ SHORTS_STORY_BUDGET_SECONDS = 45.0
 
 
 def _within_budget(build, *, seconds: float):
-    """Run ``build`` with a deadline. Returns (value, overran, failure).
+    """Run ``build`` with a deadline. Returns (value, overran, failure)."""
 
-    A daemon thread rather than a pool, for the same reason the screener uses
-    one: a pool cannot abandon a call already in flight, and the call in flight
-    is somebody else's function with no timeout of its own. Abandoning it leaks
-    a thread until the process exits, which is the right trade against losing
-    the day's video — this runs once a morning and then the process ends.
-    """
+    from tradingagents.dataflows.deadline import outcome
 
-    import threading
-
-    box: dict[str, Any] = {}
-
-    def run() -> None:
-        try:
-            box["value"] = build()
-        except Exception as exc:                        # noqa: BLE001 - reported, not raised
-            box["failure"] = exc
-
-    worker = threading.Thread(target=run, name="shorts-story", daemon=True)
-    worker.start()
-    worker.join(seconds)
-    if worker.is_alive():
-        return None, True, None
-    return box.get("value"), False, box.get("failure")
+    return outcome(build, seconds=seconds)
 
 
 def _shorts_payload(source: Optional[str]) -> dict:

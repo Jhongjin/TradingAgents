@@ -305,8 +305,21 @@ def notify_harness_issue(
         # screen found nobody — on a pass that never looked — and pushes the
         # morning screen, the thing subscribers signed up for, out of the
         # numbering entirely. 제 50호 went out that way.
-        target = next((item for item in items if int(item.get("universe_size") or 0)), None) or (
-            items[0] if items else None
+        screened = [item for item in items if int(item.get("universe_size") or 0)]
+        # And among the runs that did screen, the newest is the web cron, which
+        # records intent and fills nothing. The book that actually trades runs
+        # at 08:20 on the desk, an hour and a half earlier, so recency picks the
+        # one with nothing to report over the one with the news. On 2026-09-23
+        # the rules book bought four names at 08:26 and the issue that went out
+        # at 10:25 described a 10:03 web run: "5개 후보를 살폈지만 통과한 종목이
+        # 없습니다". Subscribers were told nothing was bought on a morning four
+        # names were.
+        #
+        # A run that placed orders is the news, whenever it ran.
+        target = (
+            next((item for item in screened if int(item.get("order_count") or 0)), None)
+            or (screened[0] if screened else None)
+            or (items[0] if items else None)
         )
     if not target:
         return {"status": "no_run", "sent": 0}
