@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re as _re
 import shutil
 import subprocess
 import tempfile
@@ -222,13 +223,57 @@ SPOKEN_FORMS: tuple[tuple[str, str], ...] = (
 )
 
 
+#: Counters that take the native Korean numerals. Korean has two number words
+#: and the counter decides which one: 3개 is 세 개, never 삼 개. The narrator
+#: reads digits with the Sino-Korean set, so "1개만 남았어요" came out as
+#: "일개만 남았어요" — which no Korean speaker says, and it is the first thing
+#: a listener notices.
+#:
+#: Sino-Korean counters are deliberately absent. 73주 is 칠십삼 주, 11일 is
+#: 십일 일, and 2026년 is 이천이십육 년: converting those would break lines
+#: that read correctly today.
+NATIVE_COUNTERS: tuple[str, ...] = ("개", "종목", "건", "가지", "명", "곳", "번", "살", "달")
+
+#: 1-19 attributive, then the tens. 하나/둘/셋/넷 become 한/두/세/네 in front of
+#: a counter, and twenty is 스무 rather than 스물 for the same reason.
+_NATIVE_ONES = ("", "한", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉")
+_NATIVE_TENS = ("", "열", "스물", "서른", "마흔", "쉰", "예순", "일흔", "여든", "아흔")
+
+#: Past this the native set stops being what anyone says out loud — 343종목 is
+#: 삼백사십삼 종목, not 삼백마흔셋 종목 — so the digits are left alone and the
+#: narrator's own reading is correct.
+NATIVE_NUMERAL_LIMIT = 99
+
+
+def native_numeral(value: int) -> str | None:
+    """"세" for 3, "스무" for 20; None when the native set is not what is said."""
+
+    if not 1 <= value <= NATIVE_NUMERAL_LIMIT:
+        return None
+    tens, ones = divmod(value, 10)
+    if tens == 2 and ones == 0:
+        return "스무"
+    return f"{_NATIVE_TENS[tens]}{_NATIVE_ONES[ones]}"
+
+
+_COUNTED = _re.compile(rf"(?<![\d.,])(\d{{1,2}})\s*({'|'.join(NATIVE_COUNTERS)})")
+
+
+def _spoken_counts(text: str) -> str:
+    def replace(match: "_re.Match[str]") -> str:
+        spoken = native_numeral(int(match.group(1)))
+        return f"{spoken} {match.group(2)}" if spoken else match.group(0)
+
+    return _COUNTED.sub(replace, text)
+
+
 def spoken_form(text: str) -> str:
-    """One line of narration, with the acronyms written as they are said."""
+    """One line of narration, written the way it is said rather than typed."""
 
     said = text
     for roman, korean in SPOKEN_FORMS:
         said = said.replace(roman, korean)
-    return said
+    return _spoken_counts(said)
 
 
 def narrate(board: Storyboard, *, work_dir: Path | None = None, music: Path | None = None, device: str = "cuda", speed: float = SPEED) -> Narration:

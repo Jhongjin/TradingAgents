@@ -660,6 +660,31 @@ def write_project(html: str, directory: Path, *, name: str) -> Composition:
 SPAWN_ATTEMPTS = 3
 SPAWN_BACKOFF_SECONDS = 5.0
 
+#: Said by a render that could not start a child process, rather than by one
+#: that read the composition and objected to it. The distinction is the whole
+#: retry policy: a composition that is wrong will be wrong again in five
+#: seconds, and a process that could not be created may not be next time.
+#:
+#: Every one of these has been seen on this machine inside a fortnight, always
+#: intermittently and never reproducibly: WinError 5 on npx (09-21), a silent
+#: 0xFFFFF030 (09-22), and FFmpeg refusing to report its own version on 09-22
+#: and 09-24 — from a shim that runs fine by hand and rendered the 09-25 short
+#: without complaint. They are one condition with several spellings.
+TRANSIENT_START_MARKERS = (
+    "cannot start",
+    "Failed to run",
+    "WinError 5",
+    "액세스가 거부",
+    "액세스 거부",
+    "Access is denied",
+    "The paging file is too small",
+    "페이징 파일이 너무 작",
+)
+
+
+def _could_not_start(output: str) -> bool:
+    return any(marker.lower() in output.lower() for marker in TRANSIENT_START_MARKERS)
+
 
 def run(command: str, directory: Path, *, extra: Sequence[str] = (), timeout: int = 1800) -> str:
     """Drive the HyperFrames CLI in the project directory."""
@@ -701,10 +726,21 @@ def run(command: str, directory: Path, *, extra: Sequence[str] = (), timeout: in
             #
             # So the retry is keyed on silence rather than on the exit code,
             # which has been 0xFFFFF030 and WinError 5 on different days and
-            # will be something else next time. A failure that said something
-            # still raises on the first try — running it again would only hide
-            # the reason it gave.
-            if output.strip() or attempt == SPAWN_ATTEMPTS - 1:
+            # will be something else next time.
+            #
+            # Silence was too narrow. On 09-22 and 09-24 the render said
+            # plainly "✗ FFmpeg cannot start / Failed to run ...ffmpeg.exe
+            # -version", which is not silence, so it raised on the first try
+            # and both days went without a video — from a binary that answers
+            # `-version` in milliseconds when asked by hand and that rendered
+            # the 09-25 short. That is the same condition as the other two
+            # wearing different words.
+            #
+            # A composition that is wrong will still be wrong in five seconds
+            # and still raises immediately. A process that could not be created
+            # is worth asking again.
+            retryable = not output.strip() or _could_not_start(output)
+            if not retryable or attempt == SPAWN_ATTEMPTS - 1:
                 raise HyperFramesMissingError(f"hyperframes {command} 실패 ({result.returncode}):\n{output[-1200:]}")
             time.sleep(SPAWN_BACKOFF_SECONDS * (attempt + 1))
             continue

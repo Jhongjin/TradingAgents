@@ -27,6 +27,22 @@ setlocal
 set REPO=D:\Codex\TradingAgents
 set PYTHON=%REPO%\.codex-test-venv\Scripts\python.exe
 
+rem FFmpeg ahead of everything else on PATH, pointing at the build itself.
+rem
+rem hyperframes finds ffmpeg on PATH, and on PATH it finds
+rem %LOCALAPPDATA%\Microsoft\WinGet\Links\ffmpeg.exe, which is a shim that has
+rem to be resolved to D:\AI\tools\FFmpeg before anything runs. On 09-22 and
+rem 09-24 the render died with "FFmpeg cannot start / Failed to run
+rem ...WinGet\Links\ffmpeg.exe -version" and no video went out either day —
+rem from a binary that answers -version in milliseconds by hand and that
+rem rendered the 09-25 short without complaint.
+rem
+rem The shim is a moving part between a working binary and the thing that needs
+rem it, so this takes it out of the path. If FFmpeg is ever moved, doctor says
+rem where it is: npx hyperframes@<ver> doctor.
+set FFMPEG_HOME=D:\AI\tools\FFmpeg\ffmpeg-8.1.2-full_build\bin
+if exist "%FFMPEG_HOME%\ffmpeg.exe" set PATH=%FFMPEG_HOME%;%PATH%
+
 rem The webhook address is not a secret, so it lives here. The shared secret is,
 rem and this file is in version control, so it is never written here: set it once
 rem as a user environment variable and it arrives on its own.

@@ -188,3 +188,43 @@ def test_silence_every_time_still_gives_up(monkeypatch):
     with pytest.raises(hyperframes.HyperFramesMissingError, match="4294963248"):
         hyperframes.run("render", directory)
     assert len(calls) == hyperframes.SPAWN_ATTEMPTS
+
+
+#: Copied from logs/daily-short-2026-09-24.log, which is also what 09-22 said.
+FFMPEG_REFUSED = (
+    "  Continuing render despite lint issues. Use --strict to block errors.\n"
+    "\n✗  FFmpeg cannot start\n\n"
+    r'   Failed to run "C:\Users\Administrator\AppData\Local\Microsoft\WinGet\Links\ffmpeg.exe" -version.'
+    "\n   Install a working 64-bit FFmpeg build with all required runtime DLLs.\n"
+)
+
+
+def test_a_child_process_that_would_not_start_is_tried_again(monkeypatch):
+    """09-22 and 09-24 both died on this, from a binary that works by hand.
+
+    The same ffmpeg.exe answers -version in milliseconds at a prompt and
+    rendered the 09-25 short. Retrying on silence alone missed it because this
+    failure is not silent — it is the same condition spelled differently.
+    """
+
+    from tradingagents.shorts import hyperframes
+
+    calls, directory = _fake_runs(monkeypatch, [
+        _Result(1, "", FFMPEG_REFUSED),
+        _Result(0, "Render complete"),
+    ])
+
+    assert "Render complete" in hyperframes.run("render", directory)
+    assert len(calls) == 2
+
+
+def test_every_spelling_of_a_refused_start_is_one_condition():
+    from tradingagents.shorts.hyperframes import _could_not_start
+
+    for text in ("✗ FFmpeg cannot start", "Failed to run npx.cmd",
+                 "[WinError 5] 액세스가 거부되었습니다", "Access is denied",
+                 "The paging file is too small for this operation to complete"):
+        assert _could_not_start(text), text
+
+    assert not _could_not_start("SyntaxError: unexpected token")
+    assert not _could_not_start("data-duration missing on the root element")
