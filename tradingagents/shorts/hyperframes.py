@@ -843,10 +843,14 @@ def look_for(day: "date | None" = None) -> str:
 
     from datetime import date as _date
 
+    from .layouts import ROTATION, weekday_index
+
     chosen = (os.getenv("TRADINGAGENTS_SHORTS_LOOK") or "").strip().lower()
     if chosen:
         return chosen
-    return LOOKS[(day or _date.today()).toordinal() % len(LOOKS)]
+    # one step per turn of the layout rotation: the base template comes round
+    # once per turn, and stepping by day had it land on the same look every time
+    return LOOKS[(weekday_index(day or _date.today()) // len(ROTATION)) % len(LOOKS)]
 
 
 TIMELINE_HANDOFF = 'window.__timelines["main"] = tl;'

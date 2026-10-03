@@ -938,8 +938,10 @@ def test_a_look_rotates_by_day_and_never_sits_in_front_of_the_text(monkeypatch):
     from tradingagents.shorts.hyperframes import LOOKS, compose_record, look_for, with_motion
 
     monkeypatch.delenv("TRADINGAGENTS_SHORTS_LOOK", raising=False)
-    week = [look_for(date(2026, 10, day)) for day in range(5, 10)]
-    assert set(week) == set(LOOKS) and all(a != b for a, b in zip(week, week[1:]))
+    # a look holds for one turn of the layout rotation and then steps on
+    # (see test_shorts_layouts for the base days wearing each in turn)
+    assert look_for(date(2026, 10, 8)) != look_for(date(2026, 10, 16))
+    assert {look_for(date(2026, 10, day)) for day in range(1, 31)} == set(LOOKS)
 
     html, _ = compose_record(_payload(), build_record(_payload(), now=NOW))
     for look in LOOKS:

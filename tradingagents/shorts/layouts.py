@@ -43,12 +43,24 @@ FONTS = """
 TONES = ("up", "down", "accent", "ink", "ink2", "muted", "reward", "risk", "took", "passed", "warn", "keep", "drop")
 
 
+def weekday_index(day: date) -> int:
+    """How many weekdays have passed up to ``day``; a weekend shares the next Monday's.
+
+    Shorts go out on weekdays only. Counting calendar days put a six-way
+    rotation out of step with a five-day week, so some layouts landed on
+    Saturdays for weeks at a time.
+    """
+
+    weeks, weekday = divmod(day.toordinal() - 1, 7)          # ordinal 1 is a Monday
+    return weeks * 5 + min(weekday, 5)
+
+
 def layout_for(day: date | None = None, *, override: str | None = None) -> str:
-    """The layout for a day: an override if given, else one per day in turn, base included."""
+    """The layout for a day: an override if given, else one per publishing day in turn, base included."""
 
     if override:
         return override.strip().lower()
-    return ROTATION[(day or date.today()).toordinal() % len(ROTATION)]
+    return ROTATION[weekday_index(day or date.today()) % len(ROTATION)]
 
 
 def can_lay_out(board: Storyboard) -> bool:
@@ -385,4 +397,4 @@ def compose_layout(name: str, board: Storyboard) -> tuple[str, float]:
     return page, running
 
 
-__all__ = ["LAYOUTS", "ROTATION", "can_lay_out", "compose_layout", "layout_for"]
+__all__ = ["LAYOUTS", "ROTATION", "can_lay_out", "compose_layout", "layout_for", "weekday_index"]

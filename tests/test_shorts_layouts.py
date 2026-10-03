@@ -14,9 +14,22 @@ from tradingagents.shorts.stories import CLOSERS
 
 def test_there_are_at_least_five_layouts_besides_the_template():
     assert len(LAYOUTS) >= 5 and ROTATION[0] == "base" and set(LAYOUTS) <= set(ROTATION)
-    days = [layout_for(date(2026, 10, 5) + timedelta(days=i)) for i in range(len(ROTATION))]
-    assert sorted(days) == sorted(ROTATION)                                  # each comes round once
+    weekdays = [date(2026, 10, 5) + timedelta(days=i) for i in range(14)]
+    weekdays = [d for d in weekdays if d.weekday() < 5][: len(ROTATION)]
+    days = [layout_for(d) for d in weekdays]
+    assert sorted(days) == sorted(ROTATION)                                  # each comes round once in six publishing days
     assert all(a != b for a, b in zip(days, days[1:]))
+    assert layout_for(date(2026, 10, 10)) == layout_for(date(2026, 10, 12))  # a weekend takes Monday's
+
+
+def test_the_base_template_does_not_wear_the_same_look_every_time(monkeypatch):
+    from tradingagents.shorts.hyperframes import LOOKS, look_for
+
+    monkeypatch.delenv("TRADINGAGENTS_SHORTS_LOOK", raising=False)
+    start = date(2026, 10, 5)
+    base_days = [start + timedelta(days=i) for i in range(120)]
+    base_days = [d for d in base_days if d.weekday() < 5 and layout_for(d) == "base"][: len(LOOKS)]
+    assert sorted(look_for(d) for d in base_days) == sorted(LOOKS)
     assert layout_for(override="Cards") == "cards"
 
 
