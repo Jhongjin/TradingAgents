@@ -3444,6 +3444,7 @@ def shorts_daily_command(
     from datetime import date as _date
 
     from tradingagents.shorts.attempt import (
+        RunLock,
         clear_claim,
         published_today,
         read_claim,
@@ -3459,6 +3460,12 @@ def shorts_daily_command(
     # they were waiting on went with them. A run still going at 40 minutes
     # writes every thread's stack to the log, before the hour limit kills it.
     faulthandler.dump_traceback_later(40 * 60, repeat=True, file=_sys.stderr)
+
+    # Held for the life of the process and released by the OS when it ends.
+    lock = RunLock()
+    if not lock.acquire():
+        console.print("[dim]다른 쇼츠 작업이 아직 돌고 있어 이번 시도는 건너뜁니다.[/dim]")
+        raise typer.Exit(code=0)
 
     rows = read_ledger(ledger)
     today = _date.today().isoformat()

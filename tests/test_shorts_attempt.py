@@ -228,3 +228,14 @@ def test_every_spelling_of_a_refused_start_is_one_condition():
 
     assert not _could_not_start("SyntaxError: unexpected token")
     assert not _could_not_start("data-duration missing on the root element")
+
+
+def test_a_second_run_cannot_take_the_lock_until_the_first_lets_go(tmp_path):
+    from tradingagents.shorts.attempt import RunLock
+
+    first, second = RunLock(tmp_path / "run.lock"), RunLock(tmp_path / "run.lock")
+    assert first.acquire()
+    assert not second.acquire()
+    first.release()
+    assert second.acquire()
+    second.release()

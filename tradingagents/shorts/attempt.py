@@ -124,5 +124,45 @@ def clear_claim(*, path: Path | None = None) -> None:
         pass
 
 
+class RunLock:
+    """One shorts-daily at a time, held by the operating system.
+
+    With a run started at logon as well as at 08:40, 11:15 and 14:30, two can
+    overlap: a machine restarted at 10:50 starts one that is still rendering
+    when 11:15 fires. Both would render and both would post. The lock is a
+    byte-range lock on an open file, so it is released the moment the process
+    ends, including when a restart kills it — a stale lock file cannot hold
+    the next morning hostage.
+    """
+
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path or claim_path().with_name("run.lock")
+        self._handle = None
+
+    def acquire(self) -> bool:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        handle = open(self.path, "a+b")
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            handle.close()
+            return False
+        self._handle = handle
+        return True
+
+    def release(self) -> None:
+        if self._handle is not None:
+            self._handle.close()
+            self._handle = None
+
+
 def _today() -> str:
     return date.today().isoformat()
