@@ -930,3 +930,25 @@ def test_a_take_that_cannot_be_read_is_kept_as_it_was(tmp_path):
 
     line = {"id": "s0", "path": str(tmp_path / "missing.wav"), "seconds": 3.0}
     assert tighten({"lines": [line]})["lines"] == [line]
+
+
+def test_a_look_rotates_by_day_and_never_sits_in_front_of_the_text(monkeypatch):
+    from datetime import date
+
+    from tradingagents.shorts.hyperframes import LOOKS, compose_record, look_for, with_motion
+
+    monkeypatch.delenv("TRADINGAGENTS_SHORTS_LOOK", raising=False)
+    week = [look_for(date(2026, 10, day)) for day in range(5, 10)]
+    assert set(week) == set(LOOKS) and all(a != b for a, b in zip(week, week[1:]))
+
+    html, _ = compose_record(_payload(), build_record(_payload(), now=NOW))
+    for look in LOOKS:
+        out = with_motion(html, "bold", look)
+        assert f'LOOK = "{look}"' in out and "z-index:6" in out           # behind the clips (z-index 10)
+        assert "Math.random" not in out and "Date.now" not in out
+    assert "rotating look" not in with_motion(html, "bold", "none")
+    # the watermark is a pseudo-element: as text it failed check as content_overlap
+    assert "content:attr(data-wm)" in with_motion(html, "bold", "grid")
+
+    monkeypatch.setenv("TRADINGAGENTS_SHORTS_LOOK", "ticker")
+    assert look_for(date(2026, 10, 6)) == "ticker"

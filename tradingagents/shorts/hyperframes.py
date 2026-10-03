@@ -733,6 +733,119 @@ MOTION_LAYER = """
       })();
 """
 
+#: A look, rotated by day, laid behind every template so that consecutive
+#: shorts stop arriving as the same tile in the feed. Templates place their
+#: text at fixed pixels and fit their hero figures by measurement, so a look
+#: never moves text: everything it adds sits behind the clips (z-index 6) on a
+#: transparent ground, and is drawn in the template's own ink colour so it
+#: works on the dark and the light templates alike.
+#:
+#: - grid: a faint data grid drifting down, and the hero figure as a giant
+#:   watermark sliding across the back;
+#: - ticker: a tape along the top carrying the short's own figures and
+#:   headlines, running for the whole cut;
+#: - spotlight: a glow behind the hero breathing on each scene, and a diagonal
+#:   band of light crossing slowly.
+LOOKS = ("grid", "ticker", "spotlight")
+LOOK_LAYER = """
+      // --- rotating look (hyperframes.LOOK_LAYER, look __LOOK__) ---------------
+      (function () {
+        var LOOK = "__LOOK__";
+        var root = document.getElementById("root");
+        if (!root) return;
+        var total = parseFloat(root.getAttribute("data-duration")) || 0;
+        var layer = document.createElement("div");
+        layer.id = "hf-look";
+        layer.style.cssText = "position:absolute;inset:0;z-index:6;pointer-events:none;overflow:hidden;";
+        root.insertBefore(layer, root.firstChild);
+        function faint(pct) { return "color-mix(in srgb, var(--ink) " + pct + "%, transparent)"; }
+        function words(node) { return node.textContent.replace(/\\s+/g, " ").trim(); }
+        var figs = Array.prototype.slice.call(root.querySelectorAll('[id$="-fig"]')).map(words).filter(Boolean);
+        var heads = Array.prototype.slice.call(root.querySelectorAll(".head")).map(words)
+          .filter(function (t) { return t && t.length <= 24; });
+
+        if (LOOK === "grid") {
+          var grid = document.createElement("div");
+          grid.style.cssText = "position:absolute;left:0;right:0;top:-240px;height:2400px;" +
+            "background-image:linear-gradient(" + faint(7) + " 2px, transparent 2px)," +
+            "linear-gradient(90deg," + faint(7) + " 2px, transparent 2px);background-size:120px 120px;";
+          layer.appendChild(grid);
+          tl.fromTo(grid, { y: 0 }, { y: 240, duration: total, ease: "none" }, 0);
+          if (figs.length) {
+            // drawn by a pseudo-element: as a text node it failed hyperframes
+            // check as content_overlap with every line it sat behind
+            var sheet = document.createElement("style");
+            sheet.textContent = "#hf-wm::before{content:attr(data-wm);}";
+            document.head.appendChild(sheet);
+            var mark = document.createElement("div");
+            mark.id = "hf-wm";
+            mark.setAttribute("data-wm", figs[0]);
+            mark.setAttribute("aria-hidden", "true");
+            mark.style.cssText = "position:absolute;left:0;top:1080px;white-space:nowrap;font-weight:900;" +
+              "font-size:520px;letter-spacing:-0.06em;line-height:1;color:" + faint(6) + ";";
+            layer.appendChild(mark);
+            tl.fromTo(mark, { x: 120 }, { x: -520, duration: total, ease: "none" }, 0);
+          }
+        }
+
+        if (LOOK === "ticker") {
+          var items = figs.concat(heads);
+          if (!items.length) items = ["agenttrust.kr"];
+          var band = document.createElement("div");
+          band.style.cssText = "position:absolute;left:0;right:0;top:96px;height:66px;overflow:hidden;" +
+            "border-top:2px solid " + faint(22) + ";border-bottom:2px solid " + faint(22) + ";";
+          var strip = document.createElement("div");
+          strip.style.cssText = "position:absolute;left:0;top:0;height:66px;white-space:nowrap;display:flex;align-items:center;" +
+            "font-weight:800;font-size:30px;letter-spacing:-0.01em;color:var(--ink);";
+          for (var r = 0; r < 14; r++) {
+            items.forEach(function (text) {
+              var cell = document.createElement("span");
+              cell.textContent = text;
+              cell.style.cssText = "padding:0 30px;";
+              var dot = document.createElement("span");
+              dot.textContent = "\\u25A0";
+              dot.style.cssText = "font-size:14px;color:" + faint(45) + ";";
+              strip.appendChild(cell);
+              strip.appendChild(dot);
+            });
+          }
+          band.appendChild(strip);
+          layer.appendChild(band);
+          tl.fromTo(strip, { x: 0 }, { x: -110 * total, duration: total, ease: "none" }, 0);
+        }
+
+        if (LOOK === "spotlight") {
+          var glow = document.createElement("div");
+          glow.style.cssText = "position:absolute;left:40px;top:260px;width:1000px;height:1000px;border-radius:50%;" +
+            "background:radial-gradient(closest-side," + faint(16) + ", transparent 70%);";
+          layer.appendChild(glow);
+          Array.prototype.forEach.call(root.querySelectorAll(".clip"), function (clip) {
+            var start = parseFloat(clip.getAttribute("data-start")) || 0;
+            var dur = parseFloat(clip.getAttribute("data-duration")) || 0;
+            tl.fromTo(glow, { scale: 0.7, opacity: 0.4 },
+                      { scale: 1.15, opacity: 1, duration: Math.max(dur, 0.1), ease: "sine.out", immediateRender: false }, start);
+          });
+          var beam = document.createElement("div");
+          beam.style.cssText = "position:absolute;left:-400px;top:-300px;width:360px;height:2600px;transform:rotate(18deg);" +
+            "background:linear-gradient(90deg, transparent," + faint(9) + ", transparent);";
+          layer.appendChild(beam);
+          tl.fromTo(beam, { x: 0 }, { x: 1900, duration: total, ease: "sine.inOut" }, 0);
+        }
+      })();
+"""
+
+
+def look_for(day: "date | None" = None) -> str:
+    """Today's look: TRADINGAGENTS_SHORTS_LOOK if set (a look name or "none"), else one per day in turn."""
+
+    from datetime import date as _date
+
+    chosen = (os.getenv("TRADINGAGENTS_SHORTS_LOOK") or "").strip().lower()
+    if chosen:
+        return chosen
+    return LOOKS[(day or _date.today()).toordinal() % len(LOOKS)]
+
+
 TIMELINE_HANDOFF = 'window.__timelines["main"] = tl;'
 
 
@@ -742,7 +855,7 @@ def motion_style() -> str:
     return (os.getenv("TRADINGAGENTS_SHORTS_MOTION") or "bold").strip().lower()
 
 
-def with_motion(html: str, style: str | None = None) -> str:
+def with_motion(html: str, style: str | None = None, look: str | None = None) -> str:
     """The composition with MOTION_LAYER spliced in ahead of the timeline hand-off.
 
     Style "off" (or "0") leaves a composition exactly as it was written, which
@@ -755,6 +868,9 @@ def with_motion(html: str, style: str | None = None) -> str:
     if "hf-progress" in html or html.count(TIMELINE_HANDOFF) != 1:
         return html
     layer = MOTION_LAYER.replace("__STYLE__", style)
+    chosen = look_for() if look is None else look
+    if chosen in LOOKS:
+        layer = LOOK_LAYER.replace("__LOOK__", chosen) + layer
     return html.replace(TIMELINE_HANDOFF, layer + "\n      " + TIMELINE_HANDOFF)
 
 
