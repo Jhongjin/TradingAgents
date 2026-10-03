@@ -760,7 +760,10 @@ LOOK_LAYER = """
         root.insertBefore(layer, root.firstChild);
         function faint(pct) { return "color-mix(in srgb, var(--ink) " + pct + "%, transparent)"; }
         function words(node) { return node.textContent.replace(/\\s+/g, " ").trim(); }
-        var figs = Array.prototype.slice.call(root.querySelectorAll('[id$="-fig"]')).map(words).filter(Boolean);
+        // a hero that counts up from zero reads "0.00%" at load; as a
+        // watermark that printed a zero behind every record cut
+        var figs = Array.prototype.slice.call(root.querySelectorAll('[id$="-fig"]')).map(words)
+          .filter(function (t) { return t && !/^[+\\-\\u2212]?0([.,]0+)?\\s*(%p|%)?$/.test(t); });
         var heads = Array.prototype.slice.call(root.querySelectorAll(".head")).map(words)
           .filter(function (t) { return t && t.length <= 24; });
 
@@ -869,7 +872,9 @@ def with_motion(html: str, style: str | None = None, look: str | None = None) ->
         return html
     layer = MOTION_LAYER.replace("__STYLE__", style)
     chosen = look_for() if look is None else look
-    if chosen in LOOKS:
+    # the layouts in layouts.py are each their own look; the rotating ones
+    # dress the per-story templates only
+    if chosen in LOOKS and 'data-layout="' not in html:
         layer = LOOK_LAYER.replace("__LOOK__", chosen) + layer
     return html.replace(TIMELINE_HANDOFF, layer + "\n      " + TIMELINE_HANDOFF)
 

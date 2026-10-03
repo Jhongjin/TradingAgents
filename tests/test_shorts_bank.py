@@ -362,7 +362,10 @@ def test_the_daily_path_draws_the_cut_the_story_named():
     source = inspect.getsource(cli._shorts_build)
     assert '"debate": compose_debate' in source and '"curve": compose_curve' in source
     assert '"candles": compose_candles' in source
-    assert "compose(payload, board)" in source
+    # the story's own template is handed to the layout chooser, which uses it on
+    # "base" days and whenever a board cannot be laid out from its scenes
+    assert "_shorts_compose(compose, payload, board" in source
+    assert "compose(payload, board)" in inspect.getsource(cli._shorts_compose)
     # and the story, not just the cut, reaches the words under the video
     assert "build(renderer, payload, story=story_key)" in source
 

@@ -2572,11 +2572,10 @@ def _render_hyperframes(board, payload, output: Path, *, voice: bool, music: Opt
 
     # each story draws on its own page; the account cuts share one
     compose = {"debate": compose_debate, "curve": compose_curve, "candles": compose_candles}.get(story, compose_record)
-    html, seconds = compose(payload, board)
-    project = write_project(html, output / "hf" / story, name=story)
+    html, seconds, layout = _shorts_compose(compose, payload, board, story=story)
+    project = _shorts_check(compose, payload, board, story=story, directory=output / "hf" / story,
+                            html=html, layout=layout)
     console.print(f"[dim]{project.html} · {seconds:.1f}초[/dim]")
-
-    console.print(run("check", project.directory).strip().splitlines()[-1])
     console.print("[dim]렌더 중…[/dim]")
     run("render", project.directory)
 
@@ -3354,6 +3353,52 @@ def shorts_plan_command(
         console.print(f"  {mark} {item['score']:.3f} {item['label']:<20} {item['reason']}")
 
 
+def _shorts_compose(compose, payload: dict, board, *, story: str):
+    """Lay the board out: today's layout from layouts.py, or the story's own template.
+
+    Returns (html, seconds, layout). TRADINGAGENTS_SHORTS_LAYOUT names one
+    (base, center, news, field, terminal, cards); otherwise the layout turns
+    over by day. A board whose scenes do not carry their own words keeps its
+    own template.
+    """
+
+    import os
+
+    from tradingagents.shorts.layouts import can_lay_out, compose_layout, layout_for
+
+    name = layout_for(override=os.getenv("TRADINGAGENTS_SHORTS_LAYOUT"))
+    if name != "base" and can_lay_out(board):
+        html, seconds = compose_layout(name, board)
+        console.print(f"[dim]레이아웃: {name}[/dim]")
+        return html, seconds, name
+    html, seconds = compose(payload, board)
+    console.print(f"[dim]레이아웃: base ({story} 템플릿)[/dim]")
+    return html, seconds, "base"
+
+
+def _shorts_check(compose, payload: dict, board, *, story: str, directory: Path, html: str, layout: str):
+    """hyperframes check, falling back to the story's own template if a layout fails it.
+
+    A new layout that trips the checker should cost the day its look, not its
+    video.
+    """
+
+    from tradingagents.shorts.hyperframes import HyperFramesMissingError, run, write_project
+
+    project = write_project(html, directory, name=story)
+    try:
+        run("check", project.directory)
+        return project
+    except HyperFramesMissingError as exc:
+        if layout == "base":
+            raise
+        console.print(f"[yellow]{layout} 레이아웃이 검사를 통과하지 못해 기본 템플릿으로 만듭니다.[/yellow] {str(exc)[-300:]}")
+    html, _ = compose(payload, board)
+    project = write_project(html, directory, name=story)
+    run("check", project.directory)
+    return project
+
+
 def _shorts_build(renderer: str, payload: dict, output: Path, *, story_key: str | None = None):
     """Render one story here and hand back the board and the files it wrote."""
 
@@ -3381,9 +3426,9 @@ def _shorts_build(renderer: str, payload: dict, output: Path, *, story_key: str 
                "picks": compose_picks,
                "rejected": compose_rejected,
                "sweep": compose_sweep}.get(renderer, compose_record)
-    html, seconds = compose(payload, board)
-    project = write_project(html, output / "hf" / (story_key or renderer), name=story_key or renderer)
-    run("check", project.directory)
+    html, seconds, layout = _shorts_compose(compose, payload, board, story=story_key or renderer)
+    project = _shorts_check(compose, payload, board, story=story_key or renderer,
+                            directory=output / "hf" / (story_key or renderer), html=html, layout=layout)
     console.print("[dim]렌더 중…[/dim]")
     run("render", project.directory)
 
