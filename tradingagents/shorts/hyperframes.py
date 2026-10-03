@@ -19,6 +19,7 @@ over it, stay in ``stories``; this module turns that into a page.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import time
@@ -624,10 +625,144 @@ def compose_candles(payload: Mapping[str, Any], board: Storyboard) -> tuple[str,
     return template, running
 
 
+#: Shared motion, added to every composition just before its timeline is handed
+#: over. Measured on the 10-02 curve short: the first scene ran 8.43 seconds and
+#: its last entrance finished at 1.47, so the frame stood still for seven
+#: seconds, and every template had the same shape.
+#:
+#: The first answer moved the whole frame (a slow zoom per scene and a shake on
+#: a beat); on 10-03 it read as dizzying. So the frame stays put and the content
+#: carries the motion instead:
+#:
+#: - a segmented progress bar across the top fills through each scene, so a
+#:   still moment still has something visibly running;
+#: - every plain-text headline (.head) arrives word by word, out of a blur;
+#: - each new scene is revealed from the bottom up with a rule on its edge,
+#:   so a cut reads as a turn (a full-screen panel was tried and failed
+#:   hyperframes check: it hid the text it passed over).
+#:
+#: "bold" also thickens that rule and brings the hero figure
+#: ([id$="-fig"]) in from a blur and a smaller size. Nothing here transforms a
+#: timed clip, and everything is on the paused timeline, so a seek is exact.
+MOTION_STYLES = ("calm", "bold")
+MOTION_LAYER = """
+      // --- shared motion layer (hyperframes.MOTION_LAYER, style __STYLE__) ------
+      (function () {
+        var STYLE = "__STYLE__";
+        var root = document.getElementById("root");
+        if (!root) return;
+        var clips = Array.prototype.slice.call(root.querySelectorAll(".clip"));
+        var ground = getComputedStyle(document.body).backgroundColor || "#0b1320";
+        function span(clip) {
+          return { start: parseFloat(clip.getAttribute("data-start")) || 0,
+                   dur: parseFloat(clip.getAttribute("data-duration")) || 0 };
+        }
+
+        // progress bar: one segment per scene, each filling through its scene
+        var bar = document.createElement("div");
+        bar.id = "hf-progress";
+        bar.style.cssText = "position:absolute;left:116px;right:84px;top:58px;height:5px;z-index:80;display:flex;gap:10px;pointer-events:none;";
+        clips.forEach(function (clip) {
+          var seg = document.createElement("div");
+          seg.style.cssText = "flex:1;height:100%;border-radius:3px;overflow:hidden;";
+          seg.style.background = "color-mix(in srgb, var(--ink) 22%, transparent)";
+          var fill = document.createElement("div");
+          fill.style.cssText = "width:100%;height:100%;background:var(--ink);transform-origin:0 50%;transform:scaleX(0);";
+          seg.appendChild(fill);
+          bar.appendChild(seg);
+          var t = span(clip);
+          tl.fromTo(fill, { scaleX: 0 }, { scaleX: 1, duration: t.dur, ease: "none" }, t.start);
+        });
+        root.appendChild(bar);
+
+        // headlines: word by word, out of a blur
+        clips.forEach(function (clip) {
+          var t = span(clip);
+          Array.prototype.forEach.call(clip.querySelectorAll(".head"), function (head) {
+            if (head.children.length || !head.textContent.trim()) return;
+            var parts = head.textContent.split(/(\\s+)/);
+            head.textContent = "";
+            var words = [];
+            parts.forEach(function (part) {
+              if (!part) return;
+              if (/^\\s+$/.test(part)) { head.appendChild(document.createTextNode(part)); return; }
+              var w = document.createElement("span");
+              w.style.display = "inline-block";
+              w.textContent = part;
+              head.appendChild(w);
+              words.push(w);
+            });
+            tl.fromTo(words, { opacity: 0, y: 22, filter: "blur(8px)" },
+                      { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "power3.out", stagger: 0.07 },
+                      t.start + 0.08);
+          });
+        });
+
+        // scene turns: the incoming scene is revealed from the bottom up, with
+        // a rule riding the edge. Nothing opaque ever sits over the text
+        // (a covering panel failed hyperframes check as text_occluded).
+        var edge = document.createElement("div");
+        edge.id = "hf-wipe";
+        edge.style.cssText = "position:absolute;left:0;right:0;top:0;z-index:85;pointer-events:none;background:var(--ink);opacity:0;";
+        edge.style.height = STYLE === "bold" ? "14px" : "5px";
+        root.appendChild(edge);
+        gsap.set(edge, { y: 1920, opacity: 0 });
+        clips.slice(1).forEach(function (clip) {
+          var t = span(clip);
+          var reveal = document.createElement("div");
+          reveal.className = "hf-reveal";
+          reveal.style.cssText = "position:absolute;inset:0;";
+          while (clip.firstChild) reveal.appendChild(clip.firstChild);
+          clip.appendChild(reveal);
+          tl.fromTo(reveal, { clipPath: "inset(100% 0% 0% 0%)" },
+                    { clipPath: "inset(0% 0% 0% 0%)", duration: 0.55, ease: "power3.out", immediateRender: false }, t.start)
+            .fromTo(edge, { y: 1920, opacity: 1 },
+                    { y: -20, opacity: 1, duration: 0.55, ease: "power3.out", immediateRender: false }, t.start)
+            .set(edge, { opacity: 0 }, t.start + 0.56);
+        });
+
+        if (STYLE === "bold") {
+          clips.forEach(function (clip) {
+            var t = span(clip);
+            Array.prototype.forEach.call(clip.querySelectorAll('[id$="-fig"]'), function (fig) {
+              tl.fromTo(fig, { scale: 0.86, filter: "blur(10px)" },
+                        { scale: 1, filter: "blur(0px)", duration: 0.8, ease: "expo.out" }, t.start + 0.1);
+            });
+          });
+        }
+      })();
+"""
+
+TIMELINE_HANDOFF = 'window.__timelines["main"] = tl;'
+
+
+def motion_style() -> str:
+    """TRADINGAGENTS_SHORTS_MOTION: bold (default, chosen 10-03 over calm), calm, or off."""
+
+    return (os.getenv("TRADINGAGENTS_SHORTS_MOTION") or "bold").strip().lower()
+
+
+def with_motion(html: str, style: str | None = None) -> str:
+    """The composition with MOTION_LAYER spliced in ahead of the timeline hand-off.
+
+    Style "off" (or "0") leaves a composition exactly as it was written, which
+    is how a before/after pair is rendered from the same project.
+    """
+
+    style = (style or motion_style()).strip().lower()
+    if style not in MOTION_STYLES:
+        return html
+    if "hf-progress" in html or html.count(TIMELINE_HANDOFF) != 1:
+        return html
+    layer = MOTION_LAYER.replace("__STYLE__", style)
+    return html.replace(TIMELINE_HANDOFF, layer + "\n      " + TIMELINE_HANDOFF)
+
+
 def write_project(html: str, directory: Path, *, name: str) -> Composition:
     """Lay the composition out as a HyperFrames project the CLI can drive."""
 
     directory.mkdir(parents=True, exist_ok=True)
+    html = with_motion(html)
     index = directory / "index.html"
     index.write_text(html, encoding="utf-8")
     (directory / "meta.json").write_text(json.dumps({"id": name, "name": name}, ensure_ascii=False), encoding="utf-8")

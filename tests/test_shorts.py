@@ -398,7 +398,9 @@ def test_the_html_composition_fills_every_slot_from_the_account(tmp_path):
     assert "-1.17%" in html and "1.5억원" in html
 
     project = write_project(html, tmp_path / "hf", name="record")
-    assert project.html.read_text(encoding="utf-8") == html
+    from tradingagents.shorts.hyperframes import with_motion
+
+    assert project.html.read_text(encoding="utf-8") == with_motion(html)
     assert json.loads((project.directory / "package.json").read_text(encoding="utf-8"))["scripts"]["render"]
     assert project.seconds == pytest.approx(seconds, abs=0.01)
 
@@ -878,3 +880,53 @@ def test_the_upload_gets_the_description_without_the_files_own_notes(tmp_path):
     assert "태그: " not in description and "1080x1920" not in description
     assert description.splitlines()[-1].startswith("#")
     assert not set("<>") & set(title + description)
+
+
+def test_the_frame_stays_put_while_the_content_keeps_moving(monkeypatch):
+    # The 10-02 curve short stood still for seven of its first 8.4 seconds. A
+    # whole-frame zoom and shake fixed that and read as dizzying, so the
+    # motion now lives in the content: progress bar, headline words, a wipe.
+    from tradingagents.shorts.hyperframes import TIMELINE_HANDOFF, compose_record, with_motion
+
+    html, _ = compose_record(_payload(), build_record(_payload(), now=NOW))
+    for style in ("calm", "bold"):
+        moving = with_motion(html, style)
+        assert "hf-progress" in moving and "hf-wipe" in moving
+        assert moving.index("shared motion layer") < moving.index(TIMELINE_HANDOFF)
+        assert "Math.random" not in moving and "Date.now" not in moving
+        assert "tl.fromTo(clip" not in moving and "tl.to(clip" not in moving    # clips are never moved
+        assert "hf-cam" not in moving and "hf-punch" not in moving               # no whole-frame camera
+        assert with_motion(moving, style) == moving                              # applied once
+    assert 'STYLE = "bold"' in with_motion(html, "bold")
+
+    monkeypatch.setenv("TRADINGAGENTS_SHORTS_MOTION", "off")
+    assert with_motion(html) == html
+
+
+def test_a_take_loses_its_edges_and_its_long_pauses(tmp_path):
+    import wave
+
+    import numpy as np
+
+    from tradingagents.shorts.voice import tighten
+
+    rate = 48000
+    tone = (np.sin(np.arange(int(rate * 0.5)) * 0.2) * 12000).astype(np.int16)
+    quiet = lambda s: np.zeros(int(rate * s), dtype=np.int16)   # noqa: E731
+    take = np.concatenate([quiet(0.45), tone, quiet(0.6), tone, quiet(0.15), tone, quiet(0.25)])
+    path = tmp_path / "s0.wav"
+    with wave.open(str(path), "wb") as writer:
+        writer.setnchannels(1); writer.setsampwidth(2); writer.setframerate(rate)
+        writer.writeframes(take.tobytes())
+
+    out = tighten({"lines": [{"id": "s0", "path": str(path), "seconds": len(take) / rate}]})["lines"][0]
+    # 1.5s of speech, 0.6s pause cut to 0.28, 0.15s pause kept, edges down to 0.04 each
+    assert out["seconds"] == pytest.approx(1.5 + 0.28 + 0.15 + 0.08, abs=0.03)
+    assert out["path"].endswith("s0.tight.wav") and out["untrimmed_seconds"] == pytest.approx(2.95, abs=0.01)
+
+
+def test_a_take_that_cannot_be_read_is_kept_as_it_was(tmp_path):
+    from tradingagents.shorts.voice import tighten
+
+    line = {"id": "s0", "path": str(tmp_path / "missing.wav"), "seconds": 3.0}
+    assert tighten({"lines": [line]})["lines"] == [line]
