@@ -3404,10 +3404,20 @@ def _shorts_build(renderer: str, payload: dict, output: Path, *, story_key: str 
 def _shorts_caption(caption: Path, board) -> tuple[str, str]:
     """Title and description, as the caption file already lays them out."""
 
+    from tradingagents.shorts.stories import youtube_safe
+
     lines = caption.read_text(encoding="utf-8").splitlines()
     title = (lines[0] if lines else board.title).strip()[:95]
-    body = "\n".join(lines[2:]).strip()
-    return title or board.title[:95], body or board.description
+    # The caption file ends with "태그: …" and "길이: …초 · 1080x1920 · 30fps",
+    # which are notes for whoever opens the file, not for viewers. Every short
+    # up to 10-02 carried them in its public description.
+    body_lines = lines[2:]
+    for index, line in enumerate(body_lines):
+        if line.startswith(("태그: ", "길이: ")):
+            body_lines = body_lines[:index]
+            break
+    body = "\n".join(body_lines).strip()
+    return youtube_safe(title or board.title[:95]), youtube_safe(body or board.description)
 
 
 @app.command("shorts-daily")

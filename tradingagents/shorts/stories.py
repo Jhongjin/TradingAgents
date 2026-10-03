@@ -76,6 +76,19 @@ def _comment(lead: str, *, path: str, campaign: str, stamp: str) -> str:
     return "\n".join(lines)
 
 
+def youtube_safe(text: str) -> str:
+    """Text YouTube will accept as a title or description.
+
+    The Data API refuses any title or description containing "<" or ">" with
+    invalidDescription. The explainers, rule_test and rejected wrote their
+    links as "기록 전문 -> https://…", and every one of them was refused:
+    09-24, 09-28 and 10-01, two attempts each, all lost. n8n answered those
+    with an empty 200, so the run could only say the id was missing.
+    """
+
+    return text.replace("->", "→").replace("<", "‹").replace(">", "›")
+
+
 def _link(path: str, campaign: str, *, stamp: str) -> str:
     return f"{site_url()}{path}?utm_source=youtube&utm_medium=shorts&utm_campaign={campaign}&utm_content={stamp}"
 
@@ -941,8 +954,8 @@ def build_explain(payload: Mapping[str, Any], *, now: datetime | None = None, th
         title=topic.title,
         description=(
             topic.lead + chr(10) + chr(10)
-            + f"기록 전문 -> {_link(topic.path, topic.key, stamp=stamp)}" + chr(10)
-            + f"선별 규칙 -> {_link('/rules', topic.key, stamp=stamp)}" + chr(10)
+            + f"기록 전문 → {_link(topic.path, topic.key, stamp=stamp)}" + chr(10)
+            + f"선별 규칙 → {_link('/rules', topic.key, stamp=stamp)}" + chr(10)
             + _telegram_line() + chr(10) + chr(10)
             + "AI 실험 기록이며 매매 권유가 아닙니다. 모의 계좌 기록이고 실계좌 주문은 없습니다." + chr(10)
             + " ".join(f"#{tag}" for tag in topic.tags[:5])
@@ -1056,8 +1069,8 @@ def build_rejected(payload, *, now=None, theme=DEFAULT_THEME, story=None):
         description=(
             f"{korean_date(ran_on)} 선별에서 {took_n + passed_n}종목까지 좁힌 뒤 {took_n}종목을 샀습니다. "
             f"{horizon}거래일 뒤, 산 종목과 넘긴 종목을 같은 기준으로 비교했습니다. {verdict}." + chr(10) + chr(10)
-            + f"선별 기록 -> {_link('/harness', 'rejected', stamp=stamp)}" + chr(10)
-            + f"검증 결과 -> {_link('/outcomes', 'rejected', stamp=stamp)}" + chr(10)
+            + f"선별 기록 → {_link('/harness', 'rejected', stamp=stamp)}" + chr(10)
+            + f"검증 결과 → {_link('/outcomes', 'rejected', stamp=stamp)}" + chr(10)
             + _telegram_line() + chr(10) + chr(10)
             + "AI 실험 기록이며 매매 권유가 아닙니다. 모의 계좌 기록이고 실계좌 주문은 없습니다." + chr(10)
             + "#주식 #AI주식 #종목선정 #코스피 #코스닥"
@@ -1194,8 +1207,8 @@ def build_sweep(payload, *, now=None, theme=DEFAULT_THEME, story=None):
         description=(
             f"{window} 구간을 {len(variants)}번 다시 돌렸습니다. 손절 폭, 익절 폭, 변동성 제외, 보유 기간을 "
             "하나씩 바꿔 같은 기준으로 비교한 기록입니다." + chr(10) + chr(10)
-            + f"현재 규칙 -> {_link('/rules', 'rule_test', stamp=stamp)}" + chr(10)
-            + f"모의 계좌 -> {_link('/paper', 'rule_test', stamp=stamp)}" + chr(10)
+            + f"현재 규칙 → {_link('/rules', 'rule_test', stamp=stamp)}" + chr(10)
+            + f"모의 계좌 → {_link('/paper', 'rule_test', stamp=stamp)}" + chr(10)
             + _telegram_line() + chr(10) + chr(10)
             + "과거 성과이며 앞으로를 보장하지 않습니다. AI 실험 기록이며 매매 권유가 아닙니다." + chr(10)
             + "#주식 #퀀트 #백테스트 #코스피 #투자기록"

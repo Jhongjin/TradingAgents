@@ -846,3 +846,35 @@ def test_the_picks_note_does_not_credit_an_ai_that_did_not_rate_anything():
     payload["positions"] = [{**item, "decision_rating": None} for item in payload["positions"]]
     plain = build_picks(payload, now=NOW).scenes[2]
     assert "규칙이 정한 값" in plain.note and "AI 토론" not in plain.note
+
+
+def test_no_cut_writes_what_youtube_refuses_in_a_description():
+    # "<" or ">" anywhere in a title or description and the Data API refuses
+    # the upload. The explainers carried "기록 전문 -> …" for two weeks and
+    # every one of them was lost; n8n only ever answered with an empty 200.
+    from tradingagents.shorts.stories import build_explain
+    from tradingagents.shorts.topics import TOPICS
+
+    for topic in TOPICS:
+        board = build_explain(_payload(), now=NOW, story=topic.key)
+        assert not set("<>") & set(board.title + board.description), topic.key
+    for name in ("record", "picks"):
+        board = build(name, _payload(), now=NOW)
+        assert not set("<>") & set(board.title + board.description), name
+
+    source = (Path(__file__).resolve().parents[1] / "tradingagents" / "shorts" / "stories.py").read_text(encoding="utf-8")
+    assert not re.search(r"-> \{_link", source)
+
+
+def test_the_upload_gets_the_description_without_the_files_own_notes(tmp_path):
+    from cli.main import _shorts_caption
+
+    board = build_record(_payload(), now=NOW)
+    caption = write_caption(board, tmp_path / "cut.txt")
+    caption.write_text(caption.read_text(encoding="utf-8").replace("→", "->"), encoding="utf-8")
+
+    title, description = _shorts_caption(caption, board)
+    assert title == board.title
+    assert "태그: " not in description and "1080x1920" not in description
+    assert description.splitlines()[-1].startswith("#")
+    assert not set("<>") & set(title + description)
