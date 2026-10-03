@@ -17,6 +17,7 @@ import os
 import re as _re
 import shutil
 import subprocess
+import wave
 import tempfile
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -28,9 +29,14 @@ VOXCPM_HOME_ENV = "TRADINGAGENTS_VOXCPM_HOME"
 VOXCPM_PYTHON_ENV = "TRADINGAGENTS_VOXCPM_PYTHON"
 VOICE_REF_ENV = "TRADINGAGENTS_SHORTS_VOICE_REF"
 DEFAULT_HOME = Path("D:/AI/VoxCPM2")
-TAIL_SECONDS = 0.5       # the breath left after a line before the scene turns
-LEAD_SECONDS = 0.18      # and the beat before it starts
-MAX_SLACK = 1.4          # the longest a shot may hold after its line has ended
+# Measured on the 10-02 short: 1.2s, 2.55s and 2.54s of silence at the scene
+# turns. VoxCPM leaves ~0.45s before and ~0.2s after every take, and the old
+# 0.5s tail, 0.18s lead and 1.4s slack stacked on top of that. Takes are now
+# trimmed (see tighten) and the margins are what is left to breathe.
+TAIL_SECONDS = 0.2       # the breath left after a line before the scene turns
+LEAD_SECONDS = 0.08      # and the beat before it starts
+MAX_SLACK = 0.5          # the longest a shot may hold after its line has ended
+PAUSE_KEEP = 0.28        # longest pause kept inside a take, before the speed-up
 SPEED = 1.3              # VoxCPM reads deliberately; shorts want it brisker
 
 
@@ -171,6 +177,83 @@ def fit(board: Storyboard, manifest: dict, *, speed: float = SPEED) -> tuple[Sto
     return replace(board, scenes=tuple(scenes)), placed
 
 
+def tighten(manifest: dict, *, threshold_db: float = -40.0, keep: float = PAUSE_KEEP, edge: float = 0.04) -> dict:
+    """Trim each take's leading and trailing silence and shorten long pauses inside it.
+
+    Writes ``<take>.tight.wav`` beside each take and returns the manifest
+    pointing at those, with their lengths. Silence is judged on 10 ms windows
+    against ``threshold_db`` (RMS, full scale); a pause longer than ``keep`` loses
+    its middle, so what remains on either side is still silence and nothing
+    clicks. ffmpeg's silenceremove was tried first and left the inner pauses of
+    the 10-02 takes (0.55, 0.41, 0.46 s) untouched. A take this cannot read is
+    left as it was: a slow cut is better than a missing line.
+    """
+
+    lines = []
+    for line in manifest.get("lines") or []:
+        source = Path(line["path"])
+        try:
+            seconds = _tighten_wav(source, source.with_name(source.stem + ".tight.wav"),
+                                   threshold_db=threshold_db, keep=keep, edge=edge)
+        except (OSError, ValueError, wave.Error):
+            lines.append(line)
+            continue
+        lines.append({**line, "path": str(source.with_name(source.stem + ".tight.wav")),
+                      "seconds": round(seconds, 3), "untrimmed_seconds": line.get("seconds")})
+    return {**manifest, "lines": lines}
+
+
+def _tighten_wav(source: Path, target: Path, *, threshold_db: float, keep: float, edge: float) -> float:
+    import numpy as np
+
+    with wave.open(str(source), "rb") as reader:
+        params = reader.getparams()
+        if params.sampwidth != 2:
+            raise ValueError("only 16-bit takes are trimmed")
+        samples = np.frombuffer(reader.readframes(params.nframes), dtype=np.int16)
+    channels, rate = params.nchannels, params.framerate
+    frames = samples.reshape(-1, channels)
+    window = max(int(rate * 0.01), 1)
+    count = len(frames) // window
+    if count == 0:
+        raise ValueError("empty take")
+    blocks = frames[: count * window].astype(np.float64).reshape(count, window * channels)
+    rms = np.sqrt(np.mean(blocks ** 2, axis=1)) / 32768.0
+    loud = 20 * np.log10(np.maximum(rms, 1e-9)) > threshold_db
+    if not loud.any():
+        raise ValueError("no speech in take")
+
+    keep_blocks, edge_blocks = int(round(keep / 0.01)), int(round(edge / 0.01))
+    first, last = int(np.argmax(loud)), int(len(loud) - np.argmax(loud[::-1]) - 1)
+    pieces = []
+    index = max(first - edge_blocks, 0)
+    stop = min(last + 1 + edge_blocks, count)
+    while index < stop:
+        if loud[index] or index >= last:
+            run_end = index + 1
+            while run_end < stop and (loud[run_end] or run_end > last):
+                run_end += 1
+            pieces.append((index, run_end))
+            index = run_end
+            continue
+        run_end = index
+        while run_end < stop and not loud[run_end]:
+            run_end += 1
+        length = run_end - index
+        if length > keep_blocks:
+            half = keep_blocks // 2
+            pieces.append((index, index + half))
+            pieces.append((run_end - (keep_blocks - half), run_end))
+        else:
+            pieces.append((index, run_end))
+        index = run_end
+    out = np.concatenate([frames[a * window: b * window] for a, b in pieces])
+    with wave.open(str(target), "wb") as writer:
+        writer.setparams(params)
+        writer.writeframes(out.astype(np.int16).tobytes())
+    return len(out) / rate
+
+
 def mix_track(placed: Sequence[dict], total: float, target: Path, *, music: Path | None = None, speed: float = SPEED) -> Path:
     """Lay each spoken line at its own second, over an optional music bed."""
 
@@ -290,12 +373,13 @@ def narrate(board: Storyboard, *, work_dir: Path | None = None, music: Path | No
     root = Path(work_dir or Path(tempfile.gettempdir()) / "tradingagents-shorts" / board.slug)
     reference = voice_reference()
     manifest = speak(lines, root, reference=reference, prompt_text=reference_text(reference), device=device)
+    manifest = tighten(manifest)
     fitted, placed = fit(board, manifest, speed=speed)
     track = mix_track(placed, fitted.seconds, root / "narration.wav", music=music, speed=speed)
     return Narration(track=track, board=fitted, lines=tuple(placed))
 
 
 __all__ = [
-    "MAX_SLACK", "Narration", "SPEED", "VoiceUnavailableError", "available", "fit", "mix_track",
+    "MAX_SLACK", "Narration", "SPEED", "VoiceUnavailableError", "available", "fit", "mix_track", "tighten",
     "narrate", "reference_text", "speak", "voice_reference", "voxcpm_home", "voxcpm_python",
 ]
