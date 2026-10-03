@@ -31,7 +31,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// The form fields arrive under body, the file as a binary property. Which key\n// that file lands under depends on the n8n version - 'video', 'video0', or the\n// multipart field name - so it is found rather than assumed, and when nothing\n// arrives the error names the keys that did, which is what you need to see.\nconst item = $input.first();\nconst body = item.json.body || item.json;\nconst binary = item.binary || {};\nconst keys = Object.keys(binary);\n\nconst key = keys.find((name) => String(binary[name].mimeType || '').startsWith('video/')) || keys[0];\nif (!key) {\n  throw new Error('영상 파일이 없습니다. 받은 바이너리 키: ' + JSON.stringify(keys));\n}\nconst file = binary[key];\n\nconst title = String(body.title || '').trim();\nif (!title) {\n  throw new Error('제목이 비어 있습니다.');\n}\n\nreturn [{\n  json: {\n    story: String(body.story || 'unknown'),\n    label: String(body.label || ''),\n    reason: String(body.reason || ''),\n    title: title.slice(0, 95),\n    description: String(body.description || '').slice(0, 4900),\n    tags: String(body.tags || '주식,AI주식,모의투자,코스피,투자기록'),\n    privacyStatus: ['private', 'unlisted', 'public'].includes(String(body.privacyStatus)) ? String(body.privacyStatus) : 'private',\n    comment: String(body.comment || '').slice(0, 9000),\n    receivedAs: key,\n    size: String(file.fileSize || ''),\n  },\n  // handed on as 'data', which is the binary field every n8n node reads by default\n  binary: { data: file },\n}];"
+        "jsCode": "// The form fields arrive under body, the file as a binary property. Which key\n// that file lands under depends on the n8n version - 'video', 'video0', or the\n// multipart field name - so it is found rather than assumed, and when nothing\n// arrives the error names the keys that did, which is what you need to see.\nconst item = $input.first();\nconst body = item.json.body || item.json;\nconst binary = item.binary || {};\nconst keys = Object.keys(binary);\n\nconst key = keys.find((name) => String(binary[name].mimeType || '').startsWith('video/')) || keys[0];\nif (!key) {\n  throw new Error('영상 파일이 없습니다. 받은 바이너리 키: ' + JSON.stringify(keys));\n}\nconst file = binary[key];\n\n// YouTube refuses a title or description containing < or > (invalidDescription).\nconst safe = (text) => String(text || '').replace(/->/g, '→').replace(/</g, '‹').replace(/>/g, '›');\nconst title = safe(body.title).trim();\nif (!title) {\n  throw new Error('제목이 비어 있습니다.');\n}\n\nreturn [{\n  json: {\n    story: String(body.story || 'unknown'),\n    label: String(body.label || ''),\n    reason: String(body.reason || ''),\n    title: title.slice(0, 95),\n    description: safe(body.description).slice(0, 4900),\n    tags: String(body.tags || '주식,AI주식,모의투자,코스피,투자기록'),\n    privacyStatus: ['private', 'unlisted', 'public'].includes(String(body.privacyStatus)) ? String(body.privacyStatus) : 'private',\n    comment: String(body.comment || '').slice(0, 9000),\n    receivedAs: key,\n    size: String(file.fileSize || ''),\n  },\n  // handed on as 'data', which is the binary field every n8n node reads by default\n  binary: { data: file },\n}];"
       },
       "id": "b2000000-0000-4000-8000-000000000002",
       "name": "받은 것 확인",
@@ -70,7 +70,8 @@
           "name": ""
         }
       },
-      "notes": "자격증명만 채우면 됩니다. Input Binary Field 는 기본값 data 그대로 두세요. 앞 노드가 그 이름으로 파일을 넘깁니다. 유튜브 API 심사 전에는 올린 영상이 비공개로 잠깁니다."
+      "notes": "자격증명만 채우면 됩니다. Input Binary Field 는 기본값 data 그대로 두세요. 앞 노드가 그 이름으로 파일을 넘깁니다. 유튜브 API 심사 전에는 올린 영상이 비공개로 잠깁니다. 업로드가 거부되면(제목·설명의 < > 등) 두 번째 출력으로 빠져 PC 에 502 와 유튜브의 거부 사유를 돌려줍니다. 예전에는 여기서 실행이 멈춰 회신 노드에 닿지 못했고, PC 는 빈 200 만 받았습니다(09-24, 09-28, 10-01).",
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -192,6 +193,47 @@
           "name": ""
         }
       }
+    },
+    {
+      "parameters": {
+        "chatId": "",
+        "text": "=🔴 쇼츠 업로드 거부\n\n{{ $('받은 것 확인').first().json.title }}\n스토리: {{ $('받은 것 확인').first().json.label }}\n오류: {{ $json.error && ($json.error.message || $json.error) || JSON.stringify($json).slice(0, 500) }}",
+        "additionalFields": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000010",
+      "name": "거부 알림",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        100,
+        560
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": ""
+        }
+      },
+      "notes": "성공 알림과 같은 자격증명, 같은 chatId."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, story: $('받은 것 확인').first().json.story, error: $('유튜브 업로드').first().json.error || $('유튜브 업로드').first().json }) }}",
+        "options": {
+          "responseCode": 502
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000011",
+      "name": "거부 회신",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        340,
+        560
+      ],
+      "notes": "PC 는 502 를 실패로 읽고 로그에 이 본문을 남깁니다. 발행 기록에는 적지 않으므로 다음 시도가 같은 이야기를 다시 올립니다."
     }
   ],
   "connections": {
@@ -222,6 +264,13 @@
         [
           {
             "node": "업로드 확인",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "거부 알림",
             "type": "main",
             "index": 0
           }
@@ -266,6 +315,17 @@
         [
           {
             "node": "채널 댓글",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "거부 알림": {
+      "main": [
+        [
+          {
+            "node": "거부 회신",
             "type": "main",
             "index": 0
           }

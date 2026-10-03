@@ -3451,6 +3451,15 @@ def shorts_daily_command(
     )
     from tradingagents.shorts.bank import BY_KEY, plan, read_ledger, record_published
 
+    import faulthandler
+    import sys as _sys
+
+    # Three attempts on 09-23 and one on 10-01 left nothing in the log but
+    # their start line: the scheduler ended them after an hour and whatever
+    # they were waiting on went with them. A run still going at 40 minutes
+    # writes every thread's stack to the log, before the hour limit kills it.
+    faulthandler.dump_traceback_later(40 * 60, repeat=True, file=_sys.stderr)
+
     rows = read_ledger(ledger)
     today = _date.today().isoformat()
 
@@ -3519,7 +3528,9 @@ def shorts_daily_command(
             timeout=900,
         )
     if response.status_code >= 400:
-        console.print(f"[red]업로드 실패 {response.status_code}[/red] {response.text[:300]}")
+        # n8n now answers a refused upload with 502 and YouTube's own reason;
+        # the whole of it is the evidence, so it is not cut to a line.
+        console.print(f"[red]업로드 실패 {response.status_code}[/red] {response.text[:2000]}")
         raise typer.Exit(code=1)
 
     try:
@@ -3564,6 +3575,51 @@ def shorts_record_command(
 
     row = record_published(story, video_id=video_id, path=ledger)
     console.print(f"[green]기록[/green] {row['date']} · {row['story']} · {row.get('video_id') or '업로드 전'}")
+
+
+@app.command("shorts-watchdog")
+def shorts_watchdog_command(
+    channel: Optional[str] = typer.Option(None, "--channel", help="YouTube channel id. Defaults to the AgentTrust channel."),
+    day: Optional[str] = typer.Option(None, "--day", help="KST date to check, YYYY-MM-DD. Defaults to today in KST."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print the alert instead of sending it."),
+):
+    """Fail, and say so on Telegram, when today has no short on the channel.
+
+    Meant to run somewhere other than the PC that renders: every lost morning
+    so far also took that PC's ability to report it. Exits 1 on a missing day
+    so the workflow run goes red and GitHub's own failure mail goes out even
+    if Telegram is not configured.
+    """
+
+    import os
+    from datetime import date as _date
+    from datetime import datetime as _datetime
+
+    from tradingagents.shorts import watchdog
+
+    target = _date.fromisoformat(day) if day else _datetime.now(watchdog.KST).date()
+    entries = watchdog.fetch_feed(channel or watchdog.CHANNEL_ID)
+    found = watchdog.published_on(entries, target)
+    if found:
+        for entry in found:
+            console.print(f"[green]{target} 발행 확인[/green] https://youtu.be/{entry.video_id} · {entry.title}")
+        return
+
+    text = watchdog.missing_message(target, entries)
+    console.print(text.replace("<b>", "").replace("</b>", ""))
+    chat_id = (os.getenv("TELEGRAM_OPERATOR_CHAT_ID") or "").strip()
+    if dry_run:
+        console.print("[dim]--dry-run: 보내지 않습니다.[/dim]")
+    elif not chat_id or not os.getenv("TELEGRAM_BOT_TOKEN"):
+        console.print("[yellow]TELEGRAM_BOT_TOKEN / TELEGRAM_OPERATOR_CHAT_ID 가 없어 텔레그램은 건너뜁니다.[/yellow]")
+    else:
+        from tradingagents.site.notifications import TelegramClient, TelegramConfig
+
+        try:
+            TelegramClient(TelegramConfig.from_env()).send_message(chat_id, text)
+        except Exception as exc:                        # noqa: BLE001 - the red run is the alert of last resort
+            console.print(f"[yellow]텔레그램 전송 실패 ({type(exc).__name__}: {exc})[/yellow]")
+    raise typer.Exit(code=1)
 
 
 @app.command("audit-verify")

@@ -1,0 +1,40 @@
+name: Shorts watchdog
+
+# Checks the channel's public feed for a short published today (KST) and fails
+# when there is none. Runs here rather than on the PC that renders, because
+# every lost morning so far also took that PC's ability to report it: a restart
+# mid-run, a run killed with its output still buffered, n8n answering a refused
+# upload with an empty 200, and Telegram unreachable from that network.
+#
+# A red run is the alert: GitHub mails it. Telegram goes out as well when
+# TELEGRAM_BOT_TOKEN and TELEGRAM_OPERATOR_CHAT_ID are set as secrets.
+
+on:
+  workflow_dispatch:
+    inputs:
+      day:
+        description: "KST date to check (YYYY-MM-DD), empty for today"
+        default: ""
+  schedule:
+    # 16:30 KST on weekdays, two hours after the last attempt (14:30) starts.
+    - cron: "30 7 * * 1-5"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONIOENCODING: utf-8
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_OPERATOR_CHAT_ID: ${{ secrets.TELEGRAM_OPERATOR_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e .
+      - name: Check today's short
+        run: |
+          DAY="${{ github.event.inputs.day }}"
+          if [ -n "$DAY" ]; then tradingagents shorts-watchdog --day "$DAY"; else tradingagents shorts-watchdog; fi

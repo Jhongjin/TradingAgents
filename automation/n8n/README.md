@@ -83,3 +83,25 @@ tradingagents shorts --story record        그 영상만 따로 만들기
 
 `shorts-out/published.json` 에 무엇을 언제 올렸는지 쌓입니다. 내일의 선택기가 이 파일을 보고
 최근에 쓴 이야기를 피합니다. 경로는 `TRADINGAGENTS_SHORTS_LEDGER` 로 바꿀 수 있습니다.
+
+## 실패가 보이게 하기
+
+**업로드 거부.** 유튜브는 제목·설명에 `<` `>` 가 있으면 업로드를 거부합니다. 예전 워크플로는
+거기서 실행이 멈춰 PC 가 빈 200 만 받았습니다(09-24, 09-28, 10-01 이 그렇게 사라졌습니다).
+지금 `daily-short-hosted.json` 은 **유튜브 업로드** 노드가 에러를 두 번째 출력으로 내보내
+**거부 알림**(텔레그램) → **거부 회신**(502 + 유튜브의 사유)으로 갑니다. 이미 가져온 워크플로가
+있다면 다시 Import 하거나, 기존 워크플로에서 다음 두 가지만 바꾸면 됩니다.
+
+1. 유튜브 업로드 노드 → Settings → On Error: **Continue (using error output)**,
+   에러 출력에 Respond to Webhook(응답 코드 502) 연결
+2. 워크플로 Settings → Error Workflow: **이 워크플로 자신** — 이게 비어 있으면 실패 감지 →
+   실패 알림 노드는 한 번도 실행되지 않습니다
+
+**채널 감시.** `.github/workflows/shorts-watchdog.yml` 이 평일 16:30 에 채널 RSS 를 보고 오늘
+올라온 영상이 없으면 실패합니다(GitHub 이 실패 메일을 보냅니다). 텔레그램으로도 받으려면
+저장소 Secrets 에 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OPERATOR_CHAT_ID` 를 넣으세요. 이 PC 에서는
+api.telegram.org 가 응답하지 않으므로 알림은 PC 밖에서 보냅니다.
+
+```
+tradingagents shorts-watchdog --day 2026-10-01 --dry-run
+```

@@ -40,6 +40,11 @@ rem
 rem The shim is a moving part between a working binary and the thing that needs
 rem it, so this takes it out of the path. If FFmpeg is ever moved, doctor says
 rem where it is: npx hyperframes@<ver> doctor.
+rem Unbuffered, so a run that is killed (a restart, the scheduler's hour
+rem limit) still leaves every line it got to. Until 10-02 such runs left
+rem only their start line, and nothing to say where they stopped.
+set PYTHONUNBUFFERED=1
+
 set FFMPEG_HOME=D:\AI\tools\FFmpeg\ffmpeg-8.1.2-full_build\bin
 if exist "%FFMPEG_HOME%\ffmpeg.exe" set PATH=%FFMPEG_HOME%;%PATH%
 
