@@ -1940,6 +1940,14 @@ def reconcile_kis_fills_command(
             f"미체결 {result.get('unfilled')} · 대조 실패 {result.get('unmatched')} (주문 {result.get('broker_rows')}건 조회)"
         )
         return
+    if status == "reconciled_by_totals":
+        console.print(f"[green]일별 합계로 대사[/green] · 체결 확정 {result['reconciled']} · 미체결 {result['unfilled']} (대기 {result['pending']}건)")
+        for item in result.get("unresolved") or []:
+            # ::warning:: surfaces on the Actions run page; locally it is just a line.
+            print(f"::warning::KIS {item['day']} 대사 불가 ({item['reason']}): KIS {item['broker_filled_shares']}주 vs 기록 {item['recorded_shares']}주")
+        if result.get("unresolved"):
+            raise typer.Exit(code=1)
+        return
     console.print(f"[yellow]{status}: {result.get('error') or ''} (대기 {result.get('pending', 0)}건)[/yellow]")
 
 

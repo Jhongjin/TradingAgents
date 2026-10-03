@@ -747,3 +747,66 @@ def test_the_pipeline_refuses_a_third_name_from_one_sector(monkeypatch):
     from tradingagents.site.plain_korean import reason_label
 
     assert reason_label("sector 정유 already holds 2 of 2") == "정유 업종을 이미 2종목 보유해 한도 2종목에 걸렸습니다"
+
+
+class _TotalsOnlyKIS:
+    """모의투자 as it actually answers: no order rows, only the day's totals."""
+
+    def __init__(self, totals):
+        self.totals = totals
+        self.asked = []
+
+    def daily_orders(self, *, start_date=None, end_date=None, code=None):
+        return []
+
+    def daily_order_summary(self, *, start_date=None, end_date=None):
+        self.asked.append(start_date)
+        return {"filled_quantity": self.totals.get(start_date, 0), "filled_amount": 0.0}
+
+
+def _status(repo, decision_id):
+    from sqlalchemy import select
+
+    from tradingagents.storage.tables import harness_decisions
+
+    with repo.engine.begin() as conn:
+        return conn.execute(select(harness_decisions.c.order_status).where(harness_decisions.c.id == decision_id)).scalar_one()
+
+
+def test_daily_totals_settle_past_days_when_kis_gives_no_order_rows():
+    from tradingagents.site.kis_reconcile import reconcile_kis_fills
+
+    repo = _repo()
+    now = datetime(2026, 10, 5, 9, 0, tzinfo=timezone.utc)
+    d1, d2, d3, d4, today = (date(2026, 9, 29), date(2026, 9, 30), date(2026, 10, 1), date(2026, 10, 2), date(2026, 10, 5))
+    matched = _kis_order(repo, when=d1, code="204270", name="a", price=22650, quantity=199, order_id="1")
+    never = _kis_order(repo, when=d2, code="031980", name="b", price=180400, quantity=39, order_id="2")   # the 09-30 sale
+    kept = _kis_order(repo, when=d3, code="055550", name="c", price=114300, quantity=42, order_id="3")
+    gap = _kis_order(repo, when=d3, code="105560", name="d", price=181100, quantity=27, order_id="4")
+    extra = _kis_order(repo, when=d4, code="003490", name="e", price=31350, quantity=146, order_id="5")
+    working = _kis_order(repo, when=today, code="000660", name="f", price=1852000, quantity=3, order_id="6")
+    client = _TotalsOnlyKIS({"20260929": 199, "20260930": 0, "20261001": 42, "20261002": 300})
+
+    result = reconcile_kis_fills(repo, client, start_date=date(2026, 9, 28), end_date=today, now=now)
+
+    assert result["status"] == "reconciled_by_totals"
+    assert _status(repo, matched) == "filled"
+    assert _status(repo, never) == "rejected"
+    assert _status(repo, kept) == "filled" and _status(repo, gap) == "rejected"   # 69 recorded, 42 filled: only 105560's 27 explains it
+    assert _status(repo, extra) == "accepted"                                        # KIS has more than we stored: reported, not invented
+    assert result["unresolved"][0]["reason"] == "unrecorded fills at KIS"
+    assert _status(repo, working) == "accepted" and "20261005" not in client.asked   # today can still fill
+    assert result["reconciled"] == 2 and result["unfilled"] == 2
+
+
+def test_a_gap_two_orders_could_explain_is_left_for_a_person():
+    from tradingagents.site.kis_reconcile import reconcile_kis_fills
+
+    repo = _repo()
+    day = date(2026, 10, 1)
+    first = _kis_order(repo, when=day, code="055550", name="a", price=1, quantity=10, order_id="1")
+    second = _kis_order(repo, when=day, code="105560", name="b", price=1, quantity=10, order_id="2")
+    result = reconcile_kis_fills(repo, _TotalsOnlyKIS({"20261001": 10}), start_date=day, end_date=day,
+                                 now=datetime(2026, 10, 2, 9, 0, tzinfo=timezone.utc))
+    assert result["unresolved"][0]["reason"] == "ambiguous gap"
+    assert _status(repo, first) == _status(repo, second) == "accepted"

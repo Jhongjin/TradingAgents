@@ -91,8 +91,13 @@ def reconcile_kis_fills(
             "reconciled": 0,
         }
     if not fills:
-        # 모의투자 sometimes reports only daily totals; leaving the rows alone
-        # keeps the record honest rather than inventing a fill.
+        # 모의투자 answers 주식일별주문체결조회 with the day's totals and no
+        # order rows, so there is nothing to match an order to. The totals are
+        # still enough to settle a past day: see _reconcile_by_totals.
+        if hasattr(client, "daily_order_summary"):
+            result = _reconcile_by_totals(repo, client, rows, pending, start=start, end=end, now=now)
+            result["seconds"] = round(time.monotonic() - started, 2)
+            return result
         return {"status": "no_broker_rows", "pending": len(pending), "reconciled": 0, "seconds": round(time.monotonic() - started, 2)}
 
     reconciled = unmatched = cancelled = partial = 0
@@ -145,4 +150,120 @@ def reconcile_kis_fills(
         "broker_rows": len(fills),
         "range": [start.isoformat(), end.isoformat()],
         "seconds": round(time.monotonic() - started, 2),
+    }
+
+
+def _quantity(row: Mapping[str, Any]) -> int:
+    fill = _order_block(row).get("fill") or {}
+    return int(float(fill.get("quantity") or row.get("quantity") or 0))
+
+
+def _unique_subset(rows: list[Mapping[str, Any]], target: int) -> list[Mapping[str, Any]] | None:
+    """The one combination of rows whose quantities add up to ``target``, if exactly one exists."""
+
+    found: list[list[Mapping[str, Any]]] = []
+
+    def walk(index: int, chosen: list[Mapping[str, Any]], total: int) -> None:
+        if len(found) > 1 or total > target:
+            return
+        if total == target and chosen:
+            found.append(list(chosen))
+            return
+        for position in range(index, len(rows)):
+            chosen.append(rows[position])
+            walk(position + 1, chosen, total + _quantity(rows[position]))
+            chosen.pop()
+
+    walk(0, [], 0)
+    return found[0] if len(found) == 1 else None
+
+
+def _settle(repo: StorageRepository, row: Mapping[str, Any], *, filled: bool, stamp: str, day_totals: Mapping[str, Any]) -> None:
+    order = _order_block(row)
+    order["reconciled_at"] = stamp
+    order["reconciled_source"] = "kis_daily_totals"
+    order["broker_day_totals"] = dict(day_totals)
+    if filled:
+        # Quantity is confirmed by the day's total; the price stays the limit
+        # we sent, because the totals cannot say which order filled at what.
+        order["status"] = "filled"
+        order["fill_price_basis"] = "order_price"
+        new_status = "filled"
+    else:
+        order["status"] = "unfilled"
+        order.pop("fill", None)
+        new_status = "rejected"
+    repo.update_harness_decision_detail(str(row["id"]), {"order": order})
+    repo.update_harness_decision_order_status(str(row["id"]), new_status)
+
+
+def _reconcile_by_totals(
+    repo: StorageRepository,
+    client: Any,
+    rows: list[Mapping[str, Any]],
+    pending: list[Mapping[str, Any]],
+    *,
+    start: date,
+    end: date,
+    now: datetime,
+) -> dict[str, Any]:
+    """Settle past days from KIS's daily filled-share total.
+
+    On 2026-09-30 a 031980 limit sell was accepted and never filled; KIS
+    reported 0 shares that day, but with no order rows the reconciler left it
+    "accepted" and the book counted a sale that happened the next morning. A
+    day's total is enough to settle it:
+
+    - recorded shares == KIS shares: every pending order that day filled.
+    - KIS shares == 0: none of them did.
+    - recorded > KIS: the gap is unfilled; settled only when exactly one
+      combination of that day's pending orders adds up to it.
+    - KIS > recorded: KIS filled something we never stored (2026-09-11). That
+      cannot be rebuilt from totals, so it is reported, not invented.
+
+    Today is never settled: an order still working can fill before the close.
+    """
+
+    by_day: dict[str, list[Mapping[str, Any]]] = {}
+    for row in pending:
+        day = str(row.get("as_of_date") or "")[:10]
+        if start.isoformat() <= day <= end.isoformat() and day < now.date().isoformat():
+            by_day.setdefault(day, []).append(row)
+
+    stamp = now.isoformat()
+    filled = unfilled = 0
+    unresolved: list[dict[str, Any]] = []
+    for day, waiting in sorted(by_day.items()):
+        totals = client.daily_order_summary(start_date=day.replace("-", ""), end_date=day.replace("-", ""))
+        broker_shares = int(float(totals.get("filled_quantity") or 0))
+        recorded = sum(_quantity(row) for row in rows
+                       if str(row.get("as_of_date") or "")[:10] == day
+                       and str(row.get("order_status") or "").lower() in {"accepted", "filled"})
+        day_totals = {"day": day, "broker_filled_shares": broker_shares, "recorded_shares": recorded,
+                      "broker_filled_amount": totals.get("filled_amount")}
+        if broker_shares == recorded:
+            for row in waiting:
+                _settle(repo, row, filled=True, stamp=stamp, day_totals=day_totals)
+            filled += len(waiting)
+        elif broker_shares == 0:
+            for row in waiting:
+                _settle(repo, row, filled=False, stamp=stamp, day_totals=day_totals)
+            unfilled += len(waiting)
+        elif broker_shares < recorded and (gap := _unique_subset(waiting, recorded - broker_shares)) is not None:
+            gap_ids = {str(row["id"]) for row in gap}
+            for row in waiting:
+                _settle(repo, row, filled=str(row["id"]) not in gap_ids, stamp=stamp, day_totals=day_totals)
+            unfilled += len(gap)
+            filled += len(waiting) - len(gap)
+        else:
+            unresolved.append({**day_totals, "pending": len(waiting),
+                               "reason": "unrecorded fills at KIS" if broker_shares > recorded else "ambiguous gap"})
+
+    return {
+        "status": "reconciled_by_totals",
+        "pending": len(pending),
+        "reconciled": filled,
+        "unfilled": unfilled,
+        "unresolved": unresolved,
+        "range": [start.isoformat(), end.isoformat()],
     }
