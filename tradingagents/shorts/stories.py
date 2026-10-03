@@ -165,8 +165,64 @@ def _account_rows(payload: Mapping[str, Any]) -> tuple[dict, ...]:
     return tuple(rows)
 
 
-def _outro(*, headline: tuple[str, ...], call: str, narration: str) -> Outro:
-    """Every cut ends the same way: where the record lives, then the alerts."""
+#: Closing lines a cut can end on besides its own. Until 10-03 every cut ended
+#: on one fixed line per story, and four stories shared the same one ("맞힌 날만
+#: 올리는 채널은 이미 많습니다"), so the channel closed the same way most days.
+#: Each entry is (on-screen headline, spoken line).
+CLOSERS: tuple[tuple[tuple[str, str], str], ...] = (
+    (("맞힌 날만 올리는 채널은", "이미 많습니다."), "맞힌 날만 올리는 채널, 이미 많잖아요. 여긴 틀린 날도 그대로 남습니다."),
+    (("결과가 나쁜 날에도", "그대로 올립니다."), "결과가 나쁜 날에도 이 채널은 그대로 올립니다."),
+    (("숫자는 고치지 않고", "쌓기만 합니다."), "숫자는 고치지 않습니다. 매일 쌓기만 합니다."),
+    (("잘한 날도 못한 날도", "하나의 기록입니다."), "잘한 날도 못한 날도, 결국 하나의 기록입니다."),
+    (("며칠 뒤 결과도", "이 채널에 올라옵니다."), "며칠 뒤 결과도 이 채널에 그대로 올라옵니다."),
+    (("오늘 숫자는 여기까지,", "판단은 직접 하세요."), "오늘 숫자는 여기까지입니다. 판단은 직접 하세요."),
+    (("지운 기록은", "하나도 없습니다."), "지금까지 지운 기록은 하나도 없습니다."),
+)
+
+#: The second spoken sentence: where to follow it. Rotated on its own beat.
+FOLLOW_UPS: tuple[str, ...] = (
+    "내일 아침 뭘 골랐는지는 텔레그램으로 먼저 갑니다.",
+    "아침 선별 결과는 텔레그램에서 먼저 받아보실 수 있어요.",
+    "청산 알림까지 텔레그램으로 먼저 보내드립니다.",
+    "다음 결과는 텔레그램으로 먼저 알려드릴게요.",
+    "전체 기록은 사이트에 그대로 있습니다.",
+)
+
+
+def _pick(seed: str, count: int, salt: str) -> int:
+    """A position that moves on by one each day, offset per salt.
+
+    A hash was tried first and repeated itself on consecutive days (10-09 and
+    10-10 both closed on the same line); stepping by the date's ordinal
+    cannot repeat until the list comes round.
+    """
+
+    import zlib
+    from datetime import date as _date
+
+    try:
+        day = _date(int(seed[:4]), int(seed[4:6]), int(seed[6:8])).toordinal()
+    except (ValueError, IndexError):
+        day = zlib.crc32(seed.encode("utf-8"))
+    return (day + zlib.crc32(salt.encode("utf-8"))) % count
+
+
+def _outro(*, headline: tuple[str, ...], call: str, narration: str, seed: str = "") -> Outro:
+    """Where the record lives, then the alerts, closed on a line that changes by day.
+
+    With a ``seed`` (the cut's date stamp) the closing line is drawn from the
+    story's own line plus CLOSERS, and the follow-up sentence from FOLLOW_UPS,
+    each stepping on by one a day, so consecutive days do not repeat and the
+    same day always gets the same words. Without one, the story's own line is
+    kept as written.
+    """
+
+    if seed:
+        options = [(tuple(headline), narration)] + [
+            (head, f"{spoken} {FOLLOW_UPS[_pick(seed, len(FOLLOW_UPS), 'follow')]}")
+            for head, spoken in CLOSERS if tuple(head) != tuple(headline)
+        ]
+        headline, narration = options[_pick(seed, len(options), "closer:" + "".join(headline))]
 
     handle = telegram_handle()
     return Outro(
@@ -333,7 +389,7 @@ def build_record(payload: Mapping[str, Any], *, now: datetime | None = None, the
             )
         )
 
-    scenes.append(_outro(
+    scenes.append(_outro(seed=stamp,
         headline=("맞힌 날만 올리는 채널은", "이미 많습니다."),
         call="틀린 날까지 전부 남는 기록",
         narration=(
@@ -450,7 +506,7 @@ def build_picks(payload: Mapping[str, Any], *, now: datetime | None = None, them
                 "목표가는 닿는다는 보장이 없고, 손절가는 닿는 순간 자동으로 정리됩니다."
             ),
         ),
-        _outro(
+        _outro(seed=stamp,
             headline=("결과는 며칠 뒤", "이 채널에 그대로 올라옵니다."),
             call="근거와 토론 전문",
             narration=(
@@ -578,7 +634,7 @@ def build_debate(payload: Mapping[str, Any], *, now: datetime | None = None, the
             seconds=5.0,
             narration=f"판정은 {rating}. 맞았는지 틀렸는지는 며칠 뒤에 그대로 올립니다.",
         ),
-        _outro(
+        _outro(seed=stamp,
             headline=("맞힌 날만 올리는 채널은", "이미 많습니다."),
             call="틀린 날도 그대로 남습니다",
             narration="맞힌 날만 올리는 채널, 이미 많잖아요. 여긴 틀린 날도 그대로 남습니다. 내일 아침 뭘 골랐는지는 텔레그램으로 먼저 갑니다.",
@@ -665,7 +721,7 @@ def build_curve(payload: Mapping[str, Any], *, now: datetime | None = None, them
             seconds=5.4,
             narration=f"가장 깊게 빠졌을 때가 {spoken_percent(drawdown)}였습니다.",
         ),
-        _outro(
+        _outro(seed=stamp,
             headline=("맞힌 날만 올리는 채널은", "이미 많습니다."),
             call="틀린 주도 그대로 남습니다",
             narration="맞힌 날만 올리는 채널, 이미 많잖아요. 여긴 틀린 주도 그대로 남습니다. 다음 주 선별도 텔레그램으로 먼저 갑니다.",
@@ -745,7 +801,7 @@ def build_candles(payload: Mapping[str, Any], *, now: datetime | None = None, th
             seconds=5.4,
             narration=f"금액으로는 {spoken_money(pnl)}. 한 종목에 몰아넣지 않으니 이만큼에서 끝났습니다.",
         ),
-        _outro(
+        _outro(seed=stamp,
             headline=("맞힌 날만 올리는 채널은", "이미 많습니다."),
             call="틀린 종목도 그대로 남습니다",
             narration="맞힌 날만 올리는 채널, 이미 많잖아요. 여긴 틀린 종목도 그대로 남습니다. 내일 아침 뭘 골랐는지는 텔레그램으로 먼저 갑니다.",
@@ -866,7 +922,7 @@ def build_funnel(payload: Mapping[str, Any], *, now: datetime | None = None, the
                 + " 며칠 뒤 결과도 똑같이 올라옵니다."
             ),
         ),
-        _outro(
+        _outro(seed=stamp,
             headline=("고른 이유까지", "전부 남겨둡니다."),
             call="단계별 기록 전문",
             narration=(
@@ -946,7 +1002,7 @@ def build_explain(payload: Mapping[str, Any], *, now: datetime | None = None, th
             seconds=2.6 + len(proof_rows) * 0.9,
             narration=topic.narration[2],
         ),
-        _outro(headline=topic.outro, call=topic.call, narration=topic.narration[3]),
+        _outro(headline=topic.outro, call=topic.call, narration=topic.narration[3], seed=stamp),
     )
 
     return Storyboard(
@@ -1051,7 +1107,7 @@ def build_rejected(payload, *, now=None, theme=DEFAULT_THEME, story=None):
                 + " 한 번의 결과라 실력을 말할 수는 없어요. 쌓이는 걸 계속 올리겠습니다."
             ),
         ),
-        _outro(
+        _outro(seed=stamp,
             headline=("고른 것만 보여주면", "확인할 방법이 없습니다."),
             call="선별 전체 기록",
             narration=(
@@ -1187,7 +1243,7 @@ def build_sweep(payload, *, now=None, theme=DEFAULT_THEME, story=None):
                 + " 한 구간에서 제일 나은 설정이 다음 구간에서도 그렇다는 보장이 없으니까요."
             ),
         ),
-        _outro(
+        _outro(seed=stamp,
             headline=("바꾸기 전에", "돌려보고 남깁니다."),
             call="전체 비교와 현재 규칙",
             narration=(
