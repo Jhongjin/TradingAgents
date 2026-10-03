@@ -176,7 +176,7 @@ def run_debate(
         role="portfolio_manager",
         instruction=(
             f"당신은 포트폴리오 매니저입니다. 리서치 매니저 계획과 리스크 패널 결론을 종합해 {target}의 최종 등급을 결정하세요. "
-            f"등급은 {RATING_SCALE_KO} 중 하나이며, 리스크 점수가 0.8 이상이면 Buy를 피하세요. 과거 교훈(있다면)을 반영하세요."
+            f"등급은 {RATING_SCALE_KO} 중 하나이며, 리스크 점수가 0.8 이상이면 Buy를 피하세요. 증거의 track_record(이 계좌가 실제로 청산한 거래의 성적)가 있으면 반영하되, 표본이 작으면 단정하지 마세요."
         ),
         schema={
             "rating": "Buy/Overweight/Hold/Underweight/Sell",
@@ -248,6 +248,8 @@ def build_harness_context_text(evidence: Mapping[str, Any], playbook_results: Se
             lines.append(f"- {getattr(result, 'title', getattr(result, 'task_id', ''))}: {data.get('summary')}")
     if evidence.get("paper_learning"):
         lines.append(f"- 과거 가상매매 교훈: {evidence['paper_learning']}")
+    if evidence.get("track_record"):
+        lines.append("- 이 계좌의 실제 청산 기록:\n" + str(evidence["track_record"]))
     return "\n".join(lines)
 
 

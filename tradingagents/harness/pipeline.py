@@ -41,6 +41,7 @@ from tradingagents.screener import ScreenerCandidate, ScreenerConfig, ScreenerRe
 from .prompts import get_prompt
 from .rights import holds_through as _holds_through
 from .tasks import HarnessTask, LLMCallable, run_task
+from .track_record import build_track_record, public_summary, track_record_text
 
 
 HistoryFetcher = Callable[[str, str, str], Sequence[Mapping[str, Any]]]
@@ -205,6 +206,7 @@ class PipelineRunResult:
     notes: list[str] = field(default_factory=list)
     confirmer: str = "none"
     run_id: str | None = None
+    track_record: dict[str, Any] | None = None
 
     @property
     def orders(self) -> list[PipelineDecision]:
@@ -218,6 +220,7 @@ class PipelineRunResult:
             "broker": self.broker,
             "dry_run": self.dry_run,
             "confirmer": self.confirmer,
+            "track_record": self.track_record,
             "execution_boundary": "dry_run_no_orders" if self.dry_run else f"{self.broker}_orders",
             "screener": self.screener,
             "decisions": [decision.as_dict() for decision in self.decisions],
@@ -247,8 +250,14 @@ def run_daily_pipeline(
     risk_checker: Any | None = None,
     held_names: Mapping[str, str] | None = None,
     visibility: str = "public",
+    track_record: Mapping[str, Any] | None = None,
 ) -> PipelineRunResult:
-    """Run one cycle. When ``repo`` is given the run and decisions are persisted."""
+    """Run one cycle. When ``repo`` is given the run and decisions are persisted.
+
+    ``track_record`` is the account's closed-trade summary (track_record.py).
+    When it is not given and ``repo`` is, it is read from the fills, so every
+    confirmer sees how this account's earlier trades actually ended.
+    """
 
     config = config or PipelineConfig()
     as_of = _coerce_date(as_of_date).isoformat() if as_of_date is not None else None
@@ -338,6 +347,7 @@ def run_daily_pipeline(
     end_date = datetime.strptime(resolved_date, "%Y-%m-%d").date()
     start_date = end_date - timedelta(days=int(config.history_days * 1.6) + 10)
     considered = [] if config.exits_only else _drop_most_volatile(screener_result.candidates, config, notes)
+    record = _load_track_record(track_record, repo, config=config, as_of=resolved_date, notes=notes) if considered and confirmer is not None else None
     for candidate in considered[: config.confirm_top_n]:
         decisions.append(
             _process_candidate(
@@ -351,6 +361,7 @@ def run_daily_pipeline(
                 start_date=start_date.isoformat(),
                 end_date=resolved_date,
                 current_prices=current_prices or {},
+                track_record=record,
             )
         )
 
@@ -378,6 +389,7 @@ def run_daily_pipeline(
         audit_head_hash=ledger.last_hash if ledger else None,
         notes=notes,
         confirmer=resolved_confirmer,
+        track_record=public_summary(record),
     )
     if repo is not None:
         try:
@@ -390,6 +402,30 @@ def run_daily_pipeline(
             result = PipelineRunResult(**{**result.__dict__, "run_id": run_id})
             _ping_search_engines(run_id, decisions, notes)
     return result
+
+
+def _load_track_record(
+    given: Mapping[str, Any] | None,
+    repo: Any | None,
+    *,
+    config: PipelineConfig,
+    as_of: str,
+    notes: list[str],
+) -> Mapping[str, Any] | None:
+    """The record the confirmers read. Never the reason a run fails."""
+
+    if given is not None:
+        return given
+    if repo is None:
+        return None
+    try:
+        record = build_track_record(repo, account_key=config.account_key, before=as_of)
+    except Exception as exc:                                  # noqa: BLE001 - evidence, not a gate
+        notes.append(f"track record unavailable: {exc.__class__.__name__}: {exc}")
+        return None
+    if record is not None:
+        notes.append(f"track record: {record['count']} closed trades before {as_of} shown to the confirmer")
+    return record
 
 
 def _ping_search_engines(run_id: str, decisions: list, notes: list[str]) -> None:
@@ -457,6 +493,7 @@ def persist_pipeline_result(repo: Any, result: PipelineRunResult, *, config: Pip
                 "mandate": config.mandate.as_dict(),
                 "audit_head_hash": result.audit_head_hash,
                 "account_key": config.account_key,
+                "track_record": result.track_record,
                 "screener_candidates": [
                     {"rank": c.get("rank"), "code": c.get("code"), "name": c.get("name"), "composite": (c.get("factors") or {}).get("composite")}
                     for c in result.screener.get("candidates", [])
@@ -527,6 +564,7 @@ def _process_candidate(
     start_date: str,
     end_date: str,
     current_prices: Mapping[str, float],
+    track_record: Mapping[str, Any] | None = None,
 ) -> PipelineDecision:
     base = {
         "code": candidate.code,
@@ -577,6 +615,9 @@ def _process_candidate(
             "risk_metrics": metrics,
             "entry_price": entry_price,
         }
+        record_text = track_record_text(track_record, candidate.code)
+        if record_text:
+            context["track_record"] = record_text
         try:
             confirmation = confirmer(candidate, context)
         except Exception as exc:

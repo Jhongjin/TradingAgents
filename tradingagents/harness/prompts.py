@@ -105,7 +105,7 @@ PLAYBOOK: tuple[PlaybookPrompt, ...] = (
             risk_score="0(안전)~1(위험) 종합 위험 점수",
         ),
         role="risk_manager",
-        context_keys=("chart", "risk_metrics", "forecast"),
+        context_keys=("chart", "risk_metrics", "forecast", "track_record"),
     ),
     PlaybookPrompt(
         id="technical_analysis",
@@ -309,7 +309,7 @@ PLAYBOOK: tuple[PlaybookPrompt, ...] = (
             conviction_adjustment="-1~0 사이, 확신을 얼마나 낮춰야 하는지",
         ),
         role="bear_researcher",
-        context_keys=("previous_conclusions", "risk_metrics", "forecast"),
+        context_keys=("previous_conclusions", "risk_metrics", "forecast", "track_record"),
     ),
     PlaybookPrompt(
         id="execution_plan",

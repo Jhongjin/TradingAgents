@@ -3577,6 +3577,66 @@ def shorts_record_command(
     console.print(f"[green]기록[/green] {row['date']} · {row['story']} · {row.get('video_id') or '업로드 전'}")
 
 
+@app.command("harness-review")
+def harness_review_command(
+    account: str = typer.Option("paper", "--account", help="paper, rules or kis."),
+    min_trades: int = typer.Option(5, "--min-trades", help="Skip the LLM call below this many closed trades."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print the record and the review; store nothing."),
+):
+    """Review the account's closed trades and file the proposed rule changes.
+
+    The proposals are stored on the account's latest run under
+    metadata.post_trade_review. They are not applied: a rule changes when a
+    person changes it.
+    """
+
+    import os
+    from datetime import datetime as _datetime
+
+    from tradingagents.harness.tasks import llm_from_config
+    from tradingagents.harness.track_record import (
+        build_track_record,
+        latest_run_id,
+        public_summary,
+        review_track_record,
+        track_record_text,
+    )
+    from tradingagents.storage import StorageRepository, create_storage_engine
+
+    if not os.getenv("DATABASE_URL"):
+        raise typer.BadParameter("DATABASE_URL is required")
+    key = account.strip().lower()
+    repo = StorageRepository(create_storage_engine())
+    summary = build_track_record(repo, account_key=key, before=None)
+    if not summary or summary["count"] < min_trades:
+        console.print(f"[yellow]{key}: 청산 거래 {0 if not summary else summary['count']}건 — {min_trades}건 미만이라 복기를 건너뜁니다.[/yellow]")
+        return
+    console.print(track_record_text(summary))
+
+    result = review_track_record(llm_from_config(), summary, account_key=key)
+    if result.status != "ok":
+        console.print(f"[red]복기 실패[/red] {result.status}: {result.error}")
+        raise typer.Exit(code=1)
+    data = result.data
+    for change in data.get("rule_changes") or []:
+        console.print(f"  [bold]제안[/bold] {change}")
+
+    if dry_run:
+        console.print("[dim]--dry-run: 저장하지 않습니다.[/dim]")
+        return
+    run_id = latest_run_id(repo, account_key=key)
+    if run_id is None:
+        console.print(f"[yellow]{key} 계좌의 실행 기록이 없어 저장하지 못했습니다.[/yellow]")
+        raise typer.Exit(code=1)
+    repo.update_harness_run_metadata(run_id, {"post_trade_review": {
+        "reviewed_at": _datetime.now().isoformat(timespec="seconds"),
+        "status": "proposed",
+        "record": public_summary(summary),
+        "review": data,
+    }})
+    console.print(f"[green]복기 저장[/green] run {run_id} · 제안 {len(data.get('rule_changes') or [])}건 (적용은 사람이 합니다)")
+
+
 @app.command("shorts-watchdog")
 def shorts_watchdog_command(
     channel: Optional[str] = typer.Option(None, "--channel", help="YouTube channel id. Defaults to the AgentTrust channel."),
