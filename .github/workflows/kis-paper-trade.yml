@@ -68,6 +68,7 @@ jobs:
           if [ -n "$DATABASE_URL" ]; then PERSIST="--persist"; fi
           tradingagents pipeline \
             --broker kis \
+            --account kis \
             --confirmer debate \
             --top 20 \
             --confirm "${{ github.event.inputs.confirm_top_n || '3' }}" \
