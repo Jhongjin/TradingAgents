@@ -315,6 +315,25 @@ class TestTradingMemoryLogCore:
         dates = [e["date"] for e in entries]
         assert dates == ["2026-01-03", "2026-01-04", "2026-01-05"]
 
+    def test_rotation_prunes_oldest_date_after_backfill(self, tmp_path):
+        """A backfill writes older decisions last; rotation still drops the oldest date."""
+        log = TradingMemoryLog({
+            "memory_log_path": str(tmp_path / "trading_memory.md"),
+            "memory_log_max_entries": 2,
+        })
+        for date in ("2026-01-05", "2026-01-06", "2026-01-01"):
+            _resolve_entry(log, "NVDA", date, DECISION_BUY, f"Lesson {date}.")
+        assert sorted(e["date"] for e in log.load_entries()) == ["2026-01-05", "2026-01-06"]
+
+    def test_past_context_takes_newest_decision_after_backfill(self, tmp_path):
+        """The newest-dated lesson leads even when an older one was written later."""
+        log = make_log(tmp_path)
+        _seed_completed(tmp_path, "NVDA", "2026-01-10", "Newer decision.", "Newer lesson.")
+        _seed_completed(tmp_path, "NVDA", "2026-01-02", "Backfilled decision.", "Backfilled lesson.")
+        context = log.get_past_context("NVDA", n_same=1)
+        assert "Newer lesson." in context
+        assert "Backfilled lesson." not in context
+
     def test_rotation_never_prunes_pending(self, tmp_path):
         """Pending entries (unresolved) are kept regardless of the cap."""
         log = TradingMemoryLog({

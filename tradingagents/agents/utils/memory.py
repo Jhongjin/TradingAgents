@@ -75,7 +75,10 @@ class TradingMemoryLog:
             return ""
 
         same, cross = [], []
-        for e in reversed(entries):
+        # Most recent by decision date, then by the later write: a backfill writes
+        # older decisions last (upstream #1603).
+        newest = sorted(range(len(entries)), key=lambda i: (entries[i]["date"], i), reverse=True)
+        for e in (entries[i] for i in newest):
             if len(same) >= n_same and len(cross) >= n_cross:
                 break
             if e["ticker"] == ticker and len(same) < n_same:
@@ -219,7 +222,7 @@ class TradingMemoryLog:
     # --- Helpers ---
 
     def _apply_rotation(self, blocks: List[str]) -> List[str]:
-        """Drop oldest resolved blocks when their count exceeds max_entries.
+        """Drop the oldest-dated resolved blocks when their count exceeds max_entries.
 
         Pending blocks are always kept (they represent unprocessed work).
         Returns ``blocks`` unchanged when rotation is disabled or under cap.
@@ -227,12 +230,12 @@ class TradingMemoryLog:
         if not self._max_entries or self._max_entries <= 0:
             return blocks
 
-        # Tag each block with (kept, is_resolved) by parsing tag-line markers.
+        # Tag each block with (block, is_resolved, decision date) from its tag line.
         decisions = []
         for block in blocks:
             stripped = block.strip()
             if not stripped:
-                decisions.append((block, False))
+                decisions.append((block, False, ""))
                 continue
             tag_line = stripped.splitlines()[0].strip()
             is_resolved = (
@@ -240,20 +243,17 @@ class TradingMemoryLog:
                 and tag_line.endswith("]")
                 and not tag_line.endswith("| pending]")
             )
-            decisions.append((block, is_resolved))
+            decisions.append((block, is_resolved, tag_line[1:].split("|")[0].strip()))
 
-        resolved_count = sum(1 for _, r in decisions if r)
+        resolved_count = sum(1 for _, r, _ in decisions if r)
         if resolved_count <= self._max_entries:
             return blocks
 
-        to_drop = resolved_count - self._max_entries
-        kept: List[str] = []
-        for block, is_resolved in decisions:
-            if is_resolved and to_drop > 0:
-                to_drop -= 1
-                continue
-            kept.append(block)
-        return kept
+        # Oldest decision date first; file order breaks ties (upstream #1603).
+        resolved = [i for i, (_, r, _) in enumerate(decisions) if r]
+        oldest = sorted(resolved, key=lambda i: (decisions[i][2], i))
+        drop = set(oldest[: resolved_count - self._max_entries])
+        return [block for i, (block, _, _) in enumerate(decisions) if i not in drop]
 
     def _parse_entry(self, raw: str) -> Optional[dict]:
         lines = raw.strip().splitlines()
