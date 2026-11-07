@@ -3776,6 +3776,22 @@ def _playbook_context(target: str, as_of_date: Optional[str]) -> dict:
             context["factors"] = forecast_payload.get("factors")
             context["risk_metrics"] = forecast_payload.get("risk_metrics")
             context["snapshot"] = forecast_payload.get("ticker")
+
+        # disclosure_events (context_keys: disclosures, news) otherwise only
+        # sees DART report_nm titles. get_disclosures_with_bodies appends body
+        # numbers for the filing types that actually move a decision (CB/BW/EB
+        # terms, capital raises, buybacks, earnings, lock-up,
+        # controlling-shareholder change) and never raises for a single bad
+        # filing; this outer try/except is the fail-closed backstop for the
+        # title lookup itself (missing DART_API_KEY, unsupported ticker, ...).
+        try:
+            from tradingagents.dataflows.dart import get_disclosures_with_bodies
+
+            context["disclosures"] = get_disclosures_with_bodies(target, curr_date=as_of_date)
+        except Exception as exc:  # pragma: no cover - network dependent
+            # Class name only: a requests error message carries the request URL,
+            # and OpenDART's URL carries crtfc_key.
+            context["disclosures_error"] = exc.__class__.__name__
     return context
 
 
