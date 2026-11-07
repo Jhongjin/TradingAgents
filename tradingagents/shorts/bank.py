@@ -361,24 +361,191 @@ def _last_detail(ledger: Sequence[Mapping[str, Any]], key: str, field_name: str)
     return None
 
 
+# ======================================================================
+# WEEK1_MIX_TEST — 2026-11-09 week-1 story-mix test. ONE variable changed:
+# which story wins a day that fires more than one candidate. Layout, hook,
+# title format and voice are untouched; this only reorders/blocks within
+# `plan()`'s existing candidate list.
+#
+# Why: jobs/2026-11-06-trading-repo-review/CONTENT-DIRECTION.md measured
+# record ("AI 모의계좌 성적 전부 공개") at ~690 median views, picks at 1,030,
+# debate at ~438, against funnel ("...종목에서 1종목") at 135 despite being a
+# third of all uploads, and explain_stop/explain_open/explain_debate/
+# rule_test reran under the *same* title and fell every time they did
+# (753→48→2, 41→26→25). Baseline before this test, channel-wide: overall
+# median 142 views, feed "계속 시청" (stayed watching) 21.9%.
+#
+# To revert: delete this whole block (constants through `_week1_mix_pick`)
+# and the single call to `_week1_mix_pick(...)` inside `plan()` — `plan()`
+# goes back to `playable[0]` with no quotas and no rerun check.
+# ======================================================================
+WEEK1_MIX_TEST_WEEKLY_CAPS: dict[str, int] = {"funnel": 1, "picks": 1, "debate": 1}
+WEEK1_MIX_TEST_RECORD_TARGET = 2
+WEEK1_MIX_TEST_TITLE_WINDOW_DAYS = 30
+
+
+def _week1_iso_week(day: date) -> tuple[int, int]:
+    year, week, _ = day.isocalendar()
+    return year, week
+
+
+def _week1_counts_this_week(ledger: Sequence[Mapping[str, Any]], today: date) -> dict[str, int]:
+    """How many times each story key already ran in today's Mon-Sun week.
+
+    Reads every ledger row regardless of its ``confirmed`` flag, the same way
+    `_novelty` already does for cooldown — a failed attempt still occupied
+    its slot in the week, so it still counts against the quota.
+    """
+
+    target = _week1_iso_week(today)
+    counts: dict[str, int] = {}
+    for row in ledger:
+        try:
+            when = date.fromisoformat(str(row.get("date"))[:10])
+        except ValueError:
+            continue
+        if _week1_iso_week(when) != target:
+            continue
+        key = str(row.get("story"))
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _week1_recent_titles(ledger: Sequence[Mapping[str, Any]], today: date,
+                          *, days: int = WEEK1_MIX_TEST_TITLE_WINDOW_DAYS) -> set[str]:
+    """Titles already published in the trailing window, for the rerun block."""
+
+    titles: set[str] = set()
+    for row in ledger:
+        try:
+            when = date.fromisoformat(str(row.get("date"))[:10])
+        except ValueError:
+            continue
+        if when > today or (today - when).days > days:
+            continue
+        title = str(row.get("title") or "").strip()
+        if title:
+            titles.add(title)
+    return titles
+
+
+def _week1_prospective_title(candidate: Candidate, payload: Mapping[str, Any], *, now: datetime | None) -> str | None:
+    """The title this candidate's video would carry, so a rerun is caught
+    before anything is built.
+
+    A story whose title would carry new numbers is a different string and so
+    is never blocked by this — only an unchanged title (explain_* and, on a
+    repeat variant set, rule_test) is. If the title cannot be produced from
+    this payload, this returns None and the candidate is treated as not
+    blocked: a day with no story is worse than one rerun slipping through.
+    """
+
+    try:
+        from .stories import build as _build_story
+
+        board = _build_story(candidate.story.renderer, payload, now=now, story=candidate.story.key)
+        return board.title
+    except Exception:
+        return None
+
+
+def _week1_mix_pick(
+    playable: list[Candidate],
+    payload: Mapping[str, Any],
+    ledger: Sequence[Mapping[str, Any]],
+    today: date,
+    *,
+    now: datetime | None,
+) -> tuple[Candidate | None, dict[str, Any]]:
+    """Today's winner under the week-1 mix test, and why.
+
+    Baseline behaviour (what this replaces) is simply `playable[0]` — highest
+    score, no quotas, no rerun check — and that is exactly the fallback below
+    when every candidate is blocked, so a day never goes out empty.
+    """
+
+    if not playable:
+        return None, {"applied": False, "reason": "오늘 올릴 수 있는 후보가 없습니다."}
+
+    counts = _week1_counts_this_week(ledger, today)
+    recent_titles = _week1_recent_titles(ledger, today)
+
+    eligible: list[Candidate] = []
+    blocked: list[tuple[str, str]] = []
+    for item in playable:
+        key = item.story.key
+        cap = WEEK1_MIX_TEST_WEEKLY_CAPS.get(key)
+        if cap is not None and counts.get(key, 0) >= cap:
+            blocked.append((key, f"주간 한도 {cap}회 소진"))
+            continue
+        title = _week1_prospective_title(item, payload, now=now)
+        if title is not None and title in recent_titles:
+            blocked.append((key, f"최근 {WEEK1_MIX_TEST_TITLE_WINDOW_DAYS}일 내 동일 제목 재사용 차단"))
+            continue
+        eligible.append(item)
+
+    if not eligible:
+        fallback = playable[0]
+        reasons = "; ".join(f"{key}:{reason}" for key, reason in blocked) or "사유 없음"
+        return fallback, {
+            "applied": True, "fallback": True, "counts_this_week": counts, "blocked": blocked,
+            "reason": f"모든 후보가 주간 믹스 규칙에 막혀 평소 점수순(1위)으로 대체: {reasons}",
+        }
+
+    # record is under its weekly target (2/주): nudge it ahead of a same-day
+    # tie or near-tie instead of only ever winning when it already has the
+    # top raw score. This is additive, not an override — a real event, a
+    # periodic report or a sharp funnel cut still wins the day on its own
+    # score the way it always has; `RECORD_NUDGE` only closes small gaps.
+    RECORD_NUDGE = 0.12
+    record_item = next((item for item in eligible if item.story.key == "record"), None)
+    record_boosted = record_item is not None and counts.get("record", 0) < WEEK1_MIX_TEST_RECORD_TARGET
+
+    def _effective_score(item: Candidate) -> float:
+        return item.score + (RECORD_NUDGE if record_boosted and item.story.key == "record" else 0.0)
+
+    eligible.sort(key=lambda item: (-_effective_score(item), item.story.key))
+
+    # picks/debate outrank funnel whenever both cleared today's bar — the
+    # content review found funnel's median (135) far below picks' (1,030) and
+    # debate's (~438), and funnel already keeps its own weekly cap above.
+    if eligible[0].story.key == "funnel":
+        better = next((item for item in eligible if item.story.key in ("picks", "debate")), None)
+        if better is not None:
+            eligible.remove(better)
+            eligible.insert(0, better)
+
+    winner = eligible[0]
+    return winner, {
+        "applied": True, "fallback": False, "counts_this_week": counts,
+        "blocked": blocked, "record_boosted": record_boosted,
+    }
+# ======================================================= end WEEK1_MIX_TEST
+
+
 def plan(payload: Mapping[str, Any], *, now: datetime | None = None, ledger: Sequence[Mapping[str, Any]] | None = None) -> dict[str, Any]:
     """Today's decision: what to make, why, and what else was in the running."""
 
     candidates = evaluate(payload, now=now, ledger=ledger)
+    today = _today(now)
+    history = list(ledger if ledger is not None else read_ledger())
     playable = [item for item in candidates if item.story.renderable]
-    chosen = playable[0] if playable else None
+    chosen, mix = _week1_mix_pick(playable, payload, history, today, now=now)
     return {
-        "date": _today(now).isoformat(),
+        "date": today.isoformat(),
         "chosen": chosen.as_dict() if chosen else None,
         "story": chosen.story.key if chosen else None,
         "renderer": chosen.story.renderer if chosen else None,
         "reason": chosen.reason if chosen else "오늘 발동한 스토리 중 만들 수 있는 것이 없습니다.",
         "candidates": [item.as_dict() for item in candidates],
         "waiting": [story.key for story in STORIES if not story.renderable],
+        "mix": mix,
     }
 
 
 __all__ = [
     "BY_KEY", "Candidate", "LEDGER_ENV", "MILESTONES", "STORIES", "Story",
+    "WEEK1_MIX_TEST_RECORD_TARGET", "WEEK1_MIX_TEST_TITLE_WINDOW_DAYS",
+    "WEEK1_MIX_TEST_WEEKLY_CAPS",
     "evaluate", "ledger_path", "plan", "read_ledger", "record_published",
 ]
