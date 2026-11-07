@@ -263,6 +263,71 @@ def test_playbook_confirmer_maps_structured_outputs():
     assert confirmation.rating == "Hold"
 
 
+def test_playbook_confirmer_disclosures_can_only_hold_a_buy_back():
+    outputs = {
+        "technical_analysis": {"summary": "상승", "action": "Buy", "confidence": 0.8},
+        "risk_management": {"summary": "보통", "risk_score": 0.3},
+        "disclosure_events": {"dilution_risk": "high", "timing_note": "CB 전환 물량"},
+    }
+    asked = []
+
+    def llm(prompt):
+        for key, value in outputs.items():
+            if get_prompt(key).title in prompt:
+                asked.append(key)
+                return json.dumps(value, ensure_ascii=False)
+        raise AssertionError(prompt)
+
+    candidate = _screener_result(_points()).candidates[0]
+    filings = {"candidate": candidate.as_dict(), "disclosures": "2026-11-06 | 전환사채권발행결정 | 1"}
+
+    assert playbook_confirmer(llm)(candidate, filings).rating == "Hold"
+
+    outputs["disclosure_events"]["dilution_risk"] = "low"
+    assert playbook_confirmer(llm)(candidate, filings).rating == "Buy"
+
+    # A Sell stays a Sell: the disclosure step never turns anything into a Buy.
+    outputs["technical_analysis"]["action"] = "Sell"
+    assert playbook_confirmer(llm)(candidate, filings).rating == "Sell"
+
+
+def test_playbook_confirmer_skips_disclosures_when_none_arrived():
+    asked = []
+
+    def llm(prompt):
+        for key in ("technical_analysis", "risk_management"):
+            if get_prompt(key).title in prompt:
+                asked.append(key)
+                return json.dumps({"action": "Buy", "confidence": 0.8, "risk_score": 0.2}, ensure_ascii=False)
+        raise AssertionError("disclosure_events should not be asked without filings")
+
+    candidate = _screener_result(_points()).candidates[0]
+    assert playbook_confirmer(llm)(candidate, {"candidate": candidate.as_dict()}).rating == "Buy"
+    assert asked == ["technical_analysis", "risk_management"]
+
+
+def test_playbook_confirmer_ignores_a_failed_disclosure_call():
+    def llm(prompt):
+        if get_prompt("disclosure_events").title in prompt:
+            raise RuntimeError("quota")
+        return json.dumps({"action": "Buy", "confidence": 0.8, "risk_score": 0.2}, ensure_ascii=False)
+
+    candidate = _screener_result(_points()).candidates[0]
+    filings = {"candidate": candidate.as_dict(), "disclosures": "2026-11-06 | 유상증자결정 | 1"}
+    assert playbook_confirmer(llm)(candidate, filings).rating == "Buy"
+
+
+def test_disclosure_text_never_raises(monkeypatch):
+    import tradingagents.dataflows.dart as dart
+    from tradingagents.harness.pipeline import _disclosure_text
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("no key")
+
+    monkeypatch.setattr(dart, "get_disclosures_with_bodies", boom)
+    assert _disclosure_text("005930") is None
+
+
 def test_graph_confirmer_uses_trading_graph_rating():
     class FakeGraph:
         last_analysis_run_id = "run-1"

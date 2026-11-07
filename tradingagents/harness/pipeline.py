@@ -618,6 +618,9 @@ def _process_candidate(
         record_text = track_record_text(track_record, candidate.code)
         if record_text:
             context["track_record"] = record_text
+        disclosures = _disclosure_text(candidate.code)
+        if disclosures:
+            context["disclosures"] = disclosures
         try:
             confirmation = confirmer(candidate, context)
         except Exception as exc:
@@ -902,6 +905,23 @@ def _forecast_gate(forecast: ForecastResult, config: PipelineConfig) -> list[str
     return reasons
 
 
+def _disclosure_text(code: str) -> str | None:
+    """Recent DART filings for the confirmer, or None.
+
+    Evidence only: a missing key, an unsupported ticker or DART being down
+    leaves the context as it was before disclosures were added, rather than
+    rejecting a candidate for want of paperwork.
+    """
+
+    try:
+        from tradingagents.dataflows.dart import get_disclosures_with_bodies
+
+        text = get_disclosures_with_bodies(code)
+    except Exception:
+        return None
+    return text or None
+
+
 def _confirmation_gate(confirmation: Confirmation, config: PipelineConfig) -> list[str]:
     reasons: list[str] = []
     if not confirmation.is_bullish:
@@ -912,13 +932,24 @@ def _confirmation_gate(confirmation: Confirmation, config: PipelineConfig) -> li
 
 
 # ------------------------------------------------------------------ confirmers
-def playbook_confirmer(llm: LLMCallable, *, prompt_ids: Sequence[str] = ("technical_analysis", "risk_management")) -> Confirmer:
-    """Confirm a candidate with playbook prompts (cheap, structured, auditable)."""
+def playbook_confirmer(
+    llm: LLMCallable,
+    *,
+    prompt_ids: Sequence[str] = ("technical_analysis", "risk_management", "disclosure_events"),
+) -> Confirmer:
+    """Confirm a candidate with playbook prompts (cheap, structured, auditable).
+
+    disclosure_events can only hold a Buy back (high dilution risk), never make
+    one, and it is skipped when no filings reached the context, so a day
+    without DART costs no extra call.
+    """
 
     def _confirm(candidate: ScreenerCandidate, context: Mapping[str, Any]) -> Confirmation:
         values = {"target": f"{candidate.name}({candidate.code}, {candidate.market})", "strategy": "스크리너 후보 확인 후 손절/익절 규칙 기반 스윙"}
         results = {}
         for prompt_id in prompt_ids:
+            if prompt_id == "disclosure_events" and not context.get("disclosures"):
+                continue
             prompt = get_prompt(prompt_id)
             task_context = {key: context[key] for key in prompt.context_keys if key in context}
             task_context["candidate"] = context.get("candidate")
@@ -947,6 +978,12 @@ def playbook_confirmer(llm: LLMCallable, *, prompt_ids: Sequence[str] = ("techni
             if risk_score is not None and risk_score >= 0.8 and rating == "Buy":
                 rating = "Hold"
                 rationale = f"{rationale} (risk_score {risk_score:.2f} too high)".strip()
+        disclosure = results.get("disclosure_events")
+        if disclosure and disclosure.status == "ok" and rating == "Buy":
+            dilution = str(disclosure.data.get("dilution_risk") or "").strip().lower()
+            if dilution == "high":
+                rating = "Hold"
+                rationale = f"{rationale} (disclosure dilution risk high)".strip()
         return Confirmation(
             rating=rating,
             confidence=max(0.0, min(confidence, 1.0)),
