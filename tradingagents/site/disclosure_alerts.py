@@ -22,8 +22,10 @@ KST = ZoneInfo("Asia/Seoul")
 ALERT_KEY = "disclosure_alerts"
 MAX_TICKERS_PER_MEMBER = 30
 MAX_LINES = 8
+MAX_KEY_FIGURES = 3
 
 DisclosureFetcher = Callable[[str, int], list[dict[str, Any]]]
+BodyFetcher = Callable[[str], str]
 
 # Filings that move a price. Everything else is filed constantly and would turn
 # the alert into noise nobody reads.
@@ -44,9 +46,156 @@ def _default_fetcher(ticker: str, days: int) -> list[dict[str, Any]]:
     return list_recent_disclosures(ticker, days=days)
 
 
+def _default_body_fetcher(receipt_no: str) -> str:
+    from tradingagents.dataflows.dart import get_disclosure_body
+
+    return get_disclosure_body(receipt_no)
+
+
 def is_notable(report_name: str) -> bool:
     text = str(report_name or "").replace(" ", "")
     return any(keyword in text for keyword in NOTABLE)
+
+
+def _is_body_worthy(report_name: str) -> bool:
+    from tradingagents.dataflows.dart import _is_body_worthy as dart_is_body_worthy
+
+    return dart_is_body_worthy(str(report_name or ""))
+
+
+# For each body-worthy filing type (tradingagents.dataflows.dart's own
+# _BODY_WORTHY_REPORT_KEYWORDS), the row-label keywords that hold the number a
+# member actually needs, in priority order. Matched the same way DART's own
+# body rows look once flattened by get_disclosure_body: "label | value...".
+# Earnings filings (영업(잠정)실적) are handled separately in _earnings_figures
+# because the number that matters sits at a fixed column position, not behind
+# a distinct label.
+_FIGURE_RULES: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
+    "전환사채권발행결정": (
+        ("권면총액", ("권면",)),
+        ("전환가액", ("전환가액",)),
+    ),
+    "신주인수권부사채권발행결정": (
+        ("권면총액", ("권면",)),
+        ("행사가액", ("행사가액",)),
+    ),
+    "교환사채권발행결정": (
+        ("권면총액", ("권면",)),
+        ("교환가액", ("교환가액",)),
+    ),
+    "유상증자결정": (
+        ("발행주식수", ("신주의 종류와 수", "신주의종류와수")),
+        ("발행가액", ("신주 발행가액", "발행가액")),
+        ("조달금액", ("운영자금", "시설자금", "영업양수자금", "채무상환자금", "타법인", "기타자금")),
+    ),
+    "무상증자결정": (
+        ("발행주식수", ("신주의 종류와 수", "신주의종류와수")),
+    ),
+    "자기주식취득결정": (
+        ("취득예정주식", ("취득예정주식",)),
+        ("취득예정금액", ("취득예정금액",)),
+    ),
+    "자기주식처분결정": (
+        ("처분예정주식", ("처분예정주식",)),
+        ("처분예정금액", ("처분예정금액",)),
+    ),
+}
+
+
+def _rule_set_for(report_name: str) -> tuple[tuple[str, tuple[str, ...]], ...] | None:
+    for keyword, rules in _FIGURE_RULES.items():
+        if keyword in report_name:
+            return rules
+    return None
+
+
+def _row_value(lines: list[str], keywords: tuple[str, ...]) -> str | None:
+    """First "label | value" row whose label carries one of ``keywords`` and
+    whose value looks like a short figure rather than a prose paragraph."""
+
+    for keyword in keywords:
+        for line in lines:
+            if " | " not in line:
+                continue
+            label, _, rest = line.partition(" | ")
+            if keyword not in label:
+                continue
+            parts = [p.strip() for p in rest.split(" | ") if p.strip()]
+            if not parts:
+                continue
+            value = parts[-1]
+            if not value or value == "-" or len(value) > 40:
+                continue
+            if not any(ch.isdigit() for ch in value):
+                continue
+            return value
+    return None
+
+
+def _earnings_figures(body: str) -> list[str]:
+    """매출액/영업이익, 당기 vs 전년동기, from the standard 영업(잠정)실적 row shape:
+    ``label | 당해실적 | 당기 | 전기 | 전기대비% | 흑자전환 | 전년동기 | 전년동기대비% | 흑자전환``.
+    """
+
+    figures: list[str] = []
+    for label in ("매출액", "영업이익"):
+        if len(figures) >= MAX_KEY_FIGURES:
+            break
+        for line in body.splitlines():
+            cells = [c.strip() for c in line.split(" | ")]
+            if not cells or cells[0] != label or len(cells) < 7:
+                continue
+            current = cells[2]
+            if not current or current == "-" or not any(ch.isdigit() for ch in current):
+                break
+            prior_year = cells[6]
+            if prior_year and prior_year != "-" and any(ch.isdigit() for ch in prior_year):
+                figures.append(f"{label} {current}(전년동기 {prior_year})")
+            else:
+                figures.append(f"{label} {current}")
+            break
+    return figures[:MAX_KEY_FIGURES]
+
+
+def _extract_key_figures(report_name: str, body: str) -> list[str]:
+    """Up to ``MAX_KEY_FIGURES`` short "label value" strings pulled from a
+    filing body, or an empty list if nothing matches or anything goes wrong.
+
+    Never raises: a body in an unexpected shape should cost the figures, not
+    the alert line they were going to decorate.
+    """
+
+    try:
+        if "영업" in report_name and "실적" in report_name:
+            return _earnings_figures(body)
+        rules = _rule_set_for(report_name)
+        if not rules:
+            return []
+        lines = body.splitlines()
+        figures: list[str] = []
+        for display, keywords in rules:
+            if len(figures) >= MAX_KEY_FIGURES:
+                break
+            value = _row_value(lines, keywords)
+            if value:
+                figures.append(f"{display} {value}")
+        return figures[:MAX_KEY_FIGURES]
+    except Exception:
+        return []
+
+
+def _key_figures_for_filing(report_name: str, receipt_no: str, body_fetch: BodyFetcher) -> list[str]:
+    """At most one body fetch (``body_fetch`` is cached by receipt_no on the
+    DART side), and never raises: any failure here must leave today's alert
+    text exactly as it already was."""
+
+    try:
+        if not _is_body_worthy(report_name):
+            return []
+        body = body_fetch(receipt_no)
+        return _extract_key_figures(report_name, body)
+    except Exception:
+        return []
 
 
 def member_tickers(repo: StorageRepository, user_id: str) -> dict[str, str]:
@@ -80,12 +229,14 @@ def notify_disclosure_alerts(
     now: datetime | None = None,
     days: int = 2,
     fetcher: DisclosureFetcher | None = None,
+    body_fetcher: BodyFetcher | None = None,
 ) -> dict[str, Any]:
     """Send each member the new filings on the names they follow."""
 
     now = now or datetime.now(timezone.utc)
     base = (site_base_url or "").rstrip("/")
     fetch = fetcher or _default_fetcher
+    fetch_body = body_fetcher or _default_body_fetcher
     recipients = repo.list_notification_recipients("telegram")
     if not recipients:
         return {"status": "no_recipients", "sent": 0}
@@ -116,7 +267,12 @@ def notify_disclosure_alerts(
                 fresh[receipt] = now.date().isoformat()
                 if len(lines) < MAX_LINES:
                     filed = str(row.get("filed_at") or "")
-                    lines.append(f"• <b>{name}</b>({code}) {title}\n  {filed} · https://dart.fss.or.kr/dsaf001/main.do?rcpNo={receipt}")
+                    figures = _key_figures_for_filing(title, receipt, fetch_body)
+                    figure_line = f"\n  {' · '.join(figures)}" if figures else ""
+                    lines.append(
+                        f"• <b>{name}</b>({code}) {title}{figure_line}"
+                        f"\n  {filed} · https://dart.fss.or.kr/dsaf001/main.do?rcpNo={receipt}"
+                    )
 
         if not fresh:
             continue

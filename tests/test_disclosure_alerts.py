@@ -73,15 +73,23 @@ def test_each_filing_is_announced_once():
     _seed(repo)
     client = FakeTelegram()
     fetcher = lambda code, days: FILINGS.get(code, [])
+    # 유상증자결정 is body-worthy (tradingagents.dataflows.dart._is_body_worthy);
+    # a body_fetcher keeps the body fetch deterministic and off the network,
+    # same reason `fetcher` above replaces the live DART title feed.
+    body_fetcher = lambda receipt_no: ""
 
-    first = notify_disclosure_alerts(repo, client, site_base_url="https://agenttrust.kr", fetcher=fetcher)
+    first = notify_disclosure_alerts(
+        repo, client, site_base_url="https://agenttrust.kr", fetcher=fetcher, body_fetcher=body_fetcher
+    )
     assert first["status"] == "sent" and first["filings"] == 2  # the IR notice is not one
     text = client.messages[0][1]
     assert "유상증자결정" in text and "공급계약" in text
     assert "기업설명회" not in text
     assert "dart.fss.or.kr" in text and "매매 권유가 아닙니다" in text
 
-    again = notify_disclosure_alerts(repo, client, site_base_url="https://agenttrust.kr", fetcher=fetcher)
+    again = notify_disclosure_alerts(
+        repo, client, site_base_url="https://agenttrust.kr", fetcher=fetcher, body_fetcher=body_fetcher
+    )
     assert again["status"] == "nothing_to_send" and len(client.messages) == 1
 
     channel = repo.get_notification_channel(USER, "telegram")
@@ -89,7 +97,13 @@ def test_each_filing_is_announced_once():
 
     later = dict(FILINGS)
     later["005930"] = [*FILINGS["005930"], {"receipt_no": "20260911000333", "report_name": "감사보고서제출", "filed_at": "20260911"}]
-    third = notify_disclosure_alerts(repo, client, site_base_url="https://agenttrust.kr", fetcher=lambda code, days: later.get(code, []))
+    third = notify_disclosure_alerts(
+        repo,
+        client,
+        site_base_url="https://agenttrust.kr",
+        fetcher=lambda code, days: later.get(code, []),
+        body_fetcher=body_fetcher,
+    )
     assert third["filings"] == 1 and "감사보고서" in client.messages[-1][1]
 
 
