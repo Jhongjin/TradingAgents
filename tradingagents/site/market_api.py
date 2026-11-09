@@ -11,6 +11,9 @@ from tradingagents.dataflows.chart_data import get_latest_close_price, get_ohlcv
 from .public_api import _json_ready, _public_error
 
 
+LATEST_PRICE_FETCH_TIMEOUT_SECONDS = 8.0
+
+
 def build_latest_prices_payload(
     tickers: list[str],
     *,
@@ -20,7 +23,20 @@ def build_latest_prices_payload(
     ignore_errors: bool = True,
     max_tickers: int = 20,
 ) -> dict[str, Any]:
-    """Build latest close-price snapshots keyed by normalized ticker code."""
+    """Build latest close-price snapshots keyed by normalized ticker code.
+
+    One ticker's close price does not depend on another's, so these are
+    fetched concurrently (the same ThreadPoolExecutor idiom as
+    ``build_sparkline_payload`` below) instead of one at a time — measured
+    2026-11-09: a paper account with 7-9 held tickers spent 18-19s here,
+    serially, before every other part of the page or API response. A pool
+    thread that is still stuck on a slow vendor past
+    ``LATEST_PRICE_FETCH_TIMEOUT_SECONDS`` is abandoned via
+    ``shutdown(wait=False)`` rather than awaited, for the same reason
+    ``tradingagents.dataflows.deadline`` prefers a daemon thread over a pool
+    for its own, longer, deadline: a pool's default ``__exit__`` blocks until
+    every submitted call returns, which would silently undo the timeout.
+    """
 
     requested = _clean_tickers(tickers)
     if not requested:
@@ -31,22 +47,43 @@ def build_latest_prices_payload(
         raise ValueError(f"tickers cannot contain more than {max_tickers} symbols")
 
     date_value = end_date or datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat()
-    prices = {}
-    errors = {}
-    for ticker in requested:
+
+    def fetch_one(ticker: str):
+        return get_latest_close_price(ticker, date_value, lookback_days=lookback_days, vendor=vendor)
+
+    prices: dict[str, Any] = {}
+    errors: dict[str, str] = {}
+    if len(requested) == 1:
+        ticker = requested[0]
         try:
-            price = get_latest_close_price(
-                ticker,
-                date_value,
-                lookback_days=lookback_days,
-                vendor=vendor,
-            )
+            price = fetch_one(ticker)
+            prices[price.ticker_code] = price.as_dict()
         except Exception as exc:
             if not ignore_errors:
                 raise
             errors[ticker] = _public_error(exc)
-            continue
-        prices[price.ticker_code] = price.as_dict()
+    else:
+        from concurrent.futures import ThreadPoolExecutor
+
+        pool = ThreadPoolExecutor(max_workers=min(8, len(requested)), thread_name_prefix="latest-price")
+        future_by_ticker = {ticker: pool.submit(fetch_one, ticker) for ticker in requested}
+        # One deadline for the whole batch: waiting the full timeout per ticker
+        # would add up again when several vendors stall together.
+        import time as _time
+
+        deadline = _time.monotonic() + LATEST_PRICE_FETCH_TIMEOUT_SECONDS
+        try:
+            for ticker in requested:
+                try:
+                    price = future_by_ticker[ticker].result(timeout=max(0.0, deadline - _time.monotonic()))
+                except Exception as exc:
+                    if not ignore_errors:
+                        raise
+                    errors[ticker] = _public_error(exc)
+                    continue
+                prices[price.ticker_code] = price.as_dict()
+        finally:
+            pool.shutdown(wait=False)
 
     status = "available"
     if not prices:
