@@ -26,11 +26,12 @@ set STAMP=%DATE:~0,10%
 set LOG=%REPO%\logs\goldlab-sync-%STAMP:/=-%.log
 
 echo ==== %DATE% %TIME% ==== >> "%LOG%"
-for %%S in (GC=F NQ=F) do (
-  "%PYTHON%" "%RUN%" bars sync --symbol %%S --intervals 1m >> "%LOG%" 2>&1
-  "%PYTHON%" "%RUN%" bars sync --symbol %%S --intervals 5m,1h --db >> "%LOG%" 2>&1
-  "%PYTHON%" "%RUN%" ledger scan --symbol %%S --interval 5m --last 800 --db >> "%LOG%" 2>&1
-  "%PYTHON%" "%RUN%" ledger grade --symbol %%S --interval 5m --db >> "%LOG%" 2>&1
+rem "=" splits a bare for-list in cmd (GC=F becomes GC and F), so the symbols are quoted.
+for %%S in ("GC=F" "NQ=F") do (
+  "%PYTHON%" "%RUN%" bars sync --symbol %%~S --intervals 1m >> "%LOG%" 2>&1
+  "%PYTHON%" "%RUN%" bars sync --symbol %%~S --intervals 5m,1h --db >> "%LOG%" 2>&1
+  "%PYTHON%" "%RUN%" ledger scan --symbol %%~S --interval 5m --last 800 --db >> "%LOG%" 2>&1
+  "%PYTHON%" "%RUN%" ledger grade --symbol %%~S --interval 5m --db >> "%LOG%" 2>&1
 )
 echo exit=%ERRORLEVEL% >> "%LOG%"
 exit /b 0
