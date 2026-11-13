@@ -28,7 +28,11 @@ from .events import events_file, write_events_template
 from .report import render_report
 from .study import DEFAULT_HORIZONS, run_pattern_study
 
+from .cli_ledger import bars_app, history, ledger_app, open_repo, walkforward_study
+
 app = typer.Typer(help="Gold futures chart-pattern lab (private).", no_args_is_help=True)
+app.add_typer(bars_app, name="bars")
+app.add_typer(ledger_app, name="ledger")
 console = Console()
 
 
@@ -101,10 +105,21 @@ def study_command(
     horizons: str = typer.Option("4,12,24,72", "--horizons", help="Forward bars to measure."),
     min_occurrences: int = typer.Option(30, "--min", min=5, help="Below this, a pattern is not reported as tradable."),
     output: Optional[Path] = typer.Option(None, "--output", help="Write the full result JSON here."),
+    legacy: bool = typer.Option(False, "--legacy", help="Store the old full-history study instead of the walk-forward one."),
+    window: Optional[int] = typer.Option(None, "--window", help="Rolling window in bars for the walk-forward study; default expanding."),
+    db: bool = typer.Option(False, "--db", help="Read bars and the ledger from the database (needs DATABASE_URL)."),
 ):
-    """Measure what followed each pattern, against the base rate of the same bars."""
+    """Measure what followed each pattern, against the base rate of the same bars.
 
-    series = load_bars(symbol, interval=interval)
+    The stored result is the walk-forward study (what the chart quotes); it also
+    carries the old full-history numbers as ``legacy_patterns`` for comparison.
+    """
+
+    repo = open_repo(db)
+    series = history(symbol, interval, repo)
+    if not legacy:
+        walkforward_study(series, symbol, interval, horizons, min_occurrences, window, repo, output)
+        return
     spec = CONTRACTS.get(symbol, GOLD_FUTURES)
     result = run_pattern_study(series, horizons=_parse_horizons(horizons), min_occurrences=min_occurrences, contract=spec)
 

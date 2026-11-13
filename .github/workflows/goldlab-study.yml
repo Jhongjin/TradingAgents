@@ -1,37 +1,61 @@
 name: Gold pattern measurement
 
-# Re-measures what followed each gold futures pattern and stores the result so
-# the private chart at /lab/gold can quote a win rate beside every mark.
+# Two jobs share this file.
 #
-# Measuring years of bars takes minutes, which no web request can spend, so it
-# happens here. Nothing is traded and nothing is published publicly: the row is
-# read only by that one private page.
+# Weekly ("measure"): merges the 5-minute bars into the stored history, scans the
+# whole history point-in-time into the signal ledger, grades what has matured,
+# re-measures what followed each pattern with the walk-forward study (shrunk,
+# false-discovery checked) and stores it so the private chart at /lab/gold can
+# quote it beside every mark.
+#
+# Every two hours on weekdays ("ledger"): bars and ledger only. Yahoo serves just
+# 60 days of 5-minute bars, so history is kept only if something fetches often
+# enough; this is that something. It records new signals as they appear and
+# grades the old ones. It measures nothing and publishes nothing.
+#
+# Nothing is traded and nothing is published publicly. The bar store and the
+# ledger sit in tables that are not publicly readable (migration
+# 202611130001_goldlab_bars_and_signals.sql must be applied first; without it the
+# jobs still run on file copies that do not survive the runner).
+#
+# Scheduled runs stopped repo-wide on 2026-10-14, for every workflow, not this
+# one; see the note in the final report. The cron lines below are valid.
 
 on:
   workflow_dispatch:
     inputs:
+      job:
+        description: "measure (weekly) or ledger (every two hours)"
+        default: "measure"
       intervals:
-        description: "Timeframes to measure"
+        description: "Timeframes to measure for GC=F"
         default: "5m,15m,1h,4h,1d,1wk"
+      nq_intervals:
+        description: "Timeframes to keep for NQ=F"
+        default: "5m"
       horizons:
         description: "Forward bars to measure"
         default: "4,12,24,72"
   schedule:
     # 07:20 KST every Saturday (22:20 UTC Friday), after the week has closed.
     - cron: "20 22 * * 5"
+    # every two hours, weekdays (UTC), at :07 to stay off the busy top of the hour
+    - cron: "7 */2 * * 1-5"
 
 concurrency:
   group: goldlab-study
   cancel-in-progress: false
 
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  TRADINGAGENTS_POSTGRES_DRIVER: pg8000
+  PYTHONIOENCODING: utf-8
+
 jobs:
   measure:
+    if: github.event_name == 'schedule' && github.event.schedule == '20 22 * * 5' || github.event_name == 'workflow_dispatch' && (github.event.inputs.job || 'measure') == 'measure'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      TRADINGAGENTS_POSTGRES_DRIVER: pg8000
-      PYTHONIOENCODING: utf-8
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -40,18 +64,60 @@ jobs:
           cache: pip
       - name: Install
         run: pip install -e .
-      - name: Measure each timeframe
+      - name: Merge bars into the stored history
         run: |
           if [ -z "$DATABASE_URL" ]; then echo "::error::DATABASE_URL secret is not set"; exit 1; fi
+          python -m goldlab bars sync --symbol GC=F --intervals "5m,15m" --db || echo "::warning::GC=F bar merge failed"
+          python -m goldlab bars sync --symbol NQ=F --intervals "${{ github.event.inputs.nq_intervals || '5m' }}" --db || echo "::warning::NQ=F bar merge failed"
+      - name: Scan the history into the ledger and grade it
+        run: |
+          for pair in "GC=F 5m" "NQ=F 5m"; do
+            set -- $pair
+            echo "::group::$1 $2"
+            python -m goldlab ledger scan --symbol "$1" --interval "$2" --backfill --db || echo "::warning::$1 $2 ledger scan failed"
+            python -m goldlab ledger grade --symbol "$1" --interval "$2" --db || echo "::warning::$1 $2 ledger grade failed"
+            echo "::endgroup::"
+          done
+      - name: Measure each timeframe
+        run: |
           INTERVALS="${{ github.event.inputs.intervals || '5m,15m,1h,4h,1d,1wk' }}"
+          HORIZONS="${{ github.event.inputs.horizons || '4,12,24,72' }}"
           for interval in $(echo "$INTERVALS" | tr ',' ' '); do
-            echo "::group::$interval"
-            python -m goldlab study \
-              --interval "$interval" \
-              --horizons "${{ github.event.inputs.horizons || '4,12,24,72' }}" \
-              || echo "::warning::$interval could not be measured"
+            echo "::group::GC=F $interval"
+            python -m goldlab study --symbol GC=F --interval "$interval" --horizons "$HORIZONS" --db \
+              || echo "::warning::GC=F $interval could not be measured"
+            echo "::endgroup::"
+          done
+          for interval in $(echo "${{ github.event.inputs.nq_intervals || '5m' }}" | tr ',' ' '); do
+            echo "::group::NQ=F $interval"
+            python -m goldlab study --symbol NQ=F --interval "$interval" --horizons "$HORIZONS" --db \
+              || echo "::warning::NQ=F $interval could not be measured"
             echo "::endgroup::"
           done
       - name: Store them for the chart
         run: |
-          python -m goldlab publish --direct --intervals "${{ github.event.inputs.intervals || '5m,15m,1h,4h,1d,1wk' }}"
+          python -m goldlab publish --direct --symbol GC=F --intervals "${{ github.event.inputs.intervals || '5m,15m,1h,4h,1d,1wk' }}"
+          python -m goldlab publish --direct --symbol NQ=F --intervals "${{ github.event.inputs.nq_intervals || '5m' }}"
+
+  ledger:
+    if: github.event_name == 'schedule' && github.event.schedule == '7 */2 * * 1-5' || github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'ledger'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -e .
+      - name: Merge bars, record new signals, grade old ones
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "::error::DATABASE_URL secret is not set"; exit 1; fi
+          for symbol in GC=F NQ=F; do
+            echo "::group::$symbol 5m"
+            python -m goldlab bars sync --symbol "$symbol" --intervals 5m --db || echo "::warning::$symbol bar merge failed"
+            python -m goldlab ledger scan --symbol "$symbol" --interval 5m --last 800 --db || echo "::warning::$symbol ledger scan failed"
+            python -m goldlab ledger grade --symbol "$symbol" --interval 5m --db || echo "::warning::$symbol ledger grade failed"
+            echo "::endgroup::"
+          done

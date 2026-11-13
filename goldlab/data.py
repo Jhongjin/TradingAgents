@@ -110,6 +110,8 @@ class Bar:
     low: float
     close: float
     volume: float
+    # where the bar came from; a vendor import outranks Yahoo for the same timestamp
+    source: str = "yahoo"
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -200,9 +202,9 @@ def write_cache(series: BarSeries) -> Path:
     target = cache_path(series.symbol, series.interval)
     with target.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["timestamp", "open", "high", "low", "close", "volume"])
+        writer.writerow(["timestamp", "open", "high", "low", "close", "volume", "source"])
         for bar in series.bars:
-            writer.writerow([bar.timestamp.isoformat(), bar.open, bar.high, bar.low, bar.close, bar.volume])
+            writer.writerow([bar.timestamp.isoformat(), bar.open, bar.high, bar.low, bar.close, bar.volume, bar.source])
     return target
 
 
@@ -211,24 +213,30 @@ def read_cache(symbol: str, interval: str) -> BarSeries | None:
     if not source.exists():
         return None
     bars: list[Bar] = []
-    with source.open(encoding="utf-8") as handle:
-        for row in csv.DictReader(handle):
-            stamp = _parse_timestamp(row.get("timestamp"))
-            if stamp is None:
-                continue
-            try:
-                bars.append(
-                    Bar(
-                        timestamp=stamp,
-                        open=float(row["open"]),
-                        high=float(row["high"]),
-                        low=float(row["low"]),
-                        close=float(row["close"]),
-                        volume=float(row.get("volume") or 0.0),
+    try:
+        with source.open(encoding="utf-8") as handle:
+            for row in csv.DictReader(handle):
+                stamp = _parse_timestamp(row.get("timestamp"))
+                if stamp is None:
+                    continue
+                try:
+                    bars.append(
+                        Bar(
+                            timestamp=stamp,
+                            open=float(row["open"]),
+                            high=float(row["high"]),
+                            low=float(row["low"]),
+                            close=float(row["close"]),
+                            volume=float(row.get("volume") or 0.0),
+                            source=str(row.get("source") or "yahoo"),
+                        )
                     )
-                )
-            except (KeyError, TypeError, ValueError):
-                continue
+                except (KeyError, TypeError, ValueError):
+                    continue
+    except (OSError, UnicodeDecodeError):
+        # a file that is not text (a security agent can wrap files on a managed
+        # laptop) is no cache at all, not a crash; the next fetch rewrites it
+        return None
     return BarSeries(symbol=symbol, interval=interval, bars=tuple(bars)) if bars else None
 
 
@@ -250,7 +258,7 @@ def bars_from_rows(rows: Iterable[dict], *, symbol: str, interval: str) -> BarSe
             continue
         if high < low or high <= 0 or low <= 0:
             continue
-        bars.append(Bar(timestamp=parsed, open=open_, high=high, low=low, close=close, volume=float(row.get("volume") or 0.0)))
+        bars.append(Bar(timestamp=parsed, open=open_, high=high, low=low, close=close, volume=float(row.get("volume") or 0.0), source=str(row.get("source") or "yahoo")))
     bars.sort(key=lambda bar: bar.timestamp)
     return BarSeries(symbol=symbol, interval=interval, bars=tuple(bars))
 
@@ -305,7 +313,7 @@ def _fetch_from_yahoo(symbol: str, interval: str, span_days: int) -> list[dict]:
         ladder = ((7, "7d"), (30, "1mo"), (60, "3mo"), (180, "6mo"), (365, "1y"), (730, "2y"))
         if interval in {"1m", "2m", "5m", "15m", "30m", "90m"}:
             # the fine intervals are served for a much shorter window
-            ladder = ((1, "1d"), (7, "7d"), (30, "1mo"), (60, "1mo"))
+            ladder = ((1, "1d"), (7, "7d"), (30, "1mo"), (60, "60d"))   # "1mo" would cut a 59-day ask to ~30 days
         for days, name in ladder:
             if span_days <= days:
                 params["range"] = name
@@ -387,5 +395,13 @@ def load_bars(
         if cached and len(cached) > 0:
             return cached
     series = fetch_bars(symbol, interval=interval, days=days)
-    write_cache(series)
-    return series
+    if interval in RESAMPLED_FROM or symbol.upper() in KRX_GOLD_SYMBOLS:
+        # resampled buckets are cut from the start of the fetched window, so two
+        # windows would not line up; those series are replaced as before
+        write_cache(series)
+        return series
+    # everything else accumulates: the vendor's window slides, the history stays
+    from .barstore import merge_into_cache
+
+    merged, _added = merge_into_cache(series)
+    return merged

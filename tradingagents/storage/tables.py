@@ -460,3 +460,49 @@ cached_payloads = Table(
     Column("payload_json", JSON, nullable=False, default=dict),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
 )
+
+
+# --------------------------------------------------------------------------
+# Gold pattern lab (goldlab). Kept in a metadata of its own on purpose: the
+# readiness probe walks `metadata.sorted_tables`, and an optional research
+# workbench must not turn the site's health check red because its migration
+# has not been applied yet. The repository's goldlab_* methods raise when the
+# tables are missing and the lab falls back to files.
+# --------------------------------------------------------------------------
+goldlab_metadata = MetaData()
+
+# Every bar the lab has ever seen. Yahoo serves only ~60 days of 5-minute bars,
+# so the history has to be accumulated here: rows are inserted, never deleted.
+goldlab_bars = Table(
+    "goldlab_bars",
+    goldlab_metadata,
+    Column("symbol", String(32), primary_key=True),
+    Column("interval", String(8), primary_key=True),
+    Column("ts", DateTime(timezone=True), primary_key=True),
+    Column("open", Float, nullable=False),
+    Column("high", Float, nullable=False),
+    Column("low", Float, nullable=False),
+    Column("close", Float, nullable=False),
+    Column("volume", Float, nullable=False, default=0.0),
+    # 'yahoo' or a vendor tag; a vendor bar is never overwritten by a Yahoo one
+    Column("source", String(24), nullable=False, default="yahoo"),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+)
+
+# The signal ledger: one row per (symbol, interval, pattern, bar). The payload
+# holds the context tags, the claim in force and the grades; a row is added once
+# and its grades are only ever filled in, never rewritten.
+goldlab_signals = Table(
+    "goldlab_signals",
+    goldlab_metadata,
+    Column("signal_id", String(160), primary_key=True),
+    Column("symbol", String(32), nullable=False),
+    Column("interval", String(8), nullable=False),
+    Column("pattern", String(48), nullable=False),
+    Column("ts", DateTime(timezone=True), nullable=False),
+    Column("direction", String(8), nullable=False),
+    Column("complete", Boolean, nullable=False, default=False),
+    Column("payload_json", JSON, nullable=False, default=dict),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+)

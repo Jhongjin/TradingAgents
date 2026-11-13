@@ -20,12 +20,14 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
+from .context import ContextTagger
 from .data import BarSeries
 from .events import macro_events
 from .indicators import moving_averages, trend_lines
 from .patterns import PatternHit, detect_patterns
 from .patterns.forming import attach_record, detect_forming
 from .sessions import SESSIONS, all_session_windows, session_summary
+from .walkforward import METHOD as WALKFORWARD_METHOD, pick_record
 
 KST = ZoneInfo("Asia/Seoul")
 DAILY_OR_LONGER = {"1d", "1wk", "1mo"}
@@ -372,11 +374,14 @@ function confidenceCell(row) {
   return '<td class="num">' + (row.samples ? pct(row.win_rate) : '-') + '</td>'
     + '<td class="num ' + ((row.edge_win_rate || 0) > 0 ? 'up' : 'down') + '">' + (row.samples ? pctp(row.edge_win_rate) : '-') + '</td>'
     + '<td class="num muted">' + (row.samples || '-') + '</td>'
-    + '<td class="muted">' + row.confidence + '</td>';
+    + '<td class="muted" title="' + (row.basis || '') + (row.fdr ? ' · FDR 통과' : '') + '">' + row.confidence + (row.basis && row.basis !== '전체' && row.shrunk ? ' *' : '') + '</td>';
 }
 
 function renderPanels() {
   const f = frame();
+  const ledger = document.getElementById('ledger');
+  ledger.textContent = f.ledger_line || '';
+  ledger.style.display = f.ledger_line ? 'block' : 'none';
   const forming = f.forming || [];
   document.getElementById('forming').innerHTML = forming.length
     ? forming.map((shape) => '<tr><td class="' + (shape.direction === 'bullish' ? 'up' : 'down') + '">'
@@ -540,6 +545,8 @@ select(current).then(resize);
 
 
 def _confidence(stats: Mapping[str, Any]) -> str:
+    if stats.get("confidence"):
+        return str(stats["confidence"])   # walk-forward studies judge this on shrunk numbers and the FDR check
     samples = int(stats.get("count") or 0)
     edge = stats.get("edge_win_rate")
     t_stat = abs(float(stats.get("t_stat") or 0))
@@ -608,13 +615,58 @@ def quote_payload(series: BarSeries, *, last: int = 3) -> dict[str, Any]:
     }
 
 
-def _hit_rows(hits: Sequence[PatternHit], study: Mapping[str, Any] | None, *, min_samples: int = 30, interval: str = "1h") -> list[dict]:
+def _quote(study: Mapping[str, Any] | None, pattern: str, context: Mapping[str, Any] | None, *, min_samples: int, legacy: dict[str, dict]) -> dict[str, Any]:
+    """The record a hit is shown with, as flat fields the page reads.
+
+    A walk-forward study gives the shrunk, context-matched record and says what
+    it was matched on. An older stored study (no ``method``) still works, quoted
+    as it always was and marked as unshrunk.
+    """
+
+    if study and study.get("method") == WALKFORWARD_METHOD:
+        row = next((item for item in study.get("patterns") or [] if item.get("pattern") == pattern), None)
+        picked = pick_record((row or {}).get("horizons") or {}, context, min_samples=min_samples)
+        if not picked:
+            return {"samples": 0, "win_rate": None, "edge_win_rate": None, "t_stat": None, "confidence": "측정 없음", "basis": "", "shrunk": True}
+        stats = picked["stats"]
+        return {
+            "samples": int(stats.get("count") or 0),
+            "win_rate": stats.get("shrunk_win_rate", stats.get("win_rate")),
+            "raw_win_rate": stats.get("win_rate"),
+            "edge_win_rate": stats.get("shrunk_edge_win_rate", stats.get("edge_win_rate")),
+            "t_stat": stats.get("t_stat"),
+            "confidence": _confidence(stats),
+            "fdr": bool(stats.get("fdr_significant")),
+            "basis": picked["basis"],
+            "horizon": picked["horizon"],
+            "shrunk": True,
+        }
+    stats = legacy.get(pattern) or {}
+    return {
+        "samples": int(stats.get("count") or 0),
+        "win_rate": stats.get("win_rate"),
+        "edge_win_rate": stats.get("edge_win_rate"),
+        "t_stat": stats.get("t_stat"),
+        "confidence": _confidence(stats),
+        "basis": "전체 기간(구형 측정, 수축 없음)",
+        "shrunk": False,
+    }
+
+
+def _hit_rows(
+    hits: Sequence[PatternHit],
+    study: Mapping[str, Any] | None,
+    *,
+    min_samples: int = 30,
+    interval: str = "1h",
+    context_at: Any = None,
+) -> list[dict]:
     """Each hit with the measured record attached, ready to draw."""
 
-    lookup = _best_stats(study, min_samples=min_samples)
+    legacy = _best_stats(study, min_samples=min_samples)
     rows = []
     for hit in hits:
-        stats = lookup.get(hit.pattern) or {}
+        context = context_at(hit.index) if context_at else None
         rows.append(
             {
                 "index": hit.index,
@@ -623,11 +675,7 @@ def _hit_rows(hits: Sequence[PatternHit], study: Mapping[str, Any] | None, *, mi
                 "pattern": hit.pattern,
                 "label": hit.label,
                 "direction": hit.direction,
-                "samples": int(stats.get("count") or 0),
-                "win_rate": stats.get("win_rate"),
-                "edge_win_rate": stats.get("edge_win_rate"),
-                "t_stat": stats.get("t_stat"),
-                "confidence": _confidence(stats),
+                **_quote(study, hit.pattern, context, min_samples=min_samples, legacy=legacy),
             }
         )
     return rows
@@ -649,7 +697,9 @@ def summarise_bias(hits: Sequence[Mapping[str, Any]], forming: Sequence[Mapping[
         edge = row.get("edge_win_rate")
         if int(row.get("samples") or 0) < min_samples or edge is None:
             continue
-        weight = abs(float(edge)) * (1 if abs(float(row.get("t_stat") or 0)) >= 2 else 0.4) * scale
+        # a walk-forward row earns full weight only by passing the false-discovery check
+        proven = bool(row["fdr"]) if "fdr" in row else abs(float(row.get("t_stat") or 0)) >= 2
+        weight = abs(float(edge)) * (1 if proven else 0.4) * scale
         if kind == "completed":
             counted_completed += 1
         else:
@@ -681,8 +731,12 @@ def build_frame(
     interval = series.interval
     bars = series.bars[-max_bars:]
     trimmed = BarSeries(symbol=series.symbol, interval=interval, bars=bars)
-    hits = _hit_rows(detect_patterns(trimmed), study, interval=interval)
-    forming = attach_record(detect_forming(bars), study)
+    # contexts are read off the full series, so a hit near the left edge of the
+    # drawn window still has the 200 bars behind it that its tags need
+    offset = len(series.bars) - len(bars)
+    tagger = ContextTagger(series.bars, interval=interval)
+    hits = _hit_rows(detect_patterns(trimmed), study, interval=interval, context_at=lambda i: tagger.tag(i + offset).as_dict())
+    forming = attach_record(detect_forming(bars), study, context=tagger.tag(len(series.bars) - 1).as_dict() if len(series.bars) else None)
     windows = all_session_windows(bars)
 
     stamp_index = {bar.timestamp: index for index, bar in enumerate(bars)}
@@ -711,6 +765,8 @@ def build_frame(
         "ma": moving_averages(bars),
         "trendlines": trend_lines(bars),
         "bias": summarise_bias(recent, forming),
+        "record_method": (study or {}).get("method") or "legacy",
+        "ledger_line": (study or {}).get("ledger_line"),
         "sessions": windows,
         "session_rows": session_summary(windows, last=3),
         "events": events,
@@ -818,8 +874,10 @@ def render_chart(
     <thead><tr><th>시각 (KST)</th><th>등급</th><th>지표</th><th>차트</th></tr></thead>
     <tbody id="events"></tbody></table></div></div>
 </div>
+<p class="note" id="ledger" style="display:none"></p>
 <p class="note">{html.escape(generated)} KST 기준 · {html.escape(refresh_note)}<br>
 승률과 기준대비는 같은 종목의 과거 같은 패턴에서 센 값이며 앞으로를 보장하지 않습니다. 형성 중인 패턴의 승률은 확인 가격을 지나 완성됐을 때의 과거 기록입니다.
+승률 칸의 값은 신호 시점에 이미 결과가 나와 있던 과거 신호만으로 센 뒤 표본 수에 따라 기준 쪽으로 당겨 보정한 값이고, 많은 패턴을 한꺼번에 검사해 생기는 우연을 거르는 검사(FDR)를 통과하지 못하면 '약함' 이하로만 표시합니다. 신뢰도 옆 * 는 세션·추세 같은 맥락별 기록을 썼다는 뜻입니다.
 시각은 모두 한국 시간(KST)입니다. 세션은 도쿄·런던·뉴욕 현지 영업시간 기준이라 서머타임을 따라 움직입니다.
 추세선은 최근 두 개의 저점(지지)과 고점(저항)을 이은 선이며, 종가가 넘어선 선은 점선으로 바뀝니다.
 FOMC와 물가지표처럼 날짜가 규칙으로 정해지지 않는 발표는 직접 입력한 일정만 표시합니다.</p>

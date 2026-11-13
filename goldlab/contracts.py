@@ -73,4 +73,25 @@ MICRO_GOLD_FUTURES = ContractSpec(
     initial_margin=1_200.0,
 )
 
-CONTRACTS = {spec.symbol: spec for spec in (GOLD_FUTURES, MICRO_GOLD_FUTURES)}
+# CME Nasdaq-100 futures: the lab's second instrument (5-minute bars, same ledger).
+NASDAQ_FUTURES = ContractSpec(
+    symbol="NQ=F",
+    name="CME E-mini Nasdaq-100 ($20 x index)",
+    multiplier=20.0,
+    tick_size=0.25,
+    typical_slippage_ticks=1.0,
+    commission_per_side=2.5,
+    initial_margin=24_000.0,
+)
+
+MICRO_NASDAQ_FUTURES = ContractSpec(
+    symbol="MNQ=F",
+    name="CME Micro E-mini Nasdaq-100 ($2 x index)",
+    multiplier=2.0,
+    tick_size=0.25,
+    typical_slippage_ticks=1.0,
+    commission_per_side=0.75,
+    initial_margin=2_400.0,
+)
+
+CONTRACTS = {spec.symbol: spec for spec in (GOLD_FUTURES, MICRO_GOLD_FUTURES, NASDAQ_FUTURES, MICRO_NASDAQ_FUTURES)}

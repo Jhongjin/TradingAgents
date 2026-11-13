@@ -291,8 +291,47 @@ def detect_forming(bars: Sequence[Bar], *, recent: int = RECENT_BARS, max_distan
     return found
 
 
-def attach_record(forming: Sequence[dict[str, Any]], study: Mapping[str, Any] | None, *, min_samples: int = 30) -> list[dict[str, Any]]:
-    """Quote, for each forming shape, what its completed form did before."""
+def attach_record(
+    forming: Sequence[dict[str, Any]],
+    study: Mapping[str, Any] | None,
+    *,
+    min_samples: int = 30,
+    context: Mapping[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Quote, for each forming shape, what its completed form did before.
+
+    A walk-forward study is quoted shrunk and matched to ``context`` (the current
+    bar's tags); an older one is quoted as it always was.
+    """
+
+    if study and study.get("method") == "walk_forward_v1":
+        from ..walkforward import pick_record
+
+        rows = []
+        for entry in forming:
+            row = next((item for item in study.get("patterns") or [] if item.get("pattern") == entry["pattern"]), None)
+            picked = pick_record((row or {}).get("horizons") or {}, context, min_samples=min_samples)
+            if not picked:
+                rows.append({**entry, "samples": 0, "win_rate": None, "edge_win_rate": None, "average_return": None, "t_stat": None, "confidence": "측정 없음", "basis": "", "shrunk": True})
+                continue
+            stats = picked["stats"]
+            rows.append(
+                {
+                    **entry,
+                    "samples": int(stats.get("count") or 0),
+                    "win_rate": stats.get("shrunk_win_rate", stats.get("win_rate")),
+                    "raw_win_rate": stats.get("win_rate"),
+                    "edge_win_rate": stats.get("shrunk_edge_win_rate", stats.get("edge_win_rate")),
+                    "average_return": stats.get("average_return"),
+                    "t_stat": stats.get("t_stat"),
+                    "confidence": stats.get("confidence") or "약함",
+                    "fdr": bool(stats.get("fdr_significant")),
+                    "basis": picked["basis"],
+                    "horizon": picked["horizon"],
+                    "shrunk": True,
+                }
+            )
+        return rows
 
     lookup: dict[str, dict] = {}
     for row in (study or {}).get("patterns") or []:

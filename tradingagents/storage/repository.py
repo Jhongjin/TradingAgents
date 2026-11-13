@@ -40,6 +40,9 @@ from .tables import (
     analysis_refresh_requests,
     backtest_runs,
     cached_payloads,
+    goldlab_bars,
+    goldlab_metadata,
+    goldlab_signals,
     member_preferences,
     paper_account_snapshots,
     analysis_runs,
@@ -140,6 +143,7 @@ class StorageRepository:
         """
 
         metadata.create_all(self.engine)
+        goldlab_metadata.create_all(self.engine)
 
     def create_analysis_run(self, data: AnalysisRunInput) -> str:
         _validate_visibility(data.visibility)
@@ -1212,6 +1216,133 @@ class StorageRepository:
             row = conn.execute(stmt).mappings().first()
         return dict(row) if row else None
 
+    # ------------------------------------------------------------------
+    # Gold pattern lab. Bars and signals live in tables of their own (see the
+    # goldlab_metadata note in tables.py); these raise if the migration has not
+    # been applied, and the lab falls back to files when they do.
+    # ------------------------------------------------------------------
+    def goldlab_load_bars(self, symbol: str, interval: str, *, since: datetime | None = None) -> list[dict[str, Any]]:
+        """Every stored bar for one series, oldest first."""
+
+        stmt = select(goldlab_bars).where(goldlab_bars.c.symbol == symbol, goldlab_bars.c.interval == interval)
+        if since is not None:
+            stmt = stmt.where(goldlab_bars.c.ts >= since)
+        with self.engine.begin() as conn:
+            rows = [dict(row) for row in conn.execute(stmt.order_by(goldlab_bars.c.ts)).mappings().all()]
+        for row in rows:
+            row["ts"] = _utc(row["ts"])
+        return rows
+
+    def goldlab_upsert_bars(self, symbol: str, interval: str, rows: list[Mapping[str, Any]]) -> dict[str, int]:
+        """Add new bars and refresh changed ones. Nothing is ever deleted.
+
+        Each row may carry a ``source`` (default 'yahoo'). A Yahoo row never
+        replaces a vendor row for the same timestamp, whatever the caller
+        passes: the vendor's history is the better copy and must survive a
+        routine fetch. Which overlapping bars deserve new values is otherwise
+        the caller's decision; this only writes what it is given.
+        """
+
+        if not rows:
+            return {"inserted": 0, "updated": 0}
+        stamps = [_utc(row["ts"]) for row in rows]
+        inserted = updated = 0
+        with self.engine.begin() as conn:
+            existing: dict[datetime, tuple] = {}
+            for start in range(0, len(stamps), 500):
+                chunk = stamps[start : start + 500]
+                for found in conn.execute(
+                    select(goldlab_bars.c.ts, goldlab_bars.c.open, goldlab_bars.c.high, goldlab_bars.c.low, goldlab_bars.c.close, goldlab_bars.c.volume, goldlab_bars.c.source).where(
+                        goldlab_bars.c.symbol == symbol,
+                        goldlab_bars.c.interval == interval,
+                        goldlab_bars.c.ts.in_(chunk),
+                    )
+                ).all():
+                    existing[_utc(found[0])] = (*(float(value) for value in found[1:6]), str(found[6] or "yahoo"))
+            fresh = []
+            for row, stamp in zip(rows, stamps):
+                source = str(row.get("source") or "yahoo")
+                values = (*(float(row[key]) for key in ("open", "high", "low", "close", "volume")), source)
+                if stamp not in existing:
+                    fresh.append(dict(symbol=symbol, interval=interval, ts=stamp, open=values[0], high=values[1], low=values[2], close=values[3], volume=values[4], source=source))
+                elif existing[stamp] != values:
+                    if source == "yahoo" and existing[stamp][5] != "yahoo":
+                        continue
+                    conn.execute(
+                        update(goldlab_bars)
+                        .where(goldlab_bars.c.symbol == symbol, goldlab_bars.c.interval == interval, goldlab_bars.c.ts == stamp)
+                        .values(open=values[0], high=values[1], low=values[2], close=values[3], volume=values[4], source=source, updated_at=datetime.now(timezone.utc))
+                    )
+                    updated += 1
+            for start in range(0, len(fresh), 1000):
+                conn.execute(insert(goldlab_bars), fresh[start : start + 1000])
+            inserted = len(fresh)
+        return {"inserted": inserted, "updated": updated}
+
+    def goldlab_load_signals(self, symbol: str, interval: str, *, pending_only: bool = False, since: datetime | None = None) -> list[dict[str, Any]]:
+        """Ledger rows for one series, oldest first; each is the stored payload."""
+
+        stmt = select(goldlab_signals.c.signal_id, goldlab_signals.c.payload_json, goldlab_signals.c.complete).where(
+            goldlab_signals.c.symbol == symbol, goldlab_signals.c.interval == interval
+        )
+        if pending_only:
+            stmt = stmt.where(goldlab_signals.c.complete.is_(False))
+        if since is not None:
+            stmt = stmt.where(goldlab_signals.c.ts >= since)
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt.order_by(goldlab_signals.c.ts, goldlab_signals.c.signal_id)).all()
+        return [{**dict(row[1]), "id": row[0], "complete": bool(row[2])} for row in rows]
+
+    def goldlab_add_signals(self, signals: list[Mapping[str, Any]]) -> int:
+        """Insert signals whose id is not stored yet; an existing row is left alone."""
+
+        if not signals:
+            return 0
+        added = 0
+        with self.engine.begin() as conn:
+            for start in range(0, len(signals), 500):
+                chunk = signals[start : start + 500]
+                known = {
+                    row[0]
+                    for row in conn.execute(select(goldlab_signals.c.signal_id).where(goldlab_signals.c.signal_id.in_([item["id"] for item in chunk]))).all()
+                }
+                fresh = [
+                    dict(
+                        signal_id=item["id"],
+                        symbol=item["symbol"],
+                        interval=item["interval"],
+                        pattern=item["pattern"],
+                        ts=_utc(datetime.fromisoformat(str(item["ts"]))),
+                        direction=item["direction"],
+                        complete=bool(item.get("complete")),
+                        payload_json={key: value for key, value in item.items() if key not in {"id", "complete"}},
+                    )
+                    for item in chunk
+                    if item["id"] not in known
+                ]
+                if fresh:
+                    conn.execute(insert(goldlab_signals), fresh)
+                    added += len(fresh)
+        return added
+
+    def goldlab_update_signals(self, signals: list[Mapping[str, Any]]) -> int:
+        """Rewrite the payload of signals whose grades were filled in."""
+
+        count = 0
+        with self.engine.begin() as conn:
+            for item in signals:
+                conn.execute(
+                    update(goldlab_signals)
+                    .where(goldlab_signals.c.signal_id == item["id"])
+                    .values(
+                        payload_json={key: value for key, value in item.items() if key not in {"id", "complete"}},
+                        complete=bool(item.get("complete")),
+                        updated_at=datetime.now(timezone.utc),
+                    )
+                )
+                count += 1
+        return count
+
     def get_member_preferences(self, user_id: str) -> dict[str, Any] | None:
         """Display preferences for one member, or None when never saved."""
 
@@ -2047,6 +2178,14 @@ def _ticker_fields(ticker_code: str, ticker_name: str | None, market: str) -> tu
         resolved = resolve_kr_ticker(ticker_code, lookup_pykrx=False)
         return resolved.code, ticker_name or resolved.name, resolved.market
     return ticker_code.upper(), ticker_name, market
+
+
+def _utc(value: Any) -> datetime:
+    """A timestamp as an aware UTC datetime; SQLite hands them back naive."""
+
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value)
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 
 
 def _id() -> str:
