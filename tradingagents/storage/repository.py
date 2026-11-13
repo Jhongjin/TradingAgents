@@ -1245,6 +1245,8 @@ class StorageRepository:
 
         if not rows:
             return {"inserted": 0, "updated": 0}
+        if self.engine.dialect.name == "postgresql" and len(rows) > 2000:
+            return self._goldlab_bulk_upsert_bars(symbol, interval, rows)
         stamps = [_utc(row["ts"]) for row in rows]
         inserted = updated = 0
         with self.engine.begin() as conn:
@@ -1278,6 +1280,48 @@ class StorageRepository:
                 conn.execute(insert(goldlab_bars), fresh[start : start + 1000])
             inserted = len(fresh)
         return {"inserted": inserted, "updated": updated}
+
+    def _goldlab_bulk_upsert_bars(self, symbol: str, interval: str, rows: list[Mapping[str, Any]]) -> dict[str, int]:
+        """The same rule as above, for a vendor import of millions of bars.
+
+        The row-at-a-time path costs a round trip per bar, and pg8000 sends an
+        executemany one row at a time too: years of 1-minute bars would take
+        hours. Here each chunk is one multi-row INSERT ... ON CONFLICT whose
+        WHERE keeps a vendor bar from being replaced by a Yahoo one.
+        """
+
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        now = datetime.now(timezone.utc)
+        written = 0
+        with self.engine.begin() as conn:
+            for start in range(0, len(rows), 5000):
+                chunk = [
+                    dict(
+                        symbol=symbol,
+                        interval=interval,
+                        ts=_utc(row["ts"]),
+                        open=float(row["open"]),
+                        high=float(row["high"]),
+                        low=float(row["low"]),
+                        close=float(row["close"]),
+                        volume=float(row["volume"]),
+                        source=str(row.get("source") or "yahoo"),
+                        updated_at=now,
+                    )
+                    for row in rows[start : start + 5000]
+                ]
+                stmt = pg_insert(goldlab_bars).values(chunk)
+                excluded = stmt.excluded
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[goldlab_bars.c.symbol, goldlab_bars.c.interval, goldlab_bars.c.ts],
+                    set_={key: excluded[key] for key in ("open", "high", "low", "close", "volume", "source", "updated_at")},
+                    where=(excluded.source != "yahoo") | (goldlab_bars.c.source == "yahoo"),
+                )
+                conn.execute(stmt)
+                written += len(chunk)
+        # Postgres does not say which rows were inserts and which updates.
+        return {"inserted": written, "updated": 0}
 
     def goldlab_load_signals(self, symbol: str, interval: str, *, pending_only: bool = False, since: datetime | None = None) -> list[dict[str, Any]]:
         """Ledger rows for one series, oldest first; each is the stored payload."""
