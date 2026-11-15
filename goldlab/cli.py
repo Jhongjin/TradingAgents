@@ -28,11 +28,13 @@ from .events import events_file, write_events_template
 from .report import render_report
 from .study import DEFAULT_HORIZONS, run_pattern_study
 
+from .cli_analogs import analogs_app
 from .cli_ledger import bars_app, history, ledger_app, open_repo, walkforward_study
 
 app = typer.Typer(help="Gold futures chart-pattern lab (private).", no_args_is_help=True)
 app.add_typer(bars_app, name="bars")
 app.add_typer(ledger_app, name="ledger")
+app.add_typer(analogs_app, name="analogs")
 console = Console()
 
 

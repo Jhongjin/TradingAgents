@@ -115,6 +115,10 @@ td.empty { white-space:normal; color:var(--muted); padding:16px 8px; }
 .sk { display:block; height:12px; border-radius:6px; background:linear-gradient(100deg,var(--soft) 30%,var(--line) 50%,var(--soft) 70%) 0 0/200% 100%; animation:sh 1.4s linear infinite; }
 .soon { border:1px dashed var(--line); border-radius:10px; padding:14px; color:var(--muted); text-align:center; line-height:1.6; }
 .ledger { line-height:1.6; }
+svg.fan { width:100%; height:auto; display:block; } svg.fan text { font-size:8.5px; fill:var(--muted); }
+svg.fan .fg { stroke:var(--line); stroke-width:1; stroke-dasharray:2 3; } svg.fan .fz { stroke:var(--muted); stroke-width:1; }
+svg.fan .fl { fill:none; stroke-width:1.2; opacity:.38; } svg.fan .fl.up { stroke:var(--up); } svg.fan .fl.down { stroke:var(--down); }
+svg.fan .fm { fill:none; stroke:var(--fg); stroke-width:2.4; }
 .notes { margin-top:14px; font-size:11.5px; color:var(--muted); line-height:1.75; }
 .notes summary { cursor:pointer; font-weight:600; }
 .notes p { margin:8px 0 0; }
@@ -453,6 +457,53 @@ function renderLower() {
   }
 }
 
+// ---------- similar past charts (research only: never a forecast) ----------
+const ANALOG_SOON = '<div class="soon">최근 60봉과 가장 닮은 과거 10곳,<br>그 뒤 흐름의 분포가 여기에 표시됩니다.</div>';
+const kstText = (iso) => new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+const spct = (v) => (v == null ? '-' : (v > 0 ? '+' : '') + (v * 100).toFixed(2) + '%');
+
+function fanSvg(a) {
+  const W = 300, H = 150, L = 38, R = 16, T = 8, B = 18;
+  const paths = a.analogs.map((x) => x.forward), med = a.median_path || [];
+  const steps = Math.max(...paths.map((p) => p.length)) - 1;
+  const all = []; paths.forEach((p) => p.forEach((v) => all.push(Math.abs(v)))); all.sort((x, y) => x - y);
+  const lim = Math.max(all[Math.floor(all.length * 0.97)] || 0, 1e-4) * 1.1;
+  const X = (i) => (L + (W - L - R) * i / steps).toFixed(1);
+  const Y = (v) => (T + (H - T - B) * (1 - (Math.max(-lim, Math.min(lim, v)) + lim) / (2 * lim))).toFixed(1);
+  const line = (p) => p.map((v, i) => (i ? 'L' : 'M') + X(i) + ' ' + Y(v)).join('');
+  let s = '<svg class="fan" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="닮은 과거 구간 뒤의 흐름">';
+  [lim, 0, -lim].forEach((v) => { s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" class="' + (v === 0 ? 'fz' : 'fg') + '"/><text x="' + (L - 4) + '" y="' + (Number(Y(v)) + 3) + '" text-anchor="end">' + (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%</text>'; });
+  (a.horizons || []).forEach((h) => { if (h <= steps) s += '<line x1="' + X(h) + '" x2="' + X(h) + '" y1="' + T + '" y2="' + (H - B) + '" class="fg"/><text x="' + X(h) + '" y="' + (H - 4) + '" text-anchor="middle">+' + h + '</text>'; });
+  paths.forEach((p) => { s += '<path d="' + line(p) + '" class="fl ' + (p[p.length - 1] >= 0 ? 'up' : 'down') + '"/>'; });
+  if (med.length) s += '<path d="' + line(med) + '" class="fm"/>';
+  return s + '</svg>';
+}
+
+function renderAnalogs() {
+  const a = ST.frame && ST.frame.analogs, body = $('abody'), sub = $('asub');
+  if (!a || !a.analogs || !a.analogs.length) { sub.textContent = '준비 중'; body.innerHTML = ANALOG_SOON; return; }
+  const f = ST.frame, lastBar = f && f.bars.length ? f.bars[f.bars.length - 1][5] : 0;
+  const ageH = (Date.now() - new Date(a.computed_at).getTime()) / 3600000;
+  const trading = lastBar && (Date.now() / 1000 - lastBar) < 6 * 3600;      // bars are still arriving
+  const stale = trading && ageH > 3;
+  sub.innerHTML = '계산 ' + esc(kstText(a.computed_at)) + ' KST' + (stale ? ' · <b style="color:var(--down)">오래됨 (' + Math.floor(ageH) + '시간 전)</b>' : '');
+  const rows = (a.horizons || []).map((h) => {
+    const s = (a.summary || {})[String(h)]; if (!s) return '';
+    const cls = s.median >= 0 ? 'up' : 'down';
+    return '<tr><td class="muted">' + h + '봉 뒤</td><td class="num"><b class="' + (s.share_up >= 0.5 ? 'up' : 'down') + '">' + s.up + '/' + s.n + ' 상승</b><br><span class="muted">기준 ' + pct(s.base_share_up) + '</span></td>'
+      + '<td class="num ' + cls + '">' + spct(s.median) + '<br><span class="muted">' + spct(s.q25) + ' ~ ' + spct(s.q75) + '</span></td></tr>';
+  }).join('');
+  const v = a.validation;
+  const vrows = v ? Object.entries(v.horizons || {}).map(([h, r]) => esc(h) + '봉 적중 ' + pct(r.hit_rate) + ' (기준 ' + pct(r.base) + ', n=' + (r.n || 0) + ')').join(' · ') : '';
+  const list = a.analogs.map((x) => '<div class="row" style="padding:5px 0"><span class="num">' + esc(kstText(x.end)) + '</span><span class="muted num">유사도 ' + (x.similarity * 100).toFixed(0) + '%</span></div>').join('');
+  body.innerHTML = (stale ? '<div class="warn" style="margin:0 0 6px;color:var(--down)">계산한 지 오래돼 지금 차트와 어긋날 수 있습니다.</div>' : '')
+    + fanSvg(a)
+    + '<div class="muted" style="margin:2px 0 6px">가는 선: 닮은 ' + a.analogs.length + '곳의 그 뒤 흐름 (지금 종가를 0으로, 지금 변동성에 맞춰 환산) · 굵은 선: 중앙값</div>'
+    + '<table><thead><tr><th></th><th>상승 비율</th><th>중앙값 (사분위)</th></tr></thead><tbody>' + rows + '</tbody></table>'
+    + '<details style="margin-top:8px"><summary class="muted" style="cursor:pointer">닮은 ' + a.analogs.length + '곳 (종료 시각, KST)</summary>' + list + '</details>'
+    + '<div class="warn"><b>' + (v ? esc(v.line) : '검증 기록 없음: 아직 순차 검증을 하지 않았습니다') + '</b>' + (vrows ? '<br>' + vrows : '') + '<br>과거 사례의 분포를 보여 줄 뿐 앞날의 예측이 아닙니다.</div>';
+}
+
 function renderChrome() {
   const sc = symCfg();
   $('ctitle').textContent = sc.name + ' · ' + (DATA.interval_labels[ST.interval] || ST.interval);
@@ -462,7 +513,7 @@ function renderChrome() {
 }
 
 function renderAll() {
-  renderChrome(); renderHeader(); renderKpis(); renderVerdict(); renderForming(); renderLedger(); renderSignals(); renderLower(); liveText();
+  renderChrome(); renderHeader(); renderKpis(); renderVerdict(); renderForming(); renderLedger(); renderSignals(); renderLower(); renderAnalogs(); liveText();
 }
 
 // ---------- live status ----------
@@ -730,7 +781,7 @@ def render_page(
     </div>
     <div class="card"><h3><span>형성 중</span><small>확인 가격까지</small></h3><div id="form"></div></div>
     <div class="card"><h3><span>실전 기록</span><small>실제로 낸 신호의 성적</small></h3><div class="ledger" id="ledger"></div></div>
-    <div class="card"><h3><span>비슷한 과거 차트</span><small>준비 중</small></h3><div class="soon">최근 60봉과 가장 닮은 과거 10곳,<br>그 뒤 흐름의 분포가 여기에 표시됩니다.</div></div>
+    <div class="card" id="acard"><h3><span>비슷한 과거 차트</span><small id="asub">준비 중</small></h3><div id="abody"><div class="soon">최근 60봉과 가장 닮은 과거 10곳,<br>그 뒤 흐름의 분포가 여기에 표시됩니다.</div></div></div>
   </div>
 </div>
 <details class="notes"><summary>읽는 법과 한계</summary>

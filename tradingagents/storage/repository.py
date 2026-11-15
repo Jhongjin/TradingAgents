@@ -1136,8 +1136,13 @@ class StorageRepository:
             decision["outcomes"] = by_decision.get(str(decision["id"]), [])
         return decisions
 
-    def save_backtest_run(self, payload: Mapping[str, Any], *, label: str = "rules") -> str:
-        """Store one replay of the rules over history."""
+    def save_backtest_run(self, payload: Mapping[str, Any], *, label: str = "rules", keep_latest: bool = False) -> str:
+        """Store one replay of the rules over history.
+
+        ``keep_latest`` makes the label a cache slot: older rows with the same label
+        go in the same transaction, for results recomputed every few hours of which
+        only the newest is ever read.
+        """
 
         metrics = dict(payload.get("metrics") or {})
         run_id = _id()
@@ -1163,6 +1168,8 @@ class StorageRepository:
                     notes=list(payload.get("notes") or []),
                 )
             )
+            if keep_latest:
+                conn.execute(delete(backtest_runs).where(backtest_runs.c.label == label, backtest_runs.c.id != run_id))
         return run_id
 
     def latest_backtest_run(self, *, label: str = "rules") -> dict[str, Any] | None:

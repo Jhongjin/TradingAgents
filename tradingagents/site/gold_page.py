@@ -48,6 +48,18 @@ def load_stored_study(repo: Any, symbol: str, interval: str) -> dict[str, Any] |
     return dict(payload) if isinstance(payload, Mapping) else None
 
 
+def load_stored_analogs(repo: Any, symbol: str, interval: str) -> dict[str, Any] | None:
+    """The similar-past-charts report the lab stored, or None (the card keeps its placeholder)."""
+
+    if repo is None:
+        return None
+    try:
+        from goldlab.analogs import load_stored_analogs as load
+    except ImportError:
+        return None
+    return load(repo, symbol, interval)
+
+
 def build_gold_frame(*, repo: Any = None, symbol: str = "GC=F", interval: str = DEFAULT_INTERVAL, bars: int = 600, min_stars: int = 3) -> dict[str, Any]:
     """One timeframe, fetched now: what the page asks for on a tab or a timer.
 
@@ -61,7 +73,9 @@ def build_gold_frame(*, repo: Any = None, symbol: str = "GC=F", interval: str = 
     series = fetch_bars(symbol, interval=interval)
     if len(series) < 60:
         raise RuntimeError(f"only {len(series)} bars for {symbol} {interval}")
-    return build_frame(series, study=load_stored_study(repo, symbol, interval), max_bars=bars, min_stars=min_stars)
+    frame = build_frame(series, study=load_stored_study(repo, symbol, interval), max_bars=bars, min_stars=min_stars)
+    frame["analogs"] = load_stored_analogs(repo, symbol, interval)
+    return frame
 
 
 def build_gold_quote(*, symbol: str = "GC=F", interval: str = DEFAULT_INTERVAL) -> dict[str, Any]:
