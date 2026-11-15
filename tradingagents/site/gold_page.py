@@ -19,6 +19,15 @@ DEFAULT_INTERVAL = "1h"
 STUDY_LABEL_PREFIX = "gold"
 DATA_PATH = "/lab/gold/data"
 
+# The only instruments the private page serves: a symbol outside this list is
+# refused, because the symbol reaches the vendor and the study table by name.
+GOLD_SYMBOLS: tuple[dict[str, Any], ...] = (
+    {"key": "GC=F", "label": "GC 금", "name": "COMEX 금 선물", "precision": 1},
+    {"key": "NQ=F", "label": "NQ 나스닥", "name": "CME 나스닥 100 선물", "precision": 2},
+)
+ALLOWED_SYMBOLS = frozenset(item["key"] for item in GOLD_SYMBOLS)
+DEFAULT_SYMBOL = "GC=F"
+
 
 def study_label(symbol: str, interval: str) -> str:
     return f"{STUDY_LABEL_PREFIX}:{symbol}:{interval}"
@@ -76,19 +85,25 @@ def render_gold_chart_page(
     min_stars: int = 3,
     default_interval: str = DEFAULT_INTERVAL,
     data_url: str | None = DATA_PATH,
+    symbols: Sequence[Mapping[str, Any]] | None = None,
+    inline_first: bool = False,
 ) -> str:
-    """Draw the first timeframe now; the page fetches the rest as they are asked for.
+    """The page shell; the browser fetches the data it shows.
 
-    With a data URL only the opening timeframe is fetched here, which keeps the
-    request short and lets the page refresh itself. Without one, every
-    timeframe is fetched and inlined and the page is static.
+    With a data URL nothing is fetched here: the shell goes out at once, with
+    skeletons, and the page asks for its symbol and timeframe, so a slow vendor
+    cannot hold the page up. ``inline_first`` fetches the opening timeframe
+    here instead. Without a data URL every timeframe is fetched and inlined and
+    the page is static.
     """
 
     from goldlab.chart import render_chart
 
+    from .stock_page import LIGHTWEIGHT_CHARTS_SRC
+
     wanted = list(intervals) or list(DEFAULT_INTERVALS)
     first = default_interval if default_interval in wanted else wanted[0]
-    to_fetch = [first] if data_url else wanted
+    to_fetch = ([first] if inline_first else []) if data_url else wanted
 
     frames: dict[str, dict[str, Any]] = {}
     for interval in to_fetch:
@@ -115,4 +130,6 @@ def render_gold_chart_page(
         intervals=wanted,
         data_url=data_url,
         bars=bars,
+        symbols=symbols,
+        chart_src=LIGHTWEIGHT_CHARTS_SRC,
     )

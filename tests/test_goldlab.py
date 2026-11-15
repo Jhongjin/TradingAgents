@@ -318,9 +318,11 @@ def test_the_chart_marks_patterns_sessions_and_releases(tmp_path):
     assert all(window["high"] >= window["low"] for window in frame["sessions"])
 
     page = render_chart({"1h": frame}, symbol="GC=F")
-    assert "<canvas id=\"chart\"" in page
+    assert 'id="chart"' in page and "<canvas" not in page       # TradingView's library draws it now
     assert "noindex" in page  # a private chart, even when served
-    assert "세션 고저" in page and "경제지표" in page and "완성 패턴" in page and "형성 중인 패턴" in page
+    assert "세션별 고저" in page and "경제지표" in page and "완성 패턴" in page and "형성 중" in page
+    assert "과거 기록이며 거래 권유가 아닙니다" in page and "FDR" in page and "비슷한 과거 차트" in page
+    assert "prefers-color-scheme: dark" in page and "max-width:900px" in page
     for label in ("아시아", "유럽", "미국"):
         assert label in page
 
@@ -506,8 +508,10 @@ def test_the_served_chart_fetches_one_timeframe_at_a_time(monkeypatch):
     page = client.get("/lab/gold?bars=200")
     assert page.status_code == 200
     assert page.headers["cache-control"] == "private, no-store"
-    assert calls == ["1h"]                                 # only the opening timeframe is fetched up front
-    assert 'data-interval="1mo"' in page.text and "형성 중인 패턴" in page.text
+    assert calls == []                                     # the shell goes out at once; the page asks for its own data
+    assert 'data-interval="1mo"' in page.text and "형성 중" in page.text
+    assert 'data-symbol="NQ=F"' in page.text and "lightweight-charts@5.2.0" in page.text
+    assert "noindex" in page.headers["x-robots-tag"]
 
     fresh = client.get("/lab/gold/data?interval=15m&bars=200")
     assert fresh.status_code == 200 and fresh.headers["cache-control"] == "private, no-store"
@@ -520,10 +524,67 @@ def test_the_served_chart_fetches_one_timeframe_at_a_time(monkeypatch):
     quote = client.get("/lab/gold/quote?interval=5m")
     assert quote.status_code == 200 and quote.headers["cache-control"] == "private, no-store"
     body = quote.json()
-    assert len(body["bars"]) == 3 and body["bucket_seconds"] == 3600 and len(body["bars"][-1]) == 6   # the synthetic series is hourly whatever was asked
+    assert len(body["bars"]) == 3 and body["bucket_seconds"] == 3600 and len(body["bars"][-1]) == 7   # the synthetic series is hourly whatever was asked
     assert body["bars"][-1][5] == int(_synthetic(bars=400).bars[-1].timestamp.timestamp())
     assert client.get("/lab/gold/quote?interval=9h").status_code == 400
     assert client.get("/lab/gold/quote?interval=1mo").status_code == 503
+
+
+def test_the_gold_routes_take_only_the_two_listed_symbols(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import goldlab.data as data
+    from tradingagents.site import create_app
+
+    asked: list[str] = []
+
+    def fake_fetch(symbol="GC=F", *, interval="1h", days=None):
+        asked.append(symbol)
+        return _synthetic(bars=400)
+
+    monkeypatch.setattr(data, "fetch_bars", fake_fetch)
+    client = TestClient(create_app(repo=None, load_repo_from_env=False, trust_member_user_header=False))
+
+    for symbol in ("GC=F", "NQ=F"):
+        page = client.get(f"/lab/gold?symbol={symbol}&interval=5m")
+        assert page.status_code == 200
+        assert page.headers["x-robots-tag"] == "noindex, nofollow" and page.headers["cache-control"] == "private, no-store"
+        assert f'"symbol": "{symbol}"' in page.text and '"default_interval": "5m"' in page.text
+        assert 'data-symbol="GC=F"' in page.text and 'data-symbol="NQ=F"' in page.text
+        assert client.get(f"/lab/gold/data?symbol={symbol}&interval=1h&bars=200").status_code == 200
+        assert client.get(f"/lab/gold/quote?symbol={symbol}&interval=1h").status_code == 200
+    assert asked == ["GC=F", "GC=F", "NQ=F", "NQ=F"]       # the symbol reaches the vendor as asked
+
+    for bad in ("ES=F", "gc=f", "GC%3DF%20", "..", "MNQ=F", ""):
+        assert client.get(f"/lab/gold?symbol={bad}").status_code == 400, bad
+        assert client.get(f"/lab/gold/data?symbol={bad}").status_code == 400, bad
+        assert client.get(f"/lab/gold/quote?symbol={bad}").status_code == 400, bad
+    assert client.get("/lab/gold?interval=7h").status_code == 400
+    assert len(asked) == 4                                  # a refused symbol never reached the vendor
+    assert client.get("/lab/gold").status_code == 200       # no params still means gold, 1h
+
+    sitemap = client.get("/sitemap.xml")
+    assert "/lab/gold" not in sitemap.text
+
+
+def test_the_page_uses_the_pinned_library_and_the_sites_csp_allows_it():
+    from goldlab.chart_view import LIGHTWEIGHT_CHARTS_SRC
+    from tradingagents.site.api_app import _content_security_policy
+    from tradingagents.site.stock_page import LIGHTWEIGHT_CHARTS_SRC as SITE_SRC
+
+    assert LIGHTWEIGHT_CHARTS_SRC == SITE_SRC
+    assert "https://unpkg.com" in _content_security_policy()
+
+
+def test_the_frame_summarises_the_stored_study_for_the_tiles():
+    from goldlab.chart import build_frame
+
+    series = _synthetic(bars=300)
+    assert build_frame(series, study=None, max_bars=200)["study_summary"] is None
+    study = {"method": "walk_forward_v1", "fdr": {"q": 0.1, "tested": 24, "survivors": 2}, "signals": 900, "start": "2016-01-01T00:00", "end": "2026-11-13T00:00", "patterns": []}
+    summary = build_frame(series, study=study, max_bars=200)["study_summary"]
+    assert summary == {"method": "walk_forward_v1", "tested": 24, "survivors": 2, "signals": 900, "start": "2016-01-01", "end": "2026-11-13"}
+    assert all(len(row) == 7 for row in build_frame(series, study=None, max_bars=200)["bars"])   # volume rides with each bar
 
 
 def test_every_bar_carries_the_second_that_tells_candles_apart():
@@ -532,7 +593,7 @@ def test_every_bar_carries_the_second_that_tells_candles_apart():
     series = _synthetic(bars=200)
     frame = build_frame(series, study=None, max_bars=100)
     assert frame["bucket_seconds"] == 3600
-    assert all(len(row) == 6 and isinstance(row[5], int) for row in frame["bars"])
+    assert all(len(row) == 7 and isinstance(row[5], int) for row in frame["bars"])
     assert frame["bars"][-1][5] == int(series.bars[-1].timestamp.timestamp())
     quote = quote_payload(series, last=2)
     assert [row[5] for row in quote["bars"]] == [int(bar.timestamp.timestamp()) for bar in series.bars[-2:]]

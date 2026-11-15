@@ -1498,13 +1498,28 @@ def create_app(
         request: Request,
         intervals: Annotated[str | None, Query(max_length=64)] = None,
         bars: Annotated[int, Query(ge=120, le=1200)] = 600,
+        symbol: Annotated[str, Query(max_length=8)] = "GC=F",
+        interval: Annotated[str, Query(max_length=8)] = "1h",
     ) -> HTMLResponse:
-        """A private pattern chart, apart from the product: no menu, no index."""
+        """A private pattern chart, apart from the product: no menu, no index.
 
-        from .gold_page import DEFAULT_INTERVALS, render_gold_chart_page
+        Only the shell is built here. The page asks /lab/gold/data for the
+        symbol and timeframe in the URL, so the first paint does not wait on
+        the quote vendor and the switchers need no reload.
+        """
 
+        from goldlab.data import INTERVAL_MAX_DAYS
+
+        from .gold_page import ALLOWED_SYMBOLS, DEFAULT_INTERVALS, GOLD_SYMBOLS, render_gold_chart_page
+
+        if symbol not in ALLOWED_SYMBOLS:
+            raise HTTPException(status_code=400, detail="unsupported symbol")
+        if interval not in INTERVAL_MAX_DAYS:
+            raise HTTPException(status_code=400, detail="unsupported interval")
         wanted = tuple(part.strip() for part in (intervals or "").split(",") if part.strip()) or DEFAULT_INTERVALS
-        html = render_gold_chart_page(repo=request.app.state.repository, intervals=wanted, bars=bars)
+        html = render_gold_chart_page(
+            repo=request.app.state.repository, symbol=symbol, symbols=GOLD_SYMBOLS, intervals=wanted, bars=bars, default_interval=interval
+        )
         return HTMLResponse(html, headers={"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "private, no-store"})
 
     @app.get("/lab/gold/data", include_in_schema=False)
@@ -1512,17 +1527,20 @@ def create_app(
         request: Request,
         interval: Annotated[str, Query(max_length=8)] = "1h",
         bars: Annotated[int, Query(ge=120, le=1200)] = 600,
+        symbol: Annotated[str, Query(max_length=8)] = "GC=F",
     ) -> Response:
-        """One timeframe, fetched now, for the chart's tabs and its refresh timer."""
+        """One symbol and timeframe, fetched now, for the chart's switchers and its refresh timer."""
 
         from goldlab.data import INTERVAL_MAX_DAYS
 
-        from .gold_page import build_gold_frame
+        from .gold_page import ALLOWED_SYMBOLS, build_gold_frame
 
+        if symbol not in ALLOWED_SYMBOLS:
+            raise HTTPException(status_code=400, detail="unsupported symbol")
         if interval not in INTERVAL_MAX_DAYS:
             raise HTTPException(status_code=400, detail="unsupported interval")
         try:
-            frame = build_gold_frame(repo=request.app.state.repository, interval=interval, bars=bars)
+            frame = build_gold_frame(repo=request.app.state.repository, symbol=symbol, interval=interval, bars=bars)
         except Exception as exc:
             raise HTTPException(status_code=503, detail=f"quote source unavailable: {exc.__class__.__name__}") from exc
         return Response(
@@ -1534,17 +1552,20 @@ def create_app(
     @app.get("/lab/gold/quote", include_in_schema=False)
     def gold_chart_quote(
         interval: Annotated[str, Query(max_length=8)] = "1h",
+        symbol: Annotated[str, Query(max_length=8)] = "GC=F",
     ) -> Response:
         """The newest candles only, asked for every few seconds to move the last bar."""
 
         from goldlab.data import INTERVAL_MAX_DAYS
 
-        from .gold_page import build_gold_quote
+        from .gold_page import ALLOWED_SYMBOLS, build_gold_quote
 
+        if symbol not in ALLOWED_SYMBOLS:
+            raise HTTPException(status_code=400, detail="unsupported symbol")
         if interval not in INTERVAL_MAX_DAYS:
             raise HTTPException(status_code=400, detail="unsupported interval")
         try:
-            quote = build_gold_quote(interval=interval)
+            quote = build_gold_quote(symbol=symbol, interval=interval)
         except Exception as exc:
             raise HTTPException(status_code=503, detail=f"quote source unavailable: {exc.__class__.__name__}") from exc
         return Response(
