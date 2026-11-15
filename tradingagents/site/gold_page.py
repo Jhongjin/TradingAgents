@@ -72,6 +72,10 @@ def build_gold_quote(*, symbol: str = "GC=F", interval: str = DEFAULT_INTERVAL) 
 
     series = fetch_bars(symbol, interval=interval, days=1)
     if not len(series):
+        # Over a weekend the last day holds no bars; the last session's are
+        # still the newest candles, so the timer should get those, not a 503.
+        series = fetch_bars(symbol, interval=interval, days=4)
+    if not len(series):
         raise RuntimeError(f"no bars for {symbol} {interval}")
     return quote_payload(series)
 
