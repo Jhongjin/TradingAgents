@@ -70,10 +70,14 @@ def build_gold_quote(*, symbol: str = "GC=F", interval: str = DEFAULT_INTERVAL) 
     from goldlab.chart import quote_payload
     from goldlab.data import fetch_bars
 
-    series = fetch_bars(symbol, interval=interval, days=1)
-    if not len(series):
-        # Over a weekend the last day holds no bars; the last session's are
-        # still the newest candles, so the timer should get those, not a 503.
+    # Over a weekend the last day holds no bars (the vendor fetch raises on an
+    # empty window); the last session's are still the newest candles, so the
+    # timer should get those, not a 503.
+    try:
+        series = fetch_bars(symbol, interval=interval, days=1)
+    except RuntimeError:
+        series = None
+    if series is None or not len(series):
         series = fetch_bars(symbol, interval=interval, days=4)
     if not len(series):
         raise RuntimeError(f"no bars for {symbol} {interval}")
