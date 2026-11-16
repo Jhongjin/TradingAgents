@@ -123,6 +123,19 @@ svg.fan .fm { fill:none; stroke:var(--fg); stroke-width:2.4; }
 .notes summary { cursor:pointer; font-weight:600; }
 .notes p { margin:8px 0 0; }
 .warn { color:var(--muted); font-size:11px; margin-top:6px; }
+.rev h4 { margin:14px 0 4px; font-size:12px; font-weight:700; }
+.rev h4:first-child { margin-top:0; }
+.rev ul { margin:0; padding-left:18px; line-height:1.65; }
+.rev li { margin:2px 0; }
+.rev sup.ev { color:var(--muted); font-size:9px; cursor:help; margin-left:2px; }
+.rev .foot { margin-top:12px; padding-top:8px; border-top:1px solid var(--line); font-weight:600; }
+.rev details { margin-top:10px; border:1px solid var(--line); border-radius:10px; padding:8px 10px; }
+.rev details > summary { cursor:pointer; font-weight:600; color:var(--muted); font-size:12px; }
+.turn { border-top:1px solid var(--line); padding:8px 0; margin-top:8px; }
+.turn:first-of-type { border-top:0; }
+.turn .who { display:flex; gap:8px; flex-wrap:wrap; align-items:baseline; }
+.turn .tag { display:inline-block; padding:1px 7px; border-radius:6px; background:var(--soft); color:var(--muted); font-size:10.5px; font-weight:600; }
+.turn .bad { color:var(--down); }
 """
 
 VIEW_JS = r"""
@@ -504,6 +517,63 @@ function renderAnalogs() {
     + '<div class="warn"><b>' + (v ? esc(v.line) : '검증 기록 없음: 아직 순차 검증을 하지 않았습니다') + '</b>' + (vrows ? '<br>' + vrows : '') + '<br>과거 사례의 분포를 보여 줄 뿐 앞날의 예측이 아닙니다.</div>';
 }
 
+// ---------- AI review note (past-record review only: never advice) ----------
+const REVIEW_SOON = '<div class="soon">거래일 한국 시간 오전 7시 마감 뒤, 그날 기록한 신호가 어떻게 됐는지<br>세 AI가 토론해 쓴 복기 노트가 여기에 표시됩니다.</div>';
+const REVIEW_SECTIONS = [['summary', '오늘 장 요약'], ['signals', '신호와 결과 (맞음/틀림)'], ['context', '상황별로 본 것'], ['drift', '기록이 흔들리는 패턴'], ['watch', '내일 볼 것 (관찰 포인트만)'], ['dissent', '이견']];
+const arrows = (t) => esc(t).replace(/▲/g, '<b class="up">▲</b>').replace(/▼/g, '<b class="down">▼</b>');
+const money = (v) => (v == null ? '-' : '$' + Number(v).toFixed(3));
+
+function reviewItems(r, items) {
+  const ev = r.evidence || {};
+  return '<ul>' + (items || []).map((s) => '<li>' + arrows(s.text)
+    + (s.evidence || []).map((id) => '<sup class="ev" title="' + esc(ev[id] || id) + '">' + esc(id) + '</sup>').join('') + '</li>').join('') + '</ul>';
+}
+
+function reviewTurn(r, t) {
+  const o = t.output || {}, u = t.usage || {};
+  let body = '';
+  if (!t.ok) body = '<div class="bad">' + (t.skipped ? '건너뜀' : '실패') + ': ' + esc(t.error || '') + '</div>';
+  else if (t.turn === 'critic') {
+    body = '<ul>' + (o.challenges || []).map((c) => '<li><span class="tag">' + esc(c.type || '') + '</span> ' + arrows(c.text || '') + '</li>').join('') + '</ul>'
+      + ((o.hypotheses || []).length ? '<div class="muted">제안한 가설</div><ul>' + o.hypotheses.map((h) => '<li>' + arrows(h.text || '') + '</li>').join('') + '</ul>' : '');
+  } else if (t.turn === 'verifier') {
+    const ps = o.problems || [];
+    body = '<div class="muted">대조한 문장 ' + esc(o.checked == null ? '-' : o.checked) + '개 · 문제 ' + ps.length + '개</div>'
+      + (ps.length ? '<ul>' + ps.map((p) => '<li><span class="tag">' + esc(p.status || '') + '</span> ' + arrows(p.text || '') + '<br><span class="muted">' + esc(p.reason || '') + '</span></li>').join('') + '</ul>' : '')
+      + (o.overall ? '<div class="muted">' + arrows(o.overall) + '</div>' : '');
+  } else {
+    body = REVIEW_SECTIONS.filter(([k]) => (o[k] || []).length).map(([k, title]) => '<div class="muted">' + esc(title) + '</div><ul>' + (o[k] || []).map((s) => '<li>' + arrows(typeof s === 'string' ? s : (s.text || '')) + '</li>').join('') + '</ul>').join('');
+  }
+  return '<div class="turn"><div class="who"><b>' + esc(t.label) + '</b><span class="tag">' + esc(t.provider) + ' · ' + esc(t.model) + '</span><span class="muted">' + money(u.cost_usd) + ' · 입력 ' + (u.input_tokens || 0) + ' 출력 ' + (u.output_tokens || 0) + '</span></div>' + body + '</div>';
+}
+
+function renderReview() {
+  const r = ST.frame && ST.frame.review, body = $('rbody'), sub = $('rsub');
+  if (!r) { ST.reviewSig = null; sub.textContent = '준비 중'; body.innerHTML = REVIEW_SOON; return; }
+  const sig = r.symbol + '|' + r.date + '|' + r.generated_at;
+  if (ST.reviewSig === sig) return;                       // keep a opened 토론 보기 open across refreshes
+  ST.reviewSig = sig;
+  sub.innerHTML = esc(r.date) + ' (KST) · ' + (r.mode === 'debate' ? '3자 토론' : '<b style="color:var(--down)">단독 작성</b>') + ' · ' + money((r.usage || {}).cost_usd);
+  const secs = REVIEW_SECTIONS.map(([k, title]) => {
+    const items = (r.sections || {})[k] || [];
+    if (k === 'dissent' && !items.length) return '';
+    return '<h4>' + esc(title) + '</h4>' + (items.length ? reviewItems(r, items) : '<div class="muted">근거가 확인된 내용이 없어 비웠습니다</div>');
+  }).join('');
+  const hyp = '<h4>검증할 가설</h4>' + ((r.hypotheses || []).length ? '<ul>' + r.hypotheses.map((h) => {
+    const res = h.result;
+    const tip = res ? '표본 ' + res.n + ' · 승률 ' + pct(res.win_rate) + ' (기준 ' + pct(res.base_win_rate) + ') · p ' + (res.p_value == null ? '-' : res.p_value) + ' · ' + (res.reason || '') : (h.expressible ? '주간 작업에서 10년 기록으로 검증합니다' : '검증 불가: ' + (h.why_not || ''));
+    return '<li>' + arrows(h.text) + ' <span class="conf' + (h.status === '통과' ? ' ok' : '') + '" title="' + esc(tip) + '">' + esc(h.status) + '</span></li>';
+  }).join('') + '</ul>' : '<div class="muted">제안된 가설이 없습니다</div>');
+  const turns = (r.turns || []).map((t) => reviewTurn(r, t)).join('');
+  const gone = r.guard_removed || [];
+  const debate = '<details><summary>토론 보기 (분석가 초안 · 비판 · 검증 · 분석가 최종)</summary>' + turns
+    + '<div class="muted" style="margin-top:8px">코드 점검: 증거 팩에 없는 숫자나 거래 권유로 읽히는 문장 ' + gone.length + '개를 지웠습니다.</div>'
+    + (gone.length ? '<ul>' + gone.map((g) => '<li class="muted">' + esc(g.text) + ' <span class="tag">' + esc(g.reason) + (g.numbers && g.numbers.length ? ': ' + esc(g.numbers.join(', ')) : '') + '</span></li>').join('') + '</ul>' : '')
+    + '</details>';
+  body.innerHTML = '<div class="rev"><div class="muted" style="margin-bottom:8px">' + esc(r.mode_line || '') + ' · 작성 ' + esc(kstText(r.generated_at)) + ' KST</div>'
+    + secs + hyp + debate + '<div class="foot">' + esc(r.footer) + '</div></div>';
+}
+
 function renderChrome() {
   const sc = symCfg();
   $('ctitle').textContent = sc.name + ' · ' + (DATA.interval_labels[ST.interval] || ST.interval);
@@ -513,7 +583,7 @@ function renderChrome() {
 }
 
 function renderAll() {
-  renderChrome(); renderHeader(); renderKpis(); renderVerdict(); renderForming(); renderLedger(); renderSignals(); renderLower(); renderAnalogs(); liveText();
+  renderChrome(); renderHeader(); renderKpis(); renderVerdict(); renderForming(); renderLedger(); renderSignals(); renderLower(); renderAnalogs(); renderReview(); liveText();
 }
 
 // ---------- live status ----------
@@ -771,6 +841,7 @@ def render_page(
         <span class="seg"><button type="button" class="on" data-lower="sessions">세션별 고저</button><button type="button" data-lower="events">미국 주요 지표</button></span></div>
       <div class="scroll"><table><thead id="lowhead"></thead><tbody id="low"></tbody></table></div>
     </div>
+    <div class="card" id="rcard"><h3><span>AI 복기</span><small id="rsub">준비 중</small></h3><div id="rbody"><div class="soon">거래일 한국 시간 오전 7시 마감 뒤, 그날 기록한 신호가 어떻게 됐는지<br>세 AI가 토론해 쓴 복기 노트가 여기에 표시됩니다.</div></div></div>
   </div>
   <div class="col">
     <div class="card"><h3><span>지금 판단</span><span id="cnt"></span></h3>

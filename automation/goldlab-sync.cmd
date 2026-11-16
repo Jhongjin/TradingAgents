@@ -19,6 +19,8 @@ set RUN=%REPO%\automation\goldlab_run.py
 set GOLDLAB_CACHE_DIR=D:\Codex\goldlab-store
 set PYTHONIOENCODING=utf-8
 set PYTHONUNBUFFERED=1
+rem AI review note: hard daily cap in USD across both symbols (models: GOLDLAB_REVIEW_ANALYST / _CRITIC / _VERIFIER).
+if not defined GOLDLAB_REVIEW_MAX_USD set GOLDLAB_REVIEW_MAX_USD=0.60
 
 cd /d "%REPO%" || exit /b 1
 if not exist "%REPO%\logs" mkdir "%REPO%\logs"
@@ -33,6 +35,9 @@ for %%S in ("GC=F" "NQ=F") do (
   "%PYTHON%" "%RUN%" ledger scan --symbol %%~S --interval 5m --last 800 --db >> "%LOG%" 2>&1
   "%PYTHON%" "%RUN%" ledger grade --symbol %%~S --interval 5m --db >> "%LOG%" 2>&1
   "%PYTHON%" "%RUN%" analogs refresh --symbol %%~S --intervals 5m,1h --db >> "%LOG%" 2>&1
+rem one note per KST trading day, skipped when it exists or a provider fails, hypotheses tested at most weekly
+  "%PYTHON%" "%RUN%" review run --symbol %%~S --db >> "%LOG%" 2>&1
+  "%PYTHON%" "%RUN%" review hypotheses --symbol %%~S --db --if-due >> "%LOG%" 2>&1
 )
 echo exit=%ERRORLEVEL% >> "%LOG%"
 exit /b 0

@@ -1185,6 +1185,23 @@ class StorageRepository:
             row = conn.execute(stmt).mappings().first()
         return dict(row) if row else None
 
+    def list_backtest_runs(self, label_prefix: str, *, limit: int = 30, newest: str = "label") -> list[dict[str, Any]]:
+        """Rows whose label starts with ``label_prefix``, newest first.
+
+        ``newest="label"`` sorts by label (labels that end in a date read newest-first);
+        ``"created"`` sorts by the time the row was written.
+        """
+
+        order = desc(backtest_runs.c.created_at) if newest == "created" else desc(backtest_runs.c.label)
+        stmt = (
+            select(backtest_runs)
+            .where(backtest_runs.c.label.startswith(label_prefix, autoescape=True))
+            .order_by(order)
+            .limit(max(1, int(limit)))
+        )
+        with self.engine.begin() as conn:
+            return [dict(row) for row in conn.execute(stmt).mappings().all()]
+
     def save_cached_payload(self, cache_key: str, payload: Mapping[str, Any], *, as_of_date: Any = None) -> str:
         """Park an answer that is costly to work out and identical for everyone.
 

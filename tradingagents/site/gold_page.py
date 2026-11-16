@@ -60,6 +60,21 @@ def load_stored_analogs(repo: Any, symbol: str, interval: str) -> dict[str, Any]
     return load(repo, symbol, interval)
 
 
+def load_stored_review(repo: Any, symbol: str) -> dict[str, Any] | None:
+    """The newest AI 복기 note for the symbol (note, debate, evidence), or None (the card keeps its placeholder)."""
+
+    if repo is None:
+        return None
+    try:
+        from goldlab.review import load_stored_review as load
+    except ImportError:
+        return None
+    try:
+        return load(repo, symbol)
+    except Exception:
+        return None
+
+
 def build_gold_frame(*, repo: Any = None, symbol: str = "GC=F", interval: str = DEFAULT_INTERVAL, bars: int = 600, min_stars: int = 3) -> dict[str, Any]:
     """One timeframe, fetched now: what the page asks for on a tab or a timer.
 
@@ -75,6 +90,7 @@ def build_gold_frame(*, repo: Any = None, symbol: str = "GC=F", interval: str = 
         raise RuntimeError(f"only {len(series)} bars for {symbol} {interval}")
     frame = build_frame(series, study=load_stored_study(repo, symbol, interval), max_bars=bars, min_stars=min_stars)
     frame["analogs"] = load_stored_analogs(repo, symbol, interval)
+    frame["review"] = load_stored_review(repo, symbol)
     return frame
 
 
