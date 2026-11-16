@@ -56,7 +56,11 @@ PRECISION = {"GC=F": 1, "NQ=F": 2}
 
 DEFAULT_ANALYST = "anthropic:claude-sonnet-5"
 DEFAULT_CRITIC = "openai:gpt-5.4"
-DEFAULT_VERIFIER = "google:gemini-3.5-flash"
+# 11-16: gemini-3.5-flash reported no problems on notes that had a wrong
+# review window; the Pro models are not available on this key. In a planted-
+# error test deepseek-v4-pro (via opencode) caught every wrong number, the
+# wrong window and the trade-call sentence.
+DEFAULT_VERIFIER = "opencode:opencode-go/deepseek-v4-pro"
 # USD per million tokens (input, output). Estimates: set GOLDLAB_REVIEW_PRICES to override.
 DEFAULT_PRICES: dict[str, tuple[float, float]] = {
     "claude-sonnet-5": (3.0, 15.0),
@@ -612,7 +616,46 @@ def build_participants() -> dict[str, Participant]:
     return out
 
 
+def _opencode_chat(model: str) -> Callable[[str, str], LLMReply]:
+    """A turn through the opencode CLI (opencode-go subscription; no per-token bill here).
+
+    The prompt goes in as an attached file, since a full evidence pack is far
+    longer than a Windows command line allows. The run happens in an empty
+    scratch folder with the read-only ``plan`` agent, so the model has nothing
+    of ours to read or change. Token counts are not reported, so usage is 0.
+    """
+
+    import re
+    import shutil
+    import subprocess
+    import tempfile
+
+    def call(system: str, user: str) -> LLMReply:
+        exe = shutil.which("opencode") or shutil.which("opencode.cmd")
+        if not exe:
+            raise RuntimeError("opencode CLI not found")
+        with tempfile.TemporaryDirectory(prefix="goldlab-opencode-") as scratch:
+            prompt = os.path.join(scratch, "prompt.md")
+            with open(prompt, "w", encoding="utf-8") as handle:
+                handle.write(f"[시스템 지시]\n{system}\n\n[요청]\n{user}\n")
+            done = subprocess.run(
+                # -f takes several files, so it goes last or it swallows the message
+                [exe, "run", "첨부한 prompt.md 파일의 지시를 그대로 따르고, 요청한 형식으로만 답하라.",
+                 "--pure", "--agent", "plan", "-m", model, "--dir", scratch, "-f", prompt],
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300, cwd=scratch,
+            )
+        if done.returncode != 0:
+            raise RuntimeError(f"opencode exited {done.returncode}: {(done.stderr or done.stdout)[-300:]}")
+        # the CLI prints a "> agent · model" header line before the answer
+        text = re.sub(r"^\s*>[^\n]*\n", "", done.stdout or "", count=1).strip()
+        return LLMReply(text, 0, 0)
+
+    return call
+
+
 def _lazy_chat(provider: str, model: str, max_tokens: int) -> Callable[[str, str], LLMReply]:
+    if provider == "opencode":
+        return _opencode_chat(model)
     state: dict[str, Any] = {}
 
     def call(system: str, user: str) -> LLMReply:
@@ -1277,7 +1320,10 @@ def run_review(
             "usage": {"cost_usd": round(sum(t["usage"]["cost_usd"] for t in debate["turns"]), 6), "input_tokens": sum(t["usage"]["input_tokens"] for t in debate["turns"]), "output_tokens": sum(t["usage"]["output_tokens"] for t in debate["turns"])},
             "evidence": {"items": pack["items"], "keys": pack["keys"], "bars": pack["bars"], "signals": pack["signals"]},
         }
-        save_record(repo, record)
+        # A failed rerun must never replace a note that was written: on 11-16
+        # a --force run that hit the daily budget overwrote GC's good note.
+        if not (existing and existing.get("status") == "ok"):
+            save_record(repo, record)
         return {"status": "failed", "symbol": symbol, "date": str(day), "error": debate["turns"][-1].get("error"), "cost_usd": record["usage"]["cost_usd"], "attempts": attempts + 1}
     record = assemble_note(symbol, str(day), pack, debate, people=people, now=now, run_day=run_day, attempts=attempts + 1)
     save_record(repo, record)

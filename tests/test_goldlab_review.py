@@ -455,5 +455,5 @@ def test_model_defaults_and_prices_can_be_set_from_the_environment(monkeypatch):
     monkeypatch.setenv("GOLDLAB_REVIEW_MAX_USD", "0.25")
     monkeypatch.setenv("GOLDLAB_REVIEW_PRICES", json.dumps({"gpt-5.4-mini": [1, 2]}))
     people = R.build_participants()
-    assert people["analyst"].name == "anthropic:claude-sonnet-5" and people["critic"].name == "openai:gpt-5.4-mini" and people["verifier"].name == "google:gemini-3.5-flash"
+    assert people["analyst"].name == "anthropic:claude-sonnet-5" and people["critic"].name == "openai:gpt-5.4-mini" and people["verifier"].name == "opencode:opencode-go/deepseek-v4-pro"
     assert R.default_budget_usd() == 0.25 and R.cost_of("gpt-5.4-mini", 1_000_000, 1_000_000) == 3.0
