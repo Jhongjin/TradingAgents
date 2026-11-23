@@ -506,3 +506,18 @@ goldlab_signals = Table(
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
 )
+
+
+# The user's own trade calls, entered on the private lab page and graded later.
+# Private like the other goldlab tables (RLS on, no policy): only the server
+# reads or writes it. One row per entry; the payload is the whole entry.
+goldlab_journal = Table(
+    "goldlab_journal",
+    goldlab_metadata,
+    Column("entry_id", String(32), primary_key=True),
+    Column("symbol", String(32), nullable=False),
+    Column("ts", DateTime(timezone=True), nullable=False),
+    Column("payload_json", JSON, nullable=False, default=dict),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+)

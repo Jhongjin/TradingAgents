@@ -157,6 +157,24 @@ class GoldStudyBody(BaseModel):
     study: dict = Field(default_factory=dict)
 
 
+class GoldJournalBody(BaseModel):
+    """One call the operator made. Every field optional so an edit can send only what changed."""
+
+    symbol: str | None = None
+    interval: str | None = None
+    side: str | None = None
+    entry_ts: str | None = None
+    entry_price: float | str | None = None
+    stop: float | str | None = None
+    target: float | str | None = None
+    contracts: int | str | None = None
+    reason: str | None = Field(default=None, max_length=1000)
+    tags: list[str] | None = Field(default=None, max_length=12)
+    exit_ts: str | None = None
+    exit_price: float | str | None = None
+    horizon_bars: int | str | None = None
+
+
 class MemberPreferencesBody(BaseModel):
     markets: list[str] = Field(default_factory=lambda: ["KOSPI", "KOSDAQ"], max_length=4)
     exclude_etf: bool = True
@@ -1608,6 +1626,88 @@ def create_app(
             label=study_label(body.symbol, body.interval),
         )
         return {"status": "stored", "id": run_id, "patterns": len(study.get("patterns") or [])}
+
+    # The operator's own trade journal. Every route needs the operator token (the
+    # same X-TradingAgents-Worker-Token the admin console keeps in localStorage), reads
+    # included: the page itself is public but its entries are not.
+    def _journal_repo(request: Request):
+        repo = request.app.state.repository
+        if repo is None or not hasattr(repo, "goldlab_journal_list"):
+            raise HTTPException(status_code=503, detail="Storage repository is not configured")
+        return repo
+
+    def _journal_call(fn):
+        from goldlab.journal import JournalError
+
+        try:
+            return fn()
+        except JournalError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except HTTPException:
+            raise
+        except Exception as exc:  # a missing table must read as "not ready", not a stack trace
+            raise HTTPException(status_code=503, detail=f"journal unavailable: {exc.__class__.__name__}") from exc
+
+    @app.get("/api/admin/lab/gold/journal", include_in_schema=False)
+    def gold_journal_list(
+        request: Request,
+        symbol: Annotated[str | None, Query(max_length=8)] = None,
+        limit: Annotated[int, Query(ge=1, le=300)] = 60,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> Response:
+        _require_operator(request, x_tradingagents_worker_token)
+        repo = _journal_repo(request)
+        from goldlab.journal import LAB_SYMBOLS, graded_list
+
+        if symbol and symbol not in LAB_SYMBOLS:
+            raise HTTPException(status_code=400, detail="unsupported symbol")
+        payload = _journal_call(lambda: graded_list(repo, symbol, limit=limit))
+        return Response(
+            json.dumps(payload, ensure_ascii=False, default=str),
+            media_type="application/json",
+            headers={"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "private, no-store"},
+        )
+
+    @app.post("/api/admin/lab/gold/journal", include_in_schema=False)
+    def gold_journal_create(
+        body: GoldJournalBody,
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_operator(request, x_tradingagents_worker_token)
+        repo = _journal_repo(request)
+        from goldlab.journal import create_entry
+
+        entry = _journal_call(lambda: create_entry(repo, body.model_dump(exclude_none=True)))
+        return {"status": "stored", "entry": entry}
+
+    @app.patch("/api/admin/lab/gold/journal/{entry_id}", include_in_schema=False)
+    def gold_journal_update(
+        entry_id: str,
+        body: GoldJournalBody,
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_operator(request, x_tradingagents_worker_token)
+        repo = _journal_repo(request)
+        from goldlab.journal import update_entry
+
+        entry = _journal_call(lambda: update_entry(repo, entry_id[:32], body.model_dump(exclude_unset=True)))
+        if entry is None:
+            raise HTTPException(status_code=404, detail="entry not found")
+        return {"status": "updated", "entry": entry}
+
+    @app.delete("/api/admin/lab/gold/journal/{entry_id}", include_in_schema=False)
+    def gold_journal_delete(
+        entry_id: str,
+        request: Request,
+        x_tradingagents_worker_token: Annotated[str | None, Header(alias="X-TradingAgents-Worker-Token")] = None,
+    ) -> dict:
+        _require_operator(request, x_tradingagents_worker_token)
+        repo = _journal_repo(request)
+        if not _journal_call(lambda: repo.goldlab_journal_delete(entry_id[:32])):
+            raise HTTPException(status_code=404, detail="entry not found")
+        return {"status": "deleted", "id": entry_id[:32]}
 
     @app.get("/api/backtest")
     def backtest_latest(request: Request) -> dict:

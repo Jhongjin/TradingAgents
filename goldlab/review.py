@@ -51,10 +51,14 @@ MIN_WINDOW_BARS = 60                # a window with fewer 5-minute bars is not a
 MIN_SAMPLES = 30
 LABEL_PREFIX = "gold:review"
 MAX_ATTEMPTS = 2                    # a failed run is retried once, not every two hours
+OPENCODE_TIMEOUT = 300             # seconds for one opencode turn; the whole process tree is killed after it
 FOOTER = "과거 기록 복기이며 거래 권유가 아닙니다"
 PRECISION = {"GC=F": 1, "NQ=F": 2}
 
 DEFAULT_ANALYST = "anthropic:claude-sonnet-5"
+# 11-23: the NQ final rewrite stopped at exactly 12000 output tokens (cut off mid-JSON);
+# other finals had used 11308 and 11612. 12000 was too close to the real length.
+ANALYST_MAX_TOKENS = 20000
 DEFAULT_CRITIC = "openai:gpt-5.4"
 # 11-16: gemini-3.5-flash reported no problems on notes that had a wrong
 # review window; the Pro models are not available on this key. In a planted-
@@ -75,12 +79,14 @@ SECTIONS = (
     ("signals", "신호와 결과 (맞음/틀림)"),
     ("context", "상황별로 본 것"),
     ("drift", "기록이 흔들리는 패턴"),
+    ("journal", "내 판단 복기"),
     ("watch", "내일 볼 것 (관찰 포인트만)"),
     ("dissent", "이견"),
     ("hypotheses", "검증할 가설"),
 )
 SECTION_TITLES = dict(SECTIONS)
 DRAFT_KEYS = ("summary", "signals", "context", "drift", "watch")
+JOURNAL_KEY = "journal"            # added to the note only on days the user recorded a call
 
 TREND_KO = {"up": "상승 추세", "down": "하락 추세", "range": "횡보"}
 VOL_KO = {"low": "변동성 낮음", "mid": "변동성 보통", "high": "변동성 높음"}
@@ -214,8 +220,14 @@ def build_evidence(
     events: Sequence[Mapping[str, Any]] | None = None,
     upcoming: Sequence[Mapping[str, Any]] | None = None,
     now: datetime | None = None,
+    journal: Sequence[Mapping[str, Any]] | None = None,
+    journal_recent: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Every number the note may use, each with a stable id. Pure: same inputs, same pack."""
+    """Every number the note may use, each with a stable id. Pure: same inputs, same pack.
+
+    ``journal`` is the user's own graded calls inside the window (entries with a
+    ``grade``); their items come last, so the ids of everything else stay put.
+    """
 
     now = now or datetime.now(timezone.utc)
     prec = PRECISION.get(symbol, 2)
@@ -432,12 +444,18 @@ def build_evidence(
             f"10년 연구({name}): 패턴·봉 수·상황별로 나눈 {int(fdr.get('tested') or 0):,}칸을 거짓 발견율(FDR) 검사했을 때 통과한 칸은 {sig}칸입니다. "
             f"그중 기준 승률보다 높은 칸은 {pos}칸이고 나머지 {sig - pos}칸은 기준보다 낮았습니다. 통과한 칸이 곧 거래로 남는 우위는 아닙니다.",
         )
+    if journal:
+        from .journal import evidence_lines
+
+        for key, text in evidence_lines(journal, recent=journal_recent):
+            pack.add(key, text)
     return {
         "symbol": symbol,
         "date": str(day),
         "window": {"start": start.isoformat(), "end": end.isoformat()},
         "bars": len(day_bars),
         "signals": len(day_sigs),
+        "journal": len(journal or ()),
         "items": pack.items,
         "keys": dict(pack.by_key),
     }
@@ -607,13 +625,41 @@ def build_participants() -> dict[str, Participant]:
 
     out = {}
     for role, env, default, max_tokens in (
-        ("analyst", "GOLDLAB_REVIEW_ANALYST", DEFAULT_ANALYST, 12000),
+        ("analyst", "GOLDLAB_REVIEW_ANALYST", DEFAULT_ANALYST, ANALYST_MAX_TOKENS),
         ("critic", "GOLDLAB_REVIEW_CRITIC", DEFAULT_CRITIC, 6000),
         ("verifier", "GOLDLAB_REVIEW_VERIFIER", DEFAULT_VERIFIER, 6000),
     ):
         provider, model = _spec(env, default)
         out[role] = Participant(role, provider, model, _lazy_chat(provider, model, max_tokens))
     return out
+
+
+def _run_killing_tree(cmd: list[str], *, timeout: float, cwd: str) -> "subprocess.CompletedProcess[str]":
+    """``subprocess.run`` that really stops on timeout.
+
+    ``opencode`` on Windows is a .cmd shim that starts node. ``subprocess.run``
+    kills only the shim on timeout, the node child keeps the output pipes open,
+    and the following ``communicate()`` waits for them forever. That is what
+    froze the 11-19 sync inside the review step. Here the whole process tree is
+    killed (taskkill /T) and the pipes are given a few seconds to close.
+    """
+
+    import subprocess
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", cwd=cwd)
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True, timeout=30)
+        else:
+            proc.kill()
+        try:
+            proc.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
+        raise
+    return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
 
 
 def _opencode_chat(model: str) -> Callable[[str, str], LLMReply]:
@@ -638,11 +684,11 @@ def _opencode_chat(model: str) -> Callable[[str, str], LLMReply]:
             prompt = os.path.join(scratch, "prompt.md")
             with open(prompt, "w", encoding="utf-8") as handle:
                 handle.write(f"[시스템 지시]\n{system}\n\n[요청]\n{user}\n")
-            done = subprocess.run(
+            done = _run_killing_tree(
                 # -f takes several files, so it goes last or it swallows the message
                 [exe, "run", "첨부한 prompt.md 파일의 지시를 그대로 따르고, 요청한 형식으로만 답하라.",
                  "--pure", "--agent", "plan", "-m", model, "--dir", scratch, "-f", prompt],
-                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300, cwd=scratch,
+                timeout=OPENCODE_TIMEOUT, cwd=scratch,
             )
         if done.returncode != 0:
             raise RuntimeError(f"opencode exited {done.returncode}: {(done.stderr or done.stdout)[-300:]}")
@@ -757,6 +803,19 @@ ANALYST_FINAL = """당신은 초안을 쓴 분석가입니다. 비판과 검증 
 
 [검증 결과]
 {verification}"""
+
+
+JOURNAL_DRAFT = """
+
+[내 판단 기록이 있는 날] 증거 팩에 '내 판단' 항목(journal)이 있습니다. 출력 JSON에 "journal" 섹션을 추가하세요 (문장 객체 1~4개). 내용은 이 순서입니다:
+- 내가 기록한 판단이 어떻게 됐는지 (방향, 종료 방식, 비용 뺀 손익, R).
+- 같은 시각에 연구소의 신호·맥락 태그·닮은 차트가 말한 것과 어땠는지 (겹치면 겹친다고, 엇갈리면 엇갈린다고, 자료가 없으면 없다고).
+- 태그별 누적에서 반복되는 모습 (종료 3건 미만이면 '표본이 작다'고만 쓰고 결론을 내지 않습니다).
+칭찬이나 꾸중 없이 기록된 사실만 씁니다. 다음에 무엇을 하라는 말은 쓰지 않습니다. 증거 팩 문장 그대로 '기록', '기록 가격', '계획한 스톱', '종료'라고 쓰고 매수·매도·진입·청산·손절 같은 낱말은 쓰지 않습니다."""
+
+JOURNAL_FINAL = """
+
+[내 판단 기록이 있는 날] 초안의 "journal" 섹션도 같은 규칙으로 고쳐서 최종 JSON에 그대로 포함하세요 (출력 형식에 "journal": [...] 추가)."""
 
 
 def _compact_json(value: Any) -> str:
@@ -960,39 +1019,59 @@ RETRY_DELAY = 3.0
 ROLE_LABELS = {"analyst_draft": "분석가 초안", "critic": "비판", "verifier": "검증", "analyst_final": "분석가 최종"}
 
 
-def _turn(role: str, who: Participant, system: str, user: str, budget: Budget, *, max_out: int = 5500) -> dict[str, Any]:
-    """One model call as a transcript entry. Never raises: a failure is a turn with ``ok`` false."""
+PARSE_RETRY_NOTE = (
+    "\n\n[재요청] 바로 앞 응답은 JSON이 끝나기 전에 잘렸거나 읽을 수 없었습니다. "
+    "같은 증거 번호와 규칙을 지키되 문장 수와 길이를 줄여서, JSON 객체 하나로만 다시 답하세요."
+)
+
+
+def _turn(role: str, who: Participant, system: str, user: str, budget: Budget, *, max_out: int = 5500, parse_retries: int = 0) -> dict[str, Any]:
+    """One model call as a transcript entry. Never raises: a failure is a turn with ``ok`` false.
+
+    ``parse_retries`` asks again, once per count, when the reply is not valid JSON
+    (usually a reply cut off at max_tokens); the retry is told to be shorter and
+    both calls are charged.
+    """
 
     turn: dict[str, Any] = {"turn": role, "label": ROLE_LABELS[role], "provider": who.provider, "model": who.model, "ok": False, "error": None, "output": None, "usage": {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}}
     pin, pout = prices().get(who.model, FALLBACK_PRICE)
     estimate = ((len(system) + len(user)) / 1.2 * pin + max_out * pout) / 1_000_000
-    try:
-        budget.reserve(estimate)
-    except BudgetExceeded as exc:
-        turn["error"] = f"예산: {exc}"
-        turn["skipped"] = True
-        return turn
-    reply = None
-    for attempt in range(RETRIES + 1):
+    for parse_try in range(parse_retries + 1):
         try:
-            reply = who.call(system, user)
-            turn["error"] = None
-            break
-        except Exception as exc:  # noqa: BLE001 - a provider failure must not stop the note
-            turn["error"] = f"{exc.__class__.__name__}: {str(exc)[:200]}"
-            if attempt < RETRIES:
-                time.sleep(RETRY_DELAY)
-    if reply is None:
-        return turn
-    cost = cost_of(who.model, reply.input_tokens, reply.output_tokens)
-    budget.charge(cost)
-    turn["usage"] = {"input_tokens": reply.input_tokens, "output_tokens": reply.output_tokens, "cost_usd": cost}
-    parsed = parse_json(reply.text)
-    if parsed is None:
+            budget.reserve(estimate)
+        except BudgetExceeded as exc:
+            turn["error"] = f"예산: {exc}"
+            turn["skipped"] = True
+            return turn
+        reply = None
+        for attempt in range(RETRIES + 1):
+            try:
+                reply = who.call(system, user if parse_try == 0 else user + PARSE_RETRY_NOTE)
+                turn["error"] = None
+                break
+            except Exception as exc:  # noqa: BLE001 - a provider failure must not stop the note
+                turn["error"] = f"{exc.__class__.__name__}: {str(exc)[:200]}"
+                if attempt < RETRIES:
+                    time.sleep(RETRY_DELAY)
+        if reply is None:
+            return turn
+        cost = cost_of(who.model, reply.input_tokens, reply.output_tokens)
+        budget.charge(cost)
+        used = turn["usage"]
+        turn["usage"] = {
+            "input_tokens": used["input_tokens"] + reply.input_tokens,
+            "output_tokens": used["output_tokens"] + reply.output_tokens,
+            "cost_usd": round(used["cost_usd"] + cost, 6),
+        }
+        parsed = parse_json(reply.text)
+        if parsed is not None:
+            turn["ok"], turn["output"], turn["error"] = True, parsed, None
+            if parse_try:
+                turn["parse_retries_used"] = parse_try
+            return turn
         turn["error"] = "JSON으로 읽을 수 없는 응답"
         turn["raw"] = reply.text[:1500]
-        return turn
-    turn["ok"], turn["output"] = True, parsed
+        turn["raw_tokens"] = reply.output_tokens
     return turn
 
 
@@ -1001,6 +1080,8 @@ def run_debate(pack: Mapping[str, Any], people: Mapping[str, Participant], budge
 
     ids = pack_ids(pack)
     text = pack_text(pack)
+    has_journal = "journal_summary" in (pack.get("keys") or {})
+    draft_keys = DRAFT_KEYS + ((JOURNAL_KEY,) if has_journal else ())
     turns: list[dict[str, Any]] = []
     degraded: list[str] = []
     dropped: list[dict[str, Any]] = []
@@ -1014,11 +1095,11 @@ def run_debate(pack: Mapping[str, Any], people: Mapping[str, Participant], budge
         return sections
 
     # a. analyst draft
-    draft_turn = _turn("analyst_draft", people["analyst"], SYSTEM_COMMON, ANALYST_DRAFT.format(pack=text), budget)
+    draft_turn = _turn("analyst_draft", people["analyst"], SYSTEM_COMMON, ANALYST_DRAFT.format(pack=text) + (JOURNAL_DRAFT if has_journal else ""), budget, parse_retries=1)
     turns.append(draft_turn)
     if not draft_turn["ok"]:
         return {"ok": False, "turns": turns, "degraded": ["분석가 초안 실패"], "sections": {}, "hypotheses": [], "problems": [], "dropped": dropped}
-    draft = statements(draft_turn["output"], DRAFT_KEYS)
+    draft = statements(draft_turn["output"], draft_keys)
     draft_json = _compact_json(draft)
 
     # b. critic
@@ -1053,10 +1134,10 @@ def run_debate(pack: Mapping[str, Any], people: Mapping[str, Participant], budge
 
     # d. analyst final
     verification = _compact_json({"problems": problems, "overall": (verify_turn["output"] or {}).get("overall") if verify_turn["ok"] else "검증 생략"})
-    final_turn = _turn("analyst_final", people["analyst"], SYSTEM_COMMON, ANALYST_FINAL.format(pack=text, draft=draft_json, critique=_compact_json(critique), verification=verification), budget)
+    final_turn = _turn("analyst_final", people["analyst"], SYSTEM_COMMON, ANALYST_FINAL.format(pack=text, draft=draft_json, critique=_compact_json(critique), verification=verification) + (JOURNAL_FINAL if has_journal else ""), budget, parse_retries=1)
     turns.append(final_turn)
     if final_turn["ok"]:
-        sections = statements(final_turn["output"], DRAFT_KEYS + ("dissent",))
+        sections = statements(final_turn["output"], draft_keys + ("dissent",))
     else:
         degraded.append("최종 재작성 실패: 초안을 검증 지적만 반영해 사용")
         sections = _without_flagged(draft, problems)
@@ -1078,6 +1159,8 @@ def _without_flagged(sections: Mapping[str, list[dict[str, Any]]], problems: Seq
 def render_text(symbol: str, day: str, mode_line: str, sections: Mapping[str, list[dict[str, Any]]], hypotheses: Sequence[Mapping[str, Any]]) -> str:
     lines = [f"{symbol} AI 복기 노트 · {day} (KST)", mode_line, ""]
     for key, title in SECTIONS:
+        if key == JOURNAL_KEY and not sections.get(key):
+            continue                                  # only days with a recorded call have this section
         lines.append(f"■ {title}")
         if key == "hypotheses":
             lines.extend(f"- {h['id']} [{h['status']}] {h['text']}" for h in hypotheses) if hypotheses else lines.append("- 제안된 가설 없음")
@@ -1267,6 +1350,25 @@ def load_recent_bars(repo: Any, symbol: str, since: datetime) -> list[Bar]:
     return [b for b in (cached.bars if cached else ()) if b.timestamp >= since]
 
 
+BACKFILL_DAYS = 5          # a sync also fills notes the sync missed, for up to this many trading days
+BACKFILL_LOOKBACK = 10     # calendar days searched for those trading days
+
+
+def trading_review_days(bars: Sequence[Bar], now: datetime, *, count: int = BACKFILL_DAYS, lookback: int = BACKFILL_LOOKBACK, min_bars: int = MIN_WINDOW_BARS) -> list[date]:
+    """The newest ``count`` finished review days that traded, oldest first."""
+
+    first = latest_review_day(now)
+    found: list[date] = []
+    for back in range(lookback + 1):
+        day = first - timedelta(days=back)
+        start, end = window_for(day)
+        if sum(1 for bar in bars if start <= bar.timestamp < end) >= min_bars:
+            found.append(day)
+        if len(found) >= count:
+            break
+    return sorted(found)
+
+
 def run_review(
     symbol: str,
     *,
@@ -1278,17 +1380,84 @@ def run_review(
     max_usd: float | None = None,
     bars: Sequence[Bar] | None = None,
     signals: Sequence[Mapping[str, Any]] | None = None,
+    backfill_days: int = BACKFILL_DAYS,
 ) -> dict[str, Any]:
-    """Write today's note for one symbol if it does not exist yet. Idempotent and never raises on a provider."""
+    """Write the newest trading day's note if it does not exist, and fill earlier gaps.
+
+    With no ``day`` the last ``backfill_days`` trading days are visited oldest
+    first; a day that already has an ok note is left alone and the run stops
+    when the daily budget is spent. The returned dict is the newest day's
+    result plus ``backfill`` (one entry per earlier day visited). Idempotent;
+    never raises on a provider.
+    """
 
     now = now or datetime.now(timezone.utc)
+    if day is not None:
+        return _review_day(symbol, day, repo=repo, people=people, now=now, force=force, max_usd=max_usd, bars=bars, signals=signals)
+    if bars is None:
+        bars = load_recent_bars(repo, symbol, window_for(latest_review_day(now) - timedelta(days=BACKFILL_LOOKBACK))[0])
+    days = trading_review_days(bars, now, count=max(1, backfill_days))
+    if not days:
+        return {"status": "no_data", "symbol": symbol, "detail": "최근 거래일 구간에 봉이 없음"}
+    if signals is None:
+        from .ledger import open_ledger
+
+        signals = open_ledger(symbol, REVIEW_INTERVAL, repo=repo).all()
+    people = people or build_participants()
+    results: list[dict[str, Any]] = []
+    # Newest first: when the budget runs short it is an old gap that waits a
+    # day, never today's note.
+    for one in reversed(days):
+        outcome = _review_day(symbol, one, repo=repo, people=people, now=now, force=force and one == days[-1], max_usd=max_usd, bars=bars, signals=signals)
+        results.append(outcome)
+        if outcome["status"] == "budget":
+            break
+    newest = results[0]
+    earlier = [r for r in results if r.get("date") != newest["date"]]
+    if earlier:
+        parts = []
+        spent = lambda r: float(r.get("cost_usd") or 0) if r["status"] in ("ok", "failed") else 0.0  # noqa: E731 - "exists" carries an old note's cost
+        for r in earlier:
+            cost = f"(${spent(r):.2f})" if spent(r) else ""
+            parts.append(f"{r['date']}:{r['status']}{cost}")
+        newest = {**newest, "backfill": " ".join(parts), "total_cost_usd": round(sum(spent(r) for r in results), 6)}
+    return newest
+
+
+def load_journal(repo: Any, symbol: str, day: date, *, recent_days: int = DRIFT_DAYS) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """The user's graded calls inside the review window, and their 30-day totals. Empty when there are none or the table is missing."""
+
+    start, end = window_for(day)
+    try:
+        from .journal import graded_list
+
+        listed = graded_list(repo, symbol, since=end - timedelta(days=recent_days), until=end, limit=300, with_fresh=False)
+    except Exception:  # noqa: BLE001 - a journal problem never stops the note
+        return [], None
+    inside = [e for e in listed["entries"] if start <= datetime.fromisoformat(e["entry_ts"]) < end]
+    if not inside:
+        return [], None
+    stats = listed["stats"]
+    return sorted(inside, key=lambda e: e["entry_ts"]), {**stats, "total": stats["total"], "by_tag": stats["by_tag"], "days": recent_days}
+
+
+def _review_day(
+    symbol: str,
+    day: date,
+    *,
+    repo: Any,
+    people: Mapping[str, Participant] | None,
+    now: datetime,
+    force: bool,
+    max_usd: float | None,
+    bars: Sequence[Bar] | None,
+    signals: Sequence[Mapping[str, Any]] | None,
+) -> dict[str, Any]:
+    """One day's note. Idempotent and never raises on a provider."""
+
     run_day = now.astimezone(KST).date().isoformat()
     if bars is None:
-        bars = load_recent_bars(repo, symbol, window_for((day or latest_review_day(now)) - timedelta(days=0 if day else 6))[0])
-    if day is None:
-        day = pick_review_day(bars, now)
-        if day is None:
-            return {"status": "no_data", "symbol": symbol, "detail": "최근 거래일 구간에 봉이 없음"}
+        bars = load_recent_bars(repo, symbol, window_for(day)[0])
     existing = load_record(repo, symbol, day)
     attempts = int((existing or {}).get("attempts") or 0)
     if existing and not force:
@@ -1307,9 +1476,10 @@ def run_review(
         signals = open_ledger(symbol, REVIEW_INTERVAL, repo=repo).all()
     from .analogs import load_stored_analogs
 
+    journal_rows, journal_recent = load_journal(repo, symbol, day)
     pack = build_evidence(
         symbol, day, bars=bars, signals=signals, study=_study(repo, symbol, "5m"), study_1h=_study(repo, symbol, "1h"),
-        analogs=load_stored_analogs(repo, symbol, "5m"), now=now,
+        analogs=load_stored_analogs(repo, symbol, "5m"), now=now, journal=journal_rows, journal_recent=journal_recent,
     )
     people = people or build_participants()
     debate = run_debate(pack, people, budget)

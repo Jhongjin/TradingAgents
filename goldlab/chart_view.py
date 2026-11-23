@@ -136,6 +136,29 @@ svg.fan .fm { fill:none; stroke:var(--fg); stroke-width:2.4; }
 .turn .who { display:flex; gap:8px; flex-wrap:wrap; align-items:baseline; }
 .turn .tag { display:inline-block; padding:1px 7px; border-radius:6px; background:var(--soft); color:var(--muted); font-size:10.5px; font-weight:600; }
 .turn .bad { color:var(--down); }
+.jrn .kpis { margin-top:0; }
+.jrn form { margin:12px 0; padding:12px; border:1px solid var(--line); border-radius:12px; background:var(--soft); }
+.jrn .frow { display:flex; gap:8px 10px; flex-wrap:wrap; align-items:flex-end; margin-top:8px; }
+.jrn .frow:first-child { margin-top:0; }
+.jrn label { display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--muted); font-weight:600; }
+.jrn input[type=text], .jrn input[type=number], .jrn input[type=datetime-local], .jrn input[type=password], .jrn select {
+  font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--fg); min-width:0; }
+.jrn input.w-price { width:104px; } .jrn input.w-n { width:64px; } .jrn input.w-time { width:172px; } .jrn input.w-reason { width:100%; }
+.jrn .grow { flex:1 1 220px; }
+.jrn button.act { all:unset; box-sizing:border-box; cursor:pointer; padding:7px 14px; border-radius:9px; font-weight:700; font-size:12.5px; background:var(--fg); color:var(--card); }
+.jrn button.act.ghost { background:var(--card); color:var(--fg); border:1px solid var(--line); }
+.jrn button.act:focus-visible, .jrn .tog:focus-visible { outline:2px solid var(--gold); outline-offset:1px; }
+.jrn button.act[disabled] { opacity:.5; cursor:default; }
+.jrn .side button.on.long { background:var(--up-bg); color:var(--up); } .jrn .side button.on.short { background:var(--down-bg); color:var(--down); }
+.jrn .picks .tog.on { border-color:var(--gold); color:var(--gold-fg); }
+.jrn .msg { font-size:12px; min-height:16px; } .jrn .msg.err { color:var(--down); }
+.jrn tr.jr { cursor:pointer; } .jrn tr.jr:hover td { background:var(--soft); }
+.jrn tr.jd td { white-space:normal; background:var(--soft); }
+.jrn .jd .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:6px 18px; font-size:12px; line-height:1.6; }
+.jrn .tagchip { display:inline-block; padding:1px 7px; margin:0 3px 3px 0; border-radius:999px; background:var(--soft); font-size:10.5px; font-weight:600; color:var(--muted); }
+.jrn tr.jd .tagchip { background:var(--card); }
+.jrn .res.win { color:var(--up); font-weight:700; } .jrn .res.loss { color:var(--down); font-weight:700; }
+.jrn .lock { display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:center; }
 """
 
 VIEW_JS = r"""
@@ -252,6 +275,7 @@ function buildChart() {
   sessionPrim = makeSessionPrimitive();
   candle.attachPrimitive(sessionPrim);
   chart.subscribeCrosshairMove(onCrosshair);
+  chart.subscribeClick(onChartClick);
   if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 }
 
@@ -284,8 +308,10 @@ function drawOverlays(f) {
       list.push({ time: times[ev.index], position: 'aboveBar', shape: 'square', color: '#d4a017', size: 0.6, text: '★' });
     }
   }
+  for (const m of journalMarkers()) list.push(m);
   list.sort((a, b) => a.time - b.time);
   markers.setMarkers(list);
+  drawJournalLines();
 
   priceLines.forEach((line) => candle.removePriceLine(line)); priceLines = [];
   if (ST.show.forming) {
@@ -519,7 +545,7 @@ function renderAnalogs() {
 
 // ---------- AI review note (past-record review only: never advice) ----------
 const REVIEW_SOON = '<div class="soon">거래일 한국 시간 오전 7시 마감 뒤, 그날 기록한 신호가 어떻게 됐는지<br>세 AI가 토론해 쓴 복기 노트가 여기에 표시됩니다.</div>';
-const REVIEW_SECTIONS = [['summary', '오늘 장 요약'], ['signals', '신호와 결과 (맞음/틀림)'], ['context', '상황별로 본 것'], ['drift', '기록이 흔들리는 패턴'], ['watch', '내일 볼 것 (관찰 포인트만)'], ['dissent', '이견']];
+const REVIEW_SECTIONS = [['summary', '오늘 장 요약'], ['signals', '신호와 결과 (맞음/틀림)'], ['context', '상황별로 본 것'], ['drift', '기록이 흔들리는 패턴'], ['journal', '내 판단 복기'], ['watch', '내일 볼 것 (관찰 포인트만)'], ['dissent', '이견']];
 const arrows = (t) => esc(t).replace(/▲/g, '<b class="up">▲</b>').replace(/▼/g, '<b class="down">▼</b>');
 const money = (v) => (v == null ? '-' : '$' + Number(v).toFixed(3));
 
@@ -556,7 +582,7 @@ function renderReview() {
   sub.innerHTML = esc(r.date) + ' (KST) · ' + (r.mode === 'debate' ? '3자 토론' : '<b style="color:var(--down)">단독 작성</b>') + ' · ' + money((r.usage || {}).cost_usd);
   const secs = REVIEW_SECTIONS.map(([k, title]) => {
     const items = (r.sections || {})[k] || [];
-    if (k === 'dissent' && !items.length) return '';
+    if ((k === 'dissent' || k === 'journal') && !items.length) return '';
     return '<h4>' + esc(title) + '</h4>' + (items.length ? reviewItems(r, items) : '<div class="muted">근거가 확인된 내용이 없어 비웠습니다</div>');
   }).join('');
   const hyp = '<h4>검증할 가설</h4>' + ((r.hypotheses || []).length ? '<ul>' + r.hypotheses.map((h) => {
@@ -574,6 +600,300 @@ function renderReview() {
     + secs + hyp + debate + '<div class="foot">' + esc(r.footer) + '</div></div>';
 }
 
+// ---------- my own calls (private: every request carries the operator code) ----------
+const TOKEN_KEY = 'tradingagents.admin.worker_token';       // the admin console keeps the same code here
+const J = { entries: [], stats: null, tags: ['추세추종', '역추세', '돌파', '지표발표', '뉴스'], side: 'long', pick: null, chosen: new Set(), custom: [],
+            dirty: { price: false, time: false }, open: new Set(), lines: [], draft: [], state: 'lock', timer: null, busy: false };
+const jToken = () => { try { return (localStorage.getItem(TOKEN_KEY) || '').trim(); } catch (e) { return ''; } };
+const SIDE_KO = { long: '롱', short: '숏', flat: '관망' };
+const EXIT_KO = { manual: '직접 종료', stop: '스톱', target: '목표', horizon: '시간 종료', open: '진행 중' };
+const usd = (v) => (v == null ? '-' : (v < 0 ? '-$' : '+$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }));
+const rtxt = (v) => (v == null ? '' : (v > 0 ? '+' : '') + v.toFixed(2) + 'R');
+const kstInput = (d) => new Date(d).toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).replace(' ', 'T').slice(0, 16);
+const kstShort = (iso) => new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+const fromKstInput = (v) => new Date(v + ':00+09:00').toISOString();
+const pnlCls = (v) => (v > 0 ? 'up' : v < 0 ? 'down' : '');
+
+async function jfetch(method, path, body) {
+  const response = await fetch('/api/admin/lab/gold/journal' + (path || ''), {
+    method, cache: 'no-store',
+    headers: Object.assign({ 'X-TradingAgents-Worker-Token': jToken() }, body ? { 'Content-Type': 'application/json' } : {}),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let data = null; try { data = await response.json(); } catch (e) { data = null; }
+  if (!response.ok) { const err = new Error((data && data.detail) || ('HTTP ' + response.status)); err.status = response.status; throw err; }
+  return data;
+}
+
+function jMessage(text, bad) { const m = $('jmsg'); if (m) { m.textContent = text || ''; m.className = 'msg' + (bad ? ' err' : ''); } }
+
+function jSetState(state, note) {
+  J.state = state;
+  $('jlock').hidden = state === 'ready';
+  $('jbody').hidden = state !== 'ready';
+  $('jsub').textContent = state === 'ready' ? '내가 낸 판단을 기록하고 채점합니다 · 주문이 나가지 않습니다' : (note || '접근 코드를 입력하면 열립니다');
+  $('jlockmsg').textContent = note || '';
+}
+
+async function loadJournal() {
+  if (!jToken()) { jSetState('lock', ''); return; }
+  try {
+    const data = await jfetch('GET', '?limit=60');
+    J.entries = data.entries || []; J.stats = data.stats; if (data.tags) J.tags = data.tags;
+    jSetState('ready'); renderJournal(); renderJournalPrefill(); drawJournal();
+  } catch (error) {
+    if (error.status === 401 || error.status === 403) { jSetState('lock', '접근 코드가 맞지 않습니다'); return; }
+    if (error.status === 503) { jSetState('lock', '저장소가 아직 준비되지 않았습니다: ' + error.message); return; }
+    jSetState('lock', '불러오지 못했습니다: ' + error.message);
+  }
+  scheduleJournal();
+}
+
+function scheduleJournal() {
+  if (J.timer) clearInterval(J.timer);
+  J.timer = setInterval(() => { if (J.state === 'ready' && J.entries.some((e) => e.grade && e.grade.status === 'open' && e.side !== 'flat') && !J.busy) loadJournal().catch(() => {}); }, 60000);
+}
+
+function renderJournalPrefill() {
+  if (J.state !== 'ready') return;
+  const f = ST.frame; if (!f || !f.bars.length) return;
+  const last = f.bars[f.bars.length - 1];
+  if (!J.dirty.price && $('jprice')) $('jprice').value = last[4].toFixed(prec());
+  if (!J.dirty.time && $('jtime')) $('jtime').value = kstInput(Date.now());
+  const sc = symCfg(); if ($('jsym')) $('jsym').textContent = sc.label;
+}
+
+function renderTagChips() {
+  const all = J.tags.concat(J.custom);
+  $('jtags').innerHTML = all.map((t) => '<button type="button" class="tog' + (J.chosen.has(t) ? ' on' : '') + '" data-jtag="' + esc(t) + '" aria-pressed="' + J.chosen.has(t) + '"><i></i>' + esc(t) + '</button>').join('')
+    + '<input type="text" id="jnewtag" maxlength="12" placeholder="+ 태그" style="width:84px" aria-label="새 태그">';
+  document.querySelectorAll('[data-jtag]').forEach((b) => b.addEventListener('click', () => { const t = b.dataset.jtag; if (J.chosen.has(t)) J.chosen.delete(t); else if (J.chosen.size < 6) J.chosen.add(t); renderTagChips(); }));
+  const nt = $('jnewtag');
+  nt.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const t = nt.value.trim().slice(0, 12); if (t && !J.tags.includes(t) && !J.custom.includes(t)) J.custom.push(t); if (t && J.chosen.size < 6) J.chosen.add(t); renderTagChips(); $('jnewtag').focus(); } });
+}
+
+function statBox(label, value, sub, cls) { return '<div class="kpi"><div class="k">' + esc(label) + '</div><div class="v num ' + (cls || '') + '">' + value + '</div><div class="sub">' + esc(sub || '') + '</div></div>'; }
+
+function bucketRow(name, b) {
+  return '<tr><td>' + esc(name) + '</td><td class="num">' + b.n + '</td><td class="num">' + (b.hit_rate == null ? '-' : pct(b.hit_rate)) + '</td><td class="num ' + pnlCls(b.avg_r) + '">' + (b.avg_r == null ? '-' : rtxt(b.avg_r)) + '</td><td class="num ' + pnlCls(b.net_usd) + '">' + usd(b.net_usd) + '</td></tr>';
+}
+
+function renderJournalStats() {
+  const s = J.stats; if (!s) { $('jstats').innerHTML = ''; $('jtagtable').innerHTML = ''; return; }
+  const t = s.total;
+  $('jstats').innerHTML = statBox('종료한 판단', t.n + '건', '진행 중 ' + t.open + ' · 관망 ' + t.watch)
+    + statBox('적중률', t.hit_rate == null ? '-' : pct(t.hit_rate), t.n ? t.wins + '/' + t.n + '건 이익' : '아직 없음')
+    + statBox('평균 R', t.avg_r == null ? '-' : rtxt(t.avg_r), 'R = 비용 뺀 손익 / 스톱까지 위험 (' + t.r_n + '건)', pnlCls(t.avg_r))
+    + statBox('순손익 (비용 후)', usd(t.net_usd), '슬리피지 1틱 양쪽 + 수수료', pnlCls(t.net_usd));
+  const rows = [];
+  for (const [tag, b] of Object.entries(s.by_tag || {})) rows.push(bucketRow('# ' + tag, b));
+  const tr = { with: '추세 태그와 같은 방향', against: '추세 태그와 반대 방향', range: '추세 태그 횡보' };
+  for (const [k, b] of Object.entries(s.by_trend || {})) rows.push(bucketRow(tr[k], b));
+  const sg = { agree: '연구소 신호와 같은 쪽', against: '연구소 신호와 반대쪽', mixed: '연구소 신호 엇갈림', none: '직전 신호 없음' };
+  for (const [k, b] of Object.entries(s.by_signal || {})) rows.push(bucketRow(sg[k], b));
+  for (const [k, b] of Object.entries(s.by_side || {})) if (b.n) rows.push(bucketRow('방향 ' + SIDE_KO[k], b));
+  $('jtagtable').innerHTML = rows.length ? '<table><thead><tr><th>구분</th><th>건수</th><th>적중</th><th>평균 R</th><th>순손익</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>'
+    + (t.small_sample ? '<div class="warn">종료한 판단이 ' + (30) + '건 미만이라 비율은 우연일 수 있습니다. 표본이 쌓일 때까지 참고만 하세요.</div>' : '') : '<div class="muted">종료한 판단이 쌓이면 태그별·맥락별 성적이 여기에 표시됩니다.</div>';
+}
+
+function entryDetail(e) {
+  const g = e.grade || {}, lab = e.lab || {}, al = g.alignment || {};
+  const bits = [];
+  if (e.reason) bits.push('<div><b>이유</b> ' + esc(e.reason) + '</div>');
+  if (e.tags && e.tags.length) bits.push('<div>' + e.tags.map((t) => '<span class="tagchip">' + esc(t) + '</span>').join('') + '</div>');
+  const grade = [];
+  if (e.side === 'flat') {
+    if (g.bars_seen) grade.push('관망 뒤 ' + g.bars_seen + '봉: 변화 ' + fmt(g.move_points) + ' (' + (g.move_pct > 0 ? '+' : '') + g.move_pct + '%) · 위로 최대 ' + fmt(g.up_max_points) + ' · 아래로 최대 ' + fmt(g.down_max_points));
+  } else {
+    if (g.risk_points) grade.push('스톱까지 ' + fmt(g.risk_points) + ' (위험 ' + usd(g.risk_usd).replace('+', '') + ')');
+    grade.push('총손익 ' + usd(g.gross_usd) + ' · 비용 -$' + Math.abs(g.cost_usd || 0).toFixed(0) + ' · 순손익 <b class="' + pnlCls(g.net_usd) + '">' + usd(g.net_usd) + '</b>' + (g.r_net != null ? ' · <b class="' + pnlCls(g.r_net) + '">' + rtxt(g.r_net) + '</b>' : ''));
+    grade.push('보유 중 유리하게 최대 ' + fmt(g.mfe_points) + (g.mfe_r != null ? ' (' + g.mfe_r.toFixed(2) + 'R)' : '') + ' · 불리하게 최대 ' + fmt(g.mae_points) + (g.mae_r != null ? ' (' + g.mae_r.toFixed(2) + 'R)' : ''));
+    if (g.plan_first && g.plan_first !== 'none') grade.push('계획 기준으로는 ' + (g.plan_first === 'stop' ? '스톱' : '목표') + '에 먼저 닿음' + (g.plan_ambiguous ? ' (한 봉이 둘 다 닿아 스톱 처리)' : ''));
+    if (g.held_minutes != null) grade.push('보유 ' + (g.held_minutes >= 120 ? (g.held_minutes / 60).toFixed(1) + '시간' : g.held_minutes + '분'));
+  }
+  bits.push('<div class="grid2">' + grade.map((x) => '<div>' + x + '</div>').join('') + '</div>');
+  const ctx = lab.context, lines = [];
+  const CK = { session: { us: '미국장', europe: '유럽장', asia: '아시아장', off: '세션 밖' }, trend: { up: '상승 추세', down: '하락 추세', range: '횡보', unknown: '추세 불명' },
+               vol: { low: '변동성 낮음', mid: '변동성 보통', high: '변동성 높음', unknown: '변동성 불명' }, event: { near: '지표 발표 근처', far: '지표와 먼 시간' } };
+  if (ctx) lines.push('그 시각 맥락: ' + ['session', 'trend', 'vol', 'event'].map((k) => esc((CK[k] || {})[ctx[k]] || ctx[k])).join(' · '));
+  const c = lab.signal_counts || {};
+  if (lab.bar_before) lines.push('직전 1시간 연구소 신호: ▲ ' + (c.bullish || 0) + '건 · ▼ ' + (c.bearish || 0) + '건' + ((lab.signals || []).length ? ' (' + lab.signals.slice(0, 3).map((s) => esc(s.label)).join(', ') + ')' : ''));
+  const an = lab.analogs && lab.analogs.summary;
+  if (an) { const h = Object.keys(an).sort((a, b) => a - b)[0]; if (h && an[h]) lines.push('닮은 차트 ' + h + '봉 뒤 상승 비율 ' + pct(an[h].share_up)); }
+  const rel = { agree: '기록 방향이 연구소 신호와 같은 쪽', against: '기록 방향이 연구소 신호와 반대쪽', mixed: '연구소 신호가 엇갈림' }[al.signals];
+  const trel = { with: '추세 태그와 같은 방향', against: '추세 태그와 반대 방향', range: '추세 태그는 횡보' }[al.trend];
+  if (rel || trel) lines.push([rel, trel].filter(Boolean).join(' · '));
+  for (const flag of al.tag_flags || []) lines.push('<span class="down">' + esc(flag) + '</span>');
+  for (const n of (lab.notes || []).concat(g.notes || [])) lines.push('<span class="muted">' + esc(n) + '</span>');
+  if (lines.length) bits.push('<div class="muted" style="margin-top:6px"><b>연구소가 그 시각에 본 것</b> (진입 봉 이전 자료만)</div>' + lines.map((x) => '<div style="font-size:12px">' + x + '</div>').join(''));
+  const actions = '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+    + (e.side !== 'flat' && !e.exit_ts && g.status === 'open' ? '<span class="muted">직접 종료:</span><input type="number" step="any" class="w-price" data-jexit-price="' + esc(e.id) + '" placeholder="종료 가격"><button type="button" class="act ghost" data-jexit="' + esc(e.id) + '">종료 기록</button>' : '')
+    + (e.exit_ts && e.side !== 'flat' ? '<button type="button" class="act ghost" data-jreopen="' + esc(e.id) + '">종료 취소 (자동 채점으로)</button>' : '')
+    + '<button type="button" class="act ghost" data-jdel="' + esc(e.id) + '">삭제</button></div>';
+  return '<tr class="jd"><td colspan="5">' + bits.join('') + actions + '</td></tr>';
+}
+
+function renderJournal() {
+  renderJournalStats();
+  const rows = J.entries.map((e) => {
+    const g = e.grade || {}, sc = DATA.symbols.find((s) => s.key === e.symbol) || { label: e.symbol, precision: 1 };
+    const px = (v) => (v == null ? '-' : Number(v).toLocaleString('en-US', { minimumFractionDigits: sc.precision, maximumFractionDigits: sc.precision }));
+    const sideCls = e.side === 'long' ? 'up' : e.side === 'short' ? 'down' : '';
+    let result;
+    if (e.side === 'flat') result = '<span class="muted">관망' + (g.status === 'closed' && g.move_points != null ? ' · 이후 ' + (g.move_points > 0 ? '+' : '') + px(g.move_points) : ' · 진행 중') + '</span>';
+    else if (g.status === 'open') result = '<span class="muted">진행 중 </span><span class="' + pnlCls(g.net_usd) + '">' + usd(g.net_usd) + (g.r_net != null ? ' · ' + rtxt(g.r_net) : '') + '</span>';
+    else result = '<span class="res ' + g.result + '">' + usd(g.net_usd) + (g.r_net != null ? ' · ' + rtxt(g.r_net) : '') + '</span> <span class="muted">' + esc(EXIT_KO[g.exit_reason] || '') + '</span>';
+    const open = J.open.has(e.id);
+    return '<tr class="jr" data-jrow="' + esc(e.id) + '" tabindex="0" aria-expanded="' + open + '"><td class="muted num">' + esc(kstShort(e.entry_ts)) + '</td>'
+      + '<td><b class="' + sideCls + '">' + SIDE_KO[e.side] + '</b> <span class="muted">' + esc(sc.label.split(' ')[0]) + ' ×' + e.contracts + '</span></td>'
+      + '<td class="num">' + px(e.entry_price) + (g.exit_price != null && e.side !== 'flat' ? ' → ' + px(g.exit_price) : '') + '</td>'
+      + '<td class="num">' + result + '</td>'
+      + '<td>' + (e.tags || []).slice(0, 2).map((t) => '<span class="tagchip">' + esc(t) + '</span>').join('') + '</td></tr>' + (open ? entryDetail(e) : '');
+  });
+  $('jlist').innerHTML = rows.length ? '<div class="scroll"><table><thead><tr><th>시각 (KST)</th><th>판단</th><th>가격</th><th>결과 (비용 후)</th><th>태그</th></tr></thead><tbody>' + rows.join('') + '</tbody></table></div>'
+    : '<div class="soon">아직 기록한 판단이 없습니다.<br>위 입력칸에서 방향을 고르고 기록하면 여기에 쌓이고, 채점은 5분봉으로 자동입니다.</div>';
+  document.querySelectorAll('[data-jrow]').forEach((tr) => {
+    const toggle = () => { const id = tr.dataset.jrow; if (J.open.has(id)) J.open.delete(id); else J.open.add(id); renderJournal(); };
+    tr.addEventListener('click', toggle); tr.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
+  });
+  document.querySelectorAll('[data-jdel]').forEach((b) => b.addEventListener('click', () => journalDelete(b.dataset.jdel)));
+  document.querySelectorAll('[data-jexit]').forEach((b) => b.addEventListener('click', () => journalExit(b.dataset.jexit)));
+  document.querySelectorAll('[data-jreopen]').forEach((b) => b.addEventListener('click', () => journalPatch(b.dataset.jreopen, { exit_ts: null, exit_price: null }, '종료를 취소했습니다')));
+}
+
+async function journalPatch(id, body, done) {
+  if (J.busy) return; J.busy = true;
+  try { await jfetch('PATCH', '/' + encodeURIComponent(id), body); jMessage(done || '저장했습니다'); await loadJournal(); }
+  catch (error) { jMessage(error.message, true); }
+  finally { J.busy = false; }
+}
+function journalExit(id) {
+  const input = document.querySelector('[data-jexit-price="' + id + '"]');
+  const price = input && input.value;
+  if (!price) { jMessage('종료 가격을 입력하세요', true); return; }
+  journalPatch(id, { exit_ts: new Date().toISOString(), exit_price: price }, '종료를 기록했습니다');
+}
+async function journalDelete(id) {
+  if (!window.confirm('이 기록을 삭제할까요? 되돌릴 수 없습니다.')) return;
+  if (J.busy) return; J.busy = true;
+  try { await jfetch('DELETE', '/' + encodeURIComponent(id)); J.open.delete(id); jMessage('삭제했습니다'); await loadJournal(); }
+  catch (error) { jMessage(error.message, true); }
+  finally { J.busy = false; }
+}
+
+async function journalSubmit(ev) {
+  ev.preventDefault();
+  if (J.busy) return;
+  const body = { symbol: ST.symbol, interval: ST.interval, side: J.side, entry_price: $('jprice').value, entry_ts: fromKstInput($('jtime').value),
+                 stop: $('jstop').value || null, target: $('jtarget').value || null, contracts: $('jn').value || 1, reason: $('jreason').value,
+                 tags: Array.from(J.chosen), horizon_bars: $('jhorizon').value };
+  if (J.side === 'flat') { body.stop = null; body.target = null; }
+  J.busy = true; $('jgo').disabled = true; jMessage('저장하는 중');
+  try {
+    const out = await jfetch('POST', '', body);
+    J.open.add(out.entry.id);
+    $('jstop').value = ''; $('jtarget').value = ''; $('jreason').value = ''; J.chosen.clear(); J.dirty = { price: false, time: false }; setPick(null);
+    renderTagChips(); renderJournalPrefill(); drawDraft();
+    jMessage('기록했습니다 (연구소가 그 시각에 본 것도 함께 저장됨)'); J.busy = false; await loadJournal();
+  } catch (error) { jMessage(error.message, true); }
+  finally { J.busy = false; $('jgo').disabled = false; }
+}
+
+// ---- chart: click to set a price, draft lines, saved lines and markers ----
+function setPick(kind) {
+  J.pick = J.pick === kind ? null : kind;
+  document.querySelectorAll('[data-pick]').forEach((b) => { const on = b.dataset.pick === J.pick; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  const c = $('chart'); if (c) c.style.cursor = J.pick ? 'crosshair' : '';
+  jMessage(J.pick ? { entry: '차트에서 기록할 가격을 클릭하세요', stop: '차트에서 스톱 가격을 클릭하세요', target: '차트에서 목표 가격을 클릭하세요' }[J.pick] : '');
+}
+function onChartClick(param) {
+  if (!J.pick || J.state !== 'ready' || !param.point || !candle) return;
+  const raw = candle.coordinateToPrice(param.point.y); if (raw == null) return;
+  const price = raw.toFixed(prec());
+  if (J.pick === 'entry') {
+    $('jprice').value = price; J.dirty.price = true;
+    const f = ST.frame, lastT = times.length ? times[times.length - 1] : null;
+    if (param.time && lastT != null && param.time < lastT) { $('jtime').value = kstInput((param.time - KST_SHIFT) * 1000); J.dirty.time = true; }
+    else { $('jtime').value = kstInput(Date.now()); J.dirty.time = false; }
+  } else if (J.pick === 'stop') $('jstop').value = price; else $('jtarget').value = price;
+  setPick(null); drawDraft();
+}
+function lineOpts(price, colour, style, title) { return { price, color: colour, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title }; }
+function drawDraft() {
+  if (!candle) return;
+  J.draft.forEach((l) => candle.removePriceLine(l)); J.draft = [];
+  if (J.state !== 'ready' || J.side === 'flat') return;
+  const num = (id) => { const v = parseFloat($(id).value); return isFinite(v) && v > 0 ? v : null; };
+  const e = num('jprice'), s = num('jstop'), t = num('jtarget');
+  const col = J.side === 'long' ? css('--up') : css('--down');
+  if (e && (s || t)) J.draft.push(candle.createPriceLine(lineOpts(e, col, 1, '기록 가격 (미저장)')));
+  if (s) J.draft.push(candle.createPriceLine(lineOpts(s, css('--muted'), 3, '스톱 (미저장)')));
+  if (t) J.draft.push(candle.createPriceLine(lineOpts(t, css('--gold'), 3, '목표 (미저장)')));
+}
+function barTimeFor(sec) {
+  // the chart bar an instant falls in: the last bar that opened at or before it
+  let lo = 0, hi = times.length - 1, best = -1;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (times[mid] - KST_SHIFT <= sec) { best = mid; lo = mid + 1; } else hi = mid - 1; }
+  return best < 0 ? null : times[best];
+}
+function journalMarkers() {
+  const out = [], up = css('--up'), down = css('--down'), muted = css('--muted');
+  if (J.state !== 'ready') return out;
+  for (const e of J.entries) {
+    if (e.symbol !== ST.symbol) continue;
+    const g = e.grade || {}, t = barTimeFor(new Date(e.entry_ts).getTime() / 1000);
+    if (t == null) continue;
+    const win = g.result === 'win' ? up : g.result === 'loss' ? down : muted;
+    const tail = g.status === 'closed' && e.side !== 'flat' ? ' ' + (g.r_net != null ? rtxt(g.r_net) : usd(g.net_usd)) : '';
+    if (e.side === 'long') out.push({ time: t, position: 'belowBar', shape: 'arrowUp', color: up, size: 1.4, text: '롱' + tail });
+    else if (e.side === 'short') out.push({ time: t, position: 'aboveBar', shape: 'arrowDown', color: down, size: 1.4, text: '숏' + tail });
+    else out.push({ time: t, position: 'aboveBar', shape: 'circle', color: muted, size: 1, text: '관망' });
+    if (e.side !== 'flat' && g.status === 'closed' && g.exit_ts) {
+      const x = barTimeFor(new Date(g.exit_ts).getTime() / 1000);
+      if (x != null) out.push({ time: x, position: e.side === 'long' ? 'aboveBar' : 'belowBar', shape: 'circle', color: win, size: 0.9, text: EXIT_KO[g.exit_reason] });
+    }
+  }
+  return out;
+}
+function drawJournal() { if (ST.frame && chart) drawOverlays(ST.frame); }
+function drawJournalLines() {
+  if (!candle) return;
+  J.lines.forEach((l) => candle.removePriceLine(l)); J.lines = [];
+  if (J.state === 'ready') {
+    for (const e of J.entries) {
+      if (e.symbol !== ST.symbol || e.side === 'flat' || !e.grade || e.grade.status !== 'open') continue;
+      const col = e.side === 'long' ? css('--up') : css('--down'), name = SIDE_KO[e.side];
+      J.lines.push(candle.createPriceLine(lineOpts(e.entry_price, col, 0, name + ' 기록 ' + e.contracts + '계약')));
+      if (e.stop) J.lines.push(candle.createPriceLine(lineOpts(e.stop, css('--muted'), 2, name + ' 스톱')));
+      if (e.target) J.lines.push(candle.createPriceLine(lineOpts(e.target, css('--gold'), 2, name + ' 목표')));
+    }
+  }
+  drawDraft();
+}
+
+function initJournal() {
+  renderTagChips();
+  $('jsave').addEventListener('click', () => {
+    const v = $('jcode').value.trim(); if (!v) return;
+    try { localStorage.setItem(TOKEN_KEY, v); } catch (e) { $('jlockmsg').textContent = '이 브라우저는 코드를 저장하지 못합니다'; return; }
+    $('jcode').value = ''; loadJournal();
+  });
+  $('jcode').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('jsave').click(); } });
+  $('jforget').addEventListener('click', () => { try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignore */ } J.entries = []; J.stats = null; jSetState('lock', '접근 코드를 지웠습니다'); drawJournal(); });
+  document.querySelectorAll('[data-jside]').forEach((b) => b.addEventListener('click', () => {
+    J.side = b.dataset.jside;
+    document.querySelectorAll('[data-jside]').forEach((x) => x.classList.toggle('on', x === b));
+    document.querySelectorAll('[data-jside]').forEach((x) => { x.classList.remove('long', 'short'); }); b.classList.add(J.side === 'long' ? 'long' : J.side === 'short' ? 'short' : 'x');
+    const flat = J.side === 'flat'; $('jstop').disabled = flat; $('jtarget').disabled = flat; drawDraft();
+  }));
+  document.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => setPick(b.dataset.pick)));
+  $('jprice').addEventListener('input', () => { J.dirty.price = true; drawDraft(); });
+  $('jtime').addEventListener('input', () => { J.dirty.time = true; });
+  $('jstop').addEventListener('input', drawDraft); $('jtarget').addEventListener('input', drawDraft);
+  $('jform').addEventListener('submit', journalSubmit);
+  loadJournal();
+}
+
 function renderChrome() {
   const sc = symCfg();
   $('ctitle').textContent = sc.name + ' · ' + (DATA.interval_labels[ST.interval] || ST.interval);
@@ -583,7 +903,7 @@ function renderChrome() {
 }
 
 function renderAll() {
-  renderChrome(); renderHeader(); renderKpis(); renderVerdict(); renderForming(); renderLedger(); renderSignals(); renderLower(); renderAnalogs(); renderReview(); liveText();
+  renderChrome(); renderHeader(); renderKpis(); renderVerdict(); renderForming(); renderLedger(); renderSignals(); renderLower(); renderAnalogs(); renderReview(); renderJournalPrefill(); liveText();
 }
 
 // ---------- live status ----------
@@ -726,6 +1046,7 @@ function boot() {
     ST.lowerTab = b.dataset.lower; document.querySelectorAll('[data-lower]').forEach((x) => x.classList.toggle('on', x === b)); renderLower();
   }));
   document.addEventListener('visibilitychange', () => { if (!document.hidden && DATA.data_url) refreshFrame().catch(failed); });
+  if (DATA.data_url && $('jcard')) initJournal();
   load();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
@@ -795,6 +1116,43 @@ def render_page(
         ("sessions", "세션", "#d8a544", True),
         ("events", "경제지표", "#d4a017", True),
     ]
+    journal_card = (
+        '<div class="card jrn" id="jcard"><h3><span>내 판단 기록</span><small id="jsub">접근 코드를 입력하면 열립니다</small></h3>'
+        '<div id="jlock" class="soon"><div class="lock"><input type="password" id="jcode" autocomplete="off" placeholder="접근 코드" aria-label="접근 코드" style="width:180px">'
+        '<button type="button" class="act" id="jsave">열기</button></div>'
+        '<div class="muted" id="jlockmsg" style="margin-top:8px"></div>'
+        '<div class="muted" style="margin-top:6px">운영 토큰(관리 화면에서 쓰는 것과 같은 값)을 이 브라우저에만 저장합니다. 코드 없이는 기록을 쓰거나 읽을 수 없습니다.</div></div>'
+        '<div id="jbody" class="jrn-body" hidden>'
+        '<div class="kpis" id="jstats"></div>'
+        '<form id="jform" autocomplete="off">'
+        '<div class="frow"><span class="seg side" role="group" aria-label="방향">'
+        '<button type="button" class="on long" data-jside="long">롱</button><button type="button" data-jside="short">숏</button><button type="button" data-jside="flat">관망</button></span>'
+        '<span class="picks" style="display:flex;gap:6px;flex-wrap:wrap">'
+        '<button type="button" class="tog" data-pick="entry" aria-pressed="false"><i></i>차트에서 가격·시각</button>'
+        '<button type="button" class="tog" data-pick="stop" aria-pressed="false"><i></i>스톱 찍기</button>'
+        '<button type="button" class="tog" data-pick="target" aria-pressed="false"><i></i>목표 찍기</button></span>'
+        '<span class="muted">종목 <b id="jsym"></b> (위에서 고른 종목 기준)</span></div>'
+        '<div class="frow">'
+        '<label>기록 시각 (KST)<input type="datetime-local" id="jtime" class="w-time" required></label>'
+        '<label>기록 가격<input type="number" step="any" id="jprice" class="w-price" required></label>'
+        '<label>스톱<input type="number" step="any" id="jstop" class="w-price"></label>'
+        '<label>목표<input type="number" step="any" id="jtarget" class="w-price"></label>'
+        '<label>계약<input type="number" min="1" max="100" value="1" id="jn" class="w-n"></label>'
+        '<label>자동 종료<select id="jhorizon"><option value="72">6시간</option><option value="144" selected>12시간</option>'
+        '<option value="288">24시간</option><option value="864">3일</option></select></label></div>'
+        '<div class="frow"><label class="grow">이유 (한 줄)<input type="text" id="jreason" class="w-reason" maxlength="300" placeholder="왜 이 방향으로 판단했는지"></label></div>'
+        '<div class="frow"><span class="muted">태그</span><span id="jtags" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"></span></div>'
+        '<div class="frow"><button class="act" id="jgo" type="submit">판단 기록</button><span class="msg" id="jmsg" role="status"></span></div>'
+        '</form>'
+        '<div id="jlist"></div>'
+        '<details class="notes" style="margin-top:10px"><summary>태그·맥락별 성적</summary><div id="jtagtable" style="margin-top:8px"></div></details>'
+        '<div class="warn">종료 가격을 적지 않으면 스톱·목표·자동 종료 시간 중 먼저 오는 쪽으로 5분봉에서 자동 채점합니다. 한 봉이 스톱과 목표에 모두 닿으면 스톱으로 칩니다. '
+        '손익은 슬리피지 1틱(양쪽)과 수수료를 뺀 값이고, 연구소가 그 시각에 본 것은 진입 봉 이전 자료만 씁니다. 주문은 나가지 않습니다. '
+        '<button type="button" class="act ghost" id="jforget" style="padding:3px 9px;font-size:11px">이 브라우저의 접근 코드 지우기</button></div>'
+        '</div></div>'
+        if data_url
+        else ""
+    )
     toggle_html = "".join(
         f'<button type="button" class="tog{" on" if on else ""}" data-toggle="{key}" aria-pressed="{str(on).lower()}"><i style="color:{colour}"></i>{html.escape(label)}</button>'
         for key, label, colour, on in toggles
@@ -830,6 +1188,7 @@ def render_page(
         <div class="kpi"><div class="k">통계 방식</div><div class="v s" id="method">-</div><div class="sub" id="methodsub"></div></div>
       </div>
     </div>
+    {journal_card}
     <div class="card">
       <div class="head"><span>최근 신호</span>
         <span class="seg"><button type="button" class="on" data-scope="recent">최근 40봉</button><button type="button" data-scope="all">차트 전체</button></span></div>

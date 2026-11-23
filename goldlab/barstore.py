@@ -37,7 +37,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
-from .data import Bar, BarSeries, _parse_timestamp, fetch_bars, read_cache, write_cache
+from .data import Bar, BarSeries, _parse_timestamp, fetch_bars, read_cache, update_cache, write_cache
 
 # Bars at the end of the stored series whose values a new fetch may replace.
 REFRESH_TAIL = 6
@@ -128,10 +128,14 @@ def _count_sources(bars: Sequence[Bar]) -> dict[str, int]:
     return counts
 
 
-def load_history(symbol: str, interval: str, *, repo: Any = None) -> BarSeries | None:
-    """Everything stored for the series: the file cache and, if given, the database."""
+def load_history(symbol: str, interval: str, *, repo: Any = None, cached: BarSeries | None | bool = False) -> BarSeries | None:
+    """Everything stored for the series: the file cache and, if given, the database.
 
-    cached = read_cache(symbol, interval)
+    ``cached`` lets a caller that already read the file pass it in (None = no file).
+    """
+
+    if cached is False:
+        cached = read_cache(symbol, interval)
     bars: tuple[Bar, ...] = cached.bars if cached else ()
     if repo is not None:
         try:
@@ -189,7 +193,8 @@ def sync_bars(
     """Fetch the vendor's window and fold it into the stored history, file and database."""
 
     report = SyncReport(symbol=symbol, interval=interval)
-    history = load_history(symbol, interval, repo=repo)
+    file_series = read_cache(symbol, interval)
+    history = load_history(symbol, interval, repo=repo, cached=file_series)
     before = history.bars if history else ()
     fresh = on_grid(fetch(symbol, interval=interval))
     report.fetched = len(fresh.bars)
@@ -209,7 +214,8 @@ def sync_bars(
     report.last = merged[-1].timestamp.isoformat() if merged else None
     report.sources = _count_sources(merged)
 
-    write_cache(BarSeries(symbol=symbol, interval=interval, bars=merged))
+    # append to the file instead of rewriting hundreds of MB every two hours
+    update_cache(file_series.bars if file_series else (), BarSeries(symbol=symbol, interval=interval, bars=merged))
     if repo is not None:
         _persist(report, symbol, interval, merged, repo)
     return report

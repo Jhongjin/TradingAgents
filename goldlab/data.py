@@ -199,13 +199,65 @@ def _parse_timestamp(value: object) -> datetime | None:
 
 
 def write_cache(series: BarSeries) -> Path:
+    _rewrite(series)
+    return cache_path(series.symbol, series.interval)
+
+
+CACHE_TAIL_ROWS = 12   # rows at the end of the file that an update may rewrite (refresh tail is 6)
+
+
+def update_cache(file_bars: Sequence[Bar], merged: BarSeries) -> str:
+    """Bring the CSV to ``merged`` without rewriting a file of hundreds of MB.
+
+    ``file_bars`` is what the file holds now. When every bar except the last few
+    is unchanged, the file is cut back to those rows and the rest appended;
+    anything else (a gap filled in the middle, a vendor upgrade) falls back to a
+    full atomic rewrite. Returns "noop", "append" or "rewrite".
+    """
+
+    target = cache_path(merged.symbol, merged.interval)
+    have = len(file_bars)
+    keep = max(0, have - CACHE_TAIL_ROWS)
+    if not target.exists() or have == 0 or len(merged.bars) < keep or tuple(merged.bars[:keep]) != tuple(file_bars[:keep]):
+        _rewrite(merged)
+        return "rewrite"
+    if tuple(merged.bars) == tuple(file_bars):
+        return "noop"
+    drop = have - keep
+    try:
+        with target.open("r+b") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            block = min(size, 64 * 1024)
+            handle.seek(size - block)
+            lines = handle.read(block).splitlines(keepends=True)
+            tail = lines[-drop:] if drop else []
+            stamps = [(line.split(b",", 1)[0] or b"").decode("utf-8", "replace").strip() for line in tail]
+            expect = [bar.timestamp.isoformat() for bar in file_bars[keep:]]
+            if len(tail) != drop or stamps != expect or not lines[-1].endswith(b"\n"):
+                raise ValueError("file tail does not match the parsed series")
+            handle.truncate(size - sum(len(line) for line in tail))
+        with target.open("a", newline="", encoding="utf-8") as out:
+            writer = csv.writer(out)
+            for bar in merged.bars[keep:]:
+                writer.writerow([bar.timestamp.isoformat(), bar.open, bar.high, bar.low, bar.close, bar.volume, bar.source])
+        return "append"
+    except (OSError, ValueError):
+        _rewrite(merged)
+        return "rewrite"
+
+
+def _rewrite(series: BarSeries) -> None:
+    """Full rewrite through a temporary file so a crash never leaves half a store."""
+
     target = cache_path(series.symbol, series.interval)
-    with target.open("w", newline="", encoding="utf-8") as handle:
+    scratch = target.with_suffix(".csv.tmp")
+    with scratch.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(["timestamp", "open", "high", "low", "close", "volume", "source"])
         for bar in series.bars:
             writer.writerow([bar.timestamp.isoformat(), bar.open, bar.high, bar.low, bar.close, bar.volume, bar.source])
-    return target
+    os.replace(scratch, target)
 
 
 def read_cache(symbol: str, interval: str) -> BarSeries | None:

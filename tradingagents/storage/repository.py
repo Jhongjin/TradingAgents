@@ -41,6 +41,7 @@ from .tables import (
     backtest_runs,
     cached_payloads,
     goldlab_bars,
+    goldlab_journal,
     goldlab_metadata,
     goldlab_signals,
     member_preferences,
@@ -96,7 +97,28 @@ def create_storage_engine(database_url: str | None = None, *, echo: bool = False
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
         )
-    return create_engine(url, echo=echo, future=True)
+    return create_engine(url, echo=echo, future=True, **_socket_timeout_args(url))
+
+
+def _socket_timeout_args(url: str) -> dict:
+    """Opt-in socket timeout (STORAGE_DB_TIMEOUT_SECONDS) for unattended jobs.
+
+    Without it a stalled connection to the remote database blocks a scheduled
+    run forever (the goldlab sync hung this way). Unset, nothing changes.
+    """
+
+    raw = os.getenv("STORAGE_DB_TIMEOUT_SECONDS")
+    if not raw or url.startswith("sqlite"):
+        return {}
+    try:
+        seconds = int(float(raw))
+    except ValueError:
+        return {}
+    if seconds <= 0:
+        return {}
+    if "pg8000" in url:
+        return {"connect_args": {"timeout": seconds}}
+    return {"connect_args": {"connect_timeout": seconds}}
 
 
 def _normalize_storage_url(url: str) -> str:
@@ -1410,6 +1432,43 @@ class StorageRepository:
                 )
                 count += 1
         return count
+
+    # ------------------------------------------------------------------
+    # The operator's trade journal (private table, see tables.goldlab_journal).
+    # ------------------------------------------------------------------
+    def goldlab_journal_list(self, symbol: str | None = None, *, since: datetime | None = None, until: datetime | None = None, limit: int = 200) -> list[dict[str, Any]]:
+        """Entries newest first (by entry time); each is the stored payload with its id."""
+
+        stmt = select(goldlab_journal.c.entry_id, goldlab_journal.c.payload_json)
+        if symbol:
+            stmt = stmt.where(goldlab_journal.c.symbol == symbol)
+        if since is not None:
+            stmt = stmt.where(goldlab_journal.c.ts >= _utc(since))
+        if until is not None:
+            stmt = stmt.where(goldlab_journal.c.ts < _utc(until))
+        stmt = stmt.order_by(desc(goldlab_journal.c.ts)).limit(max(1, int(limit)))
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).all()
+        return [{**dict(payload or {}), "id": entry_id} for entry_id, payload in rows]
+
+    def goldlab_journal_get(self, entry_id: str) -> dict[str, Any] | None:
+        with self.engine.begin() as conn:
+            row = conn.execute(select(goldlab_journal.c.entry_id, goldlab_journal.c.payload_json).where(goldlab_journal.c.entry_id == entry_id)).first()
+        return {**dict(row[1] or {}), "id": row[0]} if row else None
+
+    def goldlab_journal_save(self, entry: Mapping[str, Any]) -> None:
+        """Insert the entry, or replace the stored one with the same id."""
+
+        payload = {key: value for key, value in entry.items() if key != "id"}
+        values = {"symbol": entry["symbol"], "ts": _utc(datetime.fromisoformat(str(entry["entry_ts"]))), "payload_json": payload, "updated_at": datetime.now(timezone.utc)}
+        with self.engine.begin() as conn:
+            hit = conn.execute(update(goldlab_journal).where(goldlab_journal.c.entry_id == entry["id"]).values(**values))
+            if not hit.rowcount:
+                conn.execute(insert(goldlab_journal).values(entry_id=entry["id"], **values))
+
+    def goldlab_journal_delete(self, entry_id: str) -> bool:
+        with self.engine.begin() as conn:
+            return bool(conn.execute(delete(goldlab_journal).where(goldlab_journal.c.entry_id == entry_id)).rowcount)
 
     def get_member_preferences(self, user_id: str) -> dict[str, Any] | None:
         """Display preferences for one member, or None when never saved."""
