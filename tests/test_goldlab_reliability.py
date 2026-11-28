@@ -223,3 +223,24 @@ def test_trading_review_days_skips_weekends_and_caps_the_count():
     now = datetime(2026, 11, 16, 1, 0, tzinfo=timezone.utc)
     got = R.trading_review_days(bars, now, count=3)
     assert got == sorted(got) and len(got) == 3 and got[-1] == date(2026, 11, 14)
+
+
+def test_a_budget_refusal_is_not_an_attempt_and_heals_an_old_gave_up(monkeypatch):
+    import test_goldlab_review as T
+
+    monkeypatch.setattr("goldlab.analogs.load_stored_analogs", lambda repo, s, i: None)
+    monkeypatch.setattr("goldlab.events.macro_events", lambda *a, **k: [])
+    day = date(2026, 11, 14)
+    bars = _day_bars(day)
+    repo = T._repo()
+    pack = T._pack(events=[], upcoming=[])
+    # a tiny budget refuses before any model is paid: no record, status budget
+    out = R.run_review("GC=F", repo=repo, people=T._people(pack, []), now=T.NOW, bars=bars, signals=[], day=day, max_usd=0.0001)
+    assert out["status"] == "budget" and R.load_record(repo, "GC=F", day) is None
+    # an old record from before the fix: two $0 budget refusals counted as attempts
+    stale = {"version": 1, "status": "failed", "symbol": "GC=F", "date": str(day), "run_day": "2026-11-14", "attempts": 2,
+             "generated_at": T.NOW.isoformat(), "usage": {"cost_usd": 0.0},
+             "debate": {"turns": [{"ok": False, "error": "예산: 예상 비용 0.099달러가 남은 예산 0.082달러를 넘습니다"}]}}
+    R.save_record(repo, stale)
+    again = R.run_review("GC=F", repo=repo, people=T._people(pack, []), now=T.NOW, bars=bars, signals=[], day=day)
+    assert again["status"] == "ok" and R.load_record(repo, "GC=F", day)["status"] == "ok"

@@ -1441,6 +1441,18 @@ def load_journal(repo: Any, symbol: str, day: date, *, recent_days: int = DRIFT_
     return sorted(inside, key=lambda e: e["entry_ts"]), {**stats, "total": stats["total"], "by_tag": stats["by_tag"], "days": recent_days}
 
 
+def _budget_refusal(record: Mapping[str, Any] | None) -> bool:
+    """A failed record where the budget stopped the run before any model was paid."""
+
+    if not record or record.get("status") != "failed":
+        return False
+    if float((record.get("usage") or {}).get("cost_usd") or 0) > 0:
+        return False
+    turns = (record.get("debate") or {}).get("turns") or []
+    errors = [str(t.get("error") or "") for t in turns if not t.get("ok")]
+    return bool(errors) and all(e.startswith("예산") for e in errors)
+
+
 def _review_day(
     symbol: str,
     day: date,
@@ -1459,7 +1471,9 @@ def _review_day(
     if bars is None:
         bars = load_recent_bars(repo, symbol, window_for(day)[0])
     existing = load_record(repo, symbol, day)
-    attempts = int((existing or {}).get("attempts") or 0)
+    # a refusal for budget before any model was called is not an attempt (11-27: NQ
+    # was refused twice at $0 because GC had spent the day, and then given up for good)
+    attempts = 0 if _budget_refusal(existing) else int((existing or {}).get("attempts") or 0)
     if existing and not force:
         if existing.get("status") == "ok":
             return {"status": "exists", "symbol": symbol, "date": str(day), "cost_usd": (existing.get("usage") or {}).get("cost_usd")}
@@ -1490,6 +1504,9 @@ def _review_day(
             "usage": {"cost_usd": round(sum(t["usage"]["cost_usd"] for t in debate["turns"]), 6), "input_tokens": sum(t["usage"]["input_tokens"] for t in debate["turns"]), "output_tokens": sum(t["usage"]["output_tokens"] for t in debate["turns"])},
             "evidence": {"items": pack["items"], "keys": pack["keys"], "bars": pack["bars"], "signals": pack["signals"]},
         }
+        if _budget_refusal(record):
+            # nothing was spent and nothing went wrong: try again on a day with budget left
+            return {"status": "budget", "symbol": symbol, "date": str(day), "spent_usd": budget.spent, "max_usd": budget.max_usd, "error": debate["turns"][-1].get("error")}
         # A failed rerun must never replace a note that was written: on 11-16
         # a --force run that hit the daily budget overwrote GC's good note.
         if not (existing and existing.get("status") == "ok"):
