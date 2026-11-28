@@ -9,6 +9,7 @@ rate limit cannot change an answer halfway through.
 from __future__ import annotations
 
 import csv
+import io
 import os
 import tempfile
 from dataclasses import dataclass
@@ -206,21 +207,36 @@ def write_cache(series: BarSeries) -> Path:
 CACHE_TAIL_ROWS = 12   # rows at the end of the file that an update may rewrite (refresh tail is 6)
 
 
-def update_cache(file_bars: Sequence[Bar], merged: BarSeries) -> str:
+def update_cache(file_bars: Sequence[Bar], merged: BarSeries, *, head_bytes: int | None = None) -> str:
     """Bring the CSV to ``merged`` without rewriting a file of hundreds of MB.
 
     ``file_bars`` is what the file holds now. When every bar except the last few
     is unchanged, the file is cut back to those rows and the rest appended;
     anything else (a gap filled in the middle, a vendor upgrade) falls back to a
     full atomic rewrite. Returns "noop", "append" or "rewrite".
+
+    ``head_bytes`` set: ``file_bars`` and ``merged`` are only the file's tail (see
+    ``read_cache_tail``), which starts at that byte. A rewrite then keeps the
+    first ``head_bytes`` as they are and replaces only what follows.
     """
 
     target = cache_path(merged.symbol, merged.interval)
     have = len(file_bars)
     keep = max(0, have - CACHE_TAIL_ROWS)
-    if not target.exists() or have == 0 or len(merged.bars) < keep or tuple(merged.bars[:keep]) != tuple(file_bars[:keep]):
-        _rewrite(merged)
+
+    def rewrite() -> str:
+        if head_bytes is None:
+            _rewrite(merged)
+        else:
+            _splice(merged, head_bytes)
         return "rewrite"
+
+    if not target.exists():
+        if head_bytes:
+            raise ValueError("a tail update needs the file it was read from")
+        return rewrite()
+    if have == 0 or len(merged.bars) < keep or tuple(merged.bars[:keep]) != tuple(file_bars[:keep]):
+        return rewrite()
     if tuple(merged.bars) == tuple(file_bars):
         return "noop"
     drop = have - keep
@@ -243,8 +259,113 @@ def update_cache(file_bars: Sequence[Bar], merged: BarSeries) -> str:
                 writer.writerow([bar.timestamp.isoformat(), bar.open, bar.high, bar.low, bar.close, bar.volume, bar.source])
         return "append"
     except (OSError, ValueError):
-        _rewrite(merged)
-        return "rewrite"
+        return rewrite()
+
+
+def _row_bytes(bar: Bar) -> bytes:
+    out = io.StringIO()
+    csv.writer(out).writerow([bar.timestamp.isoformat(), bar.open, bar.high, bar.low, bar.close, bar.volume, bar.source])
+    return out.getvalue().encode("utf-8")
+
+
+def _splice(series: BarSeries, head_bytes: int) -> None:
+    """Keep the file's first ``head_bytes`` and replace the rest with ``series``, atomically."""
+
+    target = cache_path(series.symbol, series.interval)
+    scratch = target.with_suffix(".csv.tmp")
+    with target.open("rb") as source, scratch.open("wb") as handle:
+        left = head_bytes
+        while left > 0:
+            chunk = source.read(min(left, 1 << 20))
+            if not chunk:
+                raise ValueError("the file is shorter than the head it was read with")
+            handle.write(chunk)
+            left -= len(chunk)
+        for bar in series.bars:
+            handle.write(_row_bytes(bar))
+    os.replace(scratch, target)
+
+
+def _parse_row(line: bytes) -> Bar | None:
+    parts = line.decode("utf-8", "replace").strip().split(",")
+    if len(parts) < 5:
+        return None
+    stamp = _parse_timestamp(parts[0])
+    if stamp is None:
+        return None
+    try:
+        return Bar(
+            timestamp=stamp,
+            open=float(parts[1]),
+            high=float(parts[2]),
+            low=float(parts[3]),
+            close=float(parts[4]),
+            volume=float(parts[5] or 0.0) if len(parts) > 5 else 0.0,
+            source=(parts[6].strip() if len(parts) > 6 and parts[6].strip() else "yahoo"),
+        )
+    except ValueError:
+        return None
+
+
+def read_cache_tail(
+    symbol: str, interval: str, *, since: datetime | None = None, rows: int | None = None
+) -> tuple[BarSeries | None, int]:
+    """The end of the CSV without reading the whole file: (bars, byte offset where they start).
+
+    Reads backwards until it holds every bar at or after ``since`` and at least
+    ``rows`` bars (whichever reaches further back), or the file's start. Always
+    returns at least the last bar, so a caller can still see a gap. The offset
+    lets ``update_cache(head_bytes=...)`` rewrite the tail and keep the rest.
+    Returns (None, 0) when there is no usable file.
+    """
+
+    source = cache_path(symbol, interval)
+    if not source.exists():
+        return None, 0
+    want_rows = max(1, rows or 0)
+    block = 256 * 1024
+    try:
+        with source.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            position = size
+            buffer = b""
+            while True:
+                step = min(block, position)
+                position -= step
+                handle.seek(position)
+                buffer = handle.read(step) + buffer
+                at_start = position == 0
+                # the first line of the buffer may be cut, unless the buffer starts the file
+                cut = 0 if at_start else buffer.find(b"\n") + 1
+                if not at_start and cut == 0:
+                    block *= 2
+                    continue
+                lines = buffer[cut:].splitlines(keepends=True)
+                parsed = [(line, _parse_row(line)) for line in lines]
+                bars = [bar for _line, bar in parsed if bar is not None]
+                enough = len(bars) >= want_rows and (since is None or (bars and bars[0].timestamp < since))
+                if enough or at_start:
+                    break
+                block = min(block * 2, 8 << 20)
+    except OSError:
+        return None, 0
+    usable = [i for i, (_line, bar) in enumerate(parsed) if bar is not None]
+    if not usable:
+        return None, size
+    # start at whichever reaches further back: the rows wanted or the first bar at/after since
+    from_rows = usable[max(0, len(usable) - want_rows)]
+    if since is None:
+        first = from_rows
+    else:
+        from_since = next((i for i in usable if parsed[i][1].timestamp >= since), usable[-1])
+        first = min(from_rows, from_since) if rows else from_since
+    head = position + cut + sum(len(line) for line, _bar in parsed[:first])
+    tail = tuple(bar for _line, bar in parsed[first:] if bar is not None)
+    # only a strictly ordered tail of real rows can be spliced back
+    if any(line and _bar is None and line.strip() for line, _bar in parsed[first:]):
+        return None, 0
+    return (BarSeries(symbol=symbol, interval=interval, bars=tail) if tail else None), head
 
 
 def _rewrite(series: BarSeries) -> None:

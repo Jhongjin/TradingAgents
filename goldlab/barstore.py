@@ -37,7 +37,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
-from .data import Bar, BarSeries, _parse_timestamp, fetch_bars, read_cache, update_cache, write_cache
+from .data import Bar, BarSeries, _parse_timestamp, fetch_bars, read_cache, read_cache_tail, update_cache, write_cache
 
 # Bars at the end of the stored series whose values a new fetch may replace.
 REFRESH_TAIL = 6
@@ -45,6 +45,12 @@ REFRESH_TAIL = 6
 # Three days spans a weekend plus a holiday on a market that closes for both.
 GAP_DAYS = 3.0
 INTRADAY = {"1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h"}
+# A routine sync reads only the end of the stored history: everything from a few
+# days before the vendor's first bar, and never fewer than this many bars. The
+# ten-year 5m file (770k rows) and its database copy took 13 s and 17 s to read in
+# full, twice per sync, and minutes on a busy machine (11-26/27 timeouts).
+TAIL_MARGIN_DAYS = 3
+TAIL_MIN_ROWS = 500
 # Intervals whose bars open on a fixed grid, in seconds. Yahoo ends its answer
 # with a pseudo-bar stamped at the quote's own second (09:22:43), which is not a
 # bar and must never be stored: history is never deleted, so a stray would stay.
@@ -107,6 +113,7 @@ class SyncReport:
     db: str = "off"            # off | ok | unavailable
     db_inserted: int = 0
     db_updated: int = 0
+    tail_only: bool = False    # True: only the end of the history was read; total/first count that part
     sources: dict[str, int] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
@@ -128,10 +135,19 @@ def _count_sources(bars: Sequence[Bar]) -> dict[str, int]:
     return counts
 
 
-def load_history(symbol: str, interval: str, *, repo: Any = None, cached: BarSeries | None | bool = False) -> BarSeries | None:
-    """Everything stored for the series: the file cache and, if given, the database.
+def load_history(
+    symbol: str,
+    interval: str,
+    *,
+    repo: Any = None,
+    cached: BarSeries | None | bool = False,
+    since: datetime | None = None,
+) -> BarSeries | None:
+    """What is stored for the series: the file cache and, if given, the database.
 
     ``cached`` lets a caller that already read the file pass it in (None = no file).
+    ``since`` limits the database read to bars at or after it; the caller makes
+    sure ``cached`` covers the same span.
     """
 
     if cached is False:
@@ -139,12 +155,13 @@ def load_history(symbol: str, interval: str, *, repo: Any = None, cached: BarSer
     bars: tuple[Bar, ...] = cached.bars if cached else ()
     if repo is not None:
         try:
+            rows = repo.goldlab_load_bars(symbol, interval, since=since) if since is not None else repo.goldlab_load_bars(symbol, interval)
             stored = [
                 Bar(
                     timestamp=row["ts"], open=row["open"], high=row["high"], low=row["low"], close=row["close"],
                     volume=row["volume"], source=row.get("source") or "yahoo",
                 )
-                for row in repo.goldlab_load_bars(symbol, interval)
+                for row in rows
             ]
         except Exception:
             stored = []
@@ -152,6 +169,22 @@ def load_history(symbol: str, interval: str, *, repo: Any = None, cached: BarSer
             # one history: the database is the durable copy, so it wins a tie
             bars = merge_bars(stored, bars, refresh_tail=0)
     return BarSeries(symbol=symbol, interval=interval, bars=bars) if bars else None
+
+
+def load_recent(
+    symbol: str, interval: str, *, repo: Any = None, rows: int | None = None, since: datetime | None = None
+) -> BarSeries | None:
+    """The end of the stored history (file tail plus the same span of the database).
+
+    At least ``rows`` bars and every bar from ``since`` on. Falls back to the whole
+    file when its tail can not be read on its own.
+    """
+
+    tail, _head = read_cache_tail(symbol, interval, since=since, rows=rows)
+    if tail is None:
+        return load_history(symbol, interval, repo=repo)
+    start = tail.bars[0].timestamp if since is None else min(tail.bars[0].timestamp, since)
+    return load_history(symbol, interval, repo=repo, cached=tail, since=start)
 
 
 def merge_into_cache(series: BarSeries, *, refresh_tail: int = REFRESH_TAIL) -> tuple[BarSeries, int]:
@@ -165,11 +198,12 @@ def merge_into_cache(series: BarSeries, *, refresh_tail: int = REFRESH_TAIL) -> 
     return merged, len(merged.bars) - len(before)
 
 
-def _persist(report: SyncReport, symbol: str, interval: str, merged: Sequence[Bar], repo: Any) -> None:
+def _persist(report: SyncReport, symbol: str, interval: str, merged: Sequence[Bar], repo: Any, *, since: datetime | None = None) -> None:
     """Write what differs from the database; a missing table leaves the file copy standing."""
 
     try:
-        stored = {row["ts"]: (row["open"], row["high"], row["low"], row["close"], row["volume"], row.get("source") or "yahoo") for row in repo.goldlab_load_bars(symbol, interval)}
+        rows = repo.goldlab_load_bars(symbol, interval, since=since) if since is not None else repo.goldlab_load_bars(symbol, interval)
+        stored = {row["ts"]: (row["open"], row["high"], row["low"], row["close"], row["volume"], row.get("source") or "yahoo") for row in rows}
         # merge_bars already kept every stored value except the refresh tail and
         # vendor upgrades, so what differs from the database is exactly those
         changed = [bar for bar in merged if stored.get(bar.timestamp) != _values(bar)]
@@ -193,11 +227,21 @@ def sync_bars(
     """Fetch the vendor's window and fold it into the stored history, file and database."""
 
     report = SyncReport(symbol=symbol, interval=interval)
-    file_series = read_cache(symbol, interval)
-    history = load_history(symbol, interval, repo=repo, cached=file_series)
-    before = history.bars if history else ()
     fresh = on_grid(fetch(symbol, interval=interval))
     report.fetched = len(fresh.bars)
+
+    # only the end of the history can change, so only the end is read and written
+    want_since = fresh.bars[0].timestamp - timedelta(days=TAIL_MARGIN_DAYS) if fresh.bars else None
+    file_series, head = read_cache_tail(symbol, interval, since=want_since, rows=TAIL_MIN_ROWS)
+    db_since: datetime | None = None
+    if file_series is None and head == 0:
+        file_series, head = read_cache(symbol, interval), None      # no file, or a tail that can not stand alone
+    else:
+        report.tail_only = head > 0
+        starts = [stamp for stamp in (want_since, file_series.bars[0].timestamp if file_series else None) if stamp is not None]
+        db_since = min(starts) if starts and head > 0 else None
+    history = load_history(symbol, interval, repo=repo, cached=file_series, since=db_since)
+    before = history.bars if history else ()
 
     if before and fresh.bars and interval in INTRADAY:
         hole = fresh.bars[0].timestamp - before[-1].timestamp
@@ -215,9 +259,9 @@ def sync_bars(
     report.sources = _count_sources(merged)
 
     # append to the file instead of rewriting hundreds of MB every two hours
-    update_cache(file_series.bars if file_series else (), BarSeries(symbol=symbol, interval=interval, bars=merged))
+    update_cache(file_series.bars if file_series else (), BarSeries(symbol=symbol, interval=interval, bars=merged), head_bytes=head if report.tail_only else None)
     if repo is not None:
-        _persist(report, symbol, interval, merged, repo)
+        _persist(report, symbol, interval, merged, repo, since=db_since)
     return report
 
 

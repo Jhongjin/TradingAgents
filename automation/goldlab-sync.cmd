@@ -13,8 +13,8 @@ rem The steps live in goldlab_sync.py: each runs as its own subprocess with a
 rem timeout (the whole process tree is killed), failures are logged and skipped,
 rem and a lock file lets a new run replace one that hung (see that file).
 rem
-rem Register (every 2 hours, every day):
-rem   schtasks /create /tn "AgentTrust goldlab sync" /tr "D:\Codex\TradingAgents\automation\goldlab-sync.cmd" /sc hourly /mo 2 /st 00:10 /f
+rem Register (every 6 hours since 2026-11-28, every day):
+rem   schtasks /create /tn "AgentTrust goldlab sync" /tr "D:\Codex\TradingAgents\automation\goldlab-sync.cmd" /sc hourly /mo 6 /st 00:10 /f
 
 setlocal
 set REPO=D:\Codex\TradingAgents

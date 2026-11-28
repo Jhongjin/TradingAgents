@@ -53,13 +53,24 @@ def open_repo(db: bool):
     return StorageRepository(create_storage_engine())
 
 
-def history(symbol: str, interval: str, repo):
-    """Stored history (file and database) when there is any, else the cached or fetched bars."""
+def history(symbol: str, interval: str, repo, *, rows: int | None = None, since=None):
+    """Stored history (file and database) when there is any, else the cached or fetched bars.
 
-    from .barstore import load_history
+    ``rows``/``since`` set: only the end of it (see ``barstore.load_recent``).
+    """
 
-    stored = load_history(symbol, interval, repo=repo)
+    from .barstore import load_history, load_recent
+
+    if rows is not None or since is not None:
+        stored = load_recent(symbol, interval, repo=repo, rows=rows, since=since)
+    else:
+        stored = load_history(symbol, interval, repo=repo)
     return stored if stored and len(stored) else load_bars(symbol, interval=interval)
+
+
+# Bars a live scan needs behind the bars it judges: the detector window (240),
+# the volatility rank (500 + 20) and the slow trend (200), with room to spare.
+SCAN_CONTEXT_ROWS = 1500
 
 
 def walkforward_study(series, symbol, interval, horizons, min_occurrences, window, repo, output) -> None:
@@ -120,7 +131,7 @@ def bars_sync_command(
         report = sync_bars(symbol, interval, repo=repo)
         console.print(
             f"[green]{symbol} {interval}[/green] 받은 {report.fetched} · 추가 {report.added} · 갱신 {report.refreshed} · "
-            f"전체 {report.total} ({(report.first or '')[:10]} → {(report.last or '')[:16]}) · DB {report.db}"
+            f"{'최근 구간' if report.tail_only else '전체'} {report.total} ({(report.first or '')[:10]} → {(report.last or '')[:16]}) · DB {report.db}"
         )
         for note in report.notes:
             console.print(f"[yellow]{note}[/yellow]")
@@ -159,7 +170,7 @@ def ledger_scan_command(
     from .ledger import open_ledger, scan_into_ledger
 
     repo = open_repo(db)
-    series = history(symbol, interval, repo)
+    series = history(symbol, interval, repo) if backfill else history(symbol, interval, repo, rows=last + SCAN_CONTEXT_ROWS)
     study = load_study(symbol, interval)
     if repo is not None and not study:
         from tradingagents.site.gold_page import load_stored_study
@@ -178,10 +189,20 @@ def ledger_grade_command(
 ):
     """Fill in the grades whose horizon has finished. Existing grades are never touched."""
 
+    from datetime import datetime, timedelta
+
     from .ledger import grade_ledger, open_ledger
 
     repo = open_repo(db)
-    result = grade_ledger(history(symbol, interval, repo), open_ledger(symbol, interval, repo=repo), horizons=parse_horizons(horizons))
+    store = open_ledger(symbol, interval, repo=repo)
+    pending = store.pending()
+    if not pending:
+        console.print(f"[green]{symbol} {interval}[/green] 대기 0건 중 채점 0건")
+        return
+    # grading needs the bars from the oldest open signal on, not ten years of them
+    oldest = min(datetime.fromisoformat(s["ts"]) for s in pending)
+    series = history(symbol, interval, repo, rows=200, since=oldest - timedelta(days=1))
+    result = grade_ledger(series, store, horizons=parse_horizons(horizons))
     console.print(f"[green]{symbol} {interval}[/green] 대기 {result['pending']}건 중 채점 {result['graded']}건")
 
 
