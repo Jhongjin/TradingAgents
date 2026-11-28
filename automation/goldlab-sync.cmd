@@ -27,5 +27,8 @@ if not defined GOLDLAB_REVIEW_MAX_USD set GOLDLAB_REVIEW_MAX_USD=0.60
 
 cd /d "%REPO%" || exit /b 1
 if not exist "%REPO%\logs" mkdir "%REPO%\logs"
-"%PYTHON%" "%REPO%\automation\goldlab_sync.py" --symbols "GC=F,NQ=F"
+rem Output goes to a file, never to the console window. A click inside that window
+rem (QuickEdit selection) pauses console writes, and the 11-27 22:36 run froze on a
+rem print for 14 hours; the task then skipped every trigger because it was "running".
+"%PYTHON%" "%REPO%\automation\goldlab_sync.py" --symbols "GC=F,NQ=F" >> "%REPO%\logs\goldlab-sync-console.log" 2>&1
 exit /b 0
